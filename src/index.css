@@ -1,0 +1,82 @@
+:root {
+  --bg: #0a0612;
+  --bg-2: #140a22;
+  --fg: #e8d9ff;
+  --fg-dim: #8a7bb0;
+  --accent: #d4a64a;
+  --accent-2: #c33b6e;
+
+  font-family: 'Courier New', ui-monospace, SFMono-Regular, Menlo, Monaco, monospace;
+  font-size: 16px;
+  line-height: 1.5;
+  color-scheme: dark;
+  color: var(--fg);
+  background: var(--bg);
+
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html, body, #root {
+  margin: 0;
+  padding: 0;
+  min-height: 100vh;
+  background: radial-gradient(ellipse at top, var(--bg-2) 0%, var(--bg) 70%);
+}
+
+.app {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+  text-align: center;
+}
+
+.app__header {
+  margin-bottom: 2rem;
+}
+
+.app__title {
+  font-size: 3rem;
+  letter-spacing: 0.2em;
+  margin: 0;
+  color: var(--accent);
+  text-shadow: 0 0 20px rgba(212, 166, 74, 0.3);
+}
+
+.app__subtitle {
+  margin: 0.5rem 0 0;
+  color: var(--fg-dim);
+  letter-spacing: 0.3em;
+  text-transform: lowercase;
+  font-size: 0.9rem;
+}
+
+.app__main {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.5rem;
+}
+
+.app__ascii {
+  margin: 0;
+  color: var(--fg);
+  white-space: pre;
+  font-size: 1rem;
+  line-height: 1.1;
+}
+
+.app__status {
+  color: var(--fg-dim);
+  font-size: 0.85rem;
+  margin: 0;
+}
