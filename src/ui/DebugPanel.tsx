@@ -1,7 +1,7 @@
-import type { InterviewState } from '../pipeline';
+import type { EngineState } from '../pipeline';
 
 type Props = {
-  state: InterviewState;
+  state: EngineState;
   onClose: () => void;
 };
 
@@ -10,9 +10,7 @@ type Props = {
  * Clean monospace terminal-style text. Left-aligned. No cards or chips.
  */
 export function DebugPanel({ state, onClose }: Props) {
-  const a = state.last_analysis;
-  const p = state.partial_profile;
-  const ns = state.negative_space ?? [];
+  const p = state.profile;
 
   return (
     <aside className="debug-pane" role="complementary" aria-label="cognition state">
@@ -22,109 +20,110 @@ export function DebugPanel({ state, onClose }: Props) {
       </header>
 
       <div className="debug-pane__scroll">
-        {a && (
-          <Block label="last_analysis">
-            <Line k="stance" v={a.stance} />
-            <Line k="register" v={a.register_read} />
-            {a.absent_domains && a.absent_domains.length > 0 && (
-              <Line k="absent" v={a.absent_domains.join(', ')} />
-            )}
-            {a.verbal_tells && a.verbal_tells.length > 0 && (
-              <BlockList label="tells" items={a.verbal_tells} />
-            )}
-          </Block>
-        )}
+        <Block label={`brief (v${p.version})`}>
+          <div className="debug-pane__line-val">{p.brief || '—'}</div>
+        </Block>
 
-        <Block label={`negative_space [${ns.length}]`}>
-          {ns.length === 0 ? (
-            <Empty />
-          ) : ns.map((g, i) => (
-            <div key={i} className="debug-pane__entry">
-              <div className="debug-pane__entry-line">
-                <span className="debug-pane__tag">{g.status[0]}</span>
-                <span className="debug-pane__conf">{Math.round(g.confidence * 100).toString().padStart(2, '0')}%</span>
-                <span>{g.guess}</span>
-              </div>
-              {g.rationale && (
-                <div className="debug-pane__entry-sub">// {g.rationale}</div>
-              )}
+        <Block label={`highlights [${p.highlights.length}]`}>
+          {p.highlights.length === 0 ? <Empty /> : p.highlights.map((h) => (
+            <div key={h.id} className="debug-pane__entry-line">
+              <span className="debug-pane__tag">{h.salience[0]?.toUpperCase()}</span>
+              <span className="debug-pane__conf">ttl{h.ttl}</span>
+              <span>{h.topic}</span>
             </div>
           ))}
         </Block>
 
-        <Block label={`suggestions [${(state.suggested_answers ?? []).length}]`}>
-          {(state.suggested_answers ?? []).length === 0 ? (
-            <Empty />
-          ) : (state.suggested_answers ?? []).map((s, i) => (
-            <div key={i} className="debug-pane__entry-line">
-              <span className="debug-pane__tag">{state.is_binary ? 'B' : 'C'}</span>
-              <span>{s}</span>
-            </div>
-          ))}
-        </Block>
-
-        <Block label={`candidates [${state.candidates.length}]`}>
-          {state.candidates.length === 0 ? (
-            <Empty />
-          ) : state.candidates.map((c, i) => (
-            <div key={i} className="debug-pane__entry">
+        <Block label={`candidates [${p.candidates.length}]`}>
+          {p.candidates.length === 0 ? <Empty /> : p.candidates.map((c) => (
+            <div key={c.id} className="debug-pane__entry">
               <div className="debug-pane__entry-line">
-                <span className="debug-pane__tag">{c.source[0]?.toUpperCase()}</span>
-                <span className="debug-pane__scores">s{c.stakes}/t{c.time_proximity}/e{c.user_engagement}</span>
+                <span className="debug-pane__tag">{c.is_target ? '*' : c.source[0]?.toUpperCase()}</span>
+                <span className="debug-pane__scores">
+                  s{c.scores.stakes}/t{c.scores.time_proximity}/e{c.scores.user_engagement}
+                </span>
                 <span>{c.description}</span>
               </div>
-              <div className="debug-pane__entry-sub">→ {c.options.join(' | ')}</div>
+              <div className="debug-pane__entry-sub">
+                → {c.options.map((o) => o.name).join(' | ')}
+              </div>
               {c.notes && <div className="debug-pane__entry-sub">// {c.notes}</div>}
             </div>
           ))}
         </Block>
 
-        <Block label={`disclosures [${(p.disclosures ?? []).length}]`}>
-          {(p.disclosures ?? []).length === 0 ? (
-            <Empty />
-          ) : (p.disclosures ?? []).map((d, i) => (
+        <Block label={`cast [${p.cast.length}]`}>
+          {p.cast.length === 0 ? <Empty /> : p.cast.map((c, i) => (
+            <div key={i} className="debug-pane__entry-line">
+              <span className="debug-pane__tag">{c.role[0]?.toUpperCase()}</span>
+              <span>{c.role}{c.name ? ` — ${c.name}` : ''}</span>
+              <span className="debug-pane__entry-sub">{c.valence}</span>
+            </div>
+          ))}
+        </Block>
+
+        <Block label={`threads [${p.threads.length}]`}>
+          {p.threads.length === 0 ? <Empty /> : p.threads.map((t, i) => (
+            <div key={i} className="debug-pane__entry-line">
+              <span className="debug-pane__conf">×{t.observations.length}</span>
+              <span>{t.pattern}</span>
+            </div>
+          ))}
+        </Block>
+
+        <Block label={`hunches [${p.hunches.length}]`}>
+          {p.hunches.length === 0 ? <Empty /> : p.hunches.map((h, i) => (
             <div key={i} className="debug-pane__entry">
               <div className="debug-pane__entry-line">
-                <span className="debug-pane__tag">{d.domain[0]?.toUpperCase()}</span>
-                <span className="debug-pane__conf">{Math.round(d.confidence * 100)}%</span>
-                <span>{d.content}</span>
+                <span className="debug-pane__conf">{Math.round(h.confidence * 100)}%</span>
+                <span>{h.suspicion}</span>
               </div>
-              {d.verbatim_quote && (
-                <div className="debug-pane__entry-sub">"{d.verbatim_quote}"</div>
-              )}
-              <div className="debug-pane__entry-sub">// {d.tense} · {d.affect}</div>
+              <div className="debug-pane__entry-sub">// {h.grounded_in}</div>
             </div>
           ))}
         </Block>
 
-        <Block label={`hooks [${(p.hooks ?? []).length}]`}>
-          {(p.hooks ?? []).length === 0 ? (
-            <Empty />
-          ) : (p.hooks ?? []).map((h, i) => (
-            <div key={i} className="debug-pane__entry-line">
-              <span className="debug-pane__conf">{Math.round(h.confidence * 100)}%</span>
-              <span>{h.detail}</span>
-              <span className="debug-pane__entry-sub">[{h.source}]</span>
+        <Block label={`queue [${state.question_queue.length}]`}>
+          {state.current_question && (
+            <div className="debug-pane__entry">
+              <div className="debug-pane__entry-line">
+                <span className="debug-pane__tag">▶</span>
+                <span>{state.current_question.prompt}</span>
+              </div>
+              <div className="debug-pane__entry-sub">
+                opts: {state.current_question.options.join(' | ')}
+              </div>
+            </div>
+          )}
+          {state.question_queue.map((q, i) => (
+            <div key={i} className="debug-pane__entry">
+              <div className="debug-pane__entry-line">
+                <span className="debug-pane__tag">{i + 1}</span>
+                <span>{q.prompt}</span>
+              </div>
+              <div className="debug-pane__entry-sub">
+                opts: {q.options.join(' | ')}
+              </div>
             </div>
           ))}
         </Block>
 
-        <Block label="patterns">
-          {p.patterns ? (
-            <>
-              <Line k="register" v={p.patterns.language_register} />
-              <Line k="reflection" v={p.patterns.self_reflection_level} />
-              <Line k="posture" v={p.patterns.skepticism_posture} />
-              {p.patterns.avoidances.length > 0 && (
-                <Line k="avoiding" v={p.patterns.avoidances.join(', ')} />
-              )}
-            </>
-          ) : <Empty />}
-        </Block>
+        {p.margin && (
+          <Block label="margin">
+            <div className="debug-pane__line-val">{p.margin}</div>
+          </Block>
+        )}
 
-        <Block label="budget">
-          <Line k="turns" v={`${state.turns_used} / ${state.turns_used + state.turns_remaining}`} />
-          {state.closed && <Line k="closed" v={state.closing_reason ?? 'yes'} />}
+        {p.cognition_log && (
+          <Block label="cognition log">
+            <pre className="debug-pane__pre">{p.cognition_log}</pre>
+          </Block>
+        )}
+
+        <Block label="state">
+          <Line k="turn" v={String(state.turn_count)} />
+          <Line k="closed" v={state.closed ? 'yes' : 'no'} />
+          <Line k="ready_to_close" v={p.ready_to_close ? 'yes' : 'no'} />
         </Block>
       </div>
     </aside>
@@ -145,17 +144,6 @@ function Line({ k, v }: { k: string; v: React.ReactNode }) {
     <div className="debug-pane__line">
       <span className="debug-pane__line-key">{k}:</span>
       <span className="debug-pane__line-val">{v}</span>
-    </div>
-  );
-}
-
-function BlockList({ label, items }: { label: string; items: string[] }) {
-  return (
-    <div className="debug-pane__line">
-      <span className="debug-pane__line-key">{label}:</span>
-      <span className="debug-pane__line-val">
-        {items.map((it, i) => <div key={i}>· {it}</div>)}
-      </span>
     </div>
   );
 }

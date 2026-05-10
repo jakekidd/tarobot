@@ -8,30 +8,79 @@
 
 export type {
   // Survey
-  Survey, ComingWith, RegisterPick, Familiar, WantFromReading,
-  // Profile
-  Disclosure, DisclosureDomain, Tense, DisclosureSource,
-  ChoiceCandidate, ChoiceSource,
-  TargetChoice, TimeHorizon,
-  ProfilePatterns, SkepticismPosture, Hook,
-  EnrichedProfile, BaseProfile,
-  // Cards
-  Card, Arcana, Suit,
-  // Spreads
-  Spread, SpreadPosition, SpreadPositionLayout,
-  DrawnCard, DrawnCards,
-  // Reading
+  Survey, SurveyAnswer, SurveyQuestion, SurveyQuestionFormat,
+  // Choice (unified)
+  Choice, ChoiceSource,
+  // Profile blobs
+  CastEntry, Thread, Hunch, Highlight,
+  // Profile (the growing blob)
+  Profile,
+  // Question (cognition→persona unit)
+  Question,
+  // Transcript
+  Speaker, TranscriptLine,
+  // Engine
+  EngineState, PersonaAnimation,
+  // Cards / Spreads / Reading (unused in MVP but kept for tarot phase)
+  Arcana, Suit, Card,
+  Spread, SpreadPosition, SpreadPositionLayout, DrawnCard, DrawnCards,
   Chapter, Reading,
-  // Interview
-  InterviewMessage, InterviewDecision, InterviewState,
 } from './types';
 
+// Cards & spreads (data + utilities for tarot phase)
 export { ALL_CARDS, drawCards, drawForSpread, getCard, findByName } from './cards';
 export { ALL_SPREADS, FOUR_CARD_DIAMOND, getSpread } from './spreads';
+
+// Personas (the 3-voice registry, used by the tarot reading phase later)
+export { PERSONAS, DEFAULT_PERSONA, getPersona } from './personas';
+export type { Persona, PersonaId } from './personas';
+
+// Claude client
 export { createClaudeClient, validateKey, MODELS } from './claude';
 export type { ClaudeClient } from './claude';
 
-export { startInterview, openInterview, interviewTurn, finalizeProfile } from './interview';
-export { constructReading } from './reading';
-export { translateChapter } from './persona';
-export { PERSONAS, DEFAULT_PERSONA, getPersona, type Persona, type PersonaId } from './personas';
+// Clat (survey)
+export { QUESTION_POOL, findQuestion } from './clat/pool';
+export {
+  newDirector,
+  applyAnswer,
+  inject,
+  consumeInjected,
+  nextQuestion,
+  finalize as finalizeSurvey,
+  answeredCount,
+  canEnd,
+  mustEnd,
+  SURVEY_END_OFFER_AT,
+  SURVEY_HARD_CAP,
+} from './clat/director';
+export type { DirectorState } from './clat/director';
+export { clatReact } from './clat/agent';
+export type { ClatOutput } from './clat/prompts/clat';
+
+// Compiler
+export { compile, pickOpener } from './compiler/compile';
+export type { CompilerOutput } from './compiler/prompts/compiler';
+
+// Engine
+export {
+  newEngineState,
+  appendTranscript,
+  appendHindsight,
+  applyProfileDeltas,
+  applyHighlightsUpdate,
+  enqueueQuestion,
+  dequeueQuestion,
+  setAnimation,
+  bumpTurn,
+  DEFAULT_HIGHLIGHT_TTL,
+  HIGHLIGHTS_SOFT_CAP,
+  QUEUE_REFILL_THRESHOLD,
+  QUEUE_MAX_DEPTH,
+} from './engine/state';
+export type { ProfileDeltas, HighlightsUpdate } from './engine/state';
+export { cognitionTick, applyCognitionOutput } from './engine/cognition';
+export type { CognitionOutput } from './engine/prompts/cognition';
+export { personaSpeak } from './engine/persona';
+export type { PersonaTurnOutput } from './engine/prompts/persona';
+export { bootEngine, userPick } from './engine/orchestrator';

@@ -4,7 +4,6 @@ import { Dialogue } from './dialogue/Dialogue';
 import { chime } from './sound/sound';
 import {
   loadActive,
-  loadArchive,
   clearAll,
   type Session,
 } from '../storage';
@@ -12,48 +11,33 @@ import {
 type Props = {
   onBegin: () => void;
   onResume: (session: Session) => void;
-  onViewPast: () => void;
   onSettings: () => void;
 };
 
 const GREETING = 'come in. tell me you want to know.';
 
-export function Menu({ onBegin, onResume, onViewPast, onSettings }: Props) {
+export function Menu({ onBegin, onResume, onSettings }: Props) {
   const [active] = useState<Session | null>(() => loadActive());
-  const [archiveCount] = useState<number>(() => loadArchive().length);
   const [speaking, setSpeaking] = useState(false);
 
-  useEffect(() => {
-    chime();
-  }, []);
+  useEffect(() => { chime(); }, []);
 
   return (
     <div className="screen screen--menu">
       <div className="menu__stage">
         <Reader isSpeaking={speaking} />
-        <Dialogue
-          text={GREETING}
-          onTypingChange={setSpeaking}
-        />
+        <Dialogue text={GREETING} onTypingChange={setSpeaking} />
       </div>
 
       <div className="menu__choices">
         {active && (
-          <button
-            className="btn btn--primary"
-            onClick={() => onResume(active)}
-          >
+          <button className="btn btn--primary" onClick={() => onResume(active)}>
             resume reading in progress
           </button>
         )}
         <button className="btn btn--primary" onClick={onBegin}>
           {active ? 'begin a new reading' : 'begin a reading'}
         </button>
-        {archiveCount > 0 && (
-          <button className="btn btn--ghost" onClick={onViewPast}>
-            past readings ({archiveCount})
-          </button>
-        )}
         <button className="btn btn--ghost" onClick={onSettings}>
           settings
         </button>

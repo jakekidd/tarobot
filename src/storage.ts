@@ -1,17 +1,15 @@
 import type {
-  BaseProfile,
-  DrawnCards,
-  EnrichedProfile,
-  InterviewMessage,
-  InterviewState,
+  EngineState,
   PersonaId,
-  Reading,
+  Profile,
+  Question,
+  Survey,
 } from './pipeline';
 
 // Browser-only persistence layer. Sits OUTSIDE src/pipeline/ so the
 // pipeline lib stays Node-portable.
 
-const NS = 'tarobot:v1';
+const NS = 'tarobot:v2';
 const K_API_KEY = `${NS}:apikey`;
 const K_ACTIVE = `${NS}:active`;
 const K_ARCHIVE = `${NS}:archive`;
@@ -40,11 +38,9 @@ export function clearApiKey(): void {
 
 export type SessionPhase =
   | 'survey'
-  | 'interview'
-  | 'finalizing'
-  | 'placement'
-  | 'reading'
-  | 'closing'
+  | 'compiling'
+  | 'enter-tent'
+  | 'tent'
   | 'done';
 
 export type Session = {
@@ -52,12 +48,10 @@ export type Session = {
   started_at: number;
   completed_at?: number;
   phase: SessionPhase;
-  base_profile?: BaseProfile;
-  history?: InterviewMessage[];
-  interview?: InterviewState;
-  profile?: EnrichedProfile;
-  drawn?: DrawnCards;
-  reading?: Reading;
+  survey?: Survey;
+  profile?: Profile;
+  openers?: Question[];
+  engine?: EngineState;
 };
 
 export function newSession(): Session {
@@ -94,7 +88,6 @@ export function archiveActive(session: Session): void {
   };
   const list = loadArchive();
   list.unshift(completed);
-  // Trim oldest to keep storage from growing forever.
   while (list.length > ARCHIVE_CAP) list.pop();
   localStorage.setItem(K_ARCHIVE, JSON.stringify(list));
   clearActive();
@@ -111,29 +104,26 @@ export function loadArchive(): Session[] {
   }
 }
 
-/**
- * Most recent EnrichedProfile per name across the archive — for the
- * "use existing profile" shortcut on the survey name step.
- */
-export function listProfilesByName(): EnrichedProfile[] {
+export function clearArchive(): void {
+  localStorage.removeItem(K_ARCHIVE);
+}
+
+/** Most recent Profile per name across the archive. */
+export function listProfilesByName(): Profile[] {
   const sessions = loadArchive();
-  type Entry = { profile: EnrichedProfile; ts: number };
+  type Entry = { profile: Profile; ts: number };
   const byKey = new Map<string, Entry>();
   for (const s of sessions) {
     if (!s.profile) continue;
     const ts = s.completed_at ?? s.started_at ?? 0;
-    const key = s.profile.name.trim().toLowerCase();
-    if (!key) continue;
-    const prior = byKey.get(key);
-    if (!prior || prior.ts < ts) byKey.set(key, { profile: s.profile, ts });
+    const name = s.profile.identity.name?.trim().toLowerCase();
+    if (!name) continue;
+    const prior = byKey.get(name);
+    if (!prior || prior.ts < ts) byKey.set(name, { profile: s.profile, ts });
   }
   return Array.from(byKey.values())
     .sort((a, b) => b.ts - a.ts)
     .map((e) => e.profile);
-}
-
-export function clearArchive(): void {
-  localStorage.removeItem(K_ARCHIVE);
 }
 
 // ─── Settings ───────────────────────────────────────────
@@ -166,16 +156,12 @@ export function saveSettings(settings: Partial<Settings>): Settings {
   return merged;
 }
 
-// ─── Wholesale wipe (for "clear data" menu) ─────────────
-
 export function clearAll(): void {
   clearApiKey();
   clearActive();
   clearArchive();
   localStorage.removeItem(K_SETTINGS);
 }
-
-// ─── Helpers ────────────────────────────────────────────
 
 function makeId(): string {
   if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {

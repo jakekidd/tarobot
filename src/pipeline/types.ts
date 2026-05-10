@@ -1,145 +1,187 @@
-// Schemas shared across the cognition pipeline.
-// Pure types only — no React, no DOM, no Node-specific imports.
-// This file is the contract between phases and must transplant unchanged
-// into the eventual production system.
+// Pipeline-wide types. Pure types only — no React, no DOM.
 
 // ─── Survey ─────────────────────────────────────────────
 
-export type ComingWith = 'alone' | 'partner' | 'friends' | 'family';
-export type RegisterPick = 'chaos' | 'clarity' | 'comfort' | 'change';
-export type Familiar = 'raven' | 'serpent' | 'wolf' | 'cat' | 'moth' | 'fox';
-export type WantFromReading = 'laugh' | 'warning' | 'clarity' | 'unsure';
+export type SurveyAnswer = {
+  question_id: string;
+  picked: string[];           // multi-select supports >1; single-pick = [option]
+  passed?: boolean;           // user tapped "pass" on a dark question
+};
 
 export type Survey = {
-  name: string;
-  birth_month_day?: string;        // "MM-DD"
-  coming_with?: ComingWith;
-  register_pick?: RegisterPick;
-  familiar_pick?: Familiar;
-  on_my_mind?: string;             // ≤200 chars, optional
-  want_from_reading?: WantFromReading;
+  answers: SurveyAnswer[];
+  started_at: number;
+  ended_at?: number;
 };
 
-// ─── Profile ────────────────────────────────────────────
+export type SurveyQuestionFormat = 'binary' | 'choice' | 'matrix-2x2' | 'multi-select';
 
-export type DisclosureDomain =
-  | 'work' | 'love' | 'family' | 'health' | 'self' | 'money' | 'other';
-export type Tense = 'past' | 'present' | 'future';
-export type DisclosureSource = 'survey' | 'interview' | 'inferred';
-
-export type Disclosure = {
-  content: string;                 // paraphrased
-  domain: DisclosureDomain;
-  tense: Tense;
-  affect: string;                  // their emotional posture
-  source: DisclosureSource;
-  confidence: number;              // 0..1
-  verbatim_quote?: string;         // if memorable phrasing
+export type SurveyQuestion = {
+  id: string;
+  text: string;
+  format: SurveyQuestionFormat;
+  options: string[];
+  axes?: { x: [string, string]; y: [string, string] };
+  category:
+    | 'identity' | 'life-state' | 'relational'
+    | 'register' | 'projective' | 'stance' | 'time';
+  depth: 'warm' | 'medium' | 'edge';
+  is_dark: boolean;
+  tags: string[];
+  interpretation: Record<string, string>;
 };
+
+// ─── Choice (unified — replaces ChoiceCandidate + TargetChoice) ─
 
 export type ChoiceSource = 'stated' | 'inferred' | 'constructed';
 
-export type ChoiceCandidate = {
+export type Choice = {
+  id: string;
   description: string;
-  options: string[];               // ≥2
+  options: { name: string; summary?: string }[];
   source: ChoiceSource;
-  stakes: number;                  // 1..5
-  time_proximity: number;          // 1..5
-  user_engagement: number;         // 1..5 (live-thread signal)
+  scores: {
+    stakes: number;             // 1-5
+    time_proximity: number;     // 1-5
+    user_engagement: number;    // 1-5
+  };
+  // upgraded fields — populated when cognition flags this as the target
+  stakes?: string;
+  time_horizon?: 'weeks' | 'months' | 'year+';
+  blindspots?: string[];
+  is_target: boolean;
+  confidence: number;            // 0-1
   notes: string;
 };
 
-export type TimeHorizon = 'weeks' | 'months' | 'year+';
+// ─── Profile blobs (cognition's scratchpads + persona-facing brief) ─
 
-export type TargetChoice = {
-  description: string;
-  options: Array<{ name: string; summary: string }>;
-  source: ChoiceSource;
-  stakes: string;
-  time_horizon: TimeHorizon;
-  user_blindspots: string[];       // paths/consequences they're missing
-  confidence: number;              // 0..1
+export type CastEntry = {
+  role: string;                  // "ex-partner", "absent figure"
+  name?: string;                 // only if user gave it
+  valence: string;               // free-form, e.g. "unresolved"
+  last_referenced_turn: number;
 };
 
-export type SkepticismPosture =
-  | 'skeptic-fun' | 'curious' | 'believer' | 'distressed';
-
-export type ProfilePatterns = {
-  language_register: string;
-  self_reflection_level: 'low' | 'medium' | 'high';
-  skepticism_posture: SkepticismPosture;
-  avoidances: string[];
+export type Thread = {
+  pattern: string;               // "describes work and ex as 'fine'"
+  observations: number[];        // turn indices
+  salience: number;              // 1-5
 };
 
-export type Hook = {
-  detail: string;
-  // 'survey' | 'interview-turn-N' (e.g. 'interview-turn-3')
-  source: string;
-  confidence: number;              // 0..1
+export type Hunch = {
+  suspicion: string;
+  grounded_in: string;
+  confidence: number;            // 0-1
+  age_turns: number;
 };
 
-export type EnrichedProfile = {
-  // Identity
-  name: string;
-  birth_month_day?: string;
+export type Highlight = {
+  id: string;
+  topic: string;
+  reason: string;                // why it's on cognition's mind
+  introduced_turn: number;
+  ttl: number;                   // decrements on transcript update; <=0 = drop
+  salience: 'low' | 'medium' | 'high';
+};
 
-  // Verbatim survey
-  survey: Survey;
+// ─── Profile (the growing blob) ─────────────────────────
 
-  // Built across interview
-  disclosures: Disclosure[];
-  patterns: ProfilePatterns;
+export type Profile = {
+  identity: {
+    name?: string;
+    birth_month_day?: string;
+    came_with?: string;
+    notes: string;               // freeform identity-related notes
+  };
 
-  // Specific resonant details, with source tracing for hallucination defense
-  hooks: Hook[];
+  // running candidates; the leading one has is_target=true
+  candidates: Choice[];
 
-  // The spine
-  target_choice: TargetChoice;
+  // cognition's blobs — persona NEVER sees these directly
+  cast: CastEntry[];
+  threads: Thread[];
+  hunches: Hunch[];
+  margin: string;                // freeform observations, ~500ch soft cap
+  cognition_log: string;          // cognition's private journal, ~2000ch soft cap
 
-  // Texture
-  change_vector: {
-    description: string;
-    relevance_to_choice: string;
+  // attention pointers (cognition curates; persona feels them via brief)
+  highlights: Highlight[];
+
+  // the ONLY thing persona reads about who this person is
+  brief: string;                  // 3-6 sentences, natural prose, <500 words
+
+  ready_to_close: boolean;        // cognition raises when target is solid
+  version: number;                // bumps each profile update
+};
+
+// ─── Question (the unit cognition emits, persona renders) ─
+
+export type Question = {
+  id: string;
+  prompt: string;                 // raw — persona may paraphrase
+  options: string[];              // exactly 4 (hard rule)
+  responses: string[];            // pre-baked tarobot reaction per option, same length as options
+  fork_lead?: string;             // candidate id this Q is targeting, optional
+  depth: 'warm' | 'medium' | 'edge';
+  meta: {
+    based_on_profile_version: number;
+    rationale: string;            // for debug
   };
 };
 
-export type BaseProfile = {
-  survey: Survey;
-  started_at: number;
+// ─── Transcript (append-only; lines may carry hindsight marginalia) ─
+
+export type Speaker = 'persona' | 'user';
+
+export type TranscriptLine = {
+  turn: number;
+  speaker: Speaker;
+  content: string;                 // what was actually said/picked
+  question_id?: string;            // if this line was a Q delivery
+  picked_index?: number;           // if this line was a user pick
+  thoughts: string[];              // appended hindsight (cognition's marginalia)
 };
 
-// ─── Cards ──────────────────────────────────────────────
+// ─── Engine state (what the orchestrator threads) ─────
+
+export type PersonaAnimation =
+  | 'neutral' | 'narrow' | 'widen' | 'closed' | 'glance_aside';
+
+export type EngineState = {
+  survey: Survey;
+  profile: Profile;
+  transcript: TranscriptLine[];
+  question_queue: Question[];      // 1-3 deep
+  current_question: Question | null; // the one currently shown to user
+  current_animation: PersonaAnimation;
+  turn_count: number;
+  closed: boolean;                 // engine stops when true (manual quit only in MVP)
+};
+
+// ─── Cards / Spreads / Reading (untouched — for tarot phase later) ─
 
 export type Arcana = 'major' | 'minor';
 export type Suit = 'cups' | 'wands' | 'swords' | 'pentacles';
 
 export type Card = {
-  id: number;                      // 0..77
+  id: number;
   name: string;
   arcana: Arcana;
-  suit?: Suit;                     // minor only
-  number?: number;                 // 0..21 majors, 1..14 minors (11=page,12=knight,13=queen,14=king)
+  suit?: Suit;
+  number?: number;
   keywords: string[];
   upright_meaning: string;
 };
 
-// ─── Spreads ────────────────────────────────────────────
-// Spreads are first-class data so MVP can ship the diamond while leaving
-// the door open for additional arrangements (cross, line, celtic, etc.).
-
 export type SpreadPositionLayout = {
-  // Normalized coordinates in the spread's local space.
-  // Units are arbitrary card-widths; the renderer scales to viewport.
-  x: number;
-  y: number;
-  z?: number;                      // depth (unused in MVP, reserved for 3D)
-  rotation?: number;               // degrees, around z-axis on the table
+  x: number; y: number; z?: number; rotation?: number;
 };
 
 export type SpreadPosition = {
-  id: string;                      // e.g. 'top', 'left', 'right', 'bottom'
-  role: string;                    // semantic role, e.g. 'situation', 'path-a'
-  prompt_label: string;            // human-readable label injected into prompts
+  id: string;
+  role: string;
+  prompt_label: string;
   layout: SpreadPositionLayout;
 };
 
@@ -147,74 +189,24 @@ export type Spread = {
   id: string;
   name: string;
   description: string;
-  positions: SpreadPosition[];     // order is meaningful (placement order)
+  positions: SpreadPosition[];
 };
 
-export type DrawnCard = {
-  position: SpreadPosition;
-  card: Card;
-};
-
-export type DrawnCards = {
-  spread: Spread;
-  cards: DrawnCard[];              // length === spread.positions.length
-};
-
-// ─── Reading ────────────────────────────────────────────
+export type DrawnCard = { position: SpreadPosition; card: Card };
+export type DrawnCards = { spread: Spread; cards: DrawnCard[] };
 
 export type Chapter = {
-  position_id: string;             // SpreadPosition.id
-  card_id: number;                 // Card.id
-  role_in_arc: string;             // how this chapter serves the theme
-  hooks_used: string[];            // hook details referenced
-  prediction: string;              // clinical layer (cognition's intent)
-  spoken_text: string;             // persona layer (what the user hears)
+  position_id: string;
+  card_id: number;
+  role_in_arc: string;
+  hooks_used: string[];
+  prediction: string;
+  spoken_text: string;
 };
 
 export type Reading = {
-  theme: string;                   // unifying observation
-  arc: string;                     // one-sentence summary of the journey
-  chapters: Chapter[];             // ordered by spread placement
-  closing_text: string;            // post-reveal beat
-};
-
-// ─── Interview state ────────────────────────────────────
-
-export type InterviewMessage = {
-  role: 'assistant' | 'user';
-  content: string;
-};
-
-export type InterviewDecision =
-  | 'probe' | 'disambiguate' | 'deepen' | 'close';
-
-export type NegativeSpaceGuess = {
-  guess: string;
-  confidence: number;
-  rationale: string;
-  status: 'hypothesis' | 'confirmed' | 'rejected';
-};
-
-export type InterviewState = {
-  base_profile: BaseProfile;
-  history: InterviewMessage[];
-  candidates: ChoiceCandidate[];
-  partial_profile: Partial<EnrichedProfile>;
-  turns_used: number;
-  turns_remaining: number;
-  closed: boolean;
-  closing_reason?: 'budget' | 'cognition';
-  /** Cognition's GUESSES at what the user might reply. UI shows as tappable rows. */
-  suggested_answers?: string[];
-  /** Whether the current question is structurally yes/no/idk. */
-  is_binary?: boolean;
-  /** Running hypotheses about what the user is avoiding/not saying. Persists across turns. */
-  negative_space: NegativeSpaceGuess[];
-  /** Most recent cognition analysis — for the debug panel. */
-  last_analysis?: {
-    register_read: string;
-    absent_domains?: string[];
-    verbal_tells?: string[];
-    stance: string;
-  };
+  theme: string;
+  arc: string;
+  chapters: Chapter[];
+  closing_text: string;
 };

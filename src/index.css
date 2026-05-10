@@ -1099,6 +1099,70 @@ a:hover { text-decoration: underline; }
 }
 
 /* =====================================================================
+   Compiling — between survey and tent
+   ===================================================================== */
+
+.screen--compiling {
+  min-height: 60vh;
+  align-items: center;
+  justify-content: center;
+}
+
+/* =====================================================================
+   EnterTent — eyes + enter button
+   ===================================================================== */
+
+.enter-tent {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2.5rem;
+  min-height: 70vh;
+  justify-content: center;
+  transition: opacity 0.7s ease-out;
+}
+.enter-tent--fading { opacity: 0; }
+
+.enter-tent__eyes {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.enter-tent__btn {
+  letter-spacing: 0.4em;
+  padding: 0.7rem 2.5rem;
+}
+
+.eyes {
+  display: block;
+}
+.eyes canvas {
+  display: block;
+}
+
+/* =====================================================================
+   Tent — the engine UI
+   ===================================================================== */
+
+.screen--tent { gap: 1.2rem; max-width: 640px; width: 100%; }
+
+/* =====================================================================
+   Debug pre — for cognition log
+   ===================================================================== */
+
+.debug-pane__pre {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: inherit;
+  font-size: 0.9em;
+  color: var(--fg-dim);
+  max-height: 16em;
+  overflow-y: auto;
+}
+
+/* =====================================================================
    Settings
    ===================================================================== */
 
