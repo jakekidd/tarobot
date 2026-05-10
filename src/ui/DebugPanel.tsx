@@ -6,146 +6,160 @@ type Props = {
 };
 
 /**
- * Side-drawer cognition view. Shows what tarobot's analysis layer is doing
- * — the things that aren't visible in the dialogue. Toggled from the topbar.
+ * Cognition view — left half of the split-screen layout when debug is on.
+ * Clean monospace terminal-style text. Left-aligned. No cards or chips.
  */
 export function DebugPanel({ state, onClose }: Props) {
   const a = state.last_analysis;
   const p = state.partial_profile;
+  const ns = state.negative_space ?? [];
 
   return (
-    <aside className="debug-panel" role="complementary" aria-label="cognition state">
-      <header className="debug-panel__head">
-        <h3>cognition</h3>
-        <button className="btn btn--quiet" onClick={onClose}>close</button>
+    <aside className="debug-pane" role="complementary" aria-label="cognition state">
+      <header className="debug-pane__head">
+        <span className="debug-pane__title">// cognition</span>
+        <button className="debug-pane__close" onClick={onClose}>close</button>
       </header>
 
-      <div className="debug-panel__scroll">
+      <div className="debug-pane__scroll">
         {a && (
-          <Section title="last turn analysis">
-            <Row label="stance">{a.stance}</Row>
-            <Row label="register">{a.register_read}</Row>
+          <Block label="last_analysis">
+            <Line k="stance" v={a.stance} />
+            <Line k="register" v={a.register_read} />
             {a.absent_domains && a.absent_domains.length > 0 && (
-              <Row label="absent">{a.absent_domains.join(', ')}</Row>
+              <Line k="absent" v={a.absent_domains.join(', ')} />
             )}
             {a.verbal_tells && a.verbal_tells.length > 0 && (
-              <Row label="tells">
-                <ul className="debug-panel__list">
-                  {a.verbal_tells.map((t, i) => <li key={i}>{t}</li>)}
-                </ul>
-              </Row>
+              <BlockList label="tells" items={a.verbal_tells} />
             )}
-          </Section>
+          </Block>
         )}
 
-        <Section title={`response format (${state.response_format ?? 'open'})`}>
-          {state.response_options && (
-            <div className="debug-panel__chips">
-              {state.response_options.map((o, i) => (
-                <span key={i} className="chip chip--mini">{o}</span>
-              ))}
+        <Block label={`negative_space [${ns.length}]`}>
+          {ns.length === 0 ? (
+            <Empty />
+          ) : ns.map((g, i) => (
+            <div key={i} className="debug-pane__entry">
+              <div className="debug-pane__entry-line">
+                <span className="debug-pane__tag">{g.status[0]}</span>
+                <span className="debug-pane__conf">{Math.round(g.confidence * 100).toString().padStart(2, '0')}%</span>
+                <span>{g.guess}</span>
+              </div>
+              {g.rationale && (
+                <div className="debug-pane__entry-sub">// {g.rationale}</div>
+              )}
             </div>
-          )}
-        </Section>
+          ))}
+        </Block>
 
-        <Section title={`candidates (${state.candidates.length})`}>
+        <Block label={`suggestions [${(state.suggested_answers ?? []).length}]`}>
+          {(state.suggested_answers ?? []).length === 0 ? (
+            <Empty />
+          ) : (state.suggested_answers ?? []).map((s, i) => (
+            <div key={i} className="debug-pane__entry-line">
+              <span className="debug-pane__tag">{state.is_binary ? 'B' : 'C'}</span>
+              <span>{s}</span>
+            </div>
+          ))}
+        </Block>
+
+        <Block label={`candidates [${state.candidates.length}]`}>
           {state.candidates.length === 0 ? (
             <Empty />
-          ) : (
-            state.candidates.map((c, i) => (
-              <div key={i} className="debug-panel__card">
-                <div className="debug-panel__card-head">
-                  <span className="debug-panel__source">{c.source}</span>
-                  <span className="debug-panel__scores">
-                    s{c.stakes}/t{c.time_proximity}/e{c.user_engagement}
-                  </span>
-                </div>
-                <div className="debug-panel__card-body">{c.description}</div>
-                <div className="debug-panel__card-options">
-                  {c.options.map((o, j) => <span key={j}>· {o}</span>)}
-                </div>
-                {c.notes && (
-                  <div className="debug-panel__card-notes">{c.notes}</div>
-                )}
+          ) : state.candidates.map((c, i) => (
+            <div key={i} className="debug-pane__entry">
+              <div className="debug-pane__entry-line">
+                <span className="debug-pane__tag">{c.source[0]?.toUpperCase()}</span>
+                <span className="debug-pane__scores">s{c.stakes}/t{c.time_proximity}/e{c.user_engagement}</span>
+                <span>{c.description}</span>
               </div>
-            ))
-          )}
-        </Section>
+              <div className="debug-pane__entry-sub">→ {c.options.join(' | ')}</div>
+              {c.notes && <div className="debug-pane__entry-sub">// {c.notes}</div>}
+            </div>
+          ))}
+        </Block>
 
-        <Section title={`disclosures (${p.disclosures?.length ?? 0})`}>
-          {(p.disclosures ?? []).length === 0 ? <Empty /> : (
-            (p.disclosures ?? []).map((d, i) => (
-              <div key={i} className="debug-panel__card">
-                <div className="debug-panel__card-head">
-                  <span className="debug-panel__source">{d.domain} · {d.tense}</span>
-                  <span className="debug-panel__scores">{Math.round(d.confidence * 100)}%</span>
-                </div>
-                <div className="debug-panel__card-body">{d.content}</div>
-                {d.verbatim_quote && (
-                  <div className="debug-panel__card-quote">"{d.verbatim_quote}"</div>
-                )}
-                <div className="debug-panel__card-notes">affect: {d.affect}</div>
+        <Block label={`disclosures [${(p.disclosures ?? []).length}]`}>
+          {(p.disclosures ?? []).length === 0 ? (
+            <Empty />
+          ) : (p.disclosures ?? []).map((d, i) => (
+            <div key={i} className="debug-pane__entry">
+              <div className="debug-pane__entry-line">
+                <span className="debug-pane__tag">{d.domain[0]?.toUpperCase()}</span>
+                <span className="debug-pane__conf">{Math.round(d.confidence * 100)}%</span>
+                <span>{d.content}</span>
               </div>
-            ))
-          )}
-        </Section>
+              {d.verbatim_quote && (
+                <div className="debug-pane__entry-sub">"{d.verbatim_quote}"</div>
+              )}
+              <div className="debug-pane__entry-sub">// {d.tense} · {d.affect}</div>
+            </div>
+          ))}
+        </Block>
 
-        <Section title={`hooks (${p.hooks?.length ?? 0})`}>
-          {(p.hooks ?? []).length === 0 ? <Empty /> : (
-            (p.hooks ?? []).map((h, i) => (
-              <div key={i} className="debug-panel__card debug-panel__card--small">
-                <span className="debug-panel__scores">{Math.round(h.confidence * 100)}%</span>
-                <span>{h.detail}</span>
-                <span className="debug-panel__source">{h.source}</span>
-              </div>
-            ))
-          )}
-        </Section>
+        <Block label={`hooks [${(p.hooks ?? []).length}]`}>
+          {(p.hooks ?? []).length === 0 ? (
+            <Empty />
+          ) : (p.hooks ?? []).map((h, i) => (
+            <div key={i} className="debug-pane__entry-line">
+              <span className="debug-pane__conf">{Math.round(h.confidence * 100)}%</span>
+              <span>{h.detail}</span>
+              <span className="debug-pane__entry-sub">[{h.source}]</span>
+            </div>
+          ))}
+        </Block>
 
-        <Section title="patterns">
+        <Block label="patterns">
           {p.patterns ? (
             <>
-              <Row label="register">{p.patterns.language_register}</Row>
-              <Row label="reflection">{p.patterns.self_reflection_level}</Row>
-              <Row label="posture">{p.patterns.skepticism_posture}</Row>
+              <Line k="register" v={p.patterns.language_register} />
+              <Line k="reflection" v={p.patterns.self_reflection_level} />
+              <Line k="posture" v={p.patterns.skepticism_posture} />
               {p.patterns.avoidances.length > 0 && (
-                <Row label="avoiding">{p.patterns.avoidances.join(', ')}</Row>
+                <Line k="avoiding" v={p.patterns.avoidances.join(', ')} />
               )}
             </>
           ) : <Empty />}
-        </Section>
+        </Block>
 
-        <Section title="budget">
-          <Row label="turns">
-            {state.turns_used} / {state.turns_used + state.turns_remaining}
-          </Row>
-          {state.closed && (
-            <Row label="closed">{state.closing_reason ?? 'yes'}</Row>
-          )}
-        </Section>
+        <Block label="budget">
+          <Line k="turns" v={`${state.turns_used} / ${state.turns_used + state.turns_remaining}`} />
+          {state.closed && <Line k="closed" v={state.closing_reason ?? 'yes'} />}
+        </Block>
       </div>
     </aside>
   );
 }
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+function Block({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <section className="debug-panel__section">
-      <h4 className="debug-panel__heading">{title}</h4>
-      <div className="debug-panel__body">{children}</div>
+    <section className="debug-pane__block">
+      <h4 className="debug-pane__block-head">// {label}</h4>
+      <div className="debug-pane__block-body">{children}</div>
     </section>
   );
 }
 
-function Row({ label, children }: { label: string; children: React.ReactNode }) {
+function Line({ k, v }: { k: string; v: React.ReactNode }) {
   return (
-    <div className="debug-panel__row">
-      <span className="debug-panel__label">{label}</span>
-      <span className="debug-panel__value">{children}</span>
+    <div className="debug-pane__line">
+      <span className="debug-pane__line-key">{k}:</span>
+      <span className="debug-pane__line-val">{v}</span>
+    </div>
+  );
+}
+
+function BlockList({ label, items }: { label: string; items: string[] }) {
+  return (
+    <div className="debug-pane__line">
+      <span className="debug-pane__line-key">{label}:</span>
+      <span className="debug-pane__line-val">
+        {items.map((it, i) => <div key={i}>· {it}</div>)}
+      </span>
     </div>
   );
 }
 
 function Empty() {
-  return <div className="debug-panel__empty">—</div>;
+  return <div className="debug-pane__empty">—</div>;
 }

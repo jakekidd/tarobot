@@ -18,6 +18,7 @@ import type {
   EnrichedProfile,
   Hook,
   InterviewState,
+  NegativeSpaceGuess,
 } from './types';
 
 export function startInterview(base: BaseProfile, turnBudget = 7): InterviewState {
@@ -45,6 +46,7 @@ export function startInterview(base: BaseProfile, turnBudget = 7): InterviewStat
     turns_used: 0,
     turns_remaining: turnBudget,
     closed: false,
+    negative_space: [],
   };
 }
 
@@ -86,11 +88,14 @@ export async function interviewTurn(
     { role: 'user' as const, content: userMessage },
   ];
 
+  const turnNumber = state.turns_used + 1;
   const sys = INTERVIEW_TURN_SYSTEM
     .replace('{survey_json}', JSON.stringify(state.base_profile.survey, null, 2))
     .replace('{profile_json}', JSON.stringify(state.partial_profile, null, 2))
     .replace('{candidates_json}', JSON.stringify(state.candidates, null, 2))
-    .replace('{turns_remaining}', String(state.turns_remaining));
+    .replace('{negative_space_json}', JSON.stringify(state.negative_space, null, 2))
+    .replace('{turns_remaining}', String(state.turns_remaining))
+    .replace('{turn_number}', String(turnNumber));
 
   const response = await client.messages.create({
     model: MODELS.COGNITION,
@@ -157,7 +162,7 @@ export async function finalizeProfile(
 
 // ─── Helpers ────────────────────────────────────────────
 
-const BINARY_DEFAULT_OPTIONS = ['yes', 'no', 'idk'] as const;
+const MAX_SUGGESTIONS = 6;
 
 function applyTurn(
   state: InterviewState,
@@ -221,15 +226,17 @@ function applyTurn(
         ? 'budget'
         : undefined;
 
-  // Resolve response format + options for the user's next reply.
-  const format = args.response_format ?? 'open';
-  let options: string[] | undefined;
-  if (format === 'choice') {
-    options = (args.response_options ?? []).slice(0, 4);
-    if (options.length < 2) options = undefined; // fall back to open if malformed
-  } else if (format === 'binary') {
-    options = [...BINARY_DEFAULT_OPTIONS];
-  }
+  // Suggested answers — capped, deduped.
+  const rawSuggestions = (args.suggested_answers ?? []).slice(0, MAX_SUGGESTIONS);
+  const suggestions = Array.from(new Set(rawSuggestions.map((s) => s.trim()).filter(Boolean)));
+
+  // Merge negative-space hypotheses (replace by `guess` text — most recent wins).
+  const updates = args.analysis?.negative_space_updates ?? [];
+  const merged = new Map<string, NegativeSpaceGuess>();
+  for (const g of state.negative_space) merged.set(g.guess, g);
+  for (const g of updates) merged.set(g.guess, g);
+  // Drop rejected after a turn (clutter)
+  const negativeSpace = Array.from(merged.values()).filter((g) => g.status !== 'rejected');
 
   return {
     ...state,
@@ -240,8 +247,9 @@ function applyTurn(
     turns_remaining: turnsRemaining,
     closed,
     closing_reason: closingReason,
-    response_format: options ? format : 'open',
-    response_options: options,
+    suggested_answers: suggestions,
+    is_binary: !!args.is_binary,
+    negative_space: negativeSpace,
     last_analysis: args.analysis
       ? {
           register_read: args.analysis.register_read,

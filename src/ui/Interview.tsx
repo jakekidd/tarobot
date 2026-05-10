@@ -34,7 +34,6 @@ type Status =
   | { kind: 'error'; message: string; retry?: () => void };
 
 export function Interview({ apiKey, base, onFinalized, onCancel, debugOpen, onCloseDebug }: Props) {
-  // Restore in-flight interview from storage if present, else seed a new one.
   const [state, setState] = useState<InterviewState>(() => {
     const active = loadActive();
     if (
@@ -58,7 +57,7 @@ export function Interview({ apiKey, base, onFinalized, onCancel, debugOpen, onCl
     setDraft((prev) => (prev ? `${prev} ${finalText}` : finalText));
   });
 
-  // Persist state changes to active session.
+  // Persist state changes.
   useEffect(() => {
     const active = loadActive();
     if (!active) return;
@@ -71,7 +70,7 @@ export function Interview({ apiKey, base, onFinalized, onCancel, debugOpen, onCl
     });
   }, [state, base]);
 
-  // Kick off opening turn if needed.
+  // Opening turn.
   useEffect(() => {
     if (state.history.length > 0 || ranOpenRef.current) return;
     ranOpenRef.current = true;
@@ -98,7 +97,7 @@ export function Interview({ apiKey, base, onFinalized, onCancel, debugOpen, onCl
     return () => { cancelled = true; };
   }, [state, status.kind === 'opening']); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Once finalizing, run finalize and forward to the next phase.
+  // Finalize after close.
   useEffect(() => {
     if (status.kind !== 'finalizing') return;
     let cancelled = false;
@@ -160,7 +159,14 @@ export function Interview({ apiKey, base, onFinalized, onCancel, debugOpen, onCl
       ...state.history.map((m) => `**${m.role}**: ${m.content}`),
       ``,
       `## last analysis`,
-      state.last_analysis ? '```json\n' + JSON.stringify(state.last_analysis, null, 2) + '\n```' : '(none)',
+      state.last_analysis
+        ? '```json\n' + JSON.stringify(state.last_analysis, null, 2) + '\n```'
+        : '(none)',
+      ``,
+      `## negative space (running hypotheses)`,
+      '```json',
+      JSON.stringify(state.negative_space, null, 2),
+      '```',
       ``,
       `## current candidates`,
       '```json',
@@ -196,7 +202,6 @@ export function Interview({ apiKey, base, onFinalized, onCancel, debugOpen, onCl
     [...state.history].reverse().find((m) => m.role === 'assistant')?.content ?? '…';
   const lastAssistantIdx = state.history.length - 1 -
     [...state.history].reverse().findIndex((m) => m.role === 'assistant');
-
   const olderHistory = state.history.slice(0, Math.max(0, lastAssistantIdx));
 
   const inputDisabled =
@@ -207,143 +212,139 @@ export function Interview({ apiKey, base, onFinalized, onCancel, debugOpen, onCl
     state.closed;
 
   const showInput = !state.closed && status.kind !== 'finalizing';
-  const format = state.response_format ?? 'open';
-  const options = state.response_options;
-  const showChoiceButtons = showInput && (format === 'choice' || format === 'binary') && options && options.length >= 2;
-  const showTextInput = showInput && !showChoiceButtons;
+  const suggestions = state.suggested_answers ?? [];
 
   return (
-    <div className={`screen screen--interview ${debugOpen ? 'screen--with-debug' : ''}`}>
-      <Reader isSpeaking={speaking} mood={status.kind === 'thinking' ? 'thinking' : 'neutral'} />
-
-      <div className="interview__stage">
-        {status.kind === 'opening' ? (
-          <div className="interview__waiting">
-            <span>tarobot is reaching for you…</span>
-          </div>
-        ) : (
-          <Dialogue
-            key={`turn-${state.history.length}`}
-            text={lastAssistant}
-            onTypingChange={setSpeaking}
-          />
-        )}
-
-        {status.kind === 'thinking' && (
-          <div className="interview__thinking">…thinking…</div>
-        )}
-
-        {status.kind === 'finalizing' && (
-          <div className="interview__thinking">reading what was said…</div>
-        )}
-
-        {status.kind === 'error' && (
-          <div className="screen__error">
-            <div>{status.message}</div>
-            {status.retry && (
-              <button className="btn btn--ghost" onClick={status.retry}>
-                try again
-              </button>
-            )}
-          </div>
-        )}
-      </div>
-
-      {showChoiceButtons && options && (
-        <div className="interview__choices">
-          {options.map((opt, i) => (
-            <button
-              key={`${i}-${opt}`}
-              className="btn btn--primary"
-              disabled={inputDisabled}
-              onClick={() => sendMessage(opt)}
-            >
-              {opt}
-            </button>
-          ))}
-          <button
-            className="btn btn--quiet"
-            disabled={inputDisabled}
-            onClick={() => {
-              // Drop to free-text if user wants to elaborate
-              setState((s) => ({ ...s, response_format: 'open', response_options: undefined }));
-            }}
-          >
-            type instead…
-          </button>
-        </div>
-      )}
-
-      {showTextInput && (
-        <form
-          className="interview__form"
-          onSubmit={(e) => { e.preventDefault(); void sendDraft(); }}
-        >
-          <input
-            className="text-input"
-            placeholder={
-              speech.listening
-                ? speech.interim || 'listening…'
-                : inputDisabled ? '' : 'speak…'
-            }
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            disabled={inputDisabled}
-            autoCapitalize="sentences"
-            autoFocus
-          />
-          {speech.supported && (
-            <button
-              type="button"
-              className={`btn btn--ghost mic-btn ${speech.listening ? 'mic-btn--on' : ''}`}
-              onClick={() => speech.listening ? speech.stop() : speech.start()}
-              disabled={inputDisabled}
-              title={speech.listening ? 'stop recording' : 'voice input'}
-              aria-label={speech.listening ? 'stop recording' : 'voice input'}
-            >
-              {speech.listening ? '■' : '🎙'}
-            </button>
-          )}
-          <button
-            className="btn btn--primary"
-            type="submit"
-            disabled={inputDisabled || draft.trim().length === 0}
-          >
-            send
-          </button>
-        </form>
-      )}
-      {speech.error && (
-        <div className="interview__voice-error">{speech.error}</div>
-      )}
-
-      {olderHistory.length > 0 && (
-        <details className="interview__history">
-          <summary>conversation so far ({olderHistory.length})</summary>
-          <ul>
-            {olderHistory.map((m, i) => (
-              <li key={i} className={`interview__turn interview__turn--${m.role}`}>
-                <span className="interview__role">{m.role === 'user' ? 'you' : 'tarobot'}</span>
-                <span className="interview__content">{m.content}</span>
-              </li>
-            ))}
-          </ul>
-        </details>
-      )}
-
-      <div className="interview__meta">
-        <span>turn {state.turns_used}/{state.turns_used + state.turns_remaining}</span>
-        <div className="interview__meta-actions">
-          <button className="btn btn--quiet" onClick={copyTranscript}>
-            {copyToast ?? 'copy transcript'}
-          </button>
-          <button className="btn btn--quiet" onClick={onCancel}>quit</button>
-        </div>
-      </div>
-
+    <div className={`interview-shell ${debugOpen ? 'interview-shell--with-debug' : ''}`}>
       {debugOpen && (
         <DebugPanel state={state} onClose={onCloseDebug} />
       )}
+
+      <div className="interview-main">
+        <div className="screen screen--interview">
+          <Reader isSpeaking={speaking} mood={status.kind === 'thinking' ? 'thinking' : 'neutral'} />
+
+          <div className="interview__stage">
+            {status.kind === 'opening' ? (
+              <div className="interview__waiting">
+                <span>tarobot is reaching for you…</span>
+              </div>
+            ) : (
+              <Dialogue
+                key={`turn-${state.history.length}`}
+                text={lastAssistant}
+                onTypingChange={setSpeaking}
+              />
+            )}
+
+            {status.kind === 'thinking' && (
+              <div className="interview__thinking">…thinking…</div>
+            )}
+            {status.kind === 'finalizing' && (
+              <div className="interview__thinking">reading what was said…</div>
+            )}
+            {status.kind === 'error' && (
+              <div className="screen__error">
+                <div>{status.message}</div>
+                {status.retry && (
+                  <button className="btn btn--ghost" onClick={status.retry}>
+                    try again
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+
+          {showInput && (
+            <div className="interview__answers">
+              {/* Reserved space for up to 6 suggestion rows. */}
+              <ul className="suggestion-list" aria-label="suggested answers">
+                {suggestions.map((opt, i) => (
+                  <li key={`${i}-${opt}`}>
+                    <button
+                      className="suggestion-row"
+                      disabled={inputDisabled}
+                      onClick={() => sendMessage(opt)}
+                    >
+                      <span className="suggestion-row__bullet">›</span>
+                      <span className="suggestion-row__text">{opt}</span>
+                    </button>
+                  </li>
+                ))}
+                {/* Placeholder rows to keep layout stable */}
+                {Array.from({ length: Math.max(0, 6 - suggestions.length) }).map((_, i) => (
+                  <li key={`pad-${i}`} aria-hidden className="suggestion-row suggestion-row--placeholder" />
+                ))}
+              </ul>
+
+              {/* Always-visible text input + mic + send */}
+              <form
+                className="answer-form"
+                onSubmit={(e) => { e.preventDefault(); void sendDraft(); }}
+              >
+                <input
+                  className="text-input"
+                  placeholder={
+                    speech.listening
+                      ? speech.interim || 'listening…'
+                      : inputDisabled ? '' : 'or type your own…'
+                  }
+                  value={draft}
+                  onChange={(e) => setDraft(e.target.value)}
+                  disabled={inputDisabled}
+                  autoCapitalize="sentences"
+                />
+                {speech.supported && (
+                  <button
+                    type="button"
+                    className={`btn btn--ghost mic-btn ${speech.listening ? 'mic-btn--on' : ''}`}
+                    onClick={() => speech.listening ? speech.stop() : speech.start()}
+                    disabled={inputDisabled}
+                    title={speech.listening ? 'stop' : 'voice input'}
+                    aria-label={speech.listening ? 'stop' : 'voice input'}
+                  >
+                    {speech.listening ? '■' : '🎙'}
+                  </button>
+                )}
+                <button
+                  className="btn btn--primary"
+                  type="submit"
+                  disabled={inputDisabled || draft.trim().length === 0}
+                >
+                  send
+                </button>
+              </form>
+              {speech.error && (
+                <div className="interview__voice-error">{speech.error}</div>
+              )}
+            </div>
+          )}
+
+          {olderHistory.length > 0 && (
+            <details className="interview__history">
+              <summary>conversation so far ({olderHistory.length})</summary>
+              <ul>
+                {olderHistory.map((m, i) => (
+                  <li key={i} className={`interview__turn interview__turn--${m.role}`}>
+                    <span className="interview__role">{m.role === 'user' ? 'you' : 'tarobot'}</span>
+                    <span className="interview__content">{m.content}</span>
+                  </li>
+                ))}
+              </ul>
+            </details>
+          )}
+
+          <div className="interview__meta">
+            <span>turn {state.turns_used}/{state.turns_used + state.turns_remaining}</span>
+            <div className="interview__meta-actions">
+              <button className="btn btn--quiet" onClick={copyTranscript}>
+                {copyToast ?? 'copy transcript'}
+              </button>
+              <button className="btn btn--quiet" onClick={onCancel}>quit</button>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

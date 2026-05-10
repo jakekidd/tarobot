@@ -194,7 +194,12 @@ export type InterviewMessage = {
 export type InterviewDecision =
   | 'probe' | 'disambiguate' | 'deepen' | 'close';
 
-export type ResponseFormat = 'open' | 'choice' | 'binary';
+export type NegativeSpaceGuess = {
+  guess: string;
+  confidence: number;
+  rationale: string;
+  status: 'hypothesis' | 'confirmed' | 'rejected';
+};
 
 export type InterviewState = {
   base_profile: BaseProfile;
@@ -205,11 +210,13 @@ export type InterviewState = {
   turns_remaining: number;
   closed: boolean;
   closing_reason?: 'budget' | 'cognition' | 'crisis';
-  /** Format the user's NEXT reply should take. Set per turn by cognition. */
-  response_format?: ResponseFormat;
-  /** Options when response_format === 'choice'. */
-  response_options?: string[];
-  /** Most recent cognition analysis — kept for transparency / debug. */
+  /** Cognition's GUESSES at what the user might reply. UI shows as tappable rows. */
+  suggested_answers?: string[];
+  /** Whether the current question is structurally yes/no/idk. */
+  is_binary?: boolean;
+  /** Running hypotheses about what the user is avoiding/not saying. Persists across turns. */
+  negative_space: NegativeSpaceGuess[];
+  /** Most recent cognition analysis — for the debug panel. */
   last_analysis?: {
     register_read: string;
     absent_domains?: string[];

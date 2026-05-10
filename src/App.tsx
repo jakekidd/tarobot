@@ -158,7 +158,7 @@ export function App() {
         </div>
       </header>
 
-      <main className="app__main">
+      <main className={`app__main ${phase.kind === 'interview' ? 'app__main--full' : ''}`}>
         {phase.kind === 'key' && (
           <KeyEntry onValidated={(k) => { setApiKey(k); goMenu(); }} />
         )}
