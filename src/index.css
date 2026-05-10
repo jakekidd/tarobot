@@ -544,3 +544,125 @@ a:hover { color: #f1c46e; }
   letter-spacing: 0.2em;
   text-transform: lowercase;
 }
+
+/* ─── Spread 3D / Placement / Reading ─────────────────── */
+
+.spread3d {
+  width: 100%;
+  height: 100%;
+  min-height: 360px;
+  position: relative;
+}
+.spread3d > canvas {
+  display: block;
+  width: 100% !important;
+  height: 100% !important;
+}
+
+.screen--placement,
+.screen--reading {
+  max-width: 920px;
+  gap: 1rem;
+  width: 100%;
+}
+
+.placement__board,
+.reading__board {
+  width: 100%;
+  height: 460px;
+  background: radial-gradient(ellipse at 50% 50%, rgba(20, 10, 34, 0.6) 0%, transparent 70%);
+  border-radius: 12px;
+  position: relative;
+}
+
+.placement__meta {
+  display: flex;
+  width: 100%;
+  justify-content: space-between;
+  align-items: center;
+  color: var(--fg-faint);
+  font-size: 0.75rem;
+  letter-spacing: 0.2em;
+  text-transform: lowercase;
+}
+
+.reading__header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+  width: 100%;
+}
+
+.reading__theme {
+  width: 100%;
+  max-width: 600px;
+  border-left: 2px solid var(--accent);
+  padding: 0.4rem 0.8rem;
+  text-align: left;
+  background: rgba(212, 166, 74, 0.06);
+}
+.reading__theme-label {
+  font-size: 0.7rem;
+  letter-spacing: 0.3em;
+  color: var(--accent);
+  text-transform: lowercase;
+}
+.reading__theme-text {
+  color: var(--fg);
+  font-style: italic;
+  margin-top: 0.2rem;
+}
+
+.reading__nav {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.reading__transcript {
+  width: 100%;
+  text-align: left;
+  border-top: 1px solid var(--line);
+  padding-top: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.reading__arc {
+  font-style: italic;
+  color: var(--accent);
+  letter-spacing: 0.05em;
+}
+
+.reading__chapter {
+  border-left: 2px solid var(--line);
+  padding: 0.4rem 0.8rem;
+}
+.reading__chapter--hidden {
+  opacity: 0.45;
+  border-left-color: var(--fg-faint);
+}
+.reading__chapter-head {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.75rem;
+  letter-spacing: 0.2em;
+  text-transform: lowercase;
+  color: var(--fg-faint);
+  margin-bottom: 0.3rem;
+}
+.reading__chapter-pos { color: var(--accent); }
+.reading__chapter-card { color: var(--fg-dim); }
+.reading__chapter-text {
+  color: var(--fg);
+  white-space: pre-wrap;
+}
+
+.closing__nav {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: center;
+}

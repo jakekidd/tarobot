@@ -201,6 +201,7 @@ export function App() {
           <Closing
             profile={phase.profile}
             reading={phase.reading}
+            drawn={phase.session.drawn}
             onDone={() => onClosingDone(phase.session)}
           />
         )}
