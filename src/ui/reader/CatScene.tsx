@@ -1,5 +1,9 @@
 import { useEffect, useRef } from 'react';
 import * as THREE from 'three';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import spriteData from './sprite.json';
 import { paintFrame, type SpriteFrame } from './spriteCanvas';
 
@@ -21,22 +25,19 @@ type Props = {
   state?: string;
   reaction?: string | null;
   speaking?: boolean;
-  /** Foreground color of the cat (1-bit fill). */
   color?: string;
-  /** "Floor" color under the cat — what the canvas paints as background. */
   bgColor?: string;
-  /** Approximate width in pixels of the rendering area. Height tracks aspect. */
   width?: number;
   height?: number;
 };
 
+const PARTICLE_COUNT = 70;
+
 /**
- * 3D version of the claude-cat sprite. Frames are repainted to an offscreen
- * canvas; the canvas is mounted as a CanvasTexture on a thin BoxGeometry
- * (= "extruded plane") that gently floats and tilts.
- *
- * Aesthetic target: 1-bit float against the void. No box, no scanlines here
- * — those layers live at the screen level above this scene.
+ * Floating, glowing, fairy-dust-emitting tarobot.
+ * Sprite is painted to canvas → CanvasTexture → MeshBasicMaterial on a
+ * box (extruded plane). Bloom postprocessing makes the cat behave as a
+ * real scene light source. Particles drift upward around it.
  */
 export function CatScene({
   state = 'idle',
@@ -45,18 +46,12 @@ export function CatScene({
   color = '#b388ff',
   bgColor = '#000000',
   width = 280,
-  height = 200,
+  height = 280,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // Drive the frame state via refs so the three.js loop can read it without
-  // recreating the scene on every prop change.
   const frameStateRef = useRef({
-    state,
-    reaction,
-    speaking,
-    color,
-    bgColor,
+    state, reaction, speaking, color, bgColor,
     frameIdx: 0,
     blinking: false,
     nextBlinkAt: 0,
@@ -75,27 +70,30 @@ export function CatScene({
     const container = containerRef.current;
     if (!container) return;
 
-    // Off-screen canvas — the texture source.
+    // Off-screen canvas for the sprite texture.
     const spriteCanvas = document.createElement('canvas');
     const spriteCtx = spriteCanvas.getContext('2d')!;
     spriteCtx.imageSmoothingEnabled = false;
 
-    // Three.js scene
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.setSize(width, height);
     renderer.setClearColor(0x000000, 0);
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.4;
     container.appendChild(renderer.domElement);
 
     const scene = new THREE.Scene();
-    const camera = new THREE.PerspectiveCamera(28, width / height, 0.1, 50);
-    camera.position.set(0, 0, 4.4);
+    const camera = new THREE.PerspectiveCamera(30, width / height, 0.1, 50);
+    camera.position.set(0, 0, 4.0);
     camera.lookAt(0, 0, 0);
 
-    // Sprite is 14 cols × 7 rows = 2:1 aspect.
-    const planeW = 1.6;
-    const planeH = 0.8;
-    const planeD = 0.06;
+    // ─── Cat mesh — square aspect (texture squished to look terminal-ish), real depth ───
+    // Sprite native aspect is 2:1; displaying on a square geometry compresses
+    // it horizontally to recover the terminal-cell square look the user knows.
+    const planeW = 1.0;
+    const planeH = 1.0;
+    const planeD = 0.22;            // visible depth
     const geom = new THREE.BoxGeometry(planeW, planeH, planeD);
 
     const tex = new THREE.CanvasTexture(spriteCanvas);
@@ -104,33 +102,94 @@ export function CatScene({
     tex.magFilter = THREE.NearestFilter;
     tex.generateMipmaps = false;
 
-    const front = new THREE.MeshBasicMaterial({ map: tex });
-    const edge = new THREE.MeshBasicMaterial({ color: 0x1a0d2c });
-    const back = new THREE.MeshBasicMaterial({ color: 0x000000 });
-    const mesh = new THREE.Mesh(geom, [edge, edge, edge, edge, front, back]);
-    scene.add(mesh);
+    const front = new THREE.MeshBasicMaterial({ map: tex, transparent: false });
+    const edge = new THREE.MeshBasicMaterial({ color: 0x2a1644 });
+    const back = new THREE.MeshBasicMaterial({ color: 0x1a0a30 });
+    const cat = new THREE.Mesh(geom, [edge, edge, edge, edge, front, back]);
+    scene.add(cat);
 
-    // Initial frame paint
-    const firstFrame =
-      data.states[state]?.frames[0] ?? data.states.idle!.frames[0]!;
+    // Initial paint
+    const firstFrame = data.states[state]?.frames[0] ?? data.states.idle!.frames[0]!;
     paintFrame(spriteCtx, firstFrame, color, bgColor);
     tex.needsUpdate = true;
+
+    // ─── Particles (fairy dust) ───
+    const particleTex = makeParticleTexture();
+    const positions = new Float32Array(PARTICLE_COUNT * 3);
+    const lifetimes = new Float32Array(PARTICLE_COUNT);
+    const lifespans = new Float32Array(PARTICLE_COUNT);
+    const speeds = new Float32Array(PARTICLE_COUNT);
+    const phases = new Float32Array(PARTICLE_COUNT);
+
+    for (let i = 0; i < PARTICLE_COUNT; i++) initParticle(i, /*spawnInPlace=*/ true);
+
+    function initParticle(i: number, spawnInPlace: boolean) {
+      // Spawn in a vertical "fountain" zone roughly around the cat's body.
+      positions[i * 3 + 0] = (Math.random() - 0.5) * 1.6;
+      positions[i * 3 + 1] = spawnInPlace
+        ? (Math.random() - 0.5) * 1.6
+        : -0.7 - Math.random() * 0.4; // respawn at bottom
+      positions[i * 3 + 2] = (Math.random() - 0.5) * 0.5;
+      const lifespan = 2.5 + Math.random() * 3.5;
+      lifespans[i] = lifespan;
+      lifetimes[i] = spawnInPlace ? Math.random() * lifespan : lifespan;
+      speeds[i] = 0.06 + Math.random() * 0.08;
+      phases[i] = Math.random() * Math.PI * 2;
+    }
+
+    const particleGeom = new THREE.BufferGeometry();
+    particleGeom.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+
+    const particleMat = new THREE.PointsMaterial({
+      color: 0xb388ff,
+      size: 0.045,
+      transparent: true,
+      opacity: 0.85,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      sizeAttenuation: true,
+      map: particleTex,
+    });
+    const particles = new THREE.Points(particleGeom, particleMat);
+    scene.add(particles);
+
+    // ─── Postprocessing — real bloom so the cat is an actual light source ───
+    const composer = new EffectComposer(renderer);
+    composer.addPass(new RenderPass(scene, camera));
+    const bloom = new UnrealBloomPass(
+      new THREE.Vector2(width, height),
+      1.05,    // strength
+      0.85,    // radius
+      0.18,    // threshold (low so violet pops)
+    );
+    composer.addPass(bloom);
+    composer.addPass(new OutputPass());
+
+    // ─── Resize handling (optional, supports devicePixelRatio changes) ───
+    const onResize = () => {
+      renderer.setSize(width, height);
+      composer.setSize(width, height);
+      camera.aspect = width / height;
+      camera.updateProjectionMatrix();
+    };
 
     let rafId = 0;
     let mounted = true;
     const start = performance.now();
+    let lastFrameMs = start;
 
     const animate = () => {
       if (!mounted) return;
       const now = performance.now();
+      const dt = Math.min((now - lastFrameMs) / 1000, 0.1);
+      lastFrameMs = now;
       const t = (now - start) / 1000;
 
-      // Frame cycling
+      // ── Frame cycling ──
       const fs = frameStateRef.current;
-      const stateData =
-        (fs.reaction && data.reactions[fs.reaction]?.frame
-          ? null
-          : data.states[fs.state] ?? data.states.idle!);
+      const stateData = (fs.reaction && data.reactions[fs.reaction]?.frame
+        ? null
+        : data.states[fs.state] ?? data.states.idle!);
 
       let frame: SpriteFrame;
       if (fs.reaction && data.reactions[fs.reaction]?.frame) {
@@ -139,21 +198,16 @@ export function CatScene({
         const mode = stateData.mode ?? 'shuffle';
         const ms = (stateData.ms ?? 1500) * (fs.speaking ? 0.4 : 1);
         if (mode !== 'hold' && stateData.frames.length > 1 && now >= fs.nextFrameAt) {
-          if (mode === 'loop') {
-            fs.frameIdx = (fs.frameIdx + 1) % stateData.frames.length;
-          } else {
-            fs.frameIdx = Math.floor(Math.random() * stateData.frames.length);
-          }
+          fs.frameIdx = mode === 'loop'
+            ? (fs.frameIdx + 1) % stateData.frames.length
+            : Math.floor(Math.random() * stateData.frames.length);
           fs.nextFrameAt = now + ms;
         }
-        // Blinking (only in idle)
         if (fs.state === 'idle' && stateData.blink) {
-          if (fs.nextBlinkAt === 0) {
-            fs.nextBlinkAt = now + 4000 + Math.random() * 5000;
-          }
+          if (fs.nextBlinkAt === 0) fs.nextBlinkAt = now + 4000 + Math.random() * 5000;
           if (!fs.blinking && now >= fs.nextBlinkAt) {
             fs.blinking = true;
-            fs.nextBlinkAt = now + 140; // hold blink
+            fs.nextBlinkAt = now + 140;
           } else if (fs.blinking && now >= fs.nextBlinkAt) {
             fs.blinking = false;
             fs.nextBlinkAt = now + 4000 + Math.random() * 5000;
@@ -161,25 +215,54 @@ export function CatScene({
         } else {
           fs.blinking = false;
         }
-
         frame = fs.blinking && stateData.blink
           ? stateData.blink
           : stateData.frames[fs.frameIdx] ?? stateData.frames[0]!;
       } else {
         frame = data.states.idle!.frames[0]!;
       }
-
       paintFrame(spriteCtx, frame, fs.color, fs.bgColor);
       tex.needsUpdate = true;
 
-      // Float + tilt — subtle, dreamy
-      mesh.position.y = Math.sin(t * 0.55) * 0.05;
-      mesh.position.x = Math.sin(t * 0.31) * 0.03;
-      mesh.rotation.y = Math.sin(t * 0.43) * 0.18;
-      mesh.rotation.x = -0.06 + Math.sin(t * 0.36) * 0.05;
-      mesh.rotation.z = Math.sin(t * 0.25) * 0.03;
+      // ── Cat float + random-feel tilt ──
+      // Multi-sine mix gives an almost-Perlin random feel without the dep.
+      const tiltZ = (
+        Math.sin(t * 0.43) * 0.5 +
+        Math.sin(t * 0.79) * 0.3 +
+        Math.sin(t * 1.27) * 0.2
+      ) * 0.06;                              // gentle left/right wobble
+      const yaw = Math.sin(t * 0.31) * 0.06; // tiny yaw
+      const pitch = -0.04 + Math.sin(t * 0.46) * 0.025;
 
-      renderer.render(scene, camera);
+      cat.rotation.z = tiltZ;
+      cat.rotation.y = yaw;
+      cat.rotation.x = pitch;
+      cat.position.y = Math.sin(t * 0.55) * 0.03;
+      cat.position.x = Math.sin(t * 0.27) * 0.02;
+
+      // ── Particles ──
+      const drift = particleGeom.attributes.position.array as Float32Array;
+      for (let i = 0; i < PARTICLE_COUNT; i++) {
+        lifetimes[i] -= dt;
+        if (lifetimes[i] <= 0 || drift[i * 3 + 1]! > 1.1) {
+          initParticle(i, false);
+        }
+        const baseY = drift[i * 3 + 1]!;
+        drift[i * 3 + 1] = baseY + speeds[i]! * dt;
+        // gentle horizontal sway based on phase
+        drift[i * 3 + 0] = drift[i * 3 + 0]! + Math.sin(t * 0.8 + phases[i]!) * 0.0008;
+      }
+      particleGeom.attributes.position.needsUpdate = true;
+
+      // Fade based on average lifetime ratio (looks better than per-vertex)
+      let avgRatio = 0;
+      for (let i = 0; i < PARTICLE_COUNT; i++) {
+        avgRatio += lifetimes[i]! / lifespans[i]!;
+      }
+      avgRatio /= PARTICLE_COUNT;
+      particleMat.opacity = 0.55 + avgRatio * 0.4;
+
+      composer.render();
       rafId = requestAnimationFrame(animate);
     };
     rafId = requestAnimationFrame(animate);
@@ -187,11 +270,16 @@ export function CatScene({
     return () => {
       mounted = false;
       cancelAnimationFrame(rafId);
+      window.removeEventListener('resize', onResize);
       geom.dispose();
       front.dispose();
       edge.dispose();
       back.dispose();
       tex.dispose();
+      particleTex.dispose();
+      particleGeom.dispose();
+      particleMat.dispose();
+      composer.dispose();
       renderer.dispose();
       if (renderer.domElement.parentNode) {
         renderer.domElement.parentNode.removeChild(renderer.domElement);
@@ -200,4 +288,19 @@ export function CatScene({
   }, [width, height]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return <div ref={containerRef} className="cat-scene" style={{ width, height }} />;
+}
+
+function makeParticleTexture(): THREE.CanvasTexture {
+  const c = document.createElement('canvas');
+  c.width = c.height = 64;
+  const ctx = c.getContext('2d')!;
+  const grad = ctx.createRadialGradient(32, 32, 0, 32, 32, 32);
+  grad.addColorStop(0, 'rgba(255,255,255,1)');
+  grad.addColorStop(0.4, 'rgba(255,255,255,0.5)');
+  grad.addColorStop(1, 'rgba(255,255,255,0)');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, 64, 64);
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
 }

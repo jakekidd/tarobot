@@ -5,20 +5,22 @@ import { loadSettings } from '../../storage';
 
 type Props = {
   text: string;
-  /** Override settings.charDelayMs for this instance. */
   charDelayMs?: number;
-  /** Override settings.soundOn for this instance. */
   soundOn?: boolean;
   onTypingChange?: (typing: boolean) => void;
   onDone?: () => void;
-  /** When true, clicking the dialogue area skips to full text. */
+  /** Click anywhere on the dialogue to skip the typewriter to full text. */
   clickToSkip?: boolean;
 };
 
 /**
- * Renders text char-by-char with synthesized typewriter blips.
- * Reports typing state to parent via onTypingChange so a Reader component
- * can sync its mouth animation.
+ * Renders the speech char-by-char with punctuation pauses.
+ *
+ * Pre-allocates space using a hidden "measure" copy of the full text in
+ * the same layout box. The visible typewriter text overlays absolutely,
+ * so the container starts already-sized. No mid-typing resize.
+ *
+ * Capped at ~3 lines of speech height — overflow is clipped.
  */
 export function Dialogue({
   text,
@@ -45,13 +47,18 @@ export function Dialogue({
 
   return (
     <div
-      className="dialogue"
+      className="dialogue-stage"
       role="region"
       aria-live="polite"
       onClick={clickToSkip && !done ? skip : undefined}
     >
-      <span className="dialogue__text">{displayed}</span>
-      {!done && <span className="dialogue__caret" aria-hidden>▋</span>}
+      {/* Measurement layer — reserves the box at full final size. */}
+      <span className="dialogue-measure" aria-hidden>{text}</span>
+      {/* Visible typewriter text — absolutely positioned over the measure. */}
+      <span className="dialogue-text">
+        {displayed}
+        {!done && <span className="dialogue-caret" aria-hidden>▍</span>}
+      </span>
     </div>
   );
 }

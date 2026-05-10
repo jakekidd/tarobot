@@ -342,27 +342,70 @@ a:hover { text-decoration: underline; }
 }
 
 /* =====================================================================
-   Dialogue (speech) — bare, IM Fell English, no box
+   Dialogue (speech) — pre-allocated rig, double-wall flanked, left-aligned
    ===================================================================== */
 
-.dialogue {
+/**
+ * The stage holds two children:
+ *   .dialogue-measure : invisible full text — reserves the bounding box.
+ *   .dialogue-text    : visible typewriter — overlaid absolutely.
+ *
+ * Result: the stage is sized to the FINAL speech from the start. Letters
+ * appear within an already-correct frame; nothing resizes mid-type.
+ *
+ * Capped at three lines tall; overflow is clipped.
+ */
+.dialogue-stage {
+  position: relative;
+  display: inline-block;
   font-family: var(--font-speech);
-  font-size: 1.55rem;
-  line-height: 1.45;
-  letter-spacing: 0.005em;
+  font-size: 1.3rem;
+  line-height: 1.5;
   color: var(--fg);
   cursor: pointer;
-  max-width: 38ch;
-  padding: 0;
+  max-width: min(38ch, calc(100vw - 4rem));
+  padding: 0.45rem 1rem;
+  text-align: left;
   background: transparent;
-  border: 0;
-  text-align: center;
-  /* faint atmospheric glow, sparingly */
+  border-left: 3px double rgba(179, 136, 255, 0.55);
+  border-right: 3px double rgba(179, 136, 255, 0.55);
   text-shadow: 0 0 14px rgba(179, 136, 255, 0.18);
+  /* hard 3-line cap */
+  max-height: calc(1.5em * 3 + 0.9rem);
+  overflow: hidden;
 }
-.dialogue__caret {
+
+.dialogue-measure,
+.dialogue-text {
+  white-space: pre-wrap;
+  word-break: break-word;
+  font: inherit;
+  letter-spacing: inherit;
+}
+
+.dialogue-measure {
+  visibility: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.dialogue-text {
+  position: absolute;
+  top: 0.45rem;
+  left: 1rem;
+  right: 1rem;
+  bottom: 0.45rem;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.dialogue-caret {
   display: inline-block;
-  margin-left: 4px;
+  margin-left: 2px;
   color: var(--violet);
   animation: caretBlink 0.7s steps(2) infinite;
 }

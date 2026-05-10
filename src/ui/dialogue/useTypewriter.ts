@@ -7,13 +7,14 @@ export type TypewriterState = {
 };
 
 /**
- * Emit `text` one character at a time. Calling skip() jumps to full text.
- * `onChar` fires for each emitted character (used for sound).
- * `onDone` fires once when typing completes.
+ * Emit `text` one character at a time with extra pauses on punctuation.
  *
- * Consumers must remount via `key` to retype a new line. The hook does NOT
- * reset its internal index on prop changes — that would require setState in
- * an effect body and would be flagged by react-hooks/set-state-in-effect.
+ * Pauses (relative to base charDelayMs):
+ *   .  ?  !   → +220-470 ms
+ *   —          → +160-300 ms
+ *   ,  ;  :    → +90-200 ms
+ *
+ * Consumers should remount via `key` to retype a new line.
  */
 export function useTypewriter(
   text: string,
@@ -36,19 +37,37 @@ export function useTypewriter(
       onDoneRef.current?.();
       return;
     }
-    const id = window.setInterval(() => {
+    let stopped = false;
+    let timeoutId = 0;
+
+    const tick = () => {
+      if (stopped) return;
       indexRef.current += 1;
       const next = text.slice(0, indexRef.current);
       setDisplayed(next);
-      const ch = text.charCodeAt(indexRef.current - 1);
-      onCharRef.current?.(ch);
+      const ch = text[indexRef.current - 1] ?? '';
+      onCharRef.current?.(ch.charCodeAt(0));
+
       if (indexRef.current >= text.length) {
-        window.clearInterval(id);
         setDone(true);
         onDoneRef.current?.();
+        return;
       }
-    }, charDelayMs);
-    return () => window.clearInterval(id);
+
+      // Variable delay based on the char we just emitted.
+      let delay = charDelayMs;
+      if (/[.?!]/.test(ch))            delay += 220 + Math.random() * 250;
+      else if (/[—–]/.test(ch))        delay += 160 + Math.random() * 140;
+      else if (/[,;:]/.test(ch))       delay += 90  + Math.random() * 110;
+
+      timeoutId = window.setTimeout(tick, delay);
+    };
+
+    timeoutId = window.setTimeout(tick, charDelayMs);
+    return () => {
+      stopped = true;
+      window.clearTimeout(timeoutId);
+    };
   }, [text, charDelayMs, empty]);
 
   const skip = () => {
