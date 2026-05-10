@@ -31,7 +31,7 @@ type Props = {
   height?: number;
 };
 
-const PARTICLE_COUNT = 70;
+const PARTICLE_COUNT = 220;
 
 /**
  * Floating, glowing, fairy-dust-emitting tarobot.
@@ -116,37 +116,54 @@ export function CatScene({
     tex.needsUpdate = true;
 
     // ─── Particles (fairy dust) ───
+    // Spawn near the cat origin, drift OUTWARD in 3D (uniform on sphere
+    // with slight upward bias) so they trail away in all directions, not
+    // just on the cat's plane. Per-vertex colors give each particle its
+    // own life-cycle fade.
     const particleTex = makeParticleTexture();
     const positions = new Float32Array(PARTICLE_COUNT * 3);
+    const velocities = new Float32Array(PARTICLE_COUNT * 3);
+    const colors = new Float32Array(PARTICLE_COUNT * 3);
     const lifetimes = new Float32Array(PARTICLE_COUNT);
     const lifespans = new Float32Array(PARTICLE_COUNT);
-    const speeds = new Float32Array(PARTICLE_COUNT);
-    const phases = new Float32Array(PARTICLE_COUNT);
 
-    for (let i = 0; i < PARTICLE_COUNT; i++) initParticle(i, /*spawnInPlace=*/ true);
+    for (let i = 0; i < PARTICLE_COUNT; i++) initParticle(i, true);
 
-    function initParticle(i: number, spawnInPlace: boolean) {
-      // Spawn in a vertical "fountain" zone roughly around the cat's body.
-      positions[i * 3 + 0] = (Math.random() - 0.5) * 1.6;
-      positions[i * 3 + 1] = spawnInPlace
-        ? (Math.random() - 0.5) * 1.6
-        : -0.7 - Math.random() * 0.4; // respawn at bottom
-      positions[i * 3 + 2] = (Math.random() - 0.5) * 0.5;
+    function initParticle(i: number, spawnAlive: boolean) {
+      // Tight spawn cluster near the cat's center.
+      positions[i * 3 + 0] = (Math.random() - 0.5) * 0.4;
+      positions[i * 3 + 1] = (Math.random() - 0.5) * 0.35;
+      positions[i * 3 + 2] = (Math.random() - 0.5) * 0.25;
+
+      // Uniform direction on a unit sphere (Marsaglia's method).
+      const u = Math.random() * 2 - 1;
+      const theta = Math.random() * Math.PI * 2;
+      const r = Math.sqrt(1 - u * u);
+      const dx = r * Math.cos(theta);
+      const dy = u;
+      const dz = r * Math.sin(theta);
+
+      const speed = 0.04 + Math.random() * 0.08;
+      velocities[i * 3 + 0] = dx * speed;
+      velocities[i * 3 + 1] = dy * speed * 0.6 + 0.015;  // slight upward bias
+      velocities[i * 3 + 2] = dz * speed;
+
       const lifespan = 2.5 + Math.random() * 3.5;
       lifespans[i] = lifespan;
-      lifetimes[i] = spawnInPlace ? Math.random() * lifespan : lifespan;
-      speeds[i] = 0.06 + Math.random() * 0.08;
-      phases[i] = Math.random() * Math.PI * 2;
+      // If spawning into a live scene (mount or after death), randomize phase
+      // so particles aren't all in lockstep. Otherwise start at full life.
+      lifetimes[i] = spawnAlive ? Math.random() * lifespan : lifespan;
     }
 
     const particleGeom = new THREE.BufferGeometry();
     particleGeom.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+    particleGeom.setAttribute('color', new THREE.BufferAttribute(colors, 3));
 
     const particleMat = new THREE.PointsMaterial({
-      color: 0xb388ff,
-      size: 0.028,
+      size: 0.022,
       transparent: true,
-      opacity: 0.45,
+      opacity: 1,                   // per-vertex color carries fade now
+      vertexColors: true,
       blending: THREE.AdditiveBlending,
       depthWrite: false,
       sizeAttenuation: true,
@@ -175,6 +192,24 @@ export function CatScene({
       camera.updateProjectionMatrix();
     };
 
+    // ─── Visibility: pause when tab hidden so we don't accumulate a
+    // particle massacre when the user comes back hours later.
+    let paused = document.visibilityState !== 'visible';
+    const onVisibilityChange = () => {
+      const nowVisible = document.visibilityState === 'visible';
+      if (nowVisible && paused) {
+        paused = false;
+        // Reset frame timer so the first dt after resume is small.
+        lastFrameMs = performance.now();
+        if (rafId === 0 && mounted) {
+          rafId = requestAnimationFrame(animate);
+        }
+      } else if (!nowVisible) {
+        paused = true;
+      }
+    };
+    document.addEventListener('visibilitychange', onVisibilityChange);
+
     let rafId = 0;
     let mounted = true;
     const start = performance.now();
@@ -182,8 +217,13 @@ export function CatScene({
 
     const animate = () => {
       if (!mounted) return;
+      if (paused) {
+        // Don't tick while hidden — stall rAF until visibility returns.
+        rafId = 0;
+        return;
+      }
       const now = performance.now();
-      const dt = Math.min((now - lastFrameMs) / 1000, 0.1);
+      const dt = Math.min((now - lastFrameMs) / 1000, 0.05); // tighter clamp
       lastFrameMs = now;
       const t = (now - start) / 1000;
 
@@ -243,26 +283,44 @@ export function CatScene({
       cat.position.x = Math.sin(t * 0.27) * 0.02;
 
       // ── Particles ──
+      // Drift along their per-particle 3D velocity. Slight gravity-ish
+      // damping on the y-velocity so they slow as they rise. Per-vertex
+      // RGB carries the fade — each particle has its own life curve.
       const drift = particleGeom.attributes.position.array as Float32Array;
+      const vel = velocities;
+      const col = particleGeom.attributes.color.array as Float32Array;
+
       for (let i = 0; i < PARTICLE_COUNT; i++) {
         lifetimes[i] -= dt;
-        if (lifetimes[i] <= 0 || drift[i * 3 + 1]! > 1.1) {
+        const lx = drift[i * 3 + 0]!;
+        const ly = drift[i * 3 + 1]!;
+        const lz = drift[i * 3 + 2]!;
+
+        // Respawn if dead or drifted too far in any direction.
+        if (lifetimes[i]! <= 0 || lx * lx + ly * ly + lz * lz > 4) {
           initParticle(i, false);
+          continue;
         }
-        const baseY = drift[i * 3 + 1]!;
-        drift[i * 3 + 1] = baseY + speeds[i]! * dt;
-        // gentle horizontal sway based on phase
-        drift[i * 3 + 0] = drift[i * 3 + 0]! + Math.sin(t * 0.8 + phases[i]!) * 0.0008;
+
+        drift[i * 3 + 0] = lx + vel[i * 3 + 0]! * dt;
+        drift[i * 3 + 1] = ly + vel[i * 3 + 1]! * dt;
+        drift[i * 3 + 2] = lz + vel[i * 3 + 2]! * dt;
+
+        // Mild damping so velocity tapers — feels like dust catching air.
+        vel[i * 3 + 0] = vel[i * 3 + 0]! * (1 - dt * 0.4);
+        vel[i * 3 + 1] = vel[i * 3 + 1]! * (1 - dt * 0.4);
+        vel[i * 3 + 2] = vel[i * 3 + 2]! * (1 - dt * 0.4);
+
+        // Per-particle fade: peaks midlife, fades at both ends so the
+        // birth/death are soft. Curve = sin(πr) where r = lifeRatio.
+        const ratio = lifetimes[i]! / lifespans[i]!;
+        const intensity = Math.sin(ratio * Math.PI) * 0.55;
+        col[i * 3 + 0] = intensity * 0.7;   // R
+        col[i * 3 + 1] = intensity * 0.53;  // G
+        col[i * 3 + 2] = intensity * 1.0;   // B → violet
       }
       particleGeom.attributes.position.needsUpdate = true;
-
-      // Fade based on average lifetime ratio (looks better than per-vertex)
-      let avgRatio = 0;
-      for (let i = 0; i < PARTICLE_COUNT; i++) {
-        avgRatio += lifetimes[i]! / lifespans[i]!;
-      }
-      avgRatio /= PARTICLE_COUNT;
-      particleMat.opacity = 0.3 + avgRatio * 0.25;
+      particleGeom.attributes.color.needsUpdate = true;
 
       composer.render();
       rafId = requestAnimationFrame(animate);
@@ -273,6 +331,7 @@ export function CatScene({
       mounted = false;
       cancelAnimationFrame(rafId);
       window.removeEventListener('resize', onResize);
+      document.removeEventListener('visibilitychange', onVisibilityChange);
       geom.dispose();
       front.dispose();
       edge.dispose();
