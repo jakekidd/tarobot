@@ -1,4 +1,4 @@
-import { CatSprite } from './CatSprite';
+import { CatScene } from './CatScene';
 
 type Mood = 'neutral' | 'thinking' | 'flipping' | 'reading' | 'sleeping';
 
@@ -17,19 +17,17 @@ const MOOD_TO_STATE: Record<Mood, string> = {
 };
 
 /**
- * Tarobot's avatar — animated unicode-block ASCII cat ported from claude-cat.
+ * The cat in 3D — floating in the void, no box, no scanlines.
+ * Screen-level CRT layers handle the rest.
  */
 export function Reader({ isSpeaking = false, mood = 'neutral', reaction = null }: Props) {
   return (
     <div className="reader">
-      <div className="reader__box">
-        <CatSprite
-          state={MOOD_TO_STATE[mood]}
-          reaction={reaction ?? undefined}
-          speaking={isSpeaking}
-        />
-        <div className="reader__scanlines" aria-hidden />
-      </div>
+      <CatScene
+        state={MOOD_TO_STATE[mood]}
+        reaction={reaction ?? undefined}
+        speaking={isSpeaking}
+      />
     </div>
   );
 }

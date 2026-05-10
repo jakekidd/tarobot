@@ -173,7 +173,12 @@ export function App() {
         </div>
       </header>
 
-      <main className={`app__main ${phase.kind === 'interview' ? 'app__main--full' : ''}`}>
+      <div className="crt">
+        <div className="crt__scanlines" aria-hidden />
+        <div className="crt__vignette" aria-hidden />
+        <div className="crt__aberration" aria-hidden />
+        <div className="crt__flicker" aria-hidden />
+        <main className={`app__main ${phase.kind === 'interview' ? 'app__main--full' : ''}`}>
         {phase.kind === 'key' && (
           <KeyEntry onValidated={(k) => { setApiKey(k); goMenu(); }} />
         )}
@@ -243,7 +248,8 @@ export function App() {
             onDone={() => onClosingDone(phase.session)}
           />
         )}
-      </main>
+        </main>
+      </div>
     </div>
   );
 }

@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { Reader } from './reader/Reader';
 import { Dialogue } from './dialogue/Dialogue';
-import { useSpeechInput } from './dialogue/useSpeechInput';
 import { DebugPanel } from './DebugPanel';
+import { MultipleChoice } from './choices/MultipleChoice';
 import {
   createClaudeClient,
   finalizeProfile,
@@ -53,9 +53,6 @@ export function Interview({ apiKey, base, onFinalized, onCancel, debugOpen, onCl
   const [copyToast, setCopyToast] = useState<string | null>(null);
   const clientRef = useRef(createClaudeClient(apiKey));
   const ranOpenRef = useRef(false);
-  const speech = useSpeechInput((finalText) => {
-    setDraft((prev) => (prev ? `${prev} ${finalText}` : finalText));
-  });
 
   // Persist state changes.
   useEffect(() => {
@@ -213,12 +210,11 @@ export function Interview({ apiKey, base, onFinalized, onCancel, debugOpen, onCl
 
   const showInput = !state.closed && status.kind !== 'finalizing';
   const suggestions = state.suggested_answers ?? [];
+  const isBinary = !!state.is_binary;
 
   return (
     <div className={`interview-shell ${debugOpen ? 'interview-shell--with-debug' : ''}`}>
-      {debugOpen && (
-        <DebugPanel state={state} onClose={onCloseDebug} />
-      )}
+      {debugOpen && <DebugPanel state={state} onClose={onCloseDebug} />}
 
       <div className="interview-main">
         <div className="screen screen--interview">
@@ -226,9 +222,7 @@ export function Interview({ apiKey, base, onFinalized, onCancel, debugOpen, onCl
 
           <div className="interview__stage">
             {status.kind === 'opening' ? (
-              <div className="interview__waiting">
-                <span>tarobot is reaching for you…</span>
-              </div>
+              <div className="interview__waiting">tarobot is reaching for you…</div>
             ) : (
               <Dialogue
                 key={`turn-${state.history.length}`}
@@ -247,7 +241,7 @@ export function Interview({ apiKey, base, onFinalized, onCancel, debugOpen, onCl
               <div className="screen__error">
                 <div>{status.message}</div>
                 {status.retry && (
-                  <button className="btn btn--ghost" onClick={status.retry}>
+                  <button className="btn btn--chrome" onClick={status.retry}>
                     try again
                   </button>
                 )}
@@ -257,66 +251,26 @@ export function Interview({ apiKey, base, onFinalized, onCancel, debugOpen, onCl
 
           {showInput && (
             <div className="interview__answers">
-              {/* Reserved space for up to 6 suggestion rows. */}
-              <ul className="suggestion-list" aria-label="suggested answers">
-                {suggestions.map((opt, i) => (
-                  <li key={`${i}-${opt}`}>
-                    <button
-                      className="suggestion-row"
-                      disabled={inputDisabled}
-                      onClick={() => sendMessage(opt)}
-                    >
-                      <span className="suggestion-row__bullet">›</span>
-                      <span className="suggestion-row__text">{opt}</span>
-                    </button>
-                  </li>
-                ))}
-                {/* Placeholder rows to keep layout stable */}
-                {Array.from({ length: Math.max(0, 6 - suggestions.length) }).map((_, i) => (
-                  <li key={`pad-${i}`} aria-hidden className="suggestion-row suggestion-row--placeholder" />
-                ))}
-              </ul>
+              <MultipleChoice
+                suggestions={suggestions}
+                isBinary={isBinary}
+                disabled={inputDisabled}
+                onPick={(v) => sendMessage(v)}
+              />
 
-              {/* Always-visible text input + mic + send */}
               <form
                 className="answer-form"
                 onSubmit={(e) => { e.preventDefault(); void sendDraft(); }}
               >
                 <input
-                  className="text-input"
-                  placeholder={
-                    speech.listening
-                      ? speech.interim || 'listening…'
-                      : inputDisabled ? '' : 'or type your own…'
-                  }
+                  className="text-input text-input--ghost"
+                  placeholder={inputDisabled ? '' : 'or type your own…'}
                   value={draft}
                   onChange={(e) => setDraft(e.target.value)}
                   disabled={inputDisabled}
                   autoCapitalize="sentences"
                 />
-                {speech.supported && (
-                  <button
-                    type="button"
-                    className={`btn btn--ghost mic-btn ${speech.listening ? 'mic-btn--on' : ''}`}
-                    onClick={() => speech.listening ? speech.stop() : speech.start()}
-                    disabled={inputDisabled}
-                    title={speech.listening ? 'stop' : 'voice input'}
-                    aria-label={speech.listening ? 'stop' : 'voice input'}
-                  >
-                    {speech.listening ? '■' : '🎙'}
-                  </button>
-                )}
-                <button
-                  className="btn btn--primary"
-                  type="submit"
-                  disabled={inputDisabled || draft.trim().length === 0}
-                >
-                  send
-                </button>
               </form>
-              {speech.error && (
-                <div className="interview__voice-error">{speech.error}</div>
-              )}
             </div>
           )}
 
