@@ -3,6 +3,7 @@ import { Reader } from './reader/Reader';
 import { Dialogue } from './dialogue/Dialogue';
 import { DebugPanel } from './DebugPanel';
 import { MultipleChoice } from './choices/MultipleChoice';
+import { Spinner } from './Spinner';
 import {
   createClaudeClient,
   finalizeProfile,
@@ -54,7 +55,6 @@ export function Interview({ apiKey, base, onFinalized, onCancel, debugOpen, onCl
   const clientRef = useRef(createClaudeClient(apiKey));
   const ranOpenRef = useRef(false);
 
-  // Persist state changes.
   useEffect(() => {
     const active = loadActive();
     if (!active) return;
@@ -67,7 +67,6 @@ export function Interview({ apiKey, base, onFinalized, onCancel, debugOpen, onCl
     });
   }, [state, base]);
 
-  // Opening turn.
   useEffect(() => {
     if (state.history.length > 0 || ranOpenRef.current) return;
     ranOpenRef.current = true;
@@ -94,7 +93,6 @@ export function Interview({ apiKey, base, onFinalized, onCancel, debugOpen, onCl
     return () => { cancelled = true; };
   }, [state, status.kind === 'opening']); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Finalize after close.
   useEffect(() => {
     if (status.kind !== 'finalizing') return;
     let cancelled = false;
@@ -197,9 +195,6 @@ export function Interview({ apiKey, base, onFinalized, onCancel, debugOpen, onCl
 
   const lastAssistant =
     [...state.history].reverse().find((m) => m.role === 'assistant')?.content ?? '…';
-  const lastAssistantIdx = state.history.length - 1 -
-    [...state.history].reverse().findIndex((m) => m.role === 'assistant');
-  const olderHistory = state.history.slice(0, Math.max(0, lastAssistantIdx));
 
   const inputDisabled =
     status.kind === 'thinking' ||
@@ -208,9 +203,14 @@ export function Interview({ apiKey, base, onFinalized, onCancel, debugOpen, onCl
     status.kind === 'error' ||
     state.closed;
 
-  const showInput = !state.closed && status.kind !== 'finalizing';
   const suggestions = state.suggested_answers ?? [];
   const isBinary = !!state.is_binary;
+
+  const isWaiting = status.kind === 'thinking' || status.kind === 'opening' || status.kind === 'finalizing';
+  const waitLabel =
+    status.kind === 'opening' ? 'reaching for you'
+    : status.kind === 'finalizing' ? 'reading what was said'
+    : 'thinking';
 
   return (
     <div className={`interview-shell ${debugOpen ? 'interview-shell--with-debug' : ''}`}>
@@ -220,81 +220,74 @@ export function Interview({ apiKey, base, onFinalized, onCancel, debugOpen, onCl
         <div className="screen screen--interview">
           <Reader isSpeaking={speaking} mood={status.kind === 'thinking' ? 'thinking' : 'neutral'} />
 
-          <div className="interview__stage">
-            {status.kind === 'opening' ? (
-              <div className="interview__waiting">tarobot is reaching for you…</div>
-            ) : (
-              <Dialogue
-                key={`turn-${state.history.length}`}
-                text={lastAssistant}
-                onTypingChange={setSpeaking}
-              />
-            )}
-
-            {status.kind === 'thinking' && (
-              <div className="interview__thinking">…thinking…</div>
-            )}
-            {status.kind === 'finalizing' && (
-              <div className="interview__thinking">reading what was said…</div>
-            )}
-            {status.kind === 'error' && (
-              <div className="screen__error">
-                <div>{status.message}</div>
-                {status.retry && (
-                  <button className="btn btn--chrome" onClick={status.retry}>
-                    try again
-                  </button>
-                )}
-              </div>
-            )}
-          </div>
-
-          {showInput && (
-            <div className="interview__answers">
-              <MultipleChoice
-                suggestions={suggestions}
-                isBinary={isBinary}
-                disabled={inputDisabled}
-                onPick={(v) => sendMessage(v)}
-              />
-
-              <form
-                className="answer-form"
-                onSubmit={(e) => { e.preventDefault(); void sendDraft(); }}
-              >
-                <input
-                  className="text-input text-input--ghost"
-                  placeholder={inputDisabled ? '' : 'or type your own…'}
-                  value={draft}
-                  onChange={(e) => setDraft(e.target.value)}
-                  disabled={inputDisabled}
-                  autoCapitalize="sentences"
-                />
-              </form>
+          {/* Speech — pre-allocated, double-walled */}
+          {status.kind !== 'opening' ? (
+            <Dialogue
+              key={`turn-${state.history.length}`}
+              text={lastAssistant}
+              onTypingChange={setSpeaking}
+            />
+          ) : (
+            <div className="dialogue-stage dialogue-stage--placeholder">
+              <Spinner label="reaching for you" />
             </div>
           )}
 
-          {olderHistory.length > 0 && (
-            <details className="interview__history">
-              <summary>conversation so far ({olderHistory.length})</summary>
-              <ul>
-                {olderHistory.map((m, i) => (
-                  <li key={i} className={`interview__turn interview__turn--${m.role}`}>
-                    <span className="interview__role">{m.role === 'user' ? 'you' : 'tarobot'}</span>
-                    <span className="interview__content">{m.content}</span>
-                  </li>
-                ))}
-              </ul>
-            </details>
-          )}
+          {/* Static UI frame — every interactive element below speech lives here. */}
+          <div className="ui-frame">
+            <div className="ui-frame__choices">
+              {status.kind === 'error' ? (
+                <div className="screen__error">
+                  <div>{status.message}</div>
+                  {status.retry && (
+                    <button className="btn btn--chrome" onClick={status.retry}>
+                      try again
+                    </button>
+                  )}
+                </div>
+              ) : isWaiting ? (
+                <div className="ui-frame__waiting">
+                  <Spinner label={waitLabel} />
+                </div>
+              ) : (
+                <MultipleChoice
+                  suggestions={suggestions}
+                  isBinary={isBinary}
+                  disabled={inputDisabled}
+                  onPick={(v) => sendMessage(v)}
+                />
+              )}
+            </div>
 
-          <div className="interview__meta">
-            <span>turn {state.turns_used}/{state.turns_used + state.turns_remaining}</span>
-            <div className="interview__meta-actions">
-              <button className="btn btn--quiet" onClick={copyTranscript}>
-                {copyToast ?? 'copy transcript'}
+            <form
+              className="ui-frame__form"
+              onSubmit={(e) => { e.preventDefault(); void sendDraft(); }}
+            >
+              <input
+                className="text-input text-input--ghost"
+                placeholder={inputDisabled ? '' : 'or type your own…'}
+                value={draft}
+                onChange={(e) => setDraft(e.target.value)}
+                disabled={inputDisabled || state.closed}
+                autoCapitalize="sentences"
+              />
+              <button
+                type="submit"
+                className="btn btn--chrome btn--send"
+                disabled={inputDisabled || state.closed || draft.trim().length === 0}
+              >
+                send
               </button>
-              <button className="btn btn--quiet" onClick={onCancel}>quit</button>
+            </form>
+
+            <div className="ui-frame__meta">
+              <span>turn {state.turns_used}/{state.turns_used + state.turns_remaining}</span>
+              <div className="ui-frame__meta-actions">
+                <button className="btn btn--quiet" onClick={copyTranscript}>
+                  {copyToast ?? 'copy transcript'}
+                </button>
+                <button className="btn btn--quiet" onClick={onCancel}>quit</button>
+              </div>
             </div>
           </div>
         </div>

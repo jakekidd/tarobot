@@ -79,8 +79,10 @@ export function CatScene({
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.setSize(width, height);
     renderer.setClearColor(0x000000, 0);
-    renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 1.4;
+    // Linear pass-through so the violet stays violet — no exposure boost,
+    // no ACES compression. Bloom adds the only "light source" feel.
+    renderer.toneMapping = THREE.NoToneMapping;
+    renderer.toneMappingExposure = 1.0;
     container.appendChild(renderer.domElement);
 
     const scene = new THREE.Scene();
@@ -142,9 +144,9 @@ export function CatScene({
 
     const particleMat = new THREE.PointsMaterial({
       color: 0xb388ff,
-      size: 0.045,
+      size: 0.028,
       transparent: true,
-      opacity: 0.85,
+      opacity: 0.45,
       blending: THREE.AdditiveBlending,
       depthWrite: false,
       sizeAttenuation: true,
@@ -158,9 +160,9 @@ export function CatScene({
     composer.addPass(new RenderPass(scene, camera));
     const bloom = new UnrealBloomPass(
       new THREE.Vector2(width, height),
-      1.05,    // strength
-      0.85,    // radius
-      0.18,    // threshold (low so violet pops)
+      0.45,    // strength — subtle halo, not messianic glow
+      0.55,    // radius
+      0.55,    // threshold — only the brighter cat pixels bloom, not bg
     );
     composer.addPass(bloom);
     composer.addPass(new OutputPass());
@@ -260,7 +262,7 @@ export function CatScene({
         avgRatio += lifetimes[i]! / lifespans[i]!;
       }
       avgRatio /= PARTICLE_COUNT;
-      particleMat.opacity = 0.55 + avgRatio * 0.4;
+      particleMat.opacity = 0.3 + avgRatio * 0.25;
 
       composer.render();
       rafId = requestAnimationFrame(animate);

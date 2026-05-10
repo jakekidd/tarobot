@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Reader } from './reader/Reader';
 import { Dialogue } from './dialogue/Dialogue';
 import type {
@@ -40,11 +40,11 @@ const ORDER: Step[] = [
 
 const PROMPTS: Record<Step, string> = {
   name: 'first — what do they call you?',
-  birthday: 'when were you born? month and day. you can skip.',
+  birthday: 'when were you born? month and day. leave blank if you\'d rather not.',
   coming_with: 'who came with you tonight?',
   register: 'pick the word your year has felt like.',
   familiar: 'pick a creature. don\'t think.',
-  on_my_mind: 'is there anything pressing on your mind right now? a sentence is enough. you can skip.',
+  on_my_mind: 'anything pressing on your mind? a sentence — or skip past with enter.',
   want: 'what would you like to leave with?',
   review: 'good. let me look at you for a moment.',
 };
@@ -54,7 +54,7 @@ const REGISTER: RegisterPick[] = ['chaos', 'clarity', 'comfort', 'change'];
 const FAMILIAR: Familiar[] = ['raven', 'serpent', 'wolf', 'cat', 'moth', 'fox'];
 const WANT: WantFromReading[] = ['laugh', 'warning', 'clarity', 'unsure'];
 
-export function Survey({ onComplete, onCancel, existingProfiles, onUseExistingProfile }: Props) {
+export function Survey({ onComplete, existingProfiles, onUseExistingProfile }: Props) {
   const [step, setStep] = useState<Step>('name');
   const [speaking, setSpeaking] = useState(false);
 
@@ -79,16 +79,10 @@ export function Survey({ onComplete, onCancel, existingProfiles, onUseExistingPr
     want_from_reading: want,
   }), [name, birthMonth, birthDay, comingWith, register, familiar, onMyMind, want]);
 
-  useEffect(() => {
-    // restart speaking animation on step change
-  }, [step]);
-
   const idx = ORDER.indexOf(step);
   const next = () => setStep(ORDER[Math.min(ORDER.length - 1, idx + 1)]!);
-  const back = () => idx > 0 ? setStep(ORDER[idx - 1]!) : onCancel();
-  const skip = next;
 
-  const canAdvance = step === 'name' ? name.trim().length > 0 : true;
+  const canAdvanceName = name.trim().length > 0;
 
   return (
     <div className="screen screen--survey">
@@ -99,125 +93,94 @@ export function Survey({ onComplete, onCancel, existingProfiles, onUseExistingPr
         onTypingChange={setSpeaking}
       />
 
-      <div className="survey__body">
-        {step === 'name' && (
-          <NameStep
-            name={name}
-            setName={setName}
-            existingProfiles={existingProfiles}
-            onUseExistingProfile={onUseExistingProfile}
-            onAdvance={() => canAdvance && next()}
-          />
-        )}
-
-        {step === 'birthday' && (
-          <div className="birthday-row">
-            <input
-              className="text-input text-input--narrow"
-              inputMode="numeric"
-              maxLength={2}
-              value={birthMonth}
-              onChange={(e) => setBirthMonth(e.target.value.replace(/\D/g, ''))}
-              placeholder="MM"
+      <div className="ui-frame ui-frame--survey">
+        <div className="ui-frame__choices">
+          {step === 'name' && (
+            <NameStep
+              name={name}
+              setName={setName}
+              existingProfiles={existingProfiles}
+              onUseExistingProfile={onUseExistingProfile}
+              onAdvance={() => canAdvanceName && next()}
             />
-            <span>/</span>
-            <input
-              className="text-input text-input--narrow"
-              inputMode="numeric"
-              maxLength={2}
-              value={birthDay}
-              onChange={(e) => setBirthDay(e.target.value.replace(/\D/g, ''))}
-              placeholder="DD"
+          )}
+
+          {step === 'birthday' && (
+            <BirthdayStep
+              month={birthMonth}
+              day={birthDay}
+              setMonth={setBirthMonth}
+              setDay={setBirthDay}
+              onAdvance={next}
             />
-          </div>
-        )}
+          )}
 
-        {step === 'coming_with' && (
-          <ChipRow
-            options={COMING_WITH}
-            selected={comingWith}
-            onSelect={(v) => { setComingWith(v); next(); }}
-          />
-        )}
+          {step === 'coming_with' && (
+            <ChipRow
+              options={COMING_WITH}
+              selected={comingWith}
+              onSelect={(v) => { setComingWith(v); next(); }}
+            />
+          )}
 
-        {step === 'register' && (
-          <ChipRow
-            options={REGISTER}
-            selected={register}
-            onSelect={(v) => { setRegister(v); next(); }}
-          />
-        )}
+          {step === 'register' && (
+            <ChipRow
+              options={REGISTER}
+              selected={register}
+              onSelect={(v) => { setRegister(v); next(); }}
+            />
+          )}
 
-        {step === 'familiar' && (
-          <ChipRow
-            options={FAMILIAR}
-            selected={familiar}
-            onSelect={(v) => { setFamiliar(v); next(); }}
-          />
-        )}
+          {step === 'familiar' && (
+            <ChipRow
+              options={FAMILIAR}
+              selected={familiar}
+              onSelect={(v) => { setFamiliar(v); next(); }}
+            />
+          )}
 
-        {step === 'on_my_mind' && (
-          <textarea
-            className="text-area"
-            value={onMyMind}
-            onChange={(e) => setOnMyMind(e.target.value.slice(0, 200))}
-            placeholder="optional. a sentence."
-            autoCapitalize="sentences"
-            rows={3}
-          />
-        )}
+          {step === 'on_my_mind' && (
+            <OnMyMindStep
+              value={onMyMind}
+              setValue={setOnMyMind}
+              onAdvance={next}
+            />
+          )}
 
-        {step === 'want' && (
-          <ChipRow
-            options={WANT}
-            selected={want}
-            onSelect={(v) => { setWant(v); next(); }}
-          />
-        )}
+          {step === 'want' && (
+            <ChipRow
+              options={WANT}
+              selected={want}
+              onSelect={(v) => { setWant(v); next(); }}
+            />
+          )}
 
-        {step === 'review' && (
-          <div className="survey__review">
-            <p>name: <em>{survey.name}</em></p>
-            {survey.birth_month_day && <p>born: {survey.birth_month_day}</p>}
-            {survey.coming_with && <p>here with: {survey.coming_with}</p>}
-            {survey.register_pick && <p>your year: {survey.register_pick}</p>}
-            {survey.familiar_pick && <p>creature: {survey.familiar_pick}</p>}
-            {survey.on_my_mind && <p>on your mind: <em>{survey.on_my_mind}</em></p>}
-            {survey.want_from_reading && <p>looking for: {survey.want_from_reading}</p>}
-          </div>
-        )}
-      </div>
-
-      <div className="survey__nav">
-        <button className="btn btn--ghost" onClick={back}>
-          {idx === 0 ? 'cancel' : 'back'}
-        </button>
-        {step !== 'review' && (
-          <button className="btn btn--quiet" onClick={skip} disabled={step === 'name'}>
-            skip
-          </button>
-        )}
-        {(step === 'name' || step === 'birthday' || step === 'on_my_mind') && (
-          <button
-            className="btn btn--primary"
-            onClick={next}
-            disabled={!canAdvance}
-          >
-            next
-          </button>
-        )}
-        {step === 'review' && (
-          <button
-            className="btn btn--primary"
-            onClick={() => onComplete(survey)}
-          >
-            begin the interview
-          </button>
-        )}
+          {step === 'review' && (
+            <div className="survey__review">
+              <p>name: <em>{survey.name}</em></p>
+              {survey.birth_month_day && <p>born: {survey.birth_month_day}</p>}
+              {survey.coming_with && <p>here with: {survey.coming_with}</p>}
+              {survey.register_pick && <p>your year: {survey.register_pick}</p>}
+              {survey.familiar_pick && <p>creature: {survey.familiar_pick}</p>}
+              {survey.on_my_mind && <p>on your mind: <em>{survey.on_my_mind}</em></p>}
+              {survey.want_from_reading && <p>looking for: {survey.want_from_reading}</p>}
+              <div className="survey__review-confirm">
+                <button
+                  className="btn btn--chrome"
+                  onClick={() => onComplete(survey)}
+                >
+                  begin the interview
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
 }
+
+// ─── Step components ──────────────────────────────────────
 
 function ChipRow<T extends string>({
   options,
@@ -233,10 +196,10 @@ function ChipRow<T extends string>({
       {options.map((opt) => (
         <button
           key={opt}
-          className={`chip ${selected === opt ? 'chip--on' : ''}`}
+          className={`choice-button ${selected === opt ? 'choice-button--on' : ''}`}
           onClick={() => onSelect(opt)}
         >
-          {opt}
+          <span className="choice-button__text">{opt}</span>
         </button>
       ))}
     </div>
@@ -256,7 +219,6 @@ function NameStep({
   onUseExistingProfile: (profile: EnrichedProfile) => void;
   onAdvance: () => void;
 }) {
-  // Detect collision with an existing profile (case-insensitive).
   const collision = existingProfiles.find(
     (p) => p.name.trim().toLowerCase() === name.trim().toLowerCase() && name.trim().length > 0,
   );
@@ -271,39 +233,50 @@ function NameStep({
             {existingProfiles.slice(0, 6).map((p) => (
               <button
                 key={p.name}
-                className="chip"
+                className="choice-button choice-button--mini"
                 onClick={() => setPendingPickProfile(p)}
                 type="button"
               >
-                {p.name}
+                <span className="choice-button__text">{p.name}</span>
               </button>
             ))}
           </div>
         </div>
       )}
 
-      <input
-        className="text-input"
-        value={name}
-        onChange={(e) => setName(e.target.value)}
-        placeholder="your name"
-        autoFocus
-        autoCapitalize="words"
-        autoComplete="given-name"
-        onKeyDown={(e) => e.key === 'Enter' && onAdvance()}
-      />
+      <form
+        onSubmit={(e) => { e.preventDefault(); onAdvance(); }}
+        className="name-step__form"
+      >
+        <input
+          className="text-input text-input--ghost"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="your name"
+          autoFocus
+          autoCapitalize="words"
+          autoComplete="given-name"
+        />
+        <button
+          type="submit"
+          className="btn btn--chrome btn--send"
+          disabled={name.trim().length === 0}
+        >
+          enter
+        </button>
+      </form>
 
       {collision && !pendingPickProfile && (
         <div className="name-step__collision">
           <span>i remember a {collision.name}.</span>
           <button
-            className="btn btn--primary btn--sm"
+            className="btn btn--chrome btn--sm"
             type="button"
             onClick={() => onUseExistingProfile(collision)}
           >
             use last profile
           </button>
-          <span className="name-step__collision-or">or keep going to rebuild ↓</span>
+          <span className="name-step__collision-or">or hit enter to rebuild</span>
         </div>
       )}
 
@@ -311,7 +284,7 @@ function NameStep({
         <div className="name-step__collision">
           <span>{pendingPickProfile.name} — what do you want?</span>
           <button
-            className="btn btn--primary btn--sm"
+            className="btn btn--chrome btn--sm"
             type="button"
             onClick={() => onUseExistingProfile(pendingPickProfile)}
           >
@@ -327,15 +300,82 @@ function NameStep({
           >
             rebuild
           </button>
-          <button
-            className="btn btn--quiet btn--sm"
-            type="button"
-            onClick={() => setPendingPickProfile(null)}
-          >
-            cancel
-          </button>
         </div>
       )}
     </div>
+  );
+}
+
+function BirthdayStep({
+  month,
+  day,
+  setMonth,
+  setDay,
+  onAdvance,
+}: {
+  month: string;
+  day: string;
+  setMonth: (s: string) => void;
+  setDay: (s: string) => void;
+  onAdvance: () => void;
+}) {
+  return (
+    <form
+      onSubmit={(e) => { e.preventDefault(); onAdvance(); }}
+      className="birthday-step"
+    >
+      <div className="birthday-row">
+        <input
+          className="text-input text-input--ghost text-input--narrow"
+          inputMode="numeric"
+          maxLength={2}
+          value={month}
+          onChange={(e) => setMonth(e.target.value.replace(/\D/g, ''))}
+          placeholder="MM"
+          autoFocus
+        />
+        <span>/</span>
+        <input
+          className="text-input text-input--ghost text-input--narrow"
+          inputMode="numeric"
+          maxLength={2}
+          value={day}
+          onChange={(e) => setDay(e.target.value.replace(/\D/g, ''))}
+          placeholder="DD"
+        />
+      </div>
+      <button type="submit" className="btn btn--chrome btn--big">
+        enter
+      </button>
+    </form>
+  );
+}
+
+function OnMyMindStep({
+  value,
+  setValue,
+  onAdvance,
+}: {
+  value: string;
+  setValue: (s: string) => void;
+  onAdvance: () => void;
+}) {
+  return (
+    <form
+      onSubmit={(e) => { e.preventDefault(); onAdvance(); }}
+      className="name-step__form"
+    >
+      <input
+        className="text-input text-input--ghost"
+        value={value}
+        onChange={(e) => setValue(e.target.value.slice(0, 200))}
+        placeholder="optional"
+        autoFocus
+        autoCapitalize="sentences"
+      />
+      <button type="submit" className="btn btn--chrome btn--send">
+        enter
+      </button>
+    </form>
   );
 }
