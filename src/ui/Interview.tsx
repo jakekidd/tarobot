@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Reader } from './reader/Reader';
 import { Dialogue } from './dialogue/Dialogue';
+import { useSpeechInput } from './dialogue/useSpeechInput';
 import {
   createClaudeClient,
   finalizeProfile,
@@ -49,6 +50,9 @@ export function Interview({ apiKey, base, onFinalized, onCancel }: Props) {
   const [speaking, setSpeaking] = useState(false);
   const clientRef = useRef(createClaudeClient(apiKey));
   const ranOpenRef = useRef(false);
+  const speech = useSpeechInput((finalText) => {
+    setDraft((prev) => (prev ? `${prev} ${finalText}` : finalText));
+  });
 
   // Persist state changes to active session.
   useEffect(() => {
@@ -191,12 +195,29 @@ export function Interview({ apiKey, base, onFinalized, onCancel }: Props) {
         >
           <input
             className="text-input"
-            placeholder={inputDisabled ? '' : 'speak…'}
+            placeholder={
+              speech.listening
+                ? speech.interim || 'listening…'
+                : inputDisabled ? '' : 'speak…'
+            }
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
             disabled={inputDisabled}
+            autoCapitalize="sentences"
             autoFocus
           />
+          {speech.supported && (
+            <button
+              type="button"
+              className={`btn btn--ghost mic-btn ${speech.listening ? 'mic-btn--on' : ''}`}
+              onClick={() => speech.listening ? speech.stop() : speech.start()}
+              disabled={inputDisabled}
+              title={speech.listening ? 'stop recording' : 'voice input'}
+              aria-label={speech.listening ? 'stop recording' : 'voice input'}
+            >
+              {speech.listening ? '■' : '🎙'}
+            </button>
+          )}
           <button
             className="btn btn--primary"
             type="submit"
@@ -205,6 +226,9 @@ export function Interview({ apiKey, base, onFinalized, onCancel }: Props) {
             send
           </button>
         </form>
+      )}
+      {speech.error && (
+        <div className="interview__voice-error">{speech.error}</div>
       )}
 
       {olderHistory.length > 0 && (

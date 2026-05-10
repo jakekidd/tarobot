@@ -202,8 +202,10 @@ a:hover { color: #f1c46e; }
 }
 
 .text-input--narrow {
-  width: 4ch;
+  width: 4.5em;
+  padding: 0.6rem 0.4rem;
   text-align: center;
+  font-size: 1.1rem;
 }
 
 .text-area { resize: vertical; min-height: 80px; }
@@ -271,20 +273,6 @@ a:hover { color: #f1c46e; }
   overflow: hidden;
 }
 
-.reader__img {
-  width: 100%;
-  height: auto;
-  max-height: 120px;
-  object-fit: contain;
-  display: block;
-  margin: 0 auto;
-  /* recolor the green-CRT cat into tarobot's purple/gold palette */
-  filter: brightness(0.75) sepia(1) hue-rotate(245deg) saturate(1.6);
-  image-rendering: pixelated;
-  opacity: 0.92;
-  transition: filter 0.2s, transform 0.2s;
-}
-
 .reader__scanlines {
   position: absolute;
   inset: 0;
@@ -299,20 +287,36 @@ a:hover { color: #f1c46e; }
   );
 }
 
-.reader--speaking .reader__img {
-  animation: readerPulse 0.32s ease-in-out infinite alternate;
-}
-@keyframes readerPulse {
-  from { transform: scale(1); filter: brightness(0.75) sepia(1) hue-rotate(245deg) saturate(1.6); }
-  to   { transform: scale(1.04); filter: brightness(1.05) sepia(1) hue-rotate(245deg) saturate(2); }
+.cat-sprite {
+  --cat-fg: var(--accent);
+  --cat-bg: var(--bg-2);
+  margin: 0;
+  padding: 0;
+  font-family: 'Courier New', ui-monospace, SFMono-Regular, Menlo, Monaco, monospace;
+  font-size: 28px;
+  line-height: 1;
+  color: var(--cat-fg);
+  letter-spacing: 0;
+  text-shadow:
+    0 0 6px var(--cat-fg),
+    0 0 1px var(--cat-fg);
+  font-weight: bold;
+  user-select: none;
+  text-align: center;
+  white-space: pre;
 }
 
-.reader--flipping .reader__img {
-  animation: readerSway 1.6s ease-in-out infinite;
+.cat-sprite__row {
+  display: block;
+  white-space: pre;
 }
-@keyframes readerSway {
-  0%, 100% { transform: translateX(0); }
-  50%      { transform: translateX(2px); }
+
+.cat-sprite__inv {
+  background: var(--cat-fg);
+  color: var(--cat-bg);
+  text-shadow: none;
+  /* leading character keeps run width even if browser collapses spaces */
+  white-space: pre;
 }
 
 /* ─── Dialogue ────────────────────────────────────────── */
@@ -482,9 +486,32 @@ a:hover { color: #f1c46e; }
   display: flex;
   gap: 0.5rem;
   width: 100%;
-  max-width: 520px;
+  max-width: 600px;
+  align-items: stretch;
 }
 .interview__form .text-input { flex: 1; }
+
+.mic-btn {
+  min-width: 2.6em;
+  padding: 0.6rem 0.8rem;
+  font-size: 1.05rem;
+}
+.mic-btn--on {
+  border-color: var(--accent-2);
+  color: var(--accent-2);
+  background: rgba(195, 59, 110, 0.1);
+  animation: micPulse 1.2s ease-in-out infinite alternate;
+}
+@keyframes micPulse {
+  from { box-shadow: 0 0 0 0 rgba(195, 59, 110, 0.4); }
+  to   { box-shadow: 0 0 12px 2px rgba(195, 59, 110, 0.5); }
+}
+
+.interview__voice-error {
+  color: #ff8aa6;
+  font-size: 0.8rem;
+  margin-top: 0.4rem;
+}
 
 .interview__history {
   width: 100%;

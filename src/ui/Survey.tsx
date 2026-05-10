@@ -104,6 +104,8 @@ export function Survey({ onComplete, onCancel }: Props) {
             onChange={(e) => setName(e.target.value)}
             placeholder="your name"
             autoFocus
+            autoCapitalize="words"
+            autoComplete="given-name"
             onKeyDown={(e) => e.key === 'Enter' && canAdvance && next()}
           />
         )}
@@ -160,6 +162,7 @@ export function Survey({ onComplete, onCancel }: Props) {
             value={onMyMind}
             onChange={(e) => setOnMyMind(e.target.value.slice(0, 200))}
             placeholder="optional. a sentence."
+            autoCapitalize="sentences"
             rows={3}
           />
         )}
