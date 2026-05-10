@@ -290,13 +290,15 @@ a:hover { color: #f1c46e; }
 .cat-sprite {
   --cat-fg: var(--accent);
   --cat-bg: var(--bg-2);
-  margin: 0;
+  margin: 0 auto;
   padding: 0;
-  font-family: 'Courier New', ui-monospace, SFMono-Regular, Menlo, Monaco, monospace;
-  font-size: 28px;
+  /* Prefer the system mono (SF Mono on macOS — narrower than Courier).
+     Keeps blocks tight and reduces horizontal stretching. */
+  font-family: ui-monospace, 'SF Mono', SFMono-Regular, Menlo, Monaco, 'Courier New', monospace;
+  font-size: 22px;
   line-height: 1;
   color: var(--cat-fg);
-  letter-spacing: 0;
+  letter-spacing: -0.02em;
   text-shadow:
     0 0 6px var(--cat-fg),
     0 0 1px var(--cat-fg);
@@ -304,6 +306,12 @@ a:hover { color: #f1c46e; }
   user-select: none;
   text-align: center;
   white-space: pre;
+  /* Terminal cells are taller than wide; browser monospace cells are
+     wider relative to terminal cells. Squish horizontally to recover
+     the cat's intended aspect ratio (~1:1 visual). */
+  display: inline-block;
+  transform: scaleX(0.6);
+  transform-origin: center top;
 }
 
 .cat-sprite__row {
@@ -315,7 +323,6 @@ a:hover { color: #f1c46e; }
   background: var(--cat-fg);
   color: var(--cat-bg);
   text-shadow: none;
-  /* leading character keeps run width even if browser collapses spaces */
   white-space: pre;
 }
 
