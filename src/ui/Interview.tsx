@@ -158,10 +158,9 @@ export function Interview({ apiKey, base, onFinalized, onCancel }: Props) {
           </div>
         ) : (
           <Dialogue
-            key={lastAssistant}
+            key={`turn-${state.history.length}`}
             text={lastAssistant}
             onTypingChange={setSpeaking}
-            charDelayMs={26}
           />
         )}
 
