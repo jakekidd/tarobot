@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Reader } from './reader/Reader';
 import { Dialogue } from './dialogue/Dialogue';
 import { useSpeechInput } from './dialogue/useSpeechInput';
+import { DebugPanel } from './DebugPanel';
 import {
   createClaudeClient,
   finalizeProfile,
@@ -21,6 +22,8 @@ type Props = {
   base: BaseProfile;
   onFinalized: (profile: EnrichedProfile) => void;
   onCancel: () => void;
+  debugOpen: boolean;
+  onCloseDebug: () => void;
 };
 
 type Status =
@@ -30,7 +33,7 @@ type Status =
   | { kind: 'finalizing' }
   | { kind: 'error'; message: string; retry?: () => void };
 
-export function Interview({ apiKey, base, onFinalized, onCancel }: Props) {
+export function Interview({ apiKey, base, onFinalized, onCancel, debugOpen, onCloseDebug }: Props) {
   // Restore in-flight interview from storage if present, else seed a new one.
   const [state, setState] = useState<InterviewState>(() => {
     const active = loadActive();
@@ -48,6 +51,7 @@ export function Interview({ apiKey, base, onFinalized, onCancel }: Props) {
   );
   const [draft, setDraft] = useState('');
   const [speaking, setSpeaking] = useState(false);
+  const [copyToast, setCopyToast] = useState<string | null>(null);
   const clientRef = useRef(createClaudeClient(apiKey));
   const ranOpenRef = useRef(false);
   const speech = useSpeechInput((finalText) => {
@@ -116,13 +120,11 @@ export function Interview({ apiKey, base, onFinalized, onCancel }: Props) {
     return () => { cancelled = true; };
   }, [status.kind, state, onFinalized]);
 
-  async function send() {
-    const trimmed = draft.trim();
-    if (!trimmed || status.kind !== 'idle' || state.closed) return;
-    setDraft('');
+  async function sendMessage(text: string) {
+    if (!text.trim() || status.kind !== 'idle' || state.closed) return;
     setStatus({ kind: 'thinking' });
     try {
-      const next = await interviewTurn(clientRef.current, state, trimmed);
+      const next = await interviewTurn(clientRef.current, state, text.trim());
       setState(next);
       setStatus(next.closed ? { kind: 'finalizing' } : { kind: 'idle' });
     } catch (e) {
@@ -133,6 +135,61 @@ export function Interview({ apiKey, base, onFinalized, onCancel }: Props) {
         retry: () => setStatus({ kind: 'idle' }),
       });
     }
+  }
+
+  async function sendDraft() {
+    const text = draft.trim();
+    if (!text) return;
+    setDraft('');
+    void sendMessage(text);
+  }
+
+  function copyTranscript() {
+    const lines = [
+      `# tarobot interview transcript`,
+      `started: ${new Date(state.base_profile.started_at).toISOString()}`,
+      `turns: ${state.turns_used}/${state.turns_used + state.turns_remaining}`,
+      `closed: ${state.closed ? state.closing_reason ?? 'yes' : 'no'}`,
+      ``,
+      `## survey`,
+      '```json',
+      JSON.stringify(state.base_profile.survey, null, 2),
+      '```',
+      ``,
+      `## conversation`,
+      ...state.history.map((m) => `**${m.role}**: ${m.content}`),
+      ``,
+      `## last analysis`,
+      state.last_analysis ? '```json\n' + JSON.stringify(state.last_analysis, null, 2) + '\n```' : '(none)',
+      ``,
+      `## current candidates`,
+      '```json',
+      JSON.stringify(state.candidates, null, 2),
+      '```',
+      ``,
+      `## disclosures`,
+      '```json',
+      JSON.stringify(state.partial_profile.disclosures ?? [], null, 2),
+      '```',
+      ``,
+      `## hooks`,
+      '```json',
+      JSON.stringify(state.partial_profile.hooks ?? [], null, 2),
+      '```',
+      ``,
+      `## patterns`,
+      '```json',
+      JSON.stringify(state.partial_profile.patterns ?? {}, null, 2),
+      '```',
+    ].join('\n');
+
+    navigator.clipboard.writeText(lines).then(
+      () => {
+        setCopyToast('copied');
+        window.setTimeout(() => setCopyToast(null), 1800);
+      },
+      () => setCopyToast('copy failed'),
+    );
   }
 
   const lastAssistant =
@@ -150,9 +207,13 @@ export function Interview({ apiKey, base, onFinalized, onCancel }: Props) {
     state.closed;
 
   const showInput = !state.closed && status.kind !== 'finalizing';
+  const format = state.response_format ?? 'open';
+  const options = state.response_options;
+  const showChoiceButtons = showInput && (format === 'choice' || format === 'binary') && options && options.length >= 2;
+  const showTextInput = showInput && !showChoiceButtons;
 
   return (
-    <div className="screen screen--interview">
+    <div className={`screen screen--interview ${debugOpen ? 'screen--with-debug' : ''}`}>
       <Reader isSpeaking={speaking} mood={status.kind === 'thinking' ? 'thinking' : 'neutral'} />
 
       <div className="interview__stage">
@@ -188,10 +249,35 @@ export function Interview({ apiKey, base, onFinalized, onCancel }: Props) {
         )}
       </div>
 
-      {showInput && (
+      {showChoiceButtons && options && (
+        <div className="interview__choices">
+          {options.map((opt, i) => (
+            <button
+              key={`${i}-${opt}`}
+              className="btn btn--primary"
+              disabled={inputDisabled}
+              onClick={() => sendMessage(opt)}
+            >
+              {opt}
+            </button>
+          ))}
+          <button
+            className="btn btn--quiet"
+            disabled={inputDisabled}
+            onClick={() => {
+              // Drop to free-text if user wants to elaborate
+              setState((s) => ({ ...s, response_format: 'open', response_options: undefined }));
+            }}
+          >
+            type instead…
+          </button>
+        </div>
+      )}
+
+      {showTextInput && (
         <form
           className="interview__form"
-          onSubmit={(e) => { e.preventDefault(); void send(); }}
+          onSubmit={(e) => { e.preventDefault(); void sendDraft(); }}
         >
           <input
             className="text-input"
@@ -247,8 +333,17 @@ export function Interview({ apiKey, base, onFinalized, onCancel }: Props) {
 
       <div className="interview__meta">
         <span>turn {state.turns_used}/{state.turns_used + state.turns_remaining}</span>
-        <button className="btn btn--quiet" onClick={onCancel}>quit to menu</button>
+        <div className="interview__meta-actions">
+          <button className="btn btn--quiet" onClick={copyTranscript}>
+            {copyToast ?? 'copy transcript'}
+          </button>
+          <button className="btn btn--quiet" onClick={onCancel}>quit</button>
+        </div>
       </div>
+
+      {debugOpen && (
+        <DebugPanel state={state} onClose={onCloseDebug} />
+      )}
     </div>
   );
 }

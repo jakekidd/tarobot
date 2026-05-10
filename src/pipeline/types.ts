@@ -194,6 +194,8 @@ export type InterviewMessage = {
 export type InterviewDecision =
   | 'probe' | 'disambiguate' | 'deepen' | 'close';
 
+export type ResponseFormat = 'open' | 'choice' | 'binary';
+
 export type InterviewState = {
   base_profile: BaseProfile;
   history: InterviewMessage[];
@@ -203,4 +205,15 @@ export type InterviewState = {
   turns_remaining: number;
   closed: boolean;
   closing_reason?: 'budget' | 'cognition' | 'crisis';
+  /** Format the user's NEXT reply should take. Set per turn by cognition. */
+  response_format?: ResponseFormat;
+  /** Options when response_format === 'choice'. */
+  response_options?: string[];
+  /** Most recent cognition analysis — kept for transparency / debug. */
+  last_analysis?: {
+    register_read: string;
+    absent_domains?: string[];
+    verbal_tells?: string[];
+    stance: string;
+  };
 };

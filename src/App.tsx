@@ -41,6 +41,7 @@ export function App() {
   const [phase, setPhase] = useState<Phase>(() =>
     loadApiKey() ? { kind: 'menu' } : { kind: 'key' },
   );
+  const [debugOpen, setDebugOpen] = useState(false);
 
   // ─── Transitions ──────────────────────────────────────
 
@@ -139,11 +140,22 @@ export function App() {
     <div className="app">
       <header className="app__topbar">
         <span className="app__brand">tarobot</span>
-        {phase.kind !== 'menu' && phase.kind !== 'key' && (
-          <button className="btn btn--quiet" onClick={goMenu}>
-            quit to menu
-          </button>
-        )}
+        <div className="app__topbar-actions">
+          {phase.kind === 'interview' && (
+            <button
+              className={`btn btn--quiet ${debugOpen ? 'btn--quiet-on' : ''}`}
+              onClick={() => setDebugOpen((v) => !v)}
+              title="show cognition state"
+            >
+              {debugOpen ? '◀ debug' : 'debug ▶'}
+            </button>
+          )}
+          {phase.kind !== 'menu' && phase.kind !== 'key' && (
+            <button className="btn btn--quiet" onClick={goMenu}>
+              quit to menu
+            </button>
+          )}
+        </div>
       </header>
 
       <main className="app__main">
@@ -181,6 +193,8 @@ export function App() {
             base={phase.base}
             onFinalized={(p) => onInterviewFinalized(phase.session, p)}
             onCancel={goMenu}
+            debugOpen={debugOpen}
+            onCloseDebug={() => setDebugOpen(false)}
           />
         )}
 

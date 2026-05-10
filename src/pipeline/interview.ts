@@ -157,6 +157,8 @@ export async function finalizeProfile(
 
 // ─── Helpers ────────────────────────────────────────────
 
+const BINARY_DEFAULT_OPTIONS = ['yes', 'no', 'idk'] as const;
+
 function applyTurn(
   state: InterviewState,
   args: InterviewTurnInput,
@@ -219,6 +221,16 @@ function applyTurn(
         ? 'budget'
         : undefined;
 
+  // Resolve response format + options for the user's next reply.
+  const format = args.response_format ?? 'open';
+  let options: string[] | undefined;
+  if (format === 'choice') {
+    options = (args.response_options ?? []).slice(0, 4);
+    if (options.length < 2) options = undefined; // fall back to open if malformed
+  } else if (format === 'binary') {
+    options = [...BINARY_DEFAULT_OPTIONS];
+  }
+
   return {
     ...state,
     history: [...state.history, assistantMessage],
@@ -228,6 +240,16 @@ function applyTurn(
     turns_remaining: turnsRemaining,
     closed,
     closing_reason: closingReason,
+    response_format: options ? format : 'open',
+    response_options: options,
+    last_analysis: args.analysis
+      ? {
+          register_read: args.analysis.register_read,
+          absent_domains: args.analysis.absent_domains,
+          verbal_tells: args.analysis.verbal_tells,
+          stance: args.analysis.stance_for_this_turn,
+        }
+      : undefined,
   };
 }
 
