@@ -33,7 +33,6 @@ INSTRUCTIONS:
    - hooks: keep all interview hooks; add any from the survey that weren't already captured (familiar pick, register pick, "on my mind"). Keep confidences honest.
    - patterns: must be fully populated. Best inference for each field if not already set.
    - change_vector: one observation about a force already moving in their life that bears on the choice. Be specific.
-   - flags: carry over crisis_indicators; populate sensitive_topics with anything that came up (loss, illness, divorce, conflict).
 
 4. Quality bar:
    - The TargetChoice must feel like a description of THIS user's situation, not a horoscope-grade generic. If you find yourself writing "love or fear," "courage or comfort" — start over and use the user's actual circumstances.
@@ -132,17 +131,12 @@ export const FINALIZE_TOOL: Anthropic.Tool = {
         },
         required: ['description', 'relevance_to_choice'],
       },
-      sensitive_topics: {
-        type: 'array',
-        items: { type: 'string' },
-      },
     },
     required: [
       'target_choice',
       'hooks',
       'patterns',
       'change_vector',
-      'sensitive_topics',
     ],
   },
 };
@@ -166,5 +160,4 @@ export type FinalizeInput = {
     avoidances: string[];
   };
   change_vector: { description: string; relevance_to_choice: string };
-  sensitive_topics: string[];
 };

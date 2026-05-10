@@ -38,10 +38,6 @@ export function startInterview(base: BaseProfile, turnBudget = 7): InterviewStat
         skepticism_posture: 'curious',
         avoidances: [],
       },
-      flags: {
-        crisis_indicators: false,
-        sensitive_topics: [],
-      },
     },
     turns_used: 0,
     turns_remaining: turnBudget,
@@ -153,10 +149,6 @@ export async function finalizeProfile(
     hooks: [...carriedHooks, ...newHooks],
     target_choice: args.target_choice,
     change_vector: args.change_vector,
-    flags: {
-      crisis_indicators: !!state.partial_profile.flags?.crisis_indicators,
-      sensitive_topics: args.sensitive_topics ?? [],
-    },
   };
 }
 
@@ -202,11 +194,6 @@ function applyTurn(
       }),
       ...args.patterns_update,
     },
-    flags: {
-      crisis_indicators:
-        !!args.crisis_flag || !!partial.flags?.crisis_indicators,
-      sensitive_topics: partial.flags?.sensitive_topics ?? [],
-    },
   };
 
   const assistantMessage = {
@@ -214,13 +201,9 @@ function applyTurn(
     content: args.message_to_user,
   };
 
-  const closed =
-    args.decision === 'close' ||
-    !!args.crisis_flag ||
-    turnsRemaining <= 0;
-  const closingReason: InterviewState['closing_reason'] = args.crisis_flag
-    ? 'crisis'
-    : args.decision === 'close'
+  const closed = args.decision === 'close' || turnsRemaining <= 0;
+  const closingReason: InterviewState['closing_reason'] =
+    args.decision === 'close'
       ? 'cognition'
       : turnsRemaining <= 0
         ? 'budget'

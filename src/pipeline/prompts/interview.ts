@@ -203,8 +203,6 @@ If decision="close", end with the closing question fitted to current tone, with 
 
 ${PROBE_LIBRARY}
 
-CRISIS ROUTING: if the user discloses active suicidal ideation, ongoing abuse, or an acute crisis, set crisis_flag=true, decision="close", and write a message that gently exits and points to a resource ("the cards aren't ready for you tonight. if you need someone to talk to right now, in the US text HOME to 741741, or call 988"). suggested_answers can be ["thanks", "ok"] or empty.
-
 Run the analysis. Then call the interview_turn tool with everything.`;
 
 // ─── Tool schema ────────────────────────────────────────
@@ -332,10 +330,6 @@ export const INTERVIEW_TURN_TOOL: Anthropic.Tool = {
           avoidances: { type: 'array', items: { type: 'string' } },
         },
       },
-      crisis_flag: {
-        type: 'boolean',
-        description: 'true ONLY if user discloses active suicidal ideation, ongoing abuse, or acute crisis',
-      },
       decision: {
         type: 'string',
         enum: ['probe', 'disambiguate', 'deepen', 'close'],
@@ -417,7 +411,6 @@ export type InterviewTurnInput = {
     skepticism_posture?: 'skeptic-fun' | 'curious' | 'believer' | 'distressed';
     avoidances?: string[];
   };
-  crisis_flag?: boolean;
   decision: 'probe' | 'disambiguate' | 'deepen' | 'close';
   message_to_user: string;
   suggested_answers: string[];

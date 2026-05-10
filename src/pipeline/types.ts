@@ -101,12 +101,6 @@ export type EnrichedProfile = {
     description: string;
     relevance_to_choice: string;
   };
-
-  // Routing
-  flags: {
-    crisis_indicators: boolean;
-    sensitive_topics: string[];
-  };
 };
 
 export type BaseProfile = {
@@ -209,7 +203,7 @@ export type InterviewState = {
   turns_used: number;
   turns_remaining: number;
   closed: boolean;
-  closing_reason?: 'budget' | 'cognition' | 'crisis';
+  closing_reason?: 'budget' | 'cognition';
   /** Cognition's GUESSES at what the user might reply. UI shows as tappable rows. */
   suggested_answers?: string[];
   /** Whether the current question is structurally yes/no/idk. */

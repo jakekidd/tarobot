@@ -48,8 +48,6 @@ SPECIFICITY ASYMMETRY: the first chapter (the situation/establishing position) c
 
 DO NOT recommend an option. DO NOT label outcomes good or bad. Describe what happens.
 
-CRISIS GATE: if profile.flags.crisis_indicators is true, do NOT produce a reading. Set theme="(crisis routing)", arc="(safety)", and write four short chapter spoken_texts that gently acknowledge they came tonight and offer rest. closing_text should point to a resource ("if you need to talk to someone right now, in the US text HOME to 741741 or call 988"). Persona register may be softened — the persona never makes this colder.
-
 Call the construct_reading tool. Chapters must be ordered to match the POSITIONS list above exactly (one chapter per position, in order).`;
 
 export const READING_TOOL: Anthropic.Tool = {
