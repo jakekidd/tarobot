@@ -18,6 +18,7 @@ import {
 import { KeyEntry } from './ui/KeyEntry';
 import { Menu } from './ui/Menu';
 import { PastReadings } from './ui/PastReadings';
+import { Settings } from './ui/Settings';
 import { Survey } from './ui/Survey';
 import { Interview } from './ui/Interview';
 import { Placement } from './ui/Placement';
@@ -28,6 +29,7 @@ type Phase =
   | { kind: 'key' }
   | { kind: 'menu' }
   | { kind: 'past' }
+  | { kind: 'settings' }
   | { kind: 'survey'; session: Session }
   | { kind: 'interview'; session: Session; base: BaseProfile }
   | { kind: 'placement'; session: Session; profile: EnrichedProfile; drawn: DrawnCards }
@@ -154,11 +156,16 @@ export function App() {
             onBegin={startNewReading}
             onResume={resumeSession}
             onViewPast={() => setPhase({ kind: 'past' })}
+            onSettings={() => setPhase({ kind: 'settings' })}
           />
         )}
 
         {phase.kind === 'past' && (
           <PastReadings onBack={goMenu} />
+        )}
+
+        {phase.kind === 'settings' && (
+          <Settings onBack={goMenu} />
         )}
 
         {phase.kind === 'survey' && (

@@ -11,6 +11,7 @@ import type {
   EnrichedProfile,
   Reading,
 } from '../pipeline';
+import { loadSettings } from '../storage';
 
 type Props = {
   apiKey: string;
@@ -42,7 +43,8 @@ export function Placement({ apiKey, profile, drawn, onReady, onCancel }: Props) 
     (async () => {
       try {
         const client = createClaudeClient(apiKey);
-        const reading = await constructReading(client, profile, drawn);
+        const settings = loadSettings();
+        const reading = await constructReading(client, profile, drawn, settings.personaId);
         if (cancelled) return;
         // Cards take a few seconds to animate in; let that breathe even if
         // the reading came back fast.

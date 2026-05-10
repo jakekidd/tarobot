@@ -13,11 +13,12 @@ type Props = {
   onBegin: () => void;
   onResume: (session: Session) => void;
   onViewPast: () => void;
+  onSettings: () => void;
 };
 
 const GREETING = 'come in. tell me you want to know.';
 
-export function Menu({ onBegin, onResume, onViewPast }: Props) {
+export function Menu({ onBegin, onResume, onViewPast, onSettings }: Props) {
   const [active] = useState<Session | null>(() => loadActive());
   const [archiveCount] = useState<number>(() => loadArchive().length);
   const [speaking, setSpeaking] = useState(false);
@@ -53,6 +54,9 @@ export function Menu({ onBegin, onResume, onViewPast }: Props) {
             past readings ({archiveCount})
           </button>
         )}
+        <button className="btn btn--ghost" onClick={onSettings}>
+          settings
+        </button>
         <button
           className="btn btn--quiet"
           onClick={() => {

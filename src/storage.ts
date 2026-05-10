@@ -4,6 +4,7 @@ import type {
   EnrichedProfile,
   InterviewMessage,
   InterviewState,
+  PersonaId,
   Reading,
 } from './pipeline';
 
@@ -119,11 +120,13 @@ export function clearArchive(): void {
 export type Settings = {
   soundOn: boolean;
   charDelayMs: number;
+  personaId: PersonaId;
 };
 
 const DEFAULT_SETTINGS: Settings = {
   soundOn: true,
   charDelayMs: 28,
+  personaId: 'mater_tenebris',
 };
 
 export function loadSettings(): Settings {

@@ -1,10 +1,13 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useTypewriter } from './useTypewriter';
 import { blip } from '../sound/sound';
+import { loadSettings } from '../../storage';
 
 type Props = {
   text: string;
+  /** Override settings.charDelayMs for this instance. */
   charDelayMs?: number;
+  /** Override settings.soundOn for this instance. */
   soundOn?: boolean;
   onTypingChange?: (typing: boolean) => void;
   onDone?: () => void;
@@ -19,16 +22,20 @@ type Props = {
  */
 export function Dialogue({
   text,
-  charDelayMs = 28,
-  soundOn = true,
+  charDelayMs,
+  soundOn,
   onTypingChange,
   onDone,
   clickToSkip = true,
 }: Props) {
+  const [settings] = useState(() => loadSettings());
+  const cdms = charDelayMs ?? settings.charDelayMs;
+  const sound = soundOn ?? settings.soundOn;
+
   const { displayed, done, skip } = useTypewriter(
     text,
-    charDelayMs,
-    soundOn ? (code) => blip(code) : undefined,
+    cdms,
+    sound ? (code) => blip(code) : undefined,
     onDone,
   );
 
