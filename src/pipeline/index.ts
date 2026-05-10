@@ -34,3 +34,4 @@ export type { ClaudeClient } from './claude';
 export { startInterview, openInterview, interviewTurn, finalizeProfile } from './interview';
 export { constructReading } from './reading';
 export { translateChapter } from './persona';
+export { PERSONAS, DEFAULT_PERSONA, getPersona, type Persona, type PersonaId } from './personas';

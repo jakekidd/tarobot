@@ -456,3 +456,91 @@ a:hover { color: #f1c46e; }
   font-size: 0.85rem;
 }
 .placeholder p { margin: 0; }
+
+/* ─── Interview ───────────────────────────────────────── */
+
+.screen--interview { gap: 1rem; max-width: 640px; }
+
+.interview__stage {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  align-items: center;
+}
+
+.interview__waiting,
+.interview__thinking {
+  color: var(--fg-faint);
+  font-size: 0.85rem;
+  letter-spacing: 0.2em;
+  text-transform: lowercase;
+  animation: bootBlink 1.4s steps(2) infinite;
+}
+
+.interview__form {
+  display: flex;
+  gap: 0.5rem;
+  width: 100%;
+  max-width: 520px;
+}
+.interview__form .text-input { flex: 1; }
+
+.interview__history {
+  width: 100%;
+  margin-top: 0.5rem;
+  font-size: 0.8rem;
+  color: var(--fg-dim);
+}
+.interview__history summary {
+  cursor: pointer;
+  letter-spacing: 0.15em;
+  color: var(--fg-faint);
+  padding: 0.4rem 0;
+}
+.interview__history ul {
+  list-style: none;
+  padding: 0;
+  margin: 0.5rem 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.interview__turn {
+  display: grid;
+  grid-template-columns: 70px 1fr;
+  gap: 0.5rem;
+  padding: 0.4rem 0.6rem;
+  border-left: 2px solid var(--line);
+  text-align: left;
+}
+.interview__turn--user {
+  border-left-color: var(--accent);
+}
+.interview__turn--assistant {
+  border-left-color: var(--accent-2);
+}
+.interview__role {
+  color: var(--fg-faint);
+  letter-spacing: 0.15em;
+  text-transform: lowercase;
+  font-size: 0.7rem;
+  align-self: start;
+  padding-top: 0.15rem;
+}
+.interview__content {
+  color: var(--fg);
+  white-space: pre-wrap;
+}
+
+.interview__meta {
+  display: flex;
+  width: 100%;
+  justify-content: space-between;
+  align-items: center;
+  color: var(--fg-faint);
+  font-size: 0.75rem;
+  letter-spacing: 0.2em;
+  text-transform: lowercase;
+}

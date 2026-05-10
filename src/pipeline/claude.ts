@@ -4,7 +4,7 @@ import Anthropic from '@anthropic-ai/sdk';
 export const MODELS = {
   // Used for all cognition calls (interview, finalize, reading) in MVP.
   // Sonnet hits the latency/quality sweet spot for these structured tool calls.
-  COGNITION: 'claude-sonnet-4-5',
+  COGNITION: 'claude-sonnet-4-6',
   // Reserved for tiny ops (key validation, classification).
   TINY: 'claude-haiku-4-5',
 } as const;
