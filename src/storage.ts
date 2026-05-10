@@ -111,6 +111,27 @@ export function loadArchive(): Session[] {
   }
 }
 
+/**
+ * Most recent EnrichedProfile per name across the archive — for the
+ * "use existing profile" shortcut on the survey name step.
+ */
+export function listProfilesByName(): EnrichedProfile[] {
+  const sessions = loadArchive();
+  type Entry = { profile: EnrichedProfile; ts: number };
+  const byKey = new Map<string, Entry>();
+  for (const s of sessions) {
+    if (!s.profile) continue;
+    const ts = s.completed_at ?? s.started_at ?? 0;
+    const key = s.profile.name.trim().toLowerCase();
+    if (!key) continue;
+    const prior = byKey.get(key);
+    if (!prior || prior.ts < ts) byKey.set(key, { profile: s.profile, ts });
+  }
+  return Array.from(byKey.values())
+    .sort((a, b) => b.ts - a.ts)
+    .map((e) => e.profile);
+}
+
 export function clearArchive(): void {
   localStorage.removeItem(K_ARCHIVE);
 }

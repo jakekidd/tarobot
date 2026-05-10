@@ -3,6 +3,7 @@ import { Reader } from './reader/Reader';
 import { Dialogue } from './dialogue/Dialogue';
 import type {
   ComingWith,
+  EnrichedProfile,
   Familiar,
   RegisterPick,
   Survey as SurveyData,
@@ -12,6 +13,8 @@ import type {
 type Props = {
   onComplete: (survey: SurveyData) => void;
   onCancel: () => void;
+  existingProfiles: EnrichedProfile[];
+  onUseExistingProfile: (profile: EnrichedProfile) => void;
 };
 
 type Step =
@@ -51,7 +54,7 @@ const REGISTER: RegisterPick[] = ['chaos', 'clarity', 'comfort', 'change'];
 const FAMILIAR: Familiar[] = ['raven', 'serpent', 'wolf', 'cat', 'moth', 'fox'];
 const WANT: WantFromReading[] = ['laugh', 'warning', 'clarity', 'unsure'];
 
-export function Survey({ onComplete, onCancel }: Props) {
+export function Survey({ onComplete, onCancel, existingProfiles, onUseExistingProfile }: Props) {
   const [step, setStep] = useState<Step>('name');
   const [speaking, setSpeaking] = useState(false);
 
@@ -98,15 +101,12 @@ export function Survey({ onComplete, onCancel }: Props) {
 
       <div className="survey__body">
         {step === 'name' && (
-          <input
-            className="text-input"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="your name"
-            autoFocus
-            autoCapitalize="words"
-            autoComplete="given-name"
-            onKeyDown={(e) => e.key === 'Enter' && canAdvance && next()}
+          <NameStep
+            name={name}
+            setName={setName}
+            existingProfiles={existingProfiles}
+            onUseExistingProfile={onUseExistingProfile}
+            onAdvance={() => canAdvance && next()}
           />
         )}
 
@@ -239,6 +239,103 @@ function ChipRow<T extends string>({
           {opt}
         </button>
       ))}
+    </div>
+  );
+}
+
+function NameStep({
+  name,
+  setName,
+  existingProfiles,
+  onUseExistingProfile,
+  onAdvance,
+}: {
+  name: string;
+  setName: (n: string) => void;
+  existingProfiles: EnrichedProfile[];
+  onUseExistingProfile: (profile: EnrichedProfile) => void;
+  onAdvance: () => void;
+}) {
+  // Detect collision with an existing profile (case-insensitive).
+  const collision = existingProfiles.find(
+    (p) => p.name.trim().toLowerCase() === name.trim().toLowerCase() && name.trim().length > 0,
+  );
+  const [pendingPickProfile, setPendingPickProfile] = useState<EnrichedProfile | null>(null);
+
+  return (
+    <div className="name-step">
+      {existingProfiles.length > 0 && (
+        <div className="name-step__memory">
+          <div className="name-step__memory-label">i remember:</div>
+          <div className="name-step__memory-row">
+            {existingProfiles.slice(0, 6).map((p) => (
+              <button
+                key={p.name}
+                className="chip"
+                onClick={() => setPendingPickProfile(p)}
+                type="button"
+              >
+                {p.name}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <input
+        className="text-input"
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+        placeholder="your name"
+        autoFocus
+        autoCapitalize="words"
+        autoComplete="given-name"
+        onKeyDown={(e) => e.key === 'Enter' && onAdvance()}
+      />
+
+      {collision && !pendingPickProfile && (
+        <div className="name-step__collision">
+          <span>i remember a {collision.name}.</span>
+          <button
+            className="btn btn--primary btn--sm"
+            type="button"
+            onClick={() => onUseExistingProfile(collision)}
+          >
+            use last profile
+          </button>
+          <span className="name-step__collision-or">or keep going to rebuild ↓</span>
+        </div>
+      )}
+
+      {pendingPickProfile && (
+        <div className="name-step__collision">
+          <span>{pendingPickProfile.name} — what do you want?</span>
+          <button
+            className="btn btn--primary btn--sm"
+            type="button"
+            onClick={() => onUseExistingProfile(pendingPickProfile)}
+          >
+            use last profile
+          </button>
+          <button
+            className="btn btn--ghost btn--sm"
+            type="button"
+            onClick={() => {
+              setName(pendingPickProfile.name);
+              setPendingPickProfile(null);
+            }}
+          >
+            rebuild
+          </button>
+          <button
+            className="btn btn--quiet btn--sm"
+            type="button"
+            onClick={() => setPendingPickProfile(null)}
+          >
+            cancel
+          </button>
+        </div>
+      )}
     </div>
   );
 }

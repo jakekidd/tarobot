@@ -10,6 +10,7 @@ import type {
 import {
   archiveActive,
   clearActive,
+  listProfilesByName,
   loadApiKey,
   newSession,
   saveActive,
@@ -99,6 +100,20 @@ export function App() {
     setPhase({ kind: 'interview', session: next, base });
   }
 
+  function onUseExistingProfile(session: Session, profile: EnrichedProfile) {
+    // Skip survey + interview entirely; go straight to a fresh card draw.
+    const drawn = drawForSpread(FOUR_CARD_DIAMOND);
+    const next: Session = {
+      ...session,
+      phase: 'placement',
+      base_profile: { survey: profile.survey, started_at: session.started_at },
+      profile,
+      drawn,
+    };
+    saveActive(next);
+    setPhase({ kind: 'placement', session: next, profile, drawn });
+  }
+
   function onInterviewFinalized(session: Session, profile: EnrichedProfile) {
     const drawn = drawForSpread(FOUR_CARD_DIAMOND);
     const next: Session = { ...session, phase: 'placement', profile, drawn };
@@ -184,6 +199,8 @@ export function App() {
           <Survey
             onComplete={(s) => onSurveyComplete(phase.session, s)}
             onCancel={goMenu}
+            existingProfiles={listProfilesByName()}
+            onUseExistingProfile={(p) => onUseExistingProfile(phase.session, p)}
           />
         )}
 
