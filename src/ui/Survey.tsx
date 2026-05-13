@@ -90,7 +90,15 @@ export function Survey({ apiKey, onComplete, onCancel }: Props) {
     setBMonth('');
     setBDay('');
 
-    // Fire Clat in parallel. The reaction (if any) is appended BELOW
+    // Hold Clat for the opening N answers. The first few questions are
+    // warmup; Clat firing on them risks fixating on a single domain and
+    // making the user feel cornered. Clat starts running from answer #4.
+    const CLAT_HOLD_FOR_FIRST_N = 3;
+    if (dirSnap.answer_log.length <= CLAT_HOLD_FOR_FIRST_N) {
+      return;
+    }
+
+    // Fire Clat in parallel. The reaction (if any) is appended UNDER
     // whatever question is on screen when it lands. Injected questions
     // go into the priority lane and apply via functional setDirector.
     setClatThinking(true);
@@ -149,19 +157,11 @@ export function Survey({ apiKey, onComplete, onCancel }: Props) {
 
       <Dialogue
         key={currentQ.id}
-        text={currentQ.text}
+        text={currentQ.text.toLowerCase()}
+        subText={reaction ? reaction.toLowerCase() : null}
         onTypingChange={setSpeaking}
       />
 
-      {/* Clat's reaction to the PREVIOUS answer, rendered AFTER the
-          current question is up. Indented; an empty row above keeps it
-          visually separated from the dialogue. */}
-      {reaction && (
-        <div className="survey__reaction">
-          <div className="survey__reaction-spacer" />
-          <div className="survey__reaction-text">› {reaction}</div>
-        </div>
-      )}
 
       <div className="ui-frame ui-frame--survey">
         <div className="ui-frame__choices">

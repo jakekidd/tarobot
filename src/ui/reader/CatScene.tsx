@@ -43,7 +43,7 @@ export function CatScene({
   state = 'idle',
   reaction = null,
   speaking = false,
-  color = '#b388ff',
+  color = '#7c3aed',          // matches deeper royal violet; bloom amplifies into glow
   bgColor = '#000000',
   width = 280,
   height = 280,
@@ -160,7 +160,7 @@ export function CatScene({
     particleGeom.setAttribute('color', new THREE.BufferAttribute(colors, 3));
 
     const particleMat = new THREE.PointsMaterial({
-      size: 0.022,
+      size: 0.03,                   // slightly larger — visible against deeper violet
       transparent: true,
       opacity: 1,                   // per-vertex color carries fade now
       vertexColors: true,
@@ -177,9 +177,9 @@ export function CatScene({
     composer.addPass(new RenderPass(scene, camera));
     const bloom = new UnrealBloomPass(
       new THREE.Vector2(width, height),
-      0.45,    // strength — subtle halo, not messianic glow
-      0.55,    // radius
-      0.55,    // threshold — only the brighter cat pixels bloom, not bg
+      0.95,    // strength — visible glow, but not blown out
+      0.75,    // radius — softer falloff than before
+      0.20,    // threshold — deeper violet still triggers bloom
     );
     composer.addPass(bloom);
     composer.addPass(new OutputPass());
@@ -238,7 +238,8 @@ export function CatScene({
         frame = data.reactions[fs.reaction]!.frame;
       } else if (stateData) {
         const mode = stateData.mode ?? 'shuffle';
-        const ms = (stateData.ms ?? 1500) * (fs.speaking ? 0.4 : 1);
+        // Slower eye cycle overall — calmer presence; speaking still quickens it.
+        const ms = (stateData.ms ?? 1500) * (fs.speaking ? 0.55 : 1.7);
         if (mode !== 'hold' && stateData.frames.length > 1 && now >= fs.nextFrameAt) {
           fs.frameIdx = mode === 'loop'
             ? (fs.frameIdx + 1) % stateData.frames.length

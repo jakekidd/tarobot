@@ -11,13 +11,13 @@
   --color-black:        #000000;
   --color-navbar:       #14092a;   /* navbar bg only — solid app dark purple */
   --color-gray:         #564a78;   /* partial-violet gray; muted text, quiet buttons */
-  --color-violet:       #8b5cf6;   /* THE violet. royal, glowing on black. */
+  --color-violet:       #6d28d9;   /* THE violet. deeper royal purple, not lavender. */
   --color-white:        #f4ecff;   /* slight violet tint; primary text + chrome fill */
 
   /* Derived rgba overlays (never define a new color, only opacity of canonicals) */
-  --violet-soft:        rgba(139, 92, 246, 0.12);
-  --violet-line:        rgba(139, 92, 246, 0.18);
-  --violet-line-strong: rgba(139, 92, 246, 0.45);
+  --violet-soft:        rgba(109, 40, 217, 0.18);
+  --violet-line:        rgba(109, 40, 217, 0.28);
+  --violet-line-strong: rgba(109, 40, 217, 0.55);
   --white-soft:         rgba(244, 236, 255, 0.55);
 
   /* ─── Semantic aliases (use these in component CSS) ── */
@@ -86,7 +86,7 @@ a:hover { text-decoration: underline; }
   align-items: center;
   padding: 0.5rem 1rem;
   background: var(--color-navbar);
-  border-bottom: 1px solid var(--line);
+  border-bottom: 0;             /* one solid color, no contrasting border */
   position: relative;
   z-index: 100;                /* sits above the CRT overlay */
 }
@@ -101,7 +101,7 @@ a:hover { text-decoration: underline; }
   font-family: var(--font-mono);
   font-size: 1.3rem;
   letter-spacing: 0.4em;
-  color: var(--color-black);    /* per spec: black brand mark */
+  color: var(--color-white);    /* white on navbar dark purple */
   text-transform: lowercase;
 }
 
@@ -436,13 +436,32 @@ a:hover { text-decoration: underline; }
 .dialogue-text {
   position: absolute;
   top: 0.45rem;
-  left: 1rem;
-  right: 1rem;
+  left: 1.1rem;
+  right: 1.1rem;
   bottom: 0.45rem;
   display: -webkit-box;
   -webkit-line-clamp: 3;
   -webkit-box-orient: vertical;
   overflow: hidden;
+}
+
+/* Clat's sidebar comment — renders INSIDE the dialogue-stage at the
+   bottom, indented. Sits within the pre-allocated 3-line box, so the
+   widget never resizes when the reaction arrives or disappears. */
+.dialogue-sub {
+  position: absolute;
+  left: 1.1rem;
+  right: 1.1rem;
+  bottom: 0.45rem;
+  padding-left: 3.5em;
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  font-style: italic;
+  letter-spacing: 0.04em;
+  color: var(--color-gray);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .dialogue-caret {

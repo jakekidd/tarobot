@@ -20,7 +20,17 @@ export function newDirector(): DirectorState {
     injected_queue: [],
     answer_log: [],
     category_counts: {},
-    identity_questions_required: ['name-input', 'who-came-with', 'birthday'],
+    // Order matters — these are asked in sequence before the pool RNG kicks in.
+    // The first three are deliberately projective/register-setting so they don't
+    // immediately lock cognition onto a single domain. "who came with you" was
+    // moved out of priority because it forces a relational thread before there's
+    // any context to interpret it against.
+    identity_questions_required: [
+      'name-input',         // necessary — establishes addressing
+      'want-from-reading',  // register: laugh / warning / clarity / idk
+      'familiar',           // projective: pure vibe, no domain lock
+      'birthday',           // soft identity / astrology hook
+    ],
   };
 }
 

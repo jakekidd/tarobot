@@ -136,7 +136,9 @@ export function Tent({
   }
 
   const lastPersona = [...state.transcript].reverse().find((l) => l.speaker === 'persona');
-  const speech = lastPersona?.content ?? '…';
+  // tarobot is a lowercase universe — force the register at render time
+  // regardless of what the persona happens to output.
+  const speech = (lastPersona?.content ?? '…').toLowerCase();
   const q = state.current_question;
   const inputDisabled = status.kind !== 'idle' || !q;
 

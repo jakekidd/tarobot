@@ -5,25 +5,25 @@ import { loadSettings } from '../../storage';
 
 type Props = {
   text: string;
+  /** Optional sub-comment rendered underneath the speech, indented.
+   *  Used for Clat's flavor reactions during the survey. */
+  subText?: string | null;
   charDelayMs?: number;
   soundOn?: boolean;
   onTypingChange?: (typing: boolean) => void;
   onDone?: () => void;
-  /** Click anywhere on the dialogue to skip the typewriter to full text. */
   clickToSkip?: boolean;
 };
 
 /**
- * Renders the speech char-by-char with punctuation pauses.
- *
- * Pre-allocates space using a hidden "measure" copy of the full text in
- * the same layout box. The visible typewriter text overlays absolutely,
- * so the container starts already-sized. No mid-typing resize.
- *
- * Capped at ~3 lines of speech height — overflow is clipped.
+ * Pre-allocated dialogue rig. The container is sized to the FINAL text
+ * (via a hidden measure layer) so letters appear within an already-correct
+ * frame. Optional `subText` renders inside the same box below the speech,
+ * indented — no resize.
  */
 export function Dialogue({
   text,
+  subText,
   charDelayMs,
   soundOn,
   onTypingChange,
@@ -59,6 +59,10 @@ export function Dialogue({
         {displayed}
         {!done && <span className="dialogue-caret" aria-hidden>▍</span>}
       </span>
+      {/* Optional sub-comment rendered at the bottom of the stage, indented. */}
+      {subText && (
+        <span className="dialogue-sub">› {subText}</span>
+      )}
     </div>
   );
 }
