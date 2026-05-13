@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import type { ClatNote, Profile, Question, Survey } from './pipeline';
 import {
-  completeSession,
   loadApiKey,
   newSession,
   saveSession,
@@ -90,11 +89,6 @@ export function App() {
     setPhase({ kind: 'tent', session: next, survey, profile, openers });
   }
 
-  function onQuit(session: Session) {
-    completeSession(session);
-    goMenu();
-  }
-
   return (
     <div className="app">
       {/* Full-screen Three.js scene — renders Clat wherever a ReaderAnchor is mounted */}
@@ -117,7 +111,7 @@ export function App() {
           )}
           {phase.kind !== 'menu' && phase.kind !== 'key' && (
             <button className="btn btn--quiet" onClick={goMenu}>
-              quit to menu
+              exit
             </button>
           )}
         </div>
@@ -157,7 +151,6 @@ export function App() {
             <SurveyScreen
               apiKey={apiKey}
               onComplete={(s, notes) => onSurveyComplete(phase.session, s, notes)}
-              onCancel={goMenu}
             />
           )}
 
@@ -185,7 +178,6 @@ export function App() {
               survey={phase.survey}
               profile={phase.profile}
               openers={phase.openers}
-              onCancel={() => onQuit(phase.session)}
               debugOpen={debugOpen}
               onCloseDebug={() => setDebugOpen(false)}
             />

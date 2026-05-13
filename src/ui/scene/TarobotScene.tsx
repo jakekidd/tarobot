@@ -7,6 +7,7 @@ import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import spriteData from '../reader/sprite.json';
 import { paintFrame, type SpriteFrame } from '../reader/spriteCanvas';
 import { getAnchor } from './anchorStore';
+import { subscribeImpacts, type Impact as ImpactEvent } from './impactStore';
 
 type StateData = {
   frames: SpriteFrame[];
@@ -25,9 +26,16 @@ const CAT_BG = '#000000';
 
 const PARTICLE_COUNT = 130;
 const PARTICLE_BURST_DURATION = 0.6;     // seconds; initial outward burst
-const PARTICLE_BASE_OMEGA = -0.45;        // negative = clockwise (in our Y-up coords)
+const PARTICLE_BASE_OMEGA = -0.056;       // negative = clockwise; ~1/8 of prior speed
 const PARTICLE_MIN_RADIUS = 0.55;         // in cat-widths
 const PARTICLE_MAX_RADIUS = 1.6;
+const PARTICLE_SIZE_PX = 1.5;             // ~1/4 the prior visual size
+const PARTICLE_BURST_VEL = 0.19;          // initial outward velocity (~1/8 of prior burst)
+const PARTICLE_BURST_VEL_JITTER = 0.19;
+
+const IMPACT_LIFE_S = 1.0;
+const IMPACT_START_SCALE = 0.18;
+const IMPACT_END_SCALE = 1.6;
 
 type ParticleData = {
   theta: Float32Array;
@@ -99,11 +107,17 @@ export function TarobotScene() {
     tex.magFilter = THREE.NearestFilter;
     tex.generateMipmaps = false;
 
-    const front = new THREE.MeshBasicMaterial({ map: tex });
-    const edge = new THREE.MeshBasicMaterial({ color: 0x2a1644 });
-    const back = new THREE.MeshBasicMaterial({ color: 0x1a0a30 });
-    const catGeom = new THREE.BoxGeometry(1, 1, 0.22);
-    const cat = new THREE.Mesh(catGeom, [edge, edge, edge, edge, front, back]);
+    // PNG-cutout style: a flat plane with the sprite as its only material.
+    // alphaTest discards fully-transparent pixels so the bloom/composite doesn't
+    // catch a faint rectangular edge around Clat.
+    const catMat = new THREE.MeshBasicMaterial({
+      map: tex,
+      transparent: true,
+      alphaTest: 0.05,
+      depthWrite: false,
+    });
+    const catGeom = new THREE.PlaneGeometry(1, 1);
+    const cat = new THREE.Mesh(catGeom, catMat);
 
     const catGroup = new THREE.Group();
     catGroup.add(cat);
@@ -141,7 +155,7 @@ export function TarobotScene() {
       pd.theta[i] = Math.random() * Math.PI * 2;
       pd.targetRadius[i] = PARTICLE_MIN_RADIUS + Math.random() * (PARTICLE_MAX_RADIUS - PARTICLE_MIN_RADIUS);
       pd.radius[i] = isBurst ? 0.05 + Math.random() * 0.15 : pd.targetRadius[i]!;
-      pd.radialVel[i] = isBurst ? 1.5 + Math.random() * 1.5 : 0;
+      pd.radialVel[i] = isBurst ? PARTICLE_BURST_VEL + Math.random() * PARTICLE_BURST_VEL_JITTER : 0;
       pd.z[i] = (Math.random() - 0.5) * 0.4;
       pd.omega[i] = PARTICLE_BASE_OMEGA * (0.6 + Math.random() * 0.8);
       pd.zBob[i] = Math.random() * Math.PI * 2;
@@ -156,7 +170,7 @@ export function TarobotScene() {
 
     const particleTex = makeSquareParticleTexture();
     const particleMat = new THREE.PointsMaterial({
-      size: 5,                       // base pixel size; scaled by particleGroup scale
+      size: PARTICLE_SIZE_PX,         // ~1/4 of the prior visual size
       sizeAttenuation: false,         // square stays the same screen-px size
       transparent: true,
       vertexColors: true,
@@ -166,6 +180,47 @@ export function TarobotScene() {
     });
     const particles = new THREE.Points(particleGeom, particleMat);
     particleGroup.add(particles);
+
+    // ─── Impact dots ──────────────────────────────────────
+    // Each multi-choice click fires a glowing sphere near Clat that pops and fades.
+    // Spheres are children of catGroup, so they inherit the anchor scale (cat-units).
+    const impactGeom = new THREE.SphereGeometry(0.12, 18, 14);
+    type ActiveImpact = {
+      mesh: THREE.Mesh;
+      mat: THREE.MeshBasicMaterial;
+      age: number;
+      lifespan: number;
+      startScale: number;
+      endScale: number;
+    };
+    const activeImpacts: ActiveImpact[] = [];
+
+    const unsubscribeImpacts = subscribeImpacts((evt: ImpactEvent) => {
+      const strength = evt.strength ?? 1;
+      const mat = new THREE.MeshBasicMaterial({
+        color: 0xb38cff,
+        transparent: true,
+        opacity: 1,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+      });
+      const mesh = new THREE.Mesh(impactGeom, mat);
+      // Spawn near Clat with a little jitter so repeated clicks don't stack.
+      mesh.position.set(
+        (Math.random() - 0.5) * 0.45,
+        (Math.random() - 0.5) * 0.30 + 0.05,
+        0.3,
+      );
+      catGroup.add(mesh);
+      activeImpacts.push({
+        mesh,
+        mat,
+        age: 0,
+        lifespan: IMPACT_LIFE_S,
+        startScale: IMPACT_START_SCALE * strength,
+        endScale: IMPACT_END_SCALE * strength,
+      });
+    });
 
     // ─── Bloom ────────────────────────────────────────────
     const composer = new EffectComposer(renderer);
@@ -369,6 +424,24 @@ export function TarobotScene() {
       particleGeom.attributes.position.needsUpdate = true;
       particleGeom.attributes.color.needsUpdate = true;
 
+      // ── Impact dots: scale-up + fade, then dispose ──
+      for (let i = activeImpacts.length - 1; i >= 0; i--) {
+        const imp = activeImpacts[i]!;
+        imp.age += dt;
+        const u = imp.age / imp.lifespan;
+        if (u >= 1) {
+          catGroup.remove(imp.mesh);
+          imp.mat.dispose();
+          activeImpacts.splice(i, 1);
+          continue;
+        }
+        const ease = 1 - Math.pow(1 - u, 2);   // ease-out quad
+        const s = imp.startScale + (imp.endScale - imp.startScale) * ease;
+        imp.mesh.scale.setScalar(s);
+        // Fade brightens slightly at first, then drops to zero.
+        imp.mat.opacity = (1 - u) * (u < 0.15 ? u / 0.15 : 1);
+      }
+
       composer.render();
       rafId = requestAnimationFrame(animate);
     };
@@ -381,8 +454,15 @@ export function TarobotScene() {
       window.removeEventListener('pointerleave', onPointerLeave);
       window.removeEventListener('resize', sizeRenderer);
       document.removeEventListener('visibilitychange', onVisibilityChange);
+      unsubscribeImpacts();
+      for (const imp of activeImpacts) {
+        catGroup.remove(imp.mesh);
+        imp.mat.dispose();
+      }
+      activeImpacts.length = 0;
+      impactGeom.dispose();
       catGeom.dispose();
-      front.dispose(); edge.dispose(); back.dispose();
+      catMat.dispose();
       tex.dispose();
       particleGeom.dispose();
       particleMat.dispose();

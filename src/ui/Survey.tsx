@@ -1,7 +1,8 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ChangeEvent, type KeyboardEvent } from 'react';
 import { Reader } from './reader/Reader';
 import { Dialogue } from './dialogue/Dialogue';
 import { MultipleChoice } from './choices/MultipleChoice';
+import { fireImpact } from './scene/impactStore';
 import {
   applyAnswer,
   appendClatNotes,
@@ -27,12 +28,11 @@ import {
 type Props = {
   apiKey: string;
   onComplete: (survey: SurveyData, clatNotes: import('../pipeline').ClatNote[]) => void;
-  onCancel: () => void;
 };
 
 const CLAT_POLL_INTERVAL_MS = 1200;
 
-export function Survey({ apiKey, onComplete, onCancel }: Props) {
+export function Survey({ apiKey, onComplete }: Props) {
   const [director, setDirector] = useState<DirectorState>(() => newDirector());
   const [startedAt] = useState(() => Date.now());
   const clientRef = useRef(createClaudeClient(apiKey));
@@ -254,47 +254,28 @@ export function Survey({ apiKey, onComplete, onCancel }: Props) {
           )}
 
           {isBirthdayQ && (
-            <form
-              className="birthday-step"
-              onSubmit={(e) => {
-                e.preventDefault();
+            <BirthdayForm
+              month={bMonth}
+              day={bDay}
+              setMonth={setBMonth}
+              setDay={setBDay}
+              onSubmit={() => {
                 const val = bMonth && bDay
                   ? `${bMonth.padStart(2, '0')}-${bDay.padStart(2, '0')}`
                   : '';
                 handleAnswer(val ? [val] : [], !val);
               }}
-            >
-              <div className="birthday-row">
-                <input
-                  className="text-input text-input--ghost text-input--narrow"
-                  inputMode="numeric"
-                  maxLength={2}
-                  value={bMonth}
-                  onChange={(e) => setBMonth(e.target.value.replace(/\D/g, ''))}
-                  placeholder="MM"
-                  autoFocus
-                />
-                <span>/</span>
-                <input
-                  className="text-input text-input--ghost text-input--narrow"
-                  inputMode="numeric"
-                  maxLength={2}
-                  value={bDay}
-                  onChange={(e) => setBDay(e.target.value.replace(/\D/g, ''))}
-                  placeholder="DD"
-                />
-              </div>
-              <button type="submit" className="btn btn--chrome btn--big">
-                enter
-              </button>
-            </form>
+            />
           )}
 
           {!isNameQ && !isBirthdayQ && (
             <MultipleChoice
               suggestions={currentQ.options}
               isBinary={currentQ.format === 'binary'}
-              onPick={(v) => handleAnswer([v])}
+              onPick={(v) => {
+                fireImpact();
+                handleAnswer([v]);
+              }}
             />
           )}
           {currentQ.is_dark && !isNameQ && !isBirthdayQ && (
@@ -315,10 +296,88 @@ export function Survey({ apiKey, onComplete, onCancel }: Props) {
                 end survey
               </button>
             )}
-            <button className="btn btn--quiet" onClick={onCancel}>quit</button>
           </div>
         </div>
       </div>
     </div>
+  );
+}
+
+type BirthdayFormProps = {
+  month: string;
+  day: string;
+  setMonth: (v: string) => void;
+  setDay: (v: string) => void;
+  onSubmit: () => void;
+};
+
+function BirthdayForm({ month, day, setMonth, setDay, onSubmit }: BirthdayFormProps) {
+  const monthRef = useRef<HTMLInputElement>(null);
+  const dayRef = useRef<HTMLInputElement>(null);
+
+  function handleMonthChange(e: ChangeEvent<HTMLInputElement>) {
+    const v = e.target.value.replace(/\D/g, '').slice(0, 2);
+    setMonth(v);
+    if (v.length === 2) dayRef.current?.focus();
+  }
+
+  function handleDayChange(e: ChangeEvent<HTMLInputElement>) {
+    const v = e.target.value.replace(/\D/g, '').slice(0, 2);
+    setDay(v);
+  }
+
+  function handleDayKeyDown(e: KeyboardEvent<HTMLInputElement>) {
+    if (e.key === 'Backspace' && day.length <= 1) {
+      // If empty, jump back to month immediately; if exactly 1 char, let the
+      // delete run, then jump back so the user can keep deleting.
+      if (day.length === 0) {
+        e.preventDefault();
+        monthRef.current?.focus();
+      } else {
+        // Defer the focus shift until after this keystroke clears the field.
+        window.setTimeout(() => monthRef.current?.focus(), 0);
+      }
+    }
+  }
+
+  return (
+    <form
+      className="birthday-step"
+      onSubmit={(e) => {
+        e.preventDefault();
+        onSubmit();
+      }}
+    >
+      <div className="birthday-row">
+        <input
+          ref={monthRef}
+          className="text-input text-input--ghost text-input--narrow"
+          inputMode="numeric"
+          pattern="[0-9]*"
+          maxLength={2}
+          value={month}
+          onChange={handleMonthChange}
+          placeholder="MM"
+          autoFocus
+          aria-label="month"
+        />
+        <span className="birthday-sep">/</span>
+        <input
+          ref={dayRef}
+          className="text-input text-input--ghost text-input--narrow"
+          inputMode="numeric"
+          pattern="[0-9]*"
+          maxLength={2}
+          value={day}
+          onChange={handleDayChange}
+          onKeyDown={handleDayKeyDown}
+          placeholder="DD"
+          aria-label="day"
+        />
+      </div>
+      <button type="submit" className="btn btn--chrome btn--big">
+        enter
+      </button>
+    </form>
   );
 }

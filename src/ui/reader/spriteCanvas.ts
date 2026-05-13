@@ -20,7 +20,7 @@ export function paintFrame(
   ctx: CanvasRenderingContext2D,
   frame: SpriteFrame,
   fg: string,
-  bg: string,
+  _bg: string,           // accepted for API compatibility; ignored — bg is transparent
   scale = 8,
 ): void {
   const cols = frame[0]?.length ?? 0;
@@ -32,8 +32,9 @@ export function paintFrame(
   ctx.canvas.width = w;
   ctx.canvas.height = h;
 
-  ctx.fillStyle = bg;
-  ctx.fillRect(0, 0, w, h);
+  // Clear to fully transparent — sprite becomes a PNG-style cutout.
+  // The unfilled "0" cells of the sprite remain transparent rather than black.
+  ctx.clearRect(0, 0, w, h);
   ctx.fillStyle = fg;
 
   for (let r = 0; r < rows; r++) {

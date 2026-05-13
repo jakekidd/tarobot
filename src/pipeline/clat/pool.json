@@ -118,7 +118,7 @@
   },
   {
     "id": "birthday",
-    "text": "when were you born? (month / day, leave blank if you'd rather not)",
+    "text": "when were you born?",
     "format": "choice",
     "options": [],
     "category": "identity",

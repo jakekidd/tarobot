@@ -4,6 +4,7 @@ import { Dialogue } from './dialogue/Dialogue';
 import { MultipleChoice } from './choices/MultipleChoice';
 import { Spinner } from './Spinner';
 import { DebugPanel } from './DebugPanel';
+import { fireImpact } from './scene/impactStore';
 import {
   bootEngine,
   createClaudeClient,
@@ -20,7 +21,6 @@ type Props = {
   survey: Survey;
   profile: Profile;
   openers: Question[];
-  onCancel: () => void;
   debugOpen: boolean;
   onCloseDebug: () => void;
 };
@@ -33,7 +33,7 @@ type Status =
 
 export function Tent({
   apiKey, survey, profile, openers,
-  onCancel, debugOpen, onCloseDebug,
+  debugOpen, onCloseDebug,
 }: Props) {
   const clientRef = useRef(createClaudeClient(apiKey));
 
@@ -180,7 +180,10 @@ export function Tent({
                   disabled={inputDisabled}
                   onPick={(opt) => {
                     const idx = q.options.indexOf(opt);
-                    if (idx >= 0) void pick(idx);
+                    if (idx >= 0) {
+                      fireImpact();
+                      void pick(idx);
+                    }
                   }}
                 />
               ) : (
@@ -194,7 +197,6 @@ export function Tent({
                 <button className="btn btn--quiet" onClick={copyTranscript}>
                   {copyToast ?? 'copy transcript'}
                 </button>
-                <button className="btn btn--quiet" onClick={onCancel}>quit</button>
               </div>
             </div>
           </div>
