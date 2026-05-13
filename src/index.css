@@ -155,7 +155,8 @@ a:hover { text-decoration: underline; }
   position: relative;
   z-index: 1;
   min-width: 0;
-  background: var(--color-black);
+  /* Transparent — TarobotScene at z:0 must show through to render Clat. */
+  background: transparent;
 }
 .app__main--full {
   padding: 0;
