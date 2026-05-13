@@ -54,7 +54,7 @@ export function ResumeMenu({ onResume, onBack }: Props) {
 
       <ul className="profile-list">
         {sessions.map((s) => {
-          const name = s.profile?.identity.name ?? s.engine?.profile.identity.name ?? null;
+          const name = sessionName(s);
           const label = name ?? 'unnamed';
           const date = new Date(s.last_active_at ?? s.started_at);
           const dateStr = date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -67,31 +67,32 @@ export function ResumeMenu({ onResume, onBack }: Props) {
                 <span className="profile-row__phase">{s.phase}</span>
                 <span className="profile-row__date">{dateStr}</span>
               </div>
-              {isPendingDelete ? (
-                <div className="profile-row__confirm">
-                  <span>delete {label}?</span>
+              <div className="profile-row__actions" aria-hidden={isPendingDelete}>
+                <button
+                  className="profile-row__delete"
+                  onClick={() => confirmDelete(s.id)}
+                  aria-label={`delete ${label}`}
+                  disabled={isPendingDelete}
+                >
+                  ✕
+                </button>
+                <button
+                  className="profile-row__resume"
+                  onClick={() => onResume(s)}
+                  aria-label={`resume ${label}`}
+                  disabled={isPendingDelete}
+                >
+                  →
+                </button>
+              </div>
+              {isPendingDelete && (
+                <div className="profile-row__confirm" role="dialog" aria-label="confirm delete">
+                  <span className="profile-row__confirm-prompt">delete {label}?</span>
                   <button className="btn btn--danger btn--sm" onClick={() => doDelete(s.id)}>
-                    YES
+                    yes
                   </button>
                   <button className="btn btn--ghost btn--sm" onClick={cancelDelete}>
-                    CANCEL
-                  </button>
-                </div>
-              ) : (
-                <div className="profile-row__actions">
-                  <button
-                    className="btn btn--danger btn--sm"
-                    onClick={() => confirmDelete(s.id)}
-                    aria-label={`delete ${label}`}
-                  >
-                    DELETE
-                  </button>
-                  <button
-                    className="profile-row__resume"
-                    onClick={() => onResume(s)}
-                    aria-label={`resume ${label}`}
-                  >
-                    →
+                    cancel
                   </button>
                 </div>
               )}
@@ -101,4 +102,19 @@ export function ResumeMenu({ onResume, onBack }: Props) {
       </ul>
     </div>
   );
+}
+
+/**
+ * Best-effort display name for a Session:
+ *   1. tent profile (compiled),
+ *   2. engine state's profile,
+ *   3. the user's answer to the survey's "name-input" question.
+ * Returns null if none of those exist yet.
+ */
+function sessionName(s: Session): string | null {
+  const fromProfile = s.profile?.identity.name ?? s.engine?.profile.identity.name;
+  if (fromProfile && fromProfile.trim()) return fromProfile.trim();
+  const fromSurvey = s.survey?.answers.find((a) => a.question_id === 'name-input')?.picked[0];
+  if (fromSurvey && fromSurvey.trim()) return fromSurvey.trim();
+  return null;
 }

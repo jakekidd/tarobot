@@ -175,6 +175,7 @@ export function Tent({
                 </div>
               ) : q ? (
                 <MultipleChoice
+                  key={`turn-${state.turn_count}`}
                   suggestions={q.options}
                   disabled={inputDisabled}
                   onPick={(opt) => {

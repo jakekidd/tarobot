@@ -5,7 +5,6 @@ import { MultipleChoice } from './choices/MultipleChoice';
 import {
   applyAnswer,
   appendClatNotes,
-  canEnd,
   clatReact,
   CLAT_HOLD_FOR_FIRST_N_ANSWERS,
   consumeInjected,
@@ -23,15 +22,17 @@ import {
   type SurveyAnswer,
   type SurveyQuestion,
 } from '../pipeline';
+import { saveSession, type Session } from '../storage';
 
 type Props = {
   apiKey: string;
+  session: Session;
   onComplete: (survey: SurveyData, clatNotes: import('../pipeline').ClatNote[]) => void;
 };
 
 const CLAT_POLL_INTERVAL_MS = 1200;
 
-export function Survey({ apiKey, onComplete }: Props) {
+export function Survey({ apiKey, session, onComplete }: Props) {
   const [director, setDirector] = useState<DirectorState>(() => newDirector());
   const [startedAt] = useState(() => Date.now());
   const clientRef = useRef(createClaudeClient(apiKey));
@@ -43,7 +44,7 @@ export function Survey({ apiKey, onComplete }: Props) {
   // The comment shown UNDER the current question (popped off the queue
   // on each advance). null = none.
   const [activeComment, setActiveComment] = useState<string | null>(null);
-  const [clatThinking, setClatThinking] = useState(false);
+  // Tracked but no longer surfaced — kept so the polling effect can serialize.
   const clatInFlightRef = useRef(false);
 
   const [speaking, setSpeaking] = useState(false);
@@ -115,7 +116,6 @@ export function Survey({ apiKey, onComplete }: Props) {
       if (dir.answer_log.length <= dir.clat_last_seen_count) return;
 
       clatInFlightRef.current = true;
-      setClatThinking(true);
       const snapshotN = dir.answer_log.length;
 
       // Build the "upcoming questions" view for Clat — what she's about
@@ -169,7 +169,6 @@ export function Survey({ apiKey, onComplete }: Props) {
         // swallow — clat failures should not block the user
       } finally {
         clatInFlightRef.current = false;
-        setClatThinking(false);
       }
     }
 
@@ -187,10 +186,6 @@ export function Survey({ apiKey, onComplete }: Props) {
     };
   }, []);
 
-  function endNow() {
-    setCurrentQ(null);
-  }
-
   // When currentQ becomes null, we're done. Hand survey + clat_notes off.
   useEffect(() => {
     if (currentQ === null && director.answered_ids.size > 0) {
@@ -198,8 +193,15 @@ export function Survey({ apiKey, onComplete }: Props) {
     }
   }, [currentQ, director, onComplete, startedAt]);
 
-  const total = director.answered_ids.size;
-  const showEnd = canEnd(director);
+  // Persist partial survey to the session so resume entries can display the
+  // user's name (and any future mid-survey resume can rebuild from this).
+  useEffect(() => {
+    if (director.answer_log.length === 0) return;
+    saveSession({
+      ...session,
+      survey: { answers: director.answer_log, started_at: startedAt },
+    });
+  }, [director.answer_log, session, startedAt]);
 
   const isNameQ = currentQ?.id === 'name-input';
   const isBirthdayQ = currentQ?.id === 'birthday';
@@ -272,30 +274,12 @@ export function Survey({ apiKey, onComplete }: Props) {
 
           {!isNameQ && !isBirthdayQ && (
             <MultipleChoice
+              key={currentQ.id}
               suggestions={currentQ.options}
               isBinary={currentQ.format === 'binary'}
               onPick={(v) => handleAnswer([v])}
             />
           )}
-          {currentQ.is_dark && !isNameQ && !isBirthdayQ && (
-            <button className="btn btn--quiet" onClick={() => handleAnswer([], true)}>
-              pass
-            </button>
-          )}
-        </div>
-
-        <div className="ui-frame__meta">
-          <span>
-            {total} {total === 1 ? 'answer' : 'answers'}
-            {clatThinking ? ' · clat is thinking…' : ''}
-          </span>
-          <div className="ui-frame__meta-actions">
-            {showEnd && (
-              <button className="btn btn--quiet" onClick={endNow}>
-                end survey
-              </button>
-            )}
-          </div>
         </div>
       </div>
     </div>

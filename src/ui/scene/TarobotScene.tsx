@@ -26,7 +26,7 @@ const CAT_BG = '#000000';
 
 const PARTICLE_COUNT = 130;
 const PARTICLE_BURST_DURATION = 0.6;     // seconds; initial outward burst
-const PARTICLE_BASE_OMEGA = -0.056;       // negative = clockwise; ~1/8 of prior speed
+const PARTICLE_BASE_OMEGA = -0.0056;      // negative = clockwise; ~1/10 of prior pass (very slow drift)
 const PARTICLE_MIN_RADIUS = 0.55;         // in cat-widths
 const PARTICLE_MAX_RADIUS = 1.6;
 const PARTICLE_SIZE_PX = 1.5;             // ~1/4 the prior visual size

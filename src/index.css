@@ -530,6 +530,7 @@ a:hover { text-decoration: underline; }
 }
 
 .profile-row {
+  position: relative;                   /* so the confirm popover can overlay */
   display: grid;
   grid-template-columns: 1fr auto;
   grid-template-rows: auto auto;
@@ -571,10 +572,8 @@ a:hover { text-decoration: underline; }
   align-items: center;
 }
 
-.profile-row__resume {
-  background: var(--color-white);
-  color: var(--color-black);
-  border: 1px solid var(--color-white);
+.profile-row__resume,
+.profile-row__delete {
   width: 2.6rem;
   height: 2.6rem;
   font-size: 1.4rem;
@@ -585,18 +584,39 @@ a:hover { text-decoration: underline; }
   align-items: center;
   justify-content: center;
   transition: filter 0.1s;
+  line-height: 1;
 }
-.profile-row__resume:hover { filter: brightness(0.92); }
+.profile-row__resume {
+  background: var(--color-white);
+  color: var(--color-black);
+  border: 1px solid var(--color-white);
+}
+.profile-row__resume:hover:not(:disabled) { filter: brightness(0.92); }
 
+.profile-row__delete {
+  background: var(--color-danger);
+  color: #000;
+  border: 1px solid var(--color-danger);
+}
+.profile-row__delete:hover:not(:disabled) { filter: brightness(0.92); }
+.profile-row__resume:disabled,
+.profile-row__delete:disabled { opacity: 0.35; cursor: default; }
+
+/* Confirm popover — absolute so the row's grid sizes never change. */
 .profile-row__confirm {
-  grid-area: actions;
+  position: absolute;
+  inset: 0;
   display: flex;
-  gap: 0.4rem;
+  gap: 0.5rem;
   align-items: center;
+  justify-content: flex-end;
+  padding: 0 1rem;
+  background: rgba(8, 4, 18, 0.85);
   font-family: var(--font-mono);
   font-size: 0.85rem;
   color: var(--color-gray);
 }
+.profile-row__confirm-prompt { margin-right: 0.4rem; }
 
 /* =====================================================================
    Survey
@@ -1004,28 +1024,26 @@ a:hover { text-decoration: underline; }
   letter-spacing: 0.06em;
   text-transform: lowercase;
   padding: 0.85rem 1.1rem;
-  background: var(--violet);
+  background-color: #7c3aed;             /* solid — no var indirection, no transparency */
+  background-image: none;
   color: #000;
-  border: 1px solid var(--violet);
+  border: 1px solid #7c3aed;
   border-radius: 0;
   cursor: pointer;
   text-align: center;
-  transition: filter 0.1s, transform 0.06s, box-shadow 0.1s;
+  transition: filter 0.1s, transform 0.06s;
   width: 100%;
   min-height: 3.4rem;
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 0 24px rgba(179, 136, 255, 0.18);
 }
 .choice-button:hover:not(:disabled) {
   filter: brightness(1.12);
-  box-shadow: 0 0 32px rgba(179, 136, 255, 0.35);
 }
 .choice-button:active:not(:disabled) { transform: translateY(1px); }
 .choice-button:disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
+  cursor: default;
 }
 .choice-button__text {
   display: inline-block;
@@ -1034,6 +1052,24 @@ a:hover { text-decoration: underline; }
 }
 .choice-button--on {
   filter: brightness(1.15);
+}
+
+/* Pick animation: non-picked options fade out without affecting layout;
+   picked option flashes brighter and bursts outward, then fades. */
+.choice-button--unpicked {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 180ms ease-out;
+}
+.choice-button--picked {
+  animation: choice-flash-burst 420ms ease-out forwards;
+  pointer-events: none;
+}
+@keyframes choice-flash-burst {
+  0%   { filter: brightness(1);   transform: scale(1);    opacity: 1; }
+  20%  { filter: brightness(1.7); transform: scale(1.03); opacity: 1; }
+  55%  { filter: brightness(1.4); transform: scale(1.01); opacity: 1; }
+  100% { filter: brightness(2.2); transform: scale(1.10); opacity: 0; }
 }
 .choice-button--mini {
   padding: 0.45rem 0.85rem;

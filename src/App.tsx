@@ -150,6 +150,7 @@ export function App() {
           {phase.kind === 'survey' && apiKey && (
             <SurveyScreen
               apiKey={apiKey}
+              session={phase.session}
               onComplete={(s, notes) => onSurveyComplete(phase.session, s, notes)}
             />
           )}
