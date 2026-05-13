@@ -1,0 +1,209 @@
+[
+  {
+    "id": "name-input",
+    "text": "what should i call you?",
+    "format": "choice",
+    "options": [],
+    "category": "identity",
+    "depth": "warm",
+    "is_dark": false,
+    "tags": ["identity", "name"],
+    "interpretation": {}
+  },
+  {
+    "id": "who-came-with",
+    "text": "who came with you tonight?",
+    "format": "choice",
+    "options": ["alone", "partner", "friends", "family"],
+    "category": "identity",
+    "depth": "warm",
+    "is_dark": false,
+    "tags": ["social-context", "group-structure"],
+    "interpretation": {
+      "alone": "unaccompanied — no group dynamic to filter for",
+      "partner": "romantic partner present — relational thread is live",
+      "friends": "peer group present — register may shift toward play",
+      "family": "family present — careful with edge questions"
+    }
+  },
+  {
+    "id": "vibe-grid",
+    "text": "where are you tonight?",
+    "format": "matrix-2x2",
+    "axes": { "x": ["calm", "chaotic"], "y": ["in head", "with people"] },
+    "options": ["calm + in head", "chaotic + in head", "calm + with people", "chaotic + with people"],
+    "category": "register",
+    "depth": "warm",
+    "is_dark": false,
+    "tags": ["arousal", "social-state"],
+    "interpretation": {
+      "calm + in head": "introspective; receptive register; will tolerate edge",
+      "chaotic + in head": "spinning; anxious tone; needs gentleness",
+      "calm + with people": "social and grounded; playful register fits",
+      "chaotic + with people": "festival-mode; lean theatrical; humor over depth"
+    }
+  },
+  {
+    "id": "whats-true-now",
+    "text": "what's true right now? (pick any)",
+    "format": "multi-select",
+    "options": [
+      "something is ending",
+      "something is starting",
+      "something is stuck",
+      "something is unsaid",
+      "something is too much",
+      "something is finally good"
+    ],
+    "category": "life-state",
+    "depth": "medium",
+    "is_dark": false,
+    "tags": ["state-vector", "choice-seed"],
+    "interpretation": {
+      "something is ending": "loss/transition active; possible passive fork",
+      "something is starting": "future-tilt; choice may live here",
+      "something is stuck": "stasis; classic constructed-choice territory",
+      "something is unsaid": "communication thread; relational candidate",
+      "something is too much": "overload; capacity-related fork likely",
+      "something is finally good": "stability; user may be at decision-validation"
+    }
+  },
+  {
+    "id": "when-living",
+    "text": "where do you live, in time?",
+    "format": "choice",
+    "options": ["the past", "the present", "the future", "i don't know"],
+    "category": "time",
+    "depth": "medium",
+    "is_dark": false,
+    "tags": ["temporal-orientation", "register"],
+    "interpretation": {
+      "the past": "carrying something unresolved; backward-leaning",
+      "the present": "often \"stuck\" — may not see the choice",
+      "the future": "anticipatory; choice likely surfaceable",
+      "i don't know": "disoriented; floor-pass; lean gentle"
+    }
+  },
+  {
+    "id": "want-from-reading",
+    "text": "what do you want from this?",
+    "format": "choice",
+    "options": ["a laugh", "a warning", "clarity", "i don't know"],
+    "category": "register",
+    "depth": "warm",
+    "is_dark": false,
+    "tags": ["skepticism-posture", "register-calibration"],
+    "interpretation": {
+      "a laugh": "play register; lean dry humor over depth",
+      "a warning": "wants edge; can land ominous beats",
+      "clarity": "has a thing in mind; choice already candidate",
+      "i don't know": "curious-but-uncommitted; default warmth"
+    }
+  },
+  {
+    "id": "familiar",
+    "text": "pick a creature. fast.",
+    "format": "choice",
+    "options": ["raven", "serpent", "wolf", "cat"],
+    "category": "projective",
+    "depth": "warm",
+    "is_dark": false,
+    "tags": ["vibe", "archetype"],
+    "interpretation": {
+      "raven": "watchful, slightly ominous; comfortable with weight",
+      "serpent": "patient, pattern-aware; will sit with discomfort",
+      "wolf": "pack-or-alone; loyalty and edge in same hand",
+      "cat": "self-contained; observes more than acts"
+    }
+  },
+  {
+    "id": "birthday",
+    "text": "when were you born? (month / day, leave blank if you'd rather not)",
+    "format": "choice",
+    "options": [],
+    "category": "identity",
+    "depth": "warm",
+    "is_dark": false,
+    "tags": ["identity", "astrology-hook"],
+    "interpretation": {}
+  },
+  {
+    "id": "honesty-edge",
+    "text": "who haven't you been honest with lately?",
+    "format": "choice",
+    "options": ["myself", "someone close", "pretty much everyone", "no one"],
+    "category": "relational",
+    "depth": "edge",
+    "is_dark": true,
+    "tags": ["self-deception", "live-thread"],
+    "interpretation": {
+      "myself": "self-suspicion is live; tarobot can mirror it",
+      "someone close": "specific relationship under strain; probe gently",
+      "pretty much everyone": "performance fatigue; user may want to drop the mask",
+      "no one": "either genuinely settled or strong defenses; treat with curiosity"
+    }
+  },
+  {
+    "id": "procrastinating",
+    "text": "what have you been putting off?",
+    "format": "choice",
+    "options": ["a conversation", "a decision", "a task", "i'm not"],
+    "category": "life-state",
+    "depth": "medium",
+    "is_dark": false,
+    "tags": ["avoidance", "choice-seed"],
+    "interpretation": {
+      "a conversation": "relational thread live; specific person likely",
+      "a decision": "direct choice candidate — high signal",
+      "a task": "lower stakes; may indicate broader stasis",
+      "i'm not": "either grounded or in denial; cognition decides via cross-signal"
+    }
+  },
+  {
+    "id": "weight-on-shoulders",
+    "text": "rate the weight on your shoulders this week",
+    "format": "choice",
+    "options": ["feather", "backpack", "boulder", "ocean"],
+    "category": "life-state",
+    "depth": "medium",
+    "is_dark": false,
+    "tags": ["affect", "load"],
+    "interpretation": {
+      "feather": "light; play-mode; minimal stakes",
+      "backpack": "baseline burden; manageable",
+      "boulder": "something specific is heavy; probe domain",
+      "ocean": "overwhelmed; needs gentleness; capacity-related fork"
+    }
+  },
+  {
+    "id": "permission-from",
+    "text": "who are you waiting for permission from?",
+    "format": "choice",
+    "options": ["myself", "a person", "no one", "pass"],
+    "category": "stance",
+    "depth": "edge",
+    "is_dark": true,
+    "tags": ["agency", "choice-frame"],
+    "interpretation": {
+      "myself": "self-permission gate; classic constructed-choice setup",
+      "a person": "relational gate; cast entry implied",
+      "no one": "agency claimed; may still be defended posture",
+      "pass": "declined; mark as edge-tolerance low for now"
+    }
+  },
+  {
+    "id": "free-will",
+    "text": "do you believe in free will?",
+    "format": "choice",
+    "options": ["yes", "no", "not sure"],
+    "category": "stance",
+    "depth": "medium",
+    "is_dark": false,
+    "tags": ["metaphysics", "agency-stance"],
+    "interpretation": {
+      "yes": "agency-claiming worldview; choices framed as authored",
+      "no": "fated/determinist worldview; \"things happen to me\" register",
+      "not sure": "thoughtful; willing to sit with ambiguity"
+    }
+  }
+]
