@@ -1,33 +1,19 @@
-import { CatScene } from './CatScene';
+import { ReaderAnchor } from '../scene/ReaderAnchor';
 
 type Mood = 'neutral' | 'thinking' | 'flipping' | 'reading' | 'sleeping';
 
 type Props = {
-  isSpeaking?: boolean;
-  mood?: Mood;
-  reaction?: 'happy' | 'surprised' | 'error' | 'interrupted' | null;
-};
-
-const MOOD_TO_STATE: Record<Mood, string> = {
-  neutral: 'idle',
-  thinking: 'thinking',
-  flipping: 'cooking',
-  reading: 'reading',
-  sleeping: 'sleeping',
+  isSpeaking?: boolean;       // unused with the new scene model — kept for API
+  mood?: Mood;                // also unused (scene reads its own state)
+  size?: number;
 };
 
 /**
- * The cat in 3D — floating in the void, no box, no scanlines.
- * Screen-level CRT layers handle the rest.
+ * Reader is now a layout-only placeholder. It reserves a square area
+ * via ReaderAnchor; the full-screen TarobotScene reads that area's
+ * bounding box and renders Clat there. Props kept for API parity with
+ * existing call sites.
  */
-export function Reader({ isSpeaking = false, mood = 'neutral', reaction = null }: Props) {
-  return (
-    <div className="reader">
-      <CatScene
-        state={MOOD_TO_STATE[mood]}
-        reaction={reaction ?? undefined}
-        speaking={isSpeaking}
-      />
-    </div>
-  );
+export function Reader({ size = 240 }: Props) {
+  return <ReaderAnchor size={size} />;
 }

@@ -2,18 +2,18 @@ import { useEffect, useState } from 'react';
 import { Reader } from './reader/Reader';
 import { Dialogue } from './dialogue/Dialogue';
 import { chime } from './sound/sound';
-import { loadActive, type Session } from '../storage';
+import { listResumable } from '../storage';
 
 type Props = {
   onBegin: () => void;
-  onResume: (session: Session) => void;
+  onOpenResume: () => void;
   onSettings: () => void;
 };
 
 const GREETING = 'come in. tell me you want to know.';
 
-export function Menu({ onBegin, onResume, onSettings }: Props) {
-  const [active] = useState<Session | null>(() => loadActive());
+export function Menu({ onBegin, onOpenResume, onSettings }: Props) {
+  const [resumeCount] = useState(() => listResumable().length);
   const [speaking, setSpeaking] = useState(false);
 
   useEffect(() => { chime(); }, []);
@@ -26,16 +26,16 @@ export function Menu({ onBegin, onResume, onSettings }: Props) {
       </div>
 
       <div className="menu__choices">
-        <button className="btn btn--primary" onClick={onBegin}>
-          begin
+        <button className="btn btn--primary btn--menu" onClick={onBegin}>
+          BEGIN
         </button>
-        {active && (
-          <button className="btn btn--primary" onClick={() => onResume(active)}>
-            resume
+        {resumeCount > 0 && (
+          <button className="btn btn--primary btn--menu" onClick={onOpenResume}>
+            RESUME
           </button>
         )}
-        <button className="btn btn--ghost" onClick={onSettings}>
-          settings
+        <button className="btn btn--ghost btn--menu" onClick={onSettings}>
+          SETTINGS
         </button>
       </div>
     </div>

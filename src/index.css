@@ -119,6 +119,24 @@ a:hover { text-decoration: underline; }
   align-items: center;
 }
 
+/* Tarobot 3D scene — full-viewport canvas at the very bottom of z. */
+.tarobot-scene {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;        /* mouse events still fire through */
+  z-index: 0;
+}
+.tarobot-scene > canvas {
+  display: block;
+}
+
+/* Invisible layout placeholder — defines where Clat renders */
+.reader-anchor {
+  display: block;
+  margin: 0 auto;
+  /* No visual; layout slot only */
+}
+
 /* CRT overlay — fixed full-viewport, sits above main content but below
    the navbar (navbar z=100, CRT z=10-13, main z=0). */
 .crt-overlay {
@@ -502,13 +520,101 @@ a:hover { text-decoration: underline; }
   max-width: 360px;
 }
 
-.menu__quiet-row {
+.btn--menu {
+  text-transform: uppercase;
+  letter-spacing: 0.32em;
+  padding: 0.7rem 1.2rem;
+  font-size: 1rem;
+}
+
+/* ─── Resume / profile list ───────────────────────────── */
+
+.screen--resume {
+  max-width: 640px;
+  width: 100%;
+}
+.screen--resume .screen__head {
+  width: 100%;
+}
+
+.profile-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.profile-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  grid-template-rows: auto auto;
+  grid-template-areas:
+    "name actions"
+    "meta actions";
+  gap: 0.2rem 0.8rem;
+  padding: 0.7rem 1rem;
+  border: 1px solid var(--line);
+  background: rgba(124, 58, 237, 0.04);
+  align-items: center;
+}
+
+.profile-row__name {
+  grid-area: name;
+  font-family: var(--font-speech);
+  font-size: 1.15rem;
+  color: var(--color-white);
+  text-transform: lowercase;
+}
+
+.profile-row__meta {
+  grid-area: meta;
+  display: flex;
+  gap: 0.6rem;
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  color: var(--color-gray);
+}
+.profile-row__phase {
+  color: var(--color-violet);
+  letter-spacing: 0.1em;
+}
+
+.profile-row__actions {
+  grid-area: actions;
   display: flex;
   gap: 0.5rem;
-  justify-content: space-between;
-  margin-top: 0.3rem;
+  align-items: center;
 }
-.menu__quiet-row .btn { flex: 1; }
+
+.profile-row__resume {
+  background: var(--color-white);
+  color: var(--color-black);
+  border: 1px solid var(--color-white);
+  width: 2.6rem;
+  height: 2.6rem;
+  font-size: 1.4rem;
+  cursor: pointer;
+  border-radius: 0;
+  font-family: var(--font-mono);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: filter 0.1s;
+}
+.profile-row__resume:hover { filter: brightness(0.92); }
+
+.profile-row__confirm {
+  grid-area: actions;
+  display: flex;
+  gap: 0.4rem;
+  align-items: center;
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  color: var(--color-gray);
+}
 
 /* =====================================================================
    Survey

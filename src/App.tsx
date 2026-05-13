@@ -1,24 +1,26 @@
 import { useState } from 'react';
 import type { ClatNote, Profile, Question, Survey } from './pipeline';
 import {
-  archiveActive,
-  clearActive,
+  completeSession,
   loadApiKey,
   newSession,
-  saveActive,
+  saveSession,
   type Session,
 } from './storage';
 import { KeyEntry } from './ui/KeyEntry';
 import { Menu } from './ui/Menu';
+import { ResumeMenu } from './ui/ResumeMenu';
 import { Settings } from './ui/Settings';
 import { Survey as SurveyScreen } from './ui/Survey';
 import { Compiling } from './ui/Compiling';
 import { EnterTent } from './ui/EnterTent';
 import { Tent } from './ui/Tent';
+import { TarobotScene } from './ui/scene/TarobotScene';
 
 type Phase =
   | { kind: 'key' }
   | { kind: 'menu' }
+  | { kind: 'resume' }
   | { kind: 'settings' }
   | { kind: 'survey'; session: Session }
   | { kind: 'compiling'; session: Session; survey: Survey; clatNotes: ClatNote[] }
@@ -37,16 +39,12 @@ export function App() {
   }
 
   function startNewReading() {
-    clearActive();
     const s = newSession();
-    saveActive(s);
+    saveSession(s);
     setPhase({ kind: 'survey', session: s });
   }
 
   function resumeSession(s: Session) {
-    // For MVP: we restore to whichever phase the session was last in,
-    // assuming all needed inputs are present. If anything's missing,
-    // fall back to a fresh start.
     switch (s.phase) {
       case 'survey':
         setPhase({ kind: 'survey', session: s });
@@ -58,54 +56,50 @@ export function App() {
       case 'enter-tent':
         if (!s.survey || !s.profile || !s.openers) { startNewReading(); return; }
         setPhase({
-          kind: 'enter-tent',
-          session: s,
-          survey: s.survey,
-          profile: s.profile,
-          openers: s.openers,
+          kind: 'enter-tent', session: s, survey: s.survey,
+          profile: s.profile, openers: s.openers,
         });
         return;
       case 'tent':
         if (!s.survey || !s.profile || !s.openers) { startNewReading(); return; }
         setPhase({
-          kind: 'tent',
-          session: s,
-          survey: s.survey,
-          profile: s.profile,
-          openers: s.openers,
+          kind: 'tent', session: s, survey: s.survey,
+          profile: s.profile, openers: s.openers,
         });
         return;
       default:
-        clearActive();
         goMenu();
     }
   }
 
   function onSurveyComplete(session: Session, survey: Survey, clatNotes: ClatNote[]) {
     const next: Session = { ...session, phase: 'compiling', survey };
-    saveActive(next);
+    saveSession(next);
     setPhase({ kind: 'compiling', session: next, survey, clatNotes });
   }
 
   function onCompiled(session: Session, survey: Survey, profile: Profile, openers: Question[]) {
     const next: Session = { ...session, phase: 'enter-tent', profile, openers };
-    saveActive(next);
+    saveSession(next);
     setPhase({ kind: 'enter-tent', session: next, survey, profile, openers });
   }
 
   function onEnter(session: Session, survey: Survey, profile: Profile, openers: Question[]) {
     const next: Session = { ...session, phase: 'tent' };
-    saveActive(next);
+    saveSession(next);
     setPhase({ kind: 'tent', session: next, survey, profile, openers });
   }
 
   function onQuit(session: Session) {
-    archiveActive(session);
+    completeSession(session);
     goMenu();
   }
 
   return (
     <div className="app">
+      {/* Full-screen Three.js scene — renders Clat wherever a ReaderAnchor is mounted */}
+      <TarobotScene />
+
       <header className="app__topbar">
         <div className="app__brand-block">
           <span className="app__brand">tarobot</span>
@@ -145,8 +139,15 @@ export function App() {
           {phase.kind === 'menu' && (
             <Menu
               onBegin={startNewReading}
-              onResume={resumeSession}
+              onOpenResume={() => setPhase({ kind: 'resume' })}
               onSettings={() => setPhase({ kind: 'settings' })}
+            />
+          )}
+
+          {phase.kind === 'resume' && (
+            <ResumeMenu
+              onResume={(s) => resumeSession(s)}
+              onBack={goMenu}
             />
           )}
 

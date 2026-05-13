@@ -9,12 +9,11 @@ import type {
 // Browser-only persistence layer. Sits OUTSIDE src/pipeline/ so the
 // pipeline lib stays Node-portable.
 
-const NS = 'tarobot:v2';
+const NS = 'tarobot:v3';
 const K_API_KEY = `${NS}:apikey`;
-const K_ACTIVE = `${NS}:active`;
-const K_ARCHIVE = `${NS}:archive`;
+const K_SESSIONS = `${NS}:sessions`;          // array of in-progress + completed sessions
 const K_SETTINGS = `${NS}:settings`;
-const ARCHIVE_CAP = 20;
+const SESSIONS_CAP = 50;
 
 // ─── API key ────────────────────────────────────────────
 
@@ -25,11 +24,9 @@ export function loadApiKey(): string | null {
     return null;
   }
 }
-
 export function saveApiKey(key: string): void {
   localStorage.setItem(K_API_KEY, key.trim());
 }
-
 export function clearApiKey(): void {
   localStorage.removeItem(K_API_KEY);
 }
@@ -46,6 +43,7 @@ export type SessionPhase =
 export type Session = {
   id: string;
   started_at: number;
+  last_active_at: number;
   completed_at?: number;
   phase: SessionPhase;
   survey?: Survey;
@@ -55,67 +53,77 @@ export type Session = {
 };
 
 export function newSession(): Session {
+  const now = Date.now();
   return {
     id: makeId(),
-    started_at: Date.now(),
+    started_at: now,
+    last_active_at: now,
     phase: 'survey',
   };
 }
 
-export function loadActive(): Session | null {
+/** Load all stored sessions, ordered by last_active_at desc. */
+export function loadSessions(): Session[] {
   try {
-    const raw = localStorage.getItem(K_ACTIVE);
-    if (!raw) return null;
-    return JSON.parse(raw) as Session;
-  } catch {
-    return null;
-  }
-}
-
-export function saveActive(session: Session): void {
-  localStorage.setItem(K_ACTIVE, JSON.stringify(session));
-}
-
-export function clearActive(): void {
-  localStorage.removeItem(K_ACTIVE);
-}
-
-export function archiveActive(session: Session): void {
-  const completed: Session = {
-    ...session,
-    completed_at: Date.now(),
-    phase: 'done',
-  };
-  const list = loadArchive();
-  list.unshift(completed);
-  while (list.length > ARCHIVE_CAP) list.pop();
-  localStorage.setItem(K_ARCHIVE, JSON.stringify(list));
-  clearActive();
-}
-
-export function loadArchive(): Session[] {
-  try {
-    const raw = localStorage.getItem(K_ARCHIVE);
+    const raw = localStorage.getItem(K_SESSIONS);
     if (!raw) return [];
     const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? (parsed as Session[]) : [];
+    if (!Array.isArray(parsed)) return [];
+    return (parsed as Session[])
+      .slice()
+      .sort((a, b) => (b.last_active_at ?? 0) - (a.last_active_at ?? 0));
   } catch {
     return [];
   }
 }
 
-export function clearArchive(): void {
-  localStorage.removeItem(K_ARCHIVE);
+function writeSessions(list: Session[]): void {
+  const capped = list.slice(0, SESSIONS_CAP);
+  localStorage.setItem(K_SESSIONS, JSON.stringify(capped));
 }
 
-/** Most recent Profile per name across the archive. */
+/** Upsert by id, stamping last_active_at = now. */
+export function saveSession(session: Session): void {
+  const list = loadSessions();
+  const next: Session = { ...session, last_active_at: Date.now() };
+  const idx = list.findIndex((s) => s.id === next.id);
+  if (idx >= 0) list[idx] = next;
+  else list.unshift(next);
+  writeSessions(list);
+}
+
+export function deleteSession(id: string): void {
+  const list = loadSessions().filter((s) => s.id !== id);
+  writeSessions(list);
+}
+
+export function getSession(id: string): Session | null {
+  return loadSessions().find((s) => s.id === id) ?? null;
+}
+
+/** In-progress sessions only — the resume candidates. */
+export function listResumable(): Session[] {
+  return loadSessions().filter((s) => s.phase !== 'done');
+}
+
+/** Most recently touched in-progress session, if any. */
+export function loadMostRecent(): Session | null {
+  return listResumable()[0] ?? null;
+}
+
+/** Mark a session as done and keep it around as a completed entry. */
+export function completeSession(session: Session): void {
+  const next: Session = { ...session, phase: 'done', completed_at: Date.now() };
+  saveSession(next);
+}
+
+/** Most recent Profile per name across all stored sessions. */
 export function listProfilesByName(): Profile[] {
-  const sessions = loadArchive();
   type Entry = { profile: Profile; ts: number };
   const byKey = new Map<string, Entry>();
-  for (const s of sessions) {
+  for (const s of loadSessions()) {
     if (!s.profile) continue;
-    const ts = s.completed_at ?? s.started_at ?? 0;
+    const ts = s.last_active_at ?? s.started_at ?? 0;
     const name = s.profile.identity.name?.trim().toLowerCase();
     if (!name) continue;
     const prior = byKey.get(name);
@@ -156,18 +164,16 @@ export function saveSettings(settings: Partial<Settings>): Settings {
   return merged;
 }
 
-/** Clear all session data EXCEPT the API key (used by "clear all data" button). */
+/** Clear all session data EXCEPT the API key. */
 export function clearAllExceptKey(): void {
-  clearActive();
-  clearArchive();
+  localStorage.removeItem(K_SESSIONS);
   localStorage.removeItem(K_SETTINGS);
 }
 
-/** Full wipe including the API key (used by "reset api key" button). */
+/** Full wipe including the API key. */
 export function clearAll(): void {
   clearApiKey();
-  clearActive();
-  clearArchive();
+  localStorage.removeItem(K_SESSIONS);
   localStorage.removeItem(K_SETTINGS);
 }
 
