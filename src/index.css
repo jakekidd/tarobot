@@ -429,7 +429,7 @@ a:hover { text-decoration: underline; }
   cursor: pointer;
   /* PRE-ALLOCATED — always this width, even when text is short */
   width: min(64ch, calc(100vw - 4rem));
-  height: calc(1.55em * 3 + 0.9rem);  /* exactly 3 lines + padding */
+  height: calc(1.55em * 4 + 0.9rem);  /* 4 lines: leaves room for indented Clat aside */
   padding: 0.45rem 1.1rem;
   text-align: left;
   background: transparent;
@@ -458,7 +458,7 @@ a:hover { text-decoration: underline; }
 .dialogue-measure {
   visibility: hidden;
   display: -webkit-box;
-  -webkit-line-clamp: 3;
+  -webkit-line-clamp: 4;
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
@@ -470,28 +470,9 @@ a:hover { text-decoration: underline; }
   right: 1.1rem;
   bottom: 0.45rem;
   display: -webkit-box;
-  -webkit-line-clamp: 3;
+  -webkit-line-clamp: 4;
   -webkit-box-orient: vertical;
   overflow: hidden;
-}
-
-/* Clat's sidebar comment — renders INSIDE the dialogue-stage at the
-   bottom, indented. Sits within the pre-allocated 3-line box, so the
-   widget never resizes when the reaction arrives or disappears. */
-.dialogue-sub {
-  position: absolute;
-  left: 1.1rem;
-  right: 1.1rem;
-  bottom: 0.45rem;
-  padding-left: 3.5em;
-  font-family: var(--font-mono);
-  font-size: 0.85rem;
-  font-style: italic;
-  letter-spacing: 0.04em;
-  color: var(--color-gray);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 .dialogue-caret {
@@ -1003,11 +984,11 @@ a:hover { text-decoration: underline; }
 }
 .choice-matrix--2x2 {
   grid-template-columns: 1fr 1fr;
-  grid-auto-rows: minmax(2.8rem, auto);
+  grid-auto-rows: minmax(3.4rem, auto);
 }
 .choice-matrix--3x2 {
   grid-template-columns: 1fr 1fr;
-  grid-auto-rows: minmax(2.4rem, auto);
+  grid-auto-rows: minmax(3.4rem, auto);
 }
 
 .choice-binary {
@@ -1019,44 +1000,45 @@ a:hover { text-decoration: underline; }
 
 .choice-button {
   font-family: var(--font-mono);
-  font-size: 0.98rem;
-  letter-spacing: 0.05em;
+  font-size: 1.25rem;
+  letter-spacing: 0.06em;
   text-transform: lowercase;
-  padding: 0.45rem 0.85rem;
-  background: var(--violet-bg);
-  color: var(--violet);
+  padding: 0.85rem 1.1rem;
+  background: var(--violet);
+  color: #000;
   border: 1px solid var(--violet);
   border-radius: 0;
   cursor: pointer;
   text-align: center;
-  transition: background 0.1s, color 0.1s, transform 0.06s;
+  transition: filter 0.1s, transform 0.06s, box-shadow 0.1s;
   width: 100%;
-  min-height: 2.4rem;
+  min-height: 3.4rem;
   display: flex;
   align-items: center;
   justify-content: center;
+  box-shadow: 0 0 24px rgba(179, 136, 255, 0.18);
 }
 .choice-button:hover:not(:disabled) {
-  background: var(--violet);
-  color: var(--chrome-text);
+  filter: brightness(1.12);
+  box-shadow: 0 0 32px rgba(179, 136, 255, 0.35);
 }
 .choice-button:active:not(:disabled) { transform: translateY(1px); }
 .choice-button:disabled {
-  opacity: 0.4;
+  opacity: 0.55;
   cursor: not-allowed;
 }
 .choice-button__text {
   display: inline-block;
   white-space: pre-wrap;
+  color: #000;
 }
 .choice-button--on {
-  background: var(--violet);
-  color: var(--chrome-text);
+  filter: brightness(1.15);
 }
 .choice-button--mini {
-  padding: 0.3rem 0.7rem;
-  min-height: 2rem;
-  font-size: 0.9rem;
+  padding: 0.45rem 0.85rem;
+  min-height: 2.4rem;
+  font-size: 1rem;
 }
 
 .choice-button--placeholder {
@@ -1067,8 +1049,8 @@ a:hover { text-decoration: underline; }
 }
 
 .choice-button--binary {
-  letter-spacing: 0.2em;
-  font-size: 1rem;
+  letter-spacing: 0.22em;
+  font-size: 1.2rem;
 }
 
 /* =====================================================================

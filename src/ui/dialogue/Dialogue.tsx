@@ -5,9 +5,6 @@ import { loadSettings } from '../../storage';
 
 type Props = {
   text: string;
-  /** Optional sub-comment rendered underneath the speech, indented.
-   *  Used for Clat's flavor reactions during the survey. */
-  subText?: string | null;
   charDelayMs?: number;
   soundOn?: boolean;
   onTypingChange?: (typing: boolean) => void;
@@ -18,12 +15,11 @@ type Props = {
 /**
  * Pre-allocated dialogue rig. The container is sized to the FINAL text
  * (via a hidden measure layer) so letters appear within an already-correct
- * frame. Optional `subText` renders inside the same box below the speech,
- * indented — no resize.
+ * frame. Multi-line speech (e.g. a question with an indented Clat aside on
+ * the next line) is supported via `\n` in `text` + `white-space: pre-wrap`.
  */
 export function Dialogue({
   text,
-  subText,
   charDelayMs,
   soundOn,
   onTypingChange,
@@ -59,10 +55,6 @@ export function Dialogue({
         {displayed}
         {!done && <span className="dialogue-caret" aria-hidden>▍</span>}
       </span>
-      {/* Optional sub-comment rendered at the bottom of the stage, indented. */}
-      {subText && (
-        <span className="dialogue-sub">› {subText}</span>
-      )}
     </div>
   );
 }

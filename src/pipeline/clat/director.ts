@@ -32,6 +32,7 @@ export function newDirector(): DirectorState {
     identity_questions_required: [
       'name-input',          // necessary identity
       'birthday',            // astrology hook computed downstream
+      'birth-order',         // high-signal, factual; partner-flagged "pre-session"
       'want-from-reading',   // register: laugh / warning / clarity / idk
       'familiar',            // projective vibe, no domain lock
     ],

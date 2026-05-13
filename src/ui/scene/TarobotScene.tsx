@@ -33,9 +33,16 @@ const PARTICLE_SIZE_PX = 1.5;             // ~1/4 the prior visual size
 const PARTICLE_BURST_VEL = 0.19;          // initial outward velocity (~1/8 of prior burst)
 const PARTICLE_BURST_VEL_JITTER = 0.19;
 
-const IMPACT_LIFE_S = 1.0;
-const IMPACT_START_SCALE = 0.18;
-const IMPACT_END_SCALE = 1.6;
+// ─── Data orbs ────────────────────────────────────────────
+// Each survey/tent answer fires a glowing white sphere at the click point;
+// it floats up to a drifting cloud above/behind Clat. Acts as a visual
+// answer counter — orbs accumulate across the session.
+const ORB_MAX = 60;
+const ORB_RADIUS_PX = 8;
+const ORB_TRAVEL_MIN_S = 1.1;
+const ORB_TRAVEL_JITTER_S = 0.7;
+const ORB_DRIFT_RETARGET_MIN_S = 2.0;
+const ORB_DRIFT_RETARGET_JITTER_S = 4.0;
 
 type ParticleData = {
   theta: Float32Array;
@@ -109,12 +116,12 @@ export function TarobotScene() {
 
     // PNG-cutout style: a flat plane with the sprite as its only material.
     // alphaTest discards fully-transparent pixels so the bloom/composite doesn't
-    // catch a faint rectangular edge around Clat.
+    // catch a faint rectangular edge around Clat. depthWrite is left on so
+    // Clat's silhouette occludes the orbs/dust drifting behind him.
     const catMat = new THREE.MeshBasicMaterial({
       map: tex,
       transparent: true,
       alphaTest: 0.05,
-      depthWrite: false,
     });
     const catGeom = new THREE.PlaneGeometry(1, 1);
     const cat = new THREE.Mesh(catGeom, catMat);
@@ -181,44 +188,87 @@ export function TarobotScene() {
     const particles = new THREE.Points(particleGeom, particleMat);
     particleGroup.add(particles);
 
-    // ─── Impact dots ──────────────────────────────────────
-    // Each multi-choice click fires a glowing sphere near Clat that pops and fades.
-    // Spheres are children of catGroup, so they inherit the anchor scale (cat-units).
-    const impactGeom = new THREE.SphereGeometry(0.12, 18, 14);
-    type ActiveImpact = {
+    // ─── Data orbs (answer counter cloud) ─────────────────
+    // Persistent glowing white spheres. Spawn at click position, travel up
+    // along an arc, then drift in a cloud above/behind Clat. Shared geom +
+    // material — orbs are visually identical, so no per-orb material clone.
+    const orbGroup = new THREE.Group();
+    scene.add(orbGroup);
+    const orbGeom = new THREE.SphereGeometry(ORB_RADIUS_PX, 18, 14);
+    const orbMat = new THREE.MeshBasicMaterial({
+      color: 0xffffff,
+      transparent: true,
+      opacity: 0.92,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+    });
+
+    type OrbPhase = 'travel' | 'drift';
+    type Orb = {
       mesh: THREE.Mesh;
-      mat: THREE.MeshBasicMaterial;
-      age: number;
-      lifespan: number;
-      startScale: number;
-      endScale: number;
+      phase: OrbPhase;
+      pos: THREE.Vector3;
+      vel: THREE.Vector3;
+      target: THREE.Vector3;
+      retargetAt: number;
+      // travel-only
+      travelStart: THREE.Vector3;
+      travelDuration: number;
+      travelElapsed: number;
+      arcPeak: THREE.Vector3;       // bezier control point above the midline
     };
-    const activeImpacts: ActiveImpact[] = [];
+    const orbs: Orb[] = [];
+
+    function pickCloudPoint(out: THREE.Vector3): void {
+      const a = getAnchor();
+      const cx = a ? a.x - viewportW / 2 : 0;
+      const cy = a ? viewportH / 2 - a.y : 0;
+      const w = a ? a.width : 220;
+      // Cloud: above Clat, roughly centered on the head, with horizontal spread.
+      const angle = (Math.random() - 0.5) * Math.PI * 0.75;  // -67.5°..+67.5° from straight up
+      const r = w * (0.55 + Math.random() * 0.85);
+      const offX = Math.sin(angle) * r;
+      const offY = Math.cos(angle) * r * 0.85 + w * 0.25;     // bias toward above
+      const offZ = -10 - Math.random() * 20;                  // behind Clat plane (z=0)
+      out.set(cx + offX, cy + offY, offZ);
+    }
 
     const unsubscribeImpacts = subscribeImpacts((evt: ImpactEvent) => {
-      const strength = evt.strength ?? 1;
-      const mat = new THREE.MeshBasicMaterial({
-        color: 0xb38cff,
-        transparent: true,
-        opacity: 1,
-        blending: THREE.AdditiveBlending,
-        depthWrite: false,
-      });
-      const mesh = new THREE.Mesh(impactGeom, mat);
-      // Spawn near Clat with a little jitter so repeated clicks don't stack.
-      mesh.position.set(
-        (Math.random() - 0.5) * 0.45,
-        (Math.random() - 0.5) * 0.30 + 0.05,
-        0.3,
+      // Convert client coords → scene coords (center origin, y up).
+      const sx = evt.x - viewportW / 2;
+      const sy = viewportH / 2 - evt.y;
+
+      // Recycle the oldest orb if at cap.
+      if (orbs.length >= ORB_MAX) {
+        const old = orbs.shift()!;
+        orbGroup.remove(old.mesh);
+      }
+
+      const mesh = new THREE.Mesh(orbGeom, orbMat);
+      mesh.position.set(sx, sy, -5);
+      orbGroup.add(mesh);
+
+      const target = new THREE.Vector3();
+      pickCloudPoint(target);
+
+      // Bezier control point: above the midline by a chunk, biased toward target x.
+      const arcPeak = new THREE.Vector3(
+        sx + (target.x - sx) * 0.55,
+        Math.max(sy, target.y) + 60 + Math.random() * 80,
+        (target.z - 5) / 2,
       );
-      catGroup.add(mesh);
-      activeImpacts.push({
+
+      orbs.push({
         mesh,
-        mat,
-        age: 0,
-        lifespan: IMPACT_LIFE_S,
-        startScale: IMPACT_START_SCALE * strength,
-        endScale: IMPACT_END_SCALE * strength,
+        phase: 'travel',
+        pos: new THREE.Vector3(sx, sy, -5),
+        vel: new THREE.Vector3(),
+        target,
+        retargetAt: 0,
+        travelStart: new THREE.Vector3(sx, sy, -5),
+        travelDuration: ORB_TRAVEL_MIN_S + Math.random() * ORB_TRAVEL_JITTER_S,
+        travelElapsed: 0,
+        arcPeak,
       });
     });
 
@@ -297,6 +347,7 @@ export function TarobotScene() {
 
     const start = performance.now();
     let lastFrameMs = start;
+    const _orbTmpA = new THREE.Vector3();
 
     const animate = () => {
       if (!mounted) return;
@@ -424,22 +475,42 @@ export function TarobotScene() {
       particleGeom.attributes.position.needsUpdate = true;
       particleGeom.attributes.color.needsUpdate = true;
 
-      // ── Impact dots: scale-up + fade, then dispose ──
-      for (let i = activeImpacts.length - 1; i >= 0; i--) {
-        const imp = activeImpacts[i]!;
-        imp.age += dt;
-        const u = imp.age / imp.lifespan;
-        if (u >= 1) {
-          catGroup.remove(imp.mesh);
-          imp.mat.dispose();
-          activeImpacts.splice(i, 1);
-          continue;
+      // ── Data orbs: travel-up arc, then drift in a cloud ──
+      const orbTmp = _orbTmpA;
+      for (const orb of orbs) {
+        if (orb.phase === 'travel') {
+          orb.travelElapsed += dt;
+          const u = Math.min(1, orb.travelElapsed / orb.travelDuration);
+          // Quadratic bezier: travelStart → arcPeak → target.
+          const oneMinusU = 1 - u;
+          orb.pos.set(
+            oneMinusU * oneMinusU * orb.travelStart.x + 2 * oneMinusU * u * orb.arcPeak.x + u * u * orb.target.x,
+            oneMinusU * oneMinusU * orb.travelStart.y + 2 * oneMinusU * u * orb.arcPeak.y + u * u * orb.target.y,
+            oneMinusU * oneMinusU * orb.travelStart.z + 2 * oneMinusU * u * orb.arcPeak.z + u * u * orb.target.z,
+          );
+          orb.mesh.position.copy(orb.pos);
+          if (u >= 1) {
+            orb.phase = 'drift';
+            orb.vel.set(0, 0, 0);
+            orb.retargetAt = t + ORB_DRIFT_RETARGET_MIN_S + Math.random() * ORB_DRIFT_RETARGET_JITTER_S;
+          }
+        } else {
+          if (t >= orb.retargetAt) {
+            pickCloudPoint(orb.target);
+            orb.retargetAt = t + ORB_DRIFT_RETARGET_MIN_S + Math.random() * ORB_DRIFT_RETARGET_JITTER_S;
+          }
+          // Spring toward target with damping + small per-frame noise.
+          orbTmp.subVectors(orb.target, orb.pos).multiplyScalar(1.6);
+          orb.vel.x = orb.vel.x * 0.90 + orbTmp.x * dt;
+          orb.vel.y = orb.vel.y * 0.90 + orbTmp.y * dt;
+          orb.vel.z = orb.vel.z * 0.90 + orbTmp.z * dt;
+          orb.vel.x += (Math.random() - 0.5) * 8 * dt;
+          orb.vel.y += (Math.random() - 0.5) * 8 * dt;
+          orb.pos.x += orb.vel.x * dt;
+          orb.pos.y += orb.vel.y * dt;
+          orb.pos.z += orb.vel.z * dt;
+          orb.mesh.position.copy(orb.pos);
         }
-        const ease = 1 - Math.pow(1 - u, 2);   // ease-out quad
-        const s = imp.startScale + (imp.endScale - imp.startScale) * ease;
-        imp.mesh.scale.setScalar(s);
-        // Fade brightens slightly at first, then drops to zero.
-        imp.mat.opacity = (1 - u) * (u < 0.15 ? u / 0.15 : 1);
       }
 
       composer.render();
@@ -455,12 +526,10 @@ export function TarobotScene() {
       window.removeEventListener('resize', sizeRenderer);
       document.removeEventListener('visibilitychange', onVisibilityChange);
       unsubscribeImpacts();
-      for (const imp of activeImpacts) {
-        catGroup.remove(imp.mesh);
-        imp.mat.dispose();
-      }
-      activeImpacts.length = 0;
-      impactGeom.dispose();
+      for (const orb of orbs) orbGroup.remove(orb.mesh);
+      orbs.length = 0;
+      orbGeom.dispose();
+      orbMat.dispose();
       catGeom.dispose();
       catMat.dispose();
       tex.dispose();

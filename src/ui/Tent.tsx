@@ -4,7 +4,6 @@ import { Dialogue } from './dialogue/Dialogue';
 import { MultipleChoice } from './choices/MultipleChoice';
 import { Spinner } from './Spinner';
 import { DebugPanel } from './DebugPanel';
-import { fireImpact } from './scene/impactStore';
 import {
   bootEngine,
   createClaudeClient,
@@ -180,10 +179,7 @@ export function Tent({
                   disabled={inputDisabled}
                   onPick={(opt) => {
                     const idx = q.options.indexOf(opt);
-                    if (idx >= 0) {
-                      fireImpact();
-                      void pick(idx);
-                    }
+                    if (idx >= 0) void pick(idx);
                   }}
                 />
               ) : (

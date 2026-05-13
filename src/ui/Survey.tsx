@@ -2,7 +2,6 @@ import { useEffect, useRef, useState, type ChangeEvent, type KeyboardEvent } fro
 import { Reader } from './reader/Reader';
 import { Dialogue } from './dialogue/Dialogue';
 import { MultipleChoice } from './choices/MultipleChoice';
-import { fireImpact } from './scene/impactStore';
 import {
   applyAnswer,
   appendClatNotes,
@@ -219,8 +218,11 @@ export function Survey({ apiKey, onComplete }: Props) {
 
       <Dialogue
         key={currentQ.id}
-        text={currentQ.text.toLowerCase()}
-        subText={activeComment ? activeComment.toLowerCase() : null}
+        text={
+          activeComment
+            ? `${currentQ.text.toLowerCase()}\n        ${activeComment.toLowerCase()}`
+            : currentQ.text.toLowerCase()
+        }
         onTypingChange={setSpeaking}
       />
 
@@ -272,10 +274,7 @@ export function Survey({ apiKey, onComplete }: Props) {
             <MultipleChoice
               suggestions={currentQ.options}
               isBinary={currentQ.format === 'binary'}
-              onPick={(v) => {
-                fireImpact();
-                handleAnswer([v]);
-              }}
+              onPick={(v) => handleAnswer([v])}
             />
           )}
           {currentQ.is_dark && !isNameQ && !isBirthdayQ && (

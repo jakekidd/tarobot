@@ -1,16 +1,18 @@
-// Fire-and-subscribe bus for "Clat reaction" impact events. When the user
-// taps a multiple-choice option, the survey/tent calls fireImpact() and the
-// TarobotScene spawns a glowing sphere dot at Clat's position.
+// Fire-and-subscribe bus for "data orb" spawns. When the user taps a survey
+// or tent multi-choice option, the button fires an Impact carrying the click
+// coordinates. The TarobotScene spawns a glowing orb at that point which
+// floats up to a drifting cloud above/behind Clat — a visual answer counter.
 
 export type Impact = {
-  /** 0..1 — used as a multiplier on size/brightness. Default 1. */
-  strength?: number;
+  /** Click coordinates in viewport (client) pixels. */
+  x: number;
+  y: number;
 };
 
 type Listener = (impact: Impact) => void;
 const listeners = new Set<Listener>();
 
-export function fireImpact(impact: Impact = {}): void {
+export function fireImpact(impact: Impact): void {
   listeners.forEach((fn) => fn(impact));
 }
 

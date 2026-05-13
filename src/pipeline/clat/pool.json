@@ -11,6 +11,33 @@
     "interpretation": {}
   },
   {
+    "id": "birthday",
+    "text": "when were you born?",
+    "format": "choice",
+    "options": [],
+    "category": "identity",
+    "depth": "warm",
+    "is_dark": false,
+    "tags": ["identity", "astrology-hook", "numerology-hook"],
+    "interpretation": {}
+  },
+  {
+    "id": "birth-order",
+    "text": "in your family, were you the...",
+    "format": "matrix-2x2",
+    "options": ["oldest", "middle", "youngest", "only child"],
+    "category": "identity",
+    "depth": "warm",
+    "is_dark": false,
+    "tags": ["birth-order", "relational-base"],
+    "interpretation": {
+      "oldest": "firstborn — over-indexes on self-reliance and responsibility; default-caretaker pattern",
+      "middle": "between-kid — often the negotiator or the one who slipped through; gap-filling role",
+      "youngest": "often underestimates own influence; can be magnetic, performative, or quietly resentful",
+      "only child": "adult-coded young; over-indexes on self-reliance and solitude as a default state"
+    }
+  },
+  {
     "id": "who-came-with",
     "text": "who came with you tonight?",
     "format": "choice",
@@ -24,6 +51,21 @@
       "partner": "romantic partner present — relational thread is live",
       "friends": "peer group present — register may shift toward play",
       "family": "family present — careful with edge questions"
+    }
+  },
+  {
+    "id": "social-orientation",
+    "text": "in a room of strangers, where do you end up?",
+    "format": "choice",
+    "options": ["the center of it", "the edges, watching", "depends on the room"],
+    "category": "relational",
+    "depth": "warm",
+    "is_dark": false,
+    "tags": ["social-style", "self-monitoring"],
+    "interpretation": {
+      "the center of it": "magnetic / center-of-gravity register; performative comfort or compulsion",
+      "the edges, watching": "observer-coded; protective, measured, or genuinely contented at the margin",
+      "depends on the room": "high self-monitoring — context-sensitive; gap between public and private self likely live"
     }
   },
   {
@@ -44,44 +86,50 @@
     }
   },
   {
-    "id": "whats-true-now",
-    "text": "what's true right now? (pick any)",
-    "format": "multi-select",
-    "options": [
-      "something is ending",
-      "something is starting",
-      "something is stuck",
-      "something is unsaid",
-      "something is too much",
-      "something is finally good"
-    ],
-    "category": "life-state",
-    "depth": "medium",
+    "id": "locus-of-control",
+    "text": "are you someone who...",
+    "format": "choice",
+    "options": ["makes things happen", "watches things happen", "wonders what happened"],
+    "category": "stance",
+    "depth": "warm",
     "is_dark": false,
-    "tags": ["state-vector", "choice-seed"],
+    "tags": ["locus-of-control", "self-model"],
     "interpretation": {
-      "something is ending": "loss/transition active; possible passive fork",
-      "something is starting": "future-tilt; choice may live here",
-      "something is stuck": "stasis; classic constructed-choice territory",
-      "something is unsaid": "communication thread; relational candidate",
-      "something is too much": "overload; capacity-related fork likely",
-      "something is finally good": "stability; user may be at decision-validation"
+      "makes things happen": "high-agency self-concept; choices framed as authored, even when they aren't",
+      "watches things happen": "observer-coded; agency may be defended or genuinely low-stakes by preference",
+      "wonders what happened": "retrospective / confused-coded; processes after the fact, often surprised by their own life"
     }
   },
   {
-    "id": "when-living",
-    "text": "where do you live, in time?",
+    "id": "familiar",
+    "text": "pick a creature.",
     "format": "choice",
-    "options": ["the past", "the present", "the future", "i don't know"],
-    "category": "time",
+    "options": ["raven", "serpent", "wolf", "cat"],
+    "category": "projective",
+    "depth": "warm",
+    "is_dark": false,
+    "tags": ["vibe", "archetype"],
+    "interpretation": {
+      "raven": "watchful, slightly ominous; comfortable with weight",
+      "serpent": "patient, pattern-aware; will sit with discomfort",
+      "wolf": "pack-or-alone; loyalty and edge in same hand",
+      "cat": "self-contained; observes more than acts"
+    }
+  },
+  {
+    "id": "season-metaphor",
+    "text": "if the last year were a season, which one?",
+    "format": "matrix-2x2",
+    "options": ["spring", "summer", "fall", "winter"],
+    "category": "life-state",
     "depth": "medium",
     "is_dark": false,
-    "tags": ["temporal-orientation", "register"],
+    "tags": ["temporal", "affect"],
     "interpretation": {
-      "the past": "carrying something unresolved; backward-leaning",
-      "the present": "often \"stuck\" — may not see the choice",
-      "the future": "anticipatory; choice likely surfaceable",
-      "i don't know": "disoriented; floor-pass; lean gentle"
+      "spring": "growth / emergence; tentative optimism",
+      "summer": "peak / saturated; could be richly alive or overfull",
+      "fall": "letting go / ripening; transitional, possibly grief-adjacent",
+      "winter": "dormant / endured; conservation register, may be ready to thaw"
     }
   },
   {
@@ -101,31 +149,36 @@
     }
   },
   {
-    "id": "familiar",
-    "text": "pick a creature. fast.",
-    "format": "choice",
-    "options": ["raven", "serpent", "wolf", "cat"],
-    "category": "projective",
-    "depth": "warm",
+    "id": "origin-felt",
+    "text": "where you're from — does it still feel like home?",
+    "format": "matrix-2x2",
+    "options": ["here, and yes", "here, but no", "elsewhere, still home", "elsewhere, nowhere now"],
+    "category": "identity",
+    "depth": "medium",
     "is_dark": false,
-    "tags": ["vibe", "archetype"],
+    "tags": ["origin", "displacement"],
     "interpretation": {
-      "raven": "watchful, slightly ominous; comfortable with weight",
-      "serpent": "patient, pattern-aware; will sit with discomfort",
-      "wolf": "pack-or-alone; loyalty and edge in same hand",
-      "cat": "self-contained; observes more than acts"
+      "here, and yes": "rooted; geographic and felt origin aligned — stable base",
+      "here, but no": "physically rooted but psychologically elsewhere — quiet drift signal",
+      "elsewhere, still home": "elsewhere still anchors them; nostalgia, unfinished business, or chosen exile",
+      "elsewhere, nowhere now": "displaced; no felt home — unresolved tension worth handling gently"
     }
   },
   {
-    "id": "birthday",
-    "text": "when were you born?",
-    "format": "choice",
-    "options": [],
+    "id": "chronic-misunderstanding",
+    "text": "what's something people misread about you almost immediately?",
+    "format": "matrix-2x2",
+    "options": ["how serious i am", "how soft i am", "how alone i feel", "i seem fine"],
     "category": "identity",
-    "depth": "warm",
-    "is_dark": false,
-    "tags": ["identity", "astrology-hook"],
-    "interpretation": {}
+    "depth": "edge",
+    "is_dark": true,
+    "tags": ["self-model", "perception-gap"],
+    "interpretation": {
+      "how serious i am": "performs lightness; intensity hidden behind the casual register",
+      "how soft i am": "performs hardness; tender core behind the armor",
+      "how alone i feel": "performs connection; isolation hidden in a crowd",
+      "i seem fine": "high-functioning mask — the answer itself is the answer"
+    }
   },
   {
     "id": "honesty-edge",
@@ -145,24 +198,24 @@
   },
   {
     "id": "procrastinating",
-    "text": "what have you been putting off?",
+    "text": "is there something you're putting off that you already know the answer to?",
     "format": "choice",
-    "options": ["a conversation", "a decision", "a task", "i'm not"],
+    "options": ["yes — and i know which one", "more than one", "no", "i don't think so, but"],
     "category": "life-state",
     "depth": "medium",
     "is_dark": false,
     "tags": ["avoidance", "choice-seed"],
     "interpretation": {
-      "a conversation": "relational thread live; specific person likely",
-      "a decision": "direct choice candidate — high signal",
-      "a task": "lower stakes; may indicate broader stasis",
-      "i'm not": "either grounded or in denial; cognition decides via cross-signal"
+      "yes — and i know which one": "direct choice candidate; tension is named",
+      "more than one": "stacked avoidance; capacity-related angle",
+      "no": "either genuinely current or denial; cognition decides via cross-signal",
+      "i don't think so, but": "hedge — there is one, they just won't name it yet"
     }
   },
   {
     "id": "weight-on-shoulders",
-    "text": "rate the weight on your shoulders this week",
-    "format": "choice",
+    "text": "the weight on your shoulders this week...",
+    "format": "matrix-2x2",
     "options": ["feather", "backpack", "boulder", "ocean"],
     "category": "life-state",
     "depth": "medium",
@@ -176,19 +229,66 @@
     }
   },
   {
+    "id": "replay-or-plan",
+    "text": "when something goes wrong, are you replaying it or planning what's next?",
+    "format": "choice",
+    "options": ["replaying it", "planning what's next", "both, at once", "neither, mostly"],
+    "category": "stance",
+    "depth": "medium",
+    "is_dark": false,
+    "tags": ["processing-mode", "rumination"],
+    "interpretation": {
+      "replaying it": "backward-facing; rumination, guilt and meaning-making active",
+      "planning what's next": "forward-facing; could be agency or could be avoidance",
+      "both, at once": "high cognitive load; processes in parallel — common with anxiety",
+      "neither, mostly": "either grounded or dissociative; cross-signal needed"
+    }
+  },
+  {
     "id": "permission-from",
     "text": "who are you waiting for permission from?",
     "format": "choice",
-    "options": ["myself", "a person", "no one", "pass"],
+    "options": ["myself", "a specific person", "no one", "pass"],
     "category": "stance",
     "depth": "edge",
     "is_dark": true,
     "tags": ["agency", "choice-frame"],
     "interpretation": {
       "myself": "self-permission gate; classic constructed-choice setup",
-      "a person": "relational gate; cast entry implied",
+      "a specific person": "relational gate; cast entry implied",
       "no one": "agency claimed; may still be defended posture",
       "pass": "declined; mark as edge-tolerance low for now"
+    }
+  },
+  {
+    "id": "two-years-from-now",
+    "text": "two years from now — same as today, or somewhere else?",
+    "format": "choice",
+    "options": ["mostly the same", "mostly different", "i can't picture it"],
+    "category": "life-state",
+    "depth": "medium",
+    "is_dark": false,
+    "tags": ["temporal-orientation", "transition"],
+    "interpretation": {
+      "mostly the same": "stability or stasis — chosen or imposed; ask which",
+      "mostly different": "transition register; change is live and possibly already chosen",
+      "i can't picture it": "uncertain — could be open, could be afraid of the blankness"
+    }
+  },
+  {
+    "id": "unsettling-animal",
+    "text": "an animal that genuinely unsettles you?",
+    "format": "matrix-2x2",
+    "options": ["spider", "snake", "deep-sea fish", "moth"],
+    "category": "projective",
+    "depth": "warm",
+    "is_dark": false,
+    "tags": ["projected-fear", "shadow"],
+    "interpretation": {
+      "spider": "the watcher in clean spaces; intrusion, the pattern you didn't notice",
+      "snake": "the silent threat; betrayal-coded; quiet danger that arrives close",
+      "deep-sea fish": "the unknown depths; what's down there; unconscious material",
+      "moth": "the persistent / drawn-to-light; quiet repetition, gentle obsession"
     }
   },
   {
@@ -202,7 +302,7 @@
     "tags": ["metaphysics", "agency-stance"],
     "interpretation": {
       "yes": "agency-claiming worldview; choices framed as authored",
-      "no": "fated/determinist worldview; \"things happen to me\" register",
+      "no": "fated / determinist worldview; \"things happen to me\" register",
       "not sure": "thoughtful; willing to sit with ambiguity"
     }
   }

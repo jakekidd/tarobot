@@ -1,3 +1,5 @@
+import { fireImpact } from '../scene/impactStore';
+
 type Props = {
   suggestions: string[];
   isBinary?: boolean;
@@ -126,7 +128,14 @@ function ChoiceButton({
       type="button"
       className={`choice-button ${variant ? `choice-button--${variant}` : ''}`}
       disabled={disabled}
-      onClick={onClick}
+      onClick={(e) => {
+        // Spawn a data orb at the click point (or button center for keyboard).
+        const r = e.currentTarget.getBoundingClientRect();
+        const x = e.clientX || r.left + r.width / 2;
+        const y = e.clientY || r.top + r.height / 2;
+        fireImpact({ x, y });
+        onClick();
+      }}
     >
       <span className="choice-button__text">{label}</span>
     </button>
