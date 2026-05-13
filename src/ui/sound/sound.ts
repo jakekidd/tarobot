@@ -8,7 +8,11 @@ let lastBlipAt = 0;
 const MIN_BLIP_INTERVAL_MS = 50;
 
 export function init(): void {
-  if (ctx) return;
+  if (ctx) {
+    // If already created but suspended (tab switched, etc.), try to resume.
+    if (ctx.state === 'suspended') ctx.resume().catch(() => {});
+    return;
+  }
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const Ctor: typeof AudioContext = window.AudioContext ?? (window as any).webkitAudioContext;
   if (!Ctor) return;
@@ -16,6 +20,16 @@ export function init(): void {
   master = ctx.createGain();
   master.gain.value = 0.18;
   master.connect(ctx.destination);
+}
+
+/**
+ * Resume the AudioContext if it's been auto-suspended by the browser
+ * (tab backgrounded, etc.). Safe to call from any event handler.
+ */
+function ensureRunning(): void {
+  if (ctx && ctx.state === 'suspended') {
+    ctx.resume().catch(() => {});
+  }
 }
 
 export function setVolume(v: number): void {
@@ -32,6 +46,7 @@ export function isReady(): boolean {
  * Skipped on whitespace and punctuation, rate-limited per call site.
  */
 export function blip(charCode: number): void {
+  ensureRunning();
   if (!ctx || !master) return;
   if (isWhitespaceOrPunct(charCode)) return;
   const now = performance.now();
@@ -63,6 +78,7 @@ export function blip(charCode: number): void {
  * A small chime for phase transitions. Two-note major third.
  */
 export function chime(): void {
+  ensureRunning();
   if (!ctx || !master) return;
   const t = ctx.currentTime;
   for (const [freq, offset] of [[440, 0], [554.37, 0.08]] as const) {
@@ -84,6 +100,7 @@ export function chime(): void {
  * Card flip whoosh: filtered noise sweep.
  */
 export function flip(): void {
+  ensureRunning();
   if (!ctx || !master) return;
   const t = ctx.currentTime;
   const buffer = ctx.createBuffer(1, ctx.sampleRate * 0.3, ctx.sampleRate);

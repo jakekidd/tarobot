@@ -26,24 +26,27 @@ export async function clatReact(
   upcomingQueueSimplified: Array<{ id: string; text: string; category: string }>,
   priorNotes: ClatNote[],
 ): Promise<ClatOutput> {
-  const simplifiedHistory = answerLog.map((a) => {
+  const simplifiedHistory = answerLog.map((a, i) => {
     const q = pool.find((x) => x.id === a.question_id);
     return {
+      idx: i,
       q: q?.text ?? a.question_id,
       category: q?.category,
       picked: a.passed ? '[pass]' : a.picked.join(' + '),
       interpretation: a.passed
         ? undefined
         : a.picked.map((p) => q?.interpretation[p]),
+      most_recent: i === answerLog.length - 1,
     };
   });
 
   const userMessage = {
     history: simplifiedHistory,
+    most_recent_answer_idx: answerLog.length - 1,
     upcoming_questions: upcomingQueueSimplified,
     your_prior_notes: priorNotes,
     instructions:
-      "you are running concurrently; you may not fire on every answer. consider the recent shape of the case. emit only what's worth emitting — nothing is also a valid response.",
+      "you are running concurrently with the user's intake; you may not fire on every answer. the latest answer is flagged with most_recent: true, but your comment can reach back to any pattern across the history. emit only what's worth emitting — nothing is also a valid response.",
   };
 
   const response = await client.messages.create({

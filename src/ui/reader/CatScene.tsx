@@ -160,9 +160,9 @@ export function CatScene({
     particleGeom.setAttribute('color', new THREE.BufferAttribute(colors, 3));
 
     const particleMat = new THREE.PointsMaterial({
-      size: 0.03,                   // slightly larger — visible against deeper violet
+      size: 0.055,                   // bigger — visibly drifting motes
       transparent: true,
-      opacity: 1,                   // per-vertex color carries fade now
+      opacity: 1,                    // per-vertex color carries fade now
       vertexColors: true,
       blending: THREE.AdditiveBlending,
       depthWrite: false,
@@ -177,9 +177,9 @@ export function CatScene({
     composer.addPass(new RenderPass(scene, camera));
     const bloom = new UnrealBloomPass(
       new THREE.Vector2(width, height),
-      0.95,    // strength — visible glow, but not blown out
-      0.75,    // radius — softer falloff than before
-      0.20,    // threshold — deeper violet still triggers bloom
+      1.4,     // strength — clearly visible halo
+      0.85,    // radius — softer falloff
+      0.10,    // threshold — almost everything violet blooms
     );
     composer.addPass(bloom);
     composer.addPass(new OutputPass());
@@ -191,6 +191,50 @@ export function CatScene({
       camera.aspect = width / height;
       camera.updateProjectionMatrix();
     };
+
+    // ─── Mouse reactivity. The cat shifts away from the cursor when it
+    // gets close, and elastically returns to center. Rapid mouse
+    // movement triggers a "purr" state — eyes squint, gentle vibration.
+    let mouseSceneX = 999;     // normalized scene-space; large = "no mouse"
+    let mouseSceneY = 999;
+    let lastMouseT = 0;
+    let purrUntil = 0;
+    const hoverVel = { x: 0, y: 0 };
+    const hoverOffset = { x: 0, y: 0 };
+    const HOVER_RADIUS = 1.3;        // scene units within which mouse "matters"
+    const PUSH_STRENGTH = 0.35;       // how far the cat retreats at full push
+    const SPRING_K = 9;               // pull-back stiffness
+    const DAMPING = 0.86;
+    const PURR_VELOCITY_TRIGGER = 1.8;  // scene-units / second
+    const PURR_DURATION_MS = 700;
+
+    const onPointerMove = (e: PointerEvent) => {
+      const rect = renderer.domElement.getBoundingClientRect();
+      const nx = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+      const ny = -(((e.clientY - rect.top) / rect.height) * 2 - 1);
+      // Approx scene-space scaling — at this camera & z=0, the visible
+      // half-width is about 1.0; treat ndc as scene units directly.
+      const sx = nx * 1.4;
+      const sy = ny * 1.0;
+      const now = performance.now();
+      const dt = Math.max(0.001, (now - (lastMouseT || now)) / 1000);
+      const dx = sx - mouseSceneX;
+      const dy = sy - mouseSceneY;
+      const dist = mouseSceneX > 100 ? 0 : Math.hypot(dx, dy);
+      const speed = dist / dt;
+      if (speed > PURR_VELOCITY_TRIGGER) {
+        purrUntil = now + PURR_DURATION_MS;
+      }
+      mouseSceneX = sx;
+      mouseSceneY = sy;
+      lastMouseT = now;
+    };
+    const onPointerLeave = () => {
+      mouseSceneX = 999;
+      mouseSceneY = 999;
+    };
+    renderer.domElement.addEventListener('pointermove', onPointerMove);
+    renderer.domElement.addEventListener('pointerleave', onPointerLeave);
 
     // ─── Visibility: pause when tab hidden so we don't accumulate a
     // particle massacre when the user comes back hours later.
@@ -227,6 +271,9 @@ export function CatScene({
       lastFrameMs = now;
       const t = (now - start) / 1000;
 
+      // Purr state — used by frame cycling AND position jitter below.
+      const purring = now < purrUntil;
+
       // ── Frame cycling ──
       const fs = frameStateRef.current;
       const stateData = (fs.reaction && data.reactions[fs.reaction]?.frame
@@ -258,7 +305,7 @@ export function CatScene({
         } else {
           fs.blinking = false;
         }
-        frame = fs.blinking && stateData.blink
+        frame = (fs.blinking || purring) && stateData.blink
           ? stateData.blink
           : stateData.frames[fs.frameIdx] ?? stateData.frames[0]!;
       } else {
@@ -267,21 +314,46 @@ export function CatScene({
       paintFrame(spriteCtx, frame, fs.color, fs.bgColor);
       tex.needsUpdate = true;
 
+      // ── Mouse reactivity (push away + elastic return) ──
+      let targetOffsetX = 0;
+      let targetOffsetY = 0;
+      if (mouseSceneX < 100) {
+        const dx = -mouseSceneX;            // we want to push AWAY from mouse
+        const dy = -mouseSceneY;
+        const distFromCat = Math.hypot(mouseSceneX, mouseSceneY);
+        if (distFromCat < HOVER_RADIUS) {
+          const intensity = (HOVER_RADIUS - distFromCat) / HOVER_RADIUS; // 0..1
+          const mag = Math.hypot(dx, dy) || 1;
+          targetOffsetX = (dx / mag) * intensity * PUSH_STRENGTH;
+          targetOffsetY = (dy / mag) * intensity * PUSH_STRENGTH * 0.6;
+        }
+      }
+      // Spring toward target offset
+      hoverVel.x += (targetOffsetX - hoverOffset.x) * SPRING_K * dt;
+      hoverVel.y += (targetOffsetY - hoverOffset.y) * SPRING_K * dt;
+      hoverVel.x *= DAMPING;
+      hoverVel.y *= DAMPING;
+      hoverOffset.x += hoverVel.x * dt;
+      hoverOffset.y += hoverVel.y * dt;
+
+      // ── Purr vibration (small jitter while purring) ──
+      const purrJitterX = purring ? (Math.random() - 0.5) * 0.04 : 0;
+      const purrJitterY = purring ? (Math.random() - 0.5) * 0.04 : 0;
+
       // ── Cat float + random-feel tilt ──
-      // Multi-sine mix gives an almost-Perlin random feel without the dep.
       const tiltZ = (
         Math.sin(t * 0.43) * 0.5 +
         Math.sin(t * 0.79) * 0.3 +
         Math.sin(t * 1.27) * 0.2
-      ) * 0.06;                              // gentle left/right wobble
-      const yaw = Math.sin(t * 0.31) * 0.06; // tiny yaw
+      ) * 0.06;
+      const yaw = Math.sin(t * 0.31) * 0.06;
       const pitch = -0.04 + Math.sin(t * 0.46) * 0.025;
 
       cat.rotation.z = tiltZ;
       cat.rotation.y = yaw;
       cat.rotation.x = pitch;
-      cat.position.y = Math.sin(t * 0.55) * 0.03;
-      cat.position.x = Math.sin(t * 0.27) * 0.02;
+      cat.position.x = Math.sin(t * 0.27) * 0.02 + hoverOffset.x + purrJitterX;
+      cat.position.y = Math.sin(t * 0.55) * 0.03 + hoverOffset.y + purrJitterY;
 
       // ── Particles ──
       // Drift along their per-particle 3D velocity. Slight gravity-ish
@@ -315,10 +387,11 @@ export function CatScene({
         // Per-particle fade: peaks midlife, fades at both ends so the
         // birth/death are soft. Curve = sin(πr) where r = lifeRatio.
         const ratio = lifetimes[i]! / lifespans[i]!;
-        const intensity = Math.sin(ratio * Math.PI) * 0.55;
-        col[i * 3 + 0] = intensity * 0.7;   // R
-        col[i * 3 + 1] = intensity * 0.53;  // G
-        col[i * 3 + 2] = intensity * 1.0;   // B → violet
+        const intensity = Math.sin(ratio * Math.PI);     // peaks at 1.0
+        // Violet tint matching --color-violet (#7c3aed = 124,58,237 → ~0.49,0.23,0.93).
+        col[i * 3 + 0] = intensity * 0.49;
+        col[i * 3 + 1] = intensity * 0.23;
+        col[i * 3 + 2] = intensity * 0.93;
       }
       particleGeom.attributes.position.needsUpdate = true;
       particleGeom.attributes.color.needsUpdate = true;
@@ -333,6 +406,8 @@ export function CatScene({
       cancelAnimationFrame(rafId);
       window.removeEventListener('resize', onResize);
       document.removeEventListener('visibilitychange', onVisibilityChange);
+      renderer.domElement.removeEventListener('pointermove', onPointerMove);
+      renderer.domElement.removeEventListener('pointerleave', onPointerLeave);
       geom.dispose();
       front.dispose();
       edge.dispose();

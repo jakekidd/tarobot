@@ -197,6 +197,21 @@ export const QUESTION_POOL: SurveyQuestion[] = [
       'pass': 'declined; mark as edge-tolerance low for now',
     },
   },
+  {
+    id: 'free-will',
+    text: 'do you believe in free will?',
+    format: 'choice',
+    options: ['yes', 'no', 'not sure'],
+    category: 'stance',
+    depth: 'medium',
+    is_dark: false,
+    tags: ['metaphysics', 'agency-stance'],
+    interpretation: {
+      'yes': 'agency-claiming worldview; choices framed as authored',
+      'no': 'fated/determinist worldview; "things happen to me" register',
+      'not sure': 'thoughtful; willing to sit with ambiguity',
+    },
+  },
 ];
 
 export function findQuestion(id: string): SurveyQuestion | undefined {

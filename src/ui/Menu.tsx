@@ -2,12 +2,7 @@ import { useEffect, useState } from 'react';
 import { Reader } from './reader/Reader';
 import { Dialogue } from './dialogue/Dialogue';
 import { chime } from './sound/sound';
-import {
-  loadActive,
-  clearAllExceptKey,
-  clearApiKey,
-  type Session,
-} from '../storage';
+import { loadActive, type Session } from '../storage';
 
 type Props = {
   onBegin: () => void;
@@ -31,41 +26,17 @@ export function Menu({ onBegin, onResume, onSettings }: Props) {
       </div>
 
       <div className="menu__choices">
+        <button className="btn btn--primary" onClick={onBegin}>
+          begin
+        </button>
         {active && (
           <button className="btn btn--primary" onClick={() => onResume(active)}>
-            resume reading in progress
+            resume
           </button>
         )}
-        <button className="btn btn--primary" onClick={onBegin}>
-          {active ? 'begin a new reading' : 'begin a reading'}
-        </button>
         <button className="btn btn--ghost" onClick={onSettings}>
           settings
         </button>
-        <div className="menu__quiet-row">
-          <button
-            className="btn btn--quiet"
-            onClick={() => {
-              if (confirm('clear all sessions, archive, and settings? api key stays.')) {
-                clearAllExceptKey();
-                window.location.reload();
-              }
-            }}
-          >
-            clear all data
-          </button>
-          <button
-            className="btn btn--quiet"
-            onClick={() => {
-              if (confirm('reset the stored api key? you\'ll be asked for a new one.')) {
-                clearApiKey();
-                window.location.reload();
-              }
-            }}
-          >
-            reset api key
-          </button>
-        </div>
       </div>
     </div>
   );
