@@ -23,7 +23,7 @@ import {
   type SurveyAnswer,
   type SurveyQuestion,
 } from '../pipeline';
-import { saveSession, type Session } from '../storage';
+import { listSessionNames, saveSession, type Session } from '../storage';
 
 type Props = {
   apiKey: string;
@@ -50,8 +50,24 @@ export function Survey({ apiKey, session, onComplete }: Props) {
 
   const [speaking, setSpeaking] = useState(false);
   const [nameDraft, setNameDraft] = useState('');
+  const [nameError, setNameError] = useState<string | null>(null);
   const [bMonth, setBMonth] = useState('');
   const [bDay, setBDay] = useState('');
+
+  // Snapshot existing names at mount so re-renders don't re-scan localStorage.
+  const [existingNames] = useState<Set<string>>(
+    () => new Set(listSessionNames(session.id)),
+  );
+
+  function submitName() {
+    const v = nameDraft.trim();
+    if (!v) return;
+    if (existingNames.has(v.toLowerCase())) {
+      setNameError('name already used');
+      return;
+    }
+    handleAnswer([v]);
+  }
 
   // Director ref — used by the Clat polling effect to read fresh state.
   const directorRef = useRef(director);
@@ -232,30 +248,40 @@ export function Survey({ apiKey, session, onComplete }: Props) {
       <div className="ui-frame ui-frame--survey">
         <div className="ui-frame__choices">
           {isNameQ && (
-            <form
-              className="name-step__form"
-              onSubmit={(e) => {
-                e.preventDefault();
-                if (nameDraft.trim()) handleAnswer([nameDraft.trim()]);
-              }}
-            >
-              <input
-                className="text-input text-input--ghost"
-                value={nameDraft}
-                onChange={(e) => setNameDraft(e.target.value)}
-                placeholder="your name"
-                autoFocus
-                autoCapitalize="words"
-                autoComplete="given-name"
-              />
-              <button
-                type="submit"
-                className="btn btn--chrome btn--send"
-                disabled={!nameDraft.trim()}
+            <div className="name-step">
+              <form
+                className="name-step__form"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  submitName();
+                }}
               >
-                enter
-              </button>
-            </form>
+                <input
+                  className={`text-input text-input--ghost ${nameError ? 'text-input--error' : ''}`}
+                  value={nameDraft}
+                  onChange={(e) => {
+                    setNameDraft(e.target.value);
+                    // Clear the error the moment they edit — classic field validation behavior.
+                    if (nameError) setNameError(null);
+                  }}
+                  placeholder="your name"
+                  autoFocus
+                  autoCapitalize="words"
+                  autoComplete="given-name"
+                  aria-invalid={nameError !== null}
+                />
+                <button
+                  type="submit"
+                  className="btn btn--chrome btn--send"
+                  disabled={!nameDraft.trim()}
+                >
+                  enter
+                </button>
+              </form>
+              {nameError && (
+                <div className="name-step__error" role="alert">{nameError}</div>
+              )}
+            </div>
           )}
 
           {isBirthdayQ && (

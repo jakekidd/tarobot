@@ -117,6 +117,24 @@ export function completeSession(session: Session): void {
   saveSession(next);
 }
 
+/**
+ * All distinct names currently in storage — drawn from compiled profiles and
+ * from "name-input" survey answers (so a half-finished session still counts).
+ * Optionally exclude a specific session id (the one being typed into now).
+ */
+export function listSessionNames(excludeId?: string): string[] {
+  const sessions = loadSessions().filter((s) => s.id !== excludeId);
+  const out = new Set<string>();
+  for (const s of sessions) {
+    const fromProfile = s.profile?.identity.name?.trim();
+    if (fromProfile) out.add(fromProfile.toLowerCase());
+    const ans = s.survey?.answers.find((a) => a.question_id === 'name-input');
+    const fromSurvey = ans?.picked[0]?.trim();
+    if (fromSurvey) out.add(fromSurvey.toLowerCase());
+  }
+  return Array.from(out);
+}
+
 /** Most recent Profile per name across all stored sessions. */
 export function listProfilesByName(): Profile[] {
   type Entry = { profile: Profile; ts: number };

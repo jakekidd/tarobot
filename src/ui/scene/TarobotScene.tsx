@@ -5,7 +5,8 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import spriteData from '../reader/sprite.json';
-import { paintFrame, type SpriteFrame } from '../reader/spriteCanvas';
+import type { SpriteFrame } from '../reader/spriteCanvas';
+import { buildVoxelGeometry } from '../reader/spriteGeometry';
 import { getAnchor } from './anchorStore';
 import { subscribeImpacts, type Impact as ImpactEvent } from './impactStore';
 
@@ -21,8 +22,10 @@ type SpriteData = {
 };
 const data = spriteData as SpriteData;
 
-const CAT_COLOR = '#7c3aed';
-const CAT_BG = '#000000';
+// Time-based intro: when the page first loads Clat zooms in from a tiny dot
+// to full scale. Once-per-session (the scene only mounts once at app boot).
+const ZOOM_IN_DURATION_MS = 1100;
+const ZOOM_IN_START_SCALE = 0.12;
 
 const PARTICLE_COUNT = 130;
 const PARTICLE_BURST_DURATION = 0.6;     // seconds; initial outward burst
@@ -103,31 +106,26 @@ export function TarobotScene() {
     }
 
     // ─── Cat mesh ─────────────────────────────────────────
-    // Geometry is in normalized 1×1 cat-units; the group scales to anchor px.
-    const spriteCanvas = document.createElement('canvas');
-    const spriteCtx = spriteCanvas.getContext('2d')!;
-    spriteCtx.imageSmoothingEnabled = false;
+    // Clat is a voxel-extruded mesh, not a textured plane. Each filled
+    // quadrant of the sprite becomes a small BoxGeometry; the merged
+    // result is rendered with per-face vertex colours for faux lighting.
+    // We pre-bake one geometry per idle frame so frame swaps cost a single
+    // assignment instead of a mergeGeometries call per tick.
+    const idleFrames = data.states.idle?.frames ?? [];
+    const idleGeoms: THREE.BufferGeometry[] = idleFrames.map((f) =>
+      buildVoxelGeometry(f, 0.18),
+    );
+    const fallbackGeom = idleGeoms[1] ?? idleGeoms[0] ?? new THREE.BufferGeometry();
 
-    const tex = new THREE.CanvasTexture(spriteCanvas);
-    tex.colorSpace = THREE.SRGBColorSpace;
-    tex.minFilter = THREE.NearestFilter;
-    tex.magFilter = THREE.NearestFilter;
-    tex.generateMipmaps = false;
-
-    // PNG-cutout style: a flat plane with the sprite as its only material.
-    // alphaTest discards fully-transparent pixels so the bloom/composite doesn't
-    // catch a faint rectangular edge around Clat. depthWrite is left on so
-    // Clat's silhouette occludes the orbs/dust drifting behind him.
     const catMat = new THREE.MeshBasicMaterial({
-      map: tex,
-      transparent: true,
-      alphaTest: 0.05,
+      vertexColors: true,
+      transparent: false,
     });
-    const catGeom = new THREE.PlaneGeometry(1, 1);
-    const cat = new THREE.Mesh(catGeom, catMat);
+    const cat = new THREE.Mesh(fallbackGeom, catMat);
 
     const catGroup = new THREE.Group();
     catGroup.add(cat);
+    let lastFrameIdx = -1;          // tracks which voxel geom is currently on the mesh
 
     const particleGroup = new THREE.Group();
 
@@ -135,11 +133,6 @@ export function TarobotScene() {
     positionGroup.add(catGroup);
     positionGroup.add(particleGroup);
     scene.add(positionGroup);
-
-    // Initial paint
-    const firstFrame = data.states.idle!.frames[0]!;
-    paintFrame(spriteCtx, firstFrame, CAT_COLOR, CAT_BG);
-    tex.needsUpdate = true;
 
     // ─── Particles ────────────────────────────────────────
     // Camera-facing square sprites via Points + flat white-square texture.
@@ -298,6 +291,8 @@ export function TarobotScene() {
     let mouseSceneY = 999;
     const hoverVel = { x: 0, y: 0 };
     const hoverOffset = { x: 0, y: 0 };
+    const tiltVel = { x: 0, y: 0 };    // for the mouse-bias tilt spring
+    const tiltOffset = { x: 0, y: 0 };
     let hoverDwellSec = 0;             // accumulates while cursor is inside hitbox
     let vibrateUntilMs = 0;            // > now means actively vibrating
     let vibrateLastFiredAt = -999;     // seconds
@@ -356,15 +351,23 @@ export function TarobotScene() {
       lastFrameMs = now;
       const t = (now - start) / 1000;
 
-      // ── Anchor → screen position + scale ──
+      // ── Anchor → screen position + scale (with one-shot zoom-in) ──
       const anchor = getAnchor();
       const wantVisible = anchor !== null;
       positionGroup.visible = wantVisible;
 
+      const elapsedSinceMount = now - start;
+      let zoomScale = 1;
+      if (elapsedSinceMount < ZOOM_IN_DURATION_MS) {
+        const u = elapsedSinceMount / ZOOM_IN_DURATION_MS;
+        const ease = 1 - Math.pow(1 - u, 3);   // ease-out cubic
+        zoomScale = ZOOM_IN_START_SCALE + (1 - ZOOM_IN_START_SCALE) * ease;
+      }
+
       if (anchor) {
         positionGroup.position.x = anchor.x - viewportW / 2;
         positionGroup.position.y = viewportH / 2 - anchor.y;
-        positionGroup.scale.setScalar(anchor.width);
+        positionGroup.scale.setScalar(anchor.width * zoomScale);
       }
 
       // ── Hover hitbox: distance + dwell accumulation ──
@@ -440,9 +443,11 @@ export function TarobotScene() {
       } else {
         frameIdx = fs.shuffleIdx;
       }
-      const frame = frames[frameIdx] ?? frames[1] ?? frames[0]!;
-      paintFrame(spriteCtx, frame, CAT_COLOR, CAT_BG);
-      tex.needsUpdate = true;
+      // Voxel geometry swap — pre-baked geometries indexed by sprite frame.
+      if (frameIdx !== lastFrameIdx) {
+        cat.geometry = idleGeoms[frameIdx] ?? fallbackGeom;
+        lastFrameIdx = frameIdx;
+      }
 
       // ── Spring drift away from mouse ──
       let targetOffsetX = 0, targetOffsetY = 0;
@@ -472,9 +477,23 @@ export function TarobotScene() {
       ) * 0.06;
       const yaw = Math.sin(t * 0.31) * 0.06;
       const pitch = -0.04 + Math.sin(t * 0.46) * 0.025;
+
+      // Mouse-bias tilt: when the cursor is inside the hitbox, lean Clat
+      // toward it. Yaw responds to horizontal offset, pitch to vertical. The
+      // spring keeps the transition smooth, and the targets are zeroed when
+      // the cursor leaves, returning to ambient float.
+      const targetTiltX = mouseClose ? clamp(-mouseDy / (anchor?.width ?? 1), -1, 1) * 0.18 : 0;
+      const targetTiltY = mouseClose ? clamp(mouseDx / (anchor?.width ?? 1), -1, 1) * 0.22 : 0;
+      tiltVel.x += (targetTiltX - tiltOffset.x) * 9 * dt;
+      tiltVel.y += (targetTiltY - tiltOffset.y) * 9 * dt;
+      tiltVel.x *= 0.85;
+      tiltVel.y *= 0.85;
+      tiltOffset.x += tiltVel.x * dt;
+      tiltOffset.y += tiltVel.y * dt;
+
       catGroup.rotation.z = tiltZ;
-      catGroup.rotation.y = yaw;
-      catGroup.rotation.x = pitch;
+      catGroup.rotation.y = yaw + tiltOffset.y;
+      catGroup.rotation.x = pitch + tiltOffset.x;
       catGroup.position.x = Math.sin(t * 0.27) * 0.02 + hoverOffset.x + purrJitterX;
       catGroup.position.y = Math.sin(t * 0.55) * 0.03 + hoverOffset.y + purrJitterY;
 
@@ -575,9 +594,8 @@ export function TarobotScene() {
       orbs.length = 0;
       orbGeom.dispose();
       orbMat.dispose();
-      catGeom.dispose();
+      for (const g of idleGeoms) g.dispose();
       catMat.dispose();
-      tex.dispose();
       particleGeom.dispose();
       particleMat.dispose();
       particleTex.dispose();
@@ -603,6 +621,10 @@ export function TarobotScene() {
  *   2 up, 3 down, 4 left, 5 right, 6 up-left, 7 up-right, 8 down-left, 9 down-right
  * Scene coords: +x right, +y up.
  */
+function clamp(v: number, lo: number, hi: number): number {
+  return v < lo ? lo : v > hi ? hi : v;
+}
+
 function lookFrameForDirection(dx: number, dy: number): number {
   // Bias the angle by π/8 so the 8 sectors align to the cardinal/intercardinal directions.
   const a = (Math.atan2(dy, dx) + Math.PI * 2 + Math.PI / 8) % (Math.PI * 2);
