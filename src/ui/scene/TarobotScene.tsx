@@ -5,10 +5,17 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import spriteData from '../reader/sprite.json';
-import type { SpriteFrame } from '../reader/spriteCanvas';
-import { buildVoxelGeometry } from '../reader/spriteGeometry';
+import { paintFrame, type SpriteFrame } from '../reader/spriteCanvas';
 import { getAnchor } from './anchorStore';
 import { subscribeImpacts, type Impact as ImpactEvent } from './impactStore';
+
+// Reverted from the voxel approach (it merged into a featureless silhouette —
+// the eye gaps disappeared into the surrounding side faces). Back to a flat
+// textured plane so Clat has a face. To recover some sense of depth, a second
+// plane sits at z = -CAT_DEPTH carrying the same texture; rotation reveals a
+// parallax offset between the two layers. Proper extrusion-from-silhouette is
+// a follow-up — see spriteGeometry.ts for the dormant voxel builder.
+const CAT_DEPTH = 0.16;
 
 type StateData = {
   frames: SpriteFrame[];
@@ -112,26 +119,40 @@ export function TarobotScene() {
     }
 
     // ─── Cat mesh ─────────────────────────────────────────
-    // Clat is a voxel-extruded mesh, not a textured plane. Each filled
-    // quadrant of the sprite becomes a small BoxGeometry; the merged
-    // result is rendered with per-face vertex colours for faux lighting.
-    // We pre-bake one geometry per idle frame so frame swaps cost a single
-    // assignment instead of a mergeGeometries call per tick.
-    const idleFrames = data.states.idle?.frames ?? [];
-    const idleGeoms: THREE.BufferGeometry[] = idleFrames.map((f) =>
-      buildVoxelGeometry(f, 0.18),
-    );
-    const fallbackGeom = idleGeoms[1] ?? idleGeoms[0] ?? new THREE.BufferGeometry();
+    // Flat textured-plane Clat. The canvas is repainted from the active sprite
+    // frame each tick the frame index changes; the back plane shares the same
+    // texture so updates appear on both. alphaTest keeps the transparent
+    // padding around the sprite from leaving a visible plane edge.
+    const spriteCanvas = document.createElement('canvas');
+    const spriteCtx = spriteCanvas.getContext('2d')!;
+    spriteCtx.imageSmoothingEnabled = false;
+
+    const tex = new THREE.CanvasTexture(spriteCanvas);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    tex.minFilter = THREE.NearestFilter;
+    tex.magFilter = THREE.NearestFilter;
+    tex.generateMipmaps = false;
 
     const catMat = new THREE.MeshBasicMaterial({
-      vertexColors: true,
-      transparent: false,
+      map: tex,
+      transparent: true,
+      alphaTest: 0.05,
     });
-    const cat = new THREE.Mesh(fallbackGeom, catMat);
+    const catGeom = new THREE.PlaneGeometry(1, 1);
+
+    // Two planes carrying the same texture: the back plane sits CAT_DEPTH
+    // behind the front one. From any non-zero yaw/pitch the offset becomes
+    // visible as a thin parallax slab — gives a hint of dimensionality
+    // without losing the face details.
+    const catFront = new THREE.Mesh(catGeom, catMat);
+    catFront.position.z = 0;
+    const catBack = new THREE.Mesh(catGeom, catMat);
+    catBack.position.z = -CAT_DEPTH;
 
     const catGroup = new THREE.Group();
-    catGroup.add(cat);
-    let lastFrameIdx = -1;          // tracks which voxel geom is currently on the mesh
+    catGroup.add(catBack);          // draw back first so the front overlays it
+    catGroup.add(catFront);
+    let lastFrameIdx = -1;
 
     const particleGroup = new THREE.Group();
 
@@ -460,9 +481,14 @@ export function TarobotScene() {
       } else {
         frameIdx = fs.shuffleIdx;
       }
-      // Voxel geometry swap — pre-baked geometries indexed by sprite frame.
+      // Repaint the shared canvas texture only when the frame index changes —
+      // saves a paint per tick when Clat's holding a single look-direction.
       if (frameIdx !== lastFrameIdx) {
-        cat.geometry = idleGeoms[frameIdx] ?? fallbackGeom;
+        const f = frames[frameIdx] ?? frames[1] ?? frames[0];
+        if (f) {
+          paintFrame(spriteCtx, f, '#7c3aed', '#000000');
+          tex.needsUpdate = true;
+        }
         lastFrameIdx = frameIdx;
       }
 
@@ -647,8 +673,9 @@ export function TarobotScene() {
       }
       orbs.length = 0;
       orbGeom.dispose();
-      for (const g of idleGeoms) g.dispose();
+      catGeom.dispose();
       catMat.dispose();
+      tex.dispose();
       particleGeom.dispose();
       particleMat.dispose();
       particleTex.dispose();
