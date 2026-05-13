@@ -27,8 +27,21 @@ export type {
   Chapter, Reading,
 } from './types';
 
-export { computeSunSign } from './astrology';
-export type { SunSign } from './astrology';
+export {
+  computeSunSign,
+  computeAstroProfile,
+  parseBirthDate,
+  summarizeAstro,
+  lifePathFor,
+  tarotBirthCardFor,
+  sunSignFor,
+} from './astrology';
+export type {
+  SunSign,
+  BirthDate,
+  TarotBirthCard,
+  AstroProfile,
+} from './astrology';
 
 // Cards & spreads (data + utilities for tarot phase)
 export { ALL_CARDS, drawCards, drawForSpread, getCard, findByName } from './cards';

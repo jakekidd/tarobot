@@ -97,10 +97,18 @@ export type ClatNote = {
 export type Profile = {
   identity: {
     name?: string;
+    /** Legacy: kept for back-compat with older sessions. Prefer birth_date. */
     birth_month_day?: string;
-    sun_sign?: string;           // derived from birth_month_day in compile()
+    /** Full ISO "YYYY-MM-DD" if year was given. */
+    birth_date?: string;
+    sun_sign?: string;            // derived from the date in compile()
+    life_path?: number;           // numerological life path; 11/22/33 are master numbers
+    tarot_birth_card?: {
+      number: number;             // 0-21 Major Arcana
+      name: string;
+    };
     came_with?: string;
-    notes: string;               // freeform identity-related notes
+    notes: string;                // freeform identity-related notes
   };
 
   // running candidates; the leading one has is_target=true

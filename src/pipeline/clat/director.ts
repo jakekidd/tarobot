@@ -31,10 +31,11 @@ export function newDirector(): DirectorState {
     // onto a single domain before any context exists.
     identity_questions_required: [
       'name-input',          // necessary identity
-      'birthday',            // astrology hook computed downstream
-      'birth-order',         // high-signal, factual; partner-flagged "pre-session"
-      'want-from-reading',   // register: laugh / warning / clarity / idk
-      'familiar',            // projective vibe, no domain lock
+      'birthday',            // unlocks sun sign + life path + tarot birth card
+      'birth-order',         // factual, high-signal, robust predictor
+      // want-from-reading: kept in pool but no longer forced up front — felt
+      //   register-y when asked cold, before clat has any context to react to.
+      // familiar: same — picking a creature is a vibe check, not an opener.
     ],
     comment_queue: [],
     clat_notes: [],

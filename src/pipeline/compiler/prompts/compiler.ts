@@ -32,8 +32,10 @@ export const COMPILER_TOOL: Anthropic.Tool = {
     properties: {
       identity: {
         type: 'object',
+        description: 'do NOT populate birth_date, birth_month_day, sun_sign, life_path, or tarot_birth_card — those are derived and patched in by the caller. only emit name, came_with, and notes.',
         properties: {
           name: { type: 'string' },
+          birth_date: { type: 'string' },
           birth_month_day: { type: 'string' },
           came_with: { type: 'string' },
           notes: { type: 'string' },
@@ -139,6 +141,7 @@ export const COMPILER_TOOL: Anthropic.Tool = {
 export type CompilerOutput = {
   identity: {
     name?: string;
+    birth_date?: string;
     birth_month_day?: string;
     came_with?: string;
     notes: string;

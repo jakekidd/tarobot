@@ -1,7 +1,12 @@
 import type Anthropic from '@anthropic-ai/sdk';
 import type { ClaudeClient } from '../claude';
 import { MODELS } from '../claude';
-import { computeSunSign } from '../astrology';
+import {
+  computeSunSign,
+  parseBirthDate,
+  computeAstroProfile,
+  summarizeAstro,
+} from '../astrology';
 import type { ClatNote, Profile, Question, Survey } from '../types';
 import { findQuestion } from '../clat/pool';
 import { COMPILER_SYSTEM, COMPILER_TOOL, type CompilerOutput } from './prompts/compiler';
@@ -18,11 +23,14 @@ export async function compile(
   survey: Survey,
   clatNotes: ClatNote[] = [],
 ): Promise<{ profile: Profile; openers: Question[]; raw: CompilerOutput }> {
-  // Derive the sun sign once so cognition can use it, and so the
-  // Compiler doesn't need an astrology table in its prompt.
+  // Derive every astrology field we can from the birthday answer so the
+  // Compiler doesn't have to compute (and the model can't get it wrong).
+  // Supported answer formats: "YYYY-MM-DD" (new) or "MM-DD" (legacy).
   const birthdayAnswer = survey.answers.find((a) => a.question_id === 'birthday');
-  const birthMonthDay = birthdayAnswer?.passed ? undefined : birthdayAnswer?.picked[0];
-  const sunSign = birthMonthDay ? computeSunSign(birthMonthDay) : null;
+  const birthRaw = birthdayAnswer?.passed ? undefined : birthdayAnswer?.picked[0];
+  const birthDate = birthRaw ? parseBirthDate(birthRaw) : null;
+  const astro = birthDate ? computeAstroProfile(birthDate) : null;
+  const sunSign = astro ? astro.sunSign : (birthRaw ? computeSunSign(birthRaw) : null);
 
   const userPayload = {
     survey_answers: survey.answers.map((a) => {
@@ -38,7 +46,10 @@ export async function compile(
     }),
     answer_count: survey.answers.length,
     derived: {
-      sun_sign: sunSign,           // null if no birthday given
+      sun_sign: sunSign,
+      life_path: astro?.lifePath ?? null,
+      tarot_birth_card: astro?.tarotBirthCard.name ?? null,
+      astro_summary: astro ? summarizeAstro(astro) : null,
     },
     clat_notes: clatNotes,         // Clat's accumulated observations during the survey
   };
@@ -57,9 +68,18 @@ export async function compile(
   const profile: Profile = {
     identity: {
       ...out.identity,
-      // Patch the derived fields ourselves — the model doesn't need to compute them.
-      birth_month_day: birthMonthDay ?? out.identity.birth_month_day,
+      // Patch every derived field ourselves — the model doesn't compute them.
+      birth_date: birthDate
+        ? `${birthDate.year}-${String(birthDate.month).padStart(2, '0')}-${String(birthDate.day).padStart(2, '0')}`
+        : out.identity.birth_date,
+      birth_month_day: birthDate
+        ? `${String(birthDate.month).padStart(2, '0')}-${String(birthDate.day).padStart(2, '0')}`
+        : (birthRaw ?? out.identity.birth_month_day),
       sun_sign: sunSign ?? undefined,
+      life_path: astro?.lifePath,
+      tarot_birth_card: astro
+        ? { number: astro.tarotBirthCard.number, name: astro.tarotBirthCard.name }
+        : undefined,
     },
     candidates: out.candidates,
     cast: out.cast.map((c) => ({ ...c, last_referenced_turn: 0 })),

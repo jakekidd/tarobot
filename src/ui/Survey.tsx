@@ -40,6 +40,10 @@ export function Survey({ apiKey, session, onComplete }: Props) {
   const [currentQ, setCurrentQ] = useState<SurveyQuestion | null>(() =>
     nextQuestion(newDirector()),
   );
+  // Pool exhausted but below the hard cap → wait briefly for Clat to inject
+  // a follow-up question. If she doesn't, we finalize the survey.
+  const [awaitingMore, setAwaitingMore] = useState(false);
+  const AWAIT_TIMEOUT_MS = 8000;
 
   // DISABLED — standalone comment feature. Preserved as commented-out state so
   // the previous behavior is one toggle away. See clat.ts CLAT_SYSTEM for the
@@ -53,6 +57,7 @@ export function Survey({ apiKey, session, onComplete }: Props) {
   const [nameError, setNameError] = useState<string | null>(null);
   const [bMonth, setBMonth] = useState('');
   const [bDay, setBDay] = useState('');
+  const [bYear, setBYear] = useState('');
 
   // Snapshot existing names at mount so re-renders don't re-scan localStorage.
   const [existingNames] = useState<Set<string>>(
@@ -111,12 +116,16 @@ export function Survey({ apiKey, session, onComplete }: Props) {
       return n;
     })();
 
-    const next = mustEnd(dirSnap) ? null : nextQuestion(dirSnap);
+    const ended = mustEnd(dirSnap);
+    const next = ended ? null : nextQuestion(dirSnap);
     setCurrentQ(next);
+    // Pool ran dry without hitting the cap — give Clat a brief window to fill in.
+    setAwaitingMore(!ended && next === null);
     // setActiveComment(poppedComment);  // DISABLED
     setNameDraft('');
     setBMonth('');
     setBDay('');
+    setBYear('');
   }
 
   // Clat polling thread. Serialized (one in flight at a time). Fires only
@@ -207,12 +216,36 @@ export function Survey({ apiKey, session, onComplete }: Props) {
     };
   }, []);
 
-  // When currentQ becomes null, we're done. Hand survey + clat_notes off.
+  // When currentQ becomes null AND we're not waiting for Clat, finalize.
   useEffect(() => {
-    if (currentQ === null && director.answered_ids.size > 0) {
+    if (currentQ === null && !awaitingMore && director.answered_ids.size > 0) {
       onComplete(finalizeSurvey(director, startedAt), director.clat_notes);
     }
-  }, [currentQ, director, onComplete, startedAt]);
+  }, [currentQ, awaitingMore, director, onComplete, startedAt]);
+
+  // While awaiting, poll the director — if Clat injects something we pick it up.
+  // Polling (not effect-on-director) so the state update happens in a timer
+  // callback, not synchronously during render after a director change.
+  useEffect(() => {
+    if (!awaitingMore) return;
+    const timer = window.setInterval(() => {
+      const next = nextQuestion(directorRef.current);
+      if (next) {
+        setCurrentQ(next);
+        setAwaitingMore(false);
+      }
+    }, 300);
+    return () => window.clearInterval(timer);
+  }, [awaitingMore]);
+
+  // Bound the wait so we don't hang forever if Clat never fires.
+  useEffect(() => {
+    if (!awaitingMore) return;
+    const timer = window.setTimeout(() => {
+      setAwaitingMore(false);   // finalize fires on the next render via the effect above
+    }, AWAIT_TIMEOUT_MS);
+    return () => window.clearTimeout(timer);
+  }, [awaitingMore]);
 
   // Persist partial survey to the session so resume entries can display the
   // user's name (and any future mid-survey resume can rebuild from this).
@@ -228,6 +261,21 @@ export function Survey({ apiKey, session, onComplete }: Props) {
   const isBirthdayQ = currentQ?.id === 'birthday';
 
   if (!currentQ) {
+    // Pool exhausted but we're still hoping Clat injects something. Keep Clat
+    // on stage and show a "thinking" beat so it doesn't feel like the survey
+    // just hung. The await effect will swap currentQ back in if she fires.
+    if (awaitingMore) {
+      return (
+        <div className="screen screen--survey">
+          <Reader isSpeaking={false} />
+          <Dialogue
+            key="awaiting-clat"
+            text={"she's thinking…"}
+            onTypingChange={setSpeaking}
+          />
+        </div>
+      );
+    }
     return (
       <div className="screen">
         <div className="screen__lede">…</div>
@@ -292,11 +340,14 @@ export function Survey({ apiKey, session, onComplete }: Props) {
             <BirthdayForm
               month={bMonth}
               day={bDay}
+              year={bYear}
               setMonth={setBMonth}
               setDay={setBDay}
+              setYear={setBYear}
               onSubmit={() => {
-                const val = bMonth && bDay
-                  ? `${bMonth.padStart(2, '0')}-${bDay.padStart(2, '0')}`
+                const yyyy = bYear && bYear.length === 4 ? bYear : '';
+                const val = bMonth && bDay && yyyy
+                  ? `${yyyy}-${bMonth.padStart(2, '0')}-${bDay.padStart(2, '0')}`
                   : '';
                 handleAnswer(val ? [val] : [], !val);
               }}
@@ -328,14 +379,21 @@ export function Survey({ apiKey, session, onComplete }: Props) {
 type BirthdayFormProps = {
   month: string;
   day: string;
+  year: string;
   setMonth: (v: string) => void;
   setDay: (v: string) => void;
+  setYear: (v: string) => void;
   onSubmit: () => void;
 };
 
-function BirthdayForm({ month, day, setMonth, setDay, onSubmit }: BirthdayFormProps) {
+function BirthdayForm({
+  month, day, year,
+  setMonth, setDay, setYear,
+  onSubmit,
+}: BirthdayFormProps) {
   const monthRef = useRef<HTMLInputElement>(null);
   const dayRef = useRef<HTMLInputElement>(null);
+  const yearRef = useRef<HTMLInputElement>(null);
 
   function handleMonthChange(e: ChangeEvent<HTMLInputElement>) {
     const v = e.target.value.replace(/\D/g, '').slice(0, 2);
@@ -346,28 +404,45 @@ function BirthdayForm({ month, day, setMonth, setDay, onSubmit }: BirthdayFormPr
   function handleDayChange(e: ChangeEvent<HTMLInputElement>) {
     const v = e.target.value.replace(/\D/g, '').slice(0, 2);
     setDay(v);
+    if (v.length === 2) yearRef.current?.focus();
   }
 
+  function handleYearChange(e: ChangeEvent<HTMLInputElement>) {
+    const v = e.target.value.replace(/\D/g, '').slice(0, 4);
+    setYear(v);
+  }
+
+  // Backward auto-tab on backspace — mirrors the forward auto-tab on length.
   function handleDayKeyDown(e: KeyboardEvent<HTMLInputElement>) {
     if (e.key === 'Backspace' && day.length <= 1) {
-      // If empty, jump back to month immediately; if exactly 1 char, let the
-      // delete run, then jump back so the user can keep deleting.
       if (day.length === 0) {
         e.preventDefault();
         monthRef.current?.focus();
       } else {
-        // Defer the focus shift until after this keystroke clears the field.
         window.setTimeout(() => monthRef.current?.focus(), 0);
       }
     }
   }
+
+  function handleYearKeyDown(e: KeyboardEvent<HTMLInputElement>) {
+    if (e.key === 'Backspace' && year.length <= 1) {
+      if (year.length === 0) {
+        e.preventDefault();
+        dayRef.current?.focus();
+      } else {
+        window.setTimeout(() => dayRef.current?.focus(), 0);
+      }
+    }
+  }
+
+  const ready = month.length >= 1 && day.length >= 1 && year.length === 4;
 
   return (
     <form
       className="birthday-step"
       onSubmit={(e) => {
         e.preventDefault();
-        onSubmit();
+        if (ready) onSubmit();
       }}
     >
       <div className="birthday-row">
@@ -396,8 +471,21 @@ function BirthdayForm({ month, day, setMonth, setDay, onSubmit }: BirthdayFormPr
           placeholder="DD"
           aria-label="day"
         />
+        <span className="birthday-sep">/</span>
+        <input
+          ref={yearRef}
+          className="text-input text-input--ghost text-input--year"
+          inputMode="numeric"
+          pattern="[0-9]*"
+          maxLength={4}
+          value={year}
+          onChange={handleYearChange}
+          onKeyDown={handleYearKeyDown}
+          placeholder="YYYY"
+          aria-label="year"
+        />
       </div>
-      <button type="submit" className="btn btn--chrome btn--big">
+      <button type="submit" className="btn btn--chrome btn--big" disabled={!ready}>
         enter
       </button>
     </form>

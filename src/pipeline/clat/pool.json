@@ -12,13 +12,13 @@
   },
   {
     "id": "birthday",
-    "text": "when were you born?",
+    "text": "when were you born? the day, month, and year.",
     "format": "choice",
     "options": [],
     "category": "identity",
     "depth": "warm",
     "is_dark": false,
-    "tags": ["identity", "astrology-hook", "numerology-hook"],
+    "tags": ["identity", "astrology-hook", "numerology-hook", "tarot-birth-card"],
     "interpretation": {}
   },
   {

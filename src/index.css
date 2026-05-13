@@ -346,6 +346,16 @@ a:hover { text-decoration: underline; }
   font-size: 1.1rem;
 }
 
+.text-input--year {
+  width: 6em;
+  padding: 0.5rem 0.4rem;
+  text-align: center;
+  font-size: 1.1rem;
+  border: 1px solid rgba(242, 236, 255, 0.55);
+  font-family: var(--font-mono);
+}
+.text-input--year:focus { border-color: var(--violet); }
+
 .text-area { resize: vertical; min-height: 80px; }
 
 /* =====================================================================
