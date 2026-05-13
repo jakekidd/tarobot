@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type ChangeEvent, type KeyboardEvent } fro
 import { Reader } from './reader/Reader';
 import { Dialogue } from './dialogue/Dialogue';
 import { MultipleChoice } from './choices/MultipleChoice';
+import { Matrix2x2Choice } from './choices/Matrix2x2Choice';
 import {
   applyAnswer,
   appendClatNotes,
@@ -272,7 +273,15 @@ export function Survey({ apiKey, session, onComplete }: Props) {
             />
           )}
 
-          {!isNameQ && !isBirthdayQ && (
+          {!isNameQ && !isBirthdayQ && currentQ.axes && (
+            <Matrix2x2Choice
+              key={currentQ.id}
+              axes={currentQ.axes}
+              options={currentQ.options}
+              onPick={(v) => handleAnswer([v])}
+            />
+          )}
+          {!isNameQ && !isBirthdayQ && !currentQ.axes && (
             <MultipleChoice
               key={currentQ.id}
               suggestions={currentQ.options}

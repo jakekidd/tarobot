@@ -1084,6 +1084,107 @@ a:hover { text-decoration: underline; }
   opacity: 0;
 }
 
+/* =====================================================================
+   Matrix 2×2 picker (used when a question carries axes)
+   ===================================================================== */
+
+.matrix-2x2 {
+  width: 100%;
+  max-width: 420px;
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: minmax(3.5rem, auto) 1fr minmax(3.5rem, auto);
+  grid-template-rows: minmax(1.4rem, auto) 1fr minmax(1.4rem, auto);
+  grid-template-areas:
+    ".    top    ."
+    "left plane  right"
+    ".    bottom .";
+  column-gap: 0.6rem;
+  row-gap: 0.4rem;
+  align-items: center;
+  justify-items: center;
+  font-family: var(--font-mono);
+  letter-spacing: 0.1em;
+  font-size: 0.95rem;
+  text-transform: lowercase;
+  color: var(--fg);
+}
+.matrix-2x2__label {
+  white-space: nowrap;
+  text-shadow: 0 0 12px rgba(179, 136, 255, 0.4);
+}
+.matrix-2x2__label--top    { grid-area: top; }
+.matrix-2x2__label--bottom { grid-area: bottom; }
+.matrix-2x2__label--left   { grid-area: left; justify-self: end; text-align: right; }
+.matrix-2x2__label--right  { grid-area: right; justify-self: start; text-align: left; }
+
+.matrix-2x2__plane {
+  grid-area: plane;
+  position: relative;
+  aspect-ratio: 1;
+  width: 100%;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
+  gap: 2px;
+  padding: 2px;
+  background: var(--violet);   /* gaps reveal this → crosshair lines */
+  box-shadow: 0 0 28px rgba(179, 136, 255, 0.22);
+}
+.matrix-2x2__crosshair {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(to right, transparent calc(50% - 1px), rgba(255, 255, 255, 0.55) calc(50% - 1px), rgba(255, 255, 255, 0.55) calc(50% + 1px), transparent calc(50% + 1px)),
+    linear-gradient(to bottom, transparent calc(50% - 1px), rgba(255, 255, 255, 0.55) calc(50% - 1px), rgba(255, 255, 255, 0.55) calc(50% + 1px), transparent calc(50% + 1px));
+}
+
+.matrix-2x2__cell {
+  background-color: #7c3aed;
+  border: none;
+  cursor: pointer;
+  transition: filter 0.12s, opacity 0.12s, transform 0.06s;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.4rem;
+  min-height: 0;
+}
+.matrix-2x2__cell:hover:not(:disabled),
+.matrix-2x2__cell--hover:not(:disabled) { filter: brightness(1.25); }
+.matrix-2x2__cell:active:not(:disabled) { transform: scale(0.98); }
+.matrix-2x2__cell:disabled { cursor: default; }
+
+.matrix-2x2__cell-text {
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  letter-spacing: 0.06em;
+  color: #000;
+  text-transform: lowercase;
+  opacity: 0;
+  transition: opacity 0.15s;
+  text-align: center;
+  pointer-events: none;
+}
+.matrix-2x2__cell:hover .matrix-2x2__cell-text,
+.matrix-2x2__cell--hover .matrix-2x2__cell-text { opacity: 1; }
+
+.matrix-2x2__cell--picked {
+  animation: choice-flash-burst 420ms ease-out forwards;
+  pointer-events: none;
+  z-index: 1;
+}
+.matrix-2x2__cell--picked .matrix-2x2__cell-text {
+  opacity: 1;            /* keep the label visible through the burst */
+}
+.matrix-2x2__cell--unpicked {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 180ms ease-out;
+}
+
 .choice-button--binary {
   letter-spacing: 0.22em;
   font-size: 1.2rem;

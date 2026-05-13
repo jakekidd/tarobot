@@ -58,7 +58,47 @@ export async function clatReact(
     messages: [{ role: 'user', content: JSON.stringify(userMessage, null, 2) }],
   });
 
-  return readToolUse<ClatOutput>(response, 'clat_react');
+  return scrubOptOuts(readToolUse<ClatOutput>(response, 'clat_react'));
+}
+
+/**
+ * Strip any "pass" / "skip" / "decline" style options from Clat-proposed
+ * questions. We don't render a pass mechanic anymore, so opt-out strings would
+ * be dead buttons. If filtering leaves the question with no options at all,
+ * drop the whole proposed_question.
+ */
+const OPT_OUT_PATTERNS = [
+  /\bpass\b/i,
+  /\bskip\b/i,
+  /\bdecline\b/i,
+  /\b(no\s+)?comment\b/i,
+  /\bprefer\s+not\b/i,
+  /\bn\/?a\b/i,
+];
+
+function isOptOutOption(option: string): boolean {
+  const s = option.trim().toLowerCase();
+  if (!s) return true;
+  return OPT_OUT_PATTERNS.some((re) => re.test(s));
+}
+
+function scrubOptOuts(out: ClatOutput): ClatOutput {
+  if (!out.proposed_question) return out;
+  const q = out.proposed_question;
+  const filteredOptions = q.options.filter((o) => !isOptOutOption(o));
+  // If we lost every option, the question is empty — drop it.
+  if (filteredOptions.length < 2) {
+    return { ...out, proposed_question: undefined };
+  }
+  // Also strip dropped keys from interpretation map so the dictionary stays consistent.
+  const filteredInterp: Record<string, string> = {};
+  for (const k of Object.keys(q.interpretation)) {
+    if (!isOptOutOption(k)) filteredInterp[k] = q.interpretation[k]!;
+  }
+  return {
+    ...out,
+    proposed_question: { ...q, options: filteredOptions, interpretation: filteredInterp },
+  };
 }
 
 function readToolUse<T>(response: Anthropic.Message, name: string): T {

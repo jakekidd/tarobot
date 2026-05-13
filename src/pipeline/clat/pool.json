@@ -248,7 +248,7 @@
     "id": "permission-from",
     "text": "who are you waiting for permission from?",
     "format": "choice",
-    "options": ["myself", "a specific person", "no one", "pass"],
+    "options": ["myself", "a specific person", "no one", "still figuring it out"],
     "category": "stance",
     "depth": "edge",
     "is_dark": true,
@@ -257,7 +257,7 @@
       "myself": "self-permission gate; classic constructed-choice setup",
       "a specific person": "relational gate; cast entry implied",
       "no one": "agency claimed; may still be defended posture",
-      "pass": "declined; mark as edge-tolerance low for now"
+      "still figuring it out": "live, unresolved — they're in the middle of identifying the gate"
     }
   },
   {
