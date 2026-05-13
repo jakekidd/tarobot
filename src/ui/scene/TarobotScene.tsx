@@ -41,11 +41,17 @@ const PARTICLE_BURST_VEL_JITTER = 0.19;
 // it floats up to a drifting cloud above/behind Clat. Acts as a visual
 // answer counter — orbs accumulate across the session.
 const ORB_MAX = 60;
-const ORB_RADIUS_PX = 8;
+const ORB_RADIUS_PX = 1;                  // ~1/8 of the previous pass — tiny stars, bloom-amplified
 const ORB_TRAVEL_MIN_S = 1.1;
 const ORB_TRAVEL_JITTER_S = 0.7;
 const ORB_DRIFT_RETARGET_MIN_S = 2.0;
 const ORB_DRIFT_RETARGET_JITTER_S = 4.0;
+const ORB_OPACITY_MIN = 0.30;
+const ORB_OPACITY_RANGE = 0.40;           // each orb picks baseOpacity in [MIN, MIN+RANGE]
+const ORB_FLICKER_RATE = 0.10;            // rad/s — full sine cycle ~63s (≈ a minute)
+const ORB_FLICKER_AMP = 0.45;             // how much of baseOpacity modulates (0..1)
+const ORB_REPULSE_RADIUS_PX = 26;
+const ORB_REPULSE_STRENGTH = 220;         // px/s² at zero distance
 
 type ParticleData = {
   theta: Float32Array;
@@ -187,18 +193,14 @@ export function TarobotScene() {
     // material — orbs are visually identical, so no per-orb material clone.
     const orbGroup = new THREE.Group();
     scene.add(orbGroup);
-    const orbGeom = new THREE.SphereGeometry(ORB_RADIUS_PX, 18, 14);
-    const orbMat = new THREE.MeshBasicMaterial({
-      color: 0xffffff,
-      transparent: true,
-      opacity: 0.92,
-      blending: THREE.AdditiveBlending,
-      depthWrite: false,
-    });
+    // Shared geometry (cheap). Materials are PER-ORB so each can flicker on its
+    // own sine phase + carry a unique baseOpacity.
+    const orbGeom = new THREE.SphereGeometry(ORB_RADIUS_PX, 10, 8);
 
     type OrbPhase = 'travel' | 'drift';
     type Orb = {
       mesh: THREE.Mesh;
+      mat: THREE.MeshBasicMaterial;
       phase: OrbPhase;
       pos: THREE.Vector3;
       vel: THREE.Vector3;
@@ -208,7 +210,10 @@ export function TarobotScene() {
       travelStart: THREE.Vector3;
       travelDuration: number;
       travelElapsed: number;
-      arcPeak: THREE.Vector3;       // bezier control point above the midline
+      arcPeak: THREE.Vector3;
+      // visual variation
+      baseOpacity: number;
+      flickerPhase: number;
     };
     const orbs: Orb[] = [];
 
@@ -235,9 +240,18 @@ export function TarobotScene() {
       if (orbs.length >= ORB_MAX) {
         const old = orbs.shift()!;
         orbGroup.remove(old.mesh);
+        old.mat.dispose();
       }
 
-      const mesh = new THREE.Mesh(orbGeom, orbMat);
+      const baseOpacity = ORB_OPACITY_MIN + Math.random() * ORB_OPACITY_RANGE;
+      const mat = new THREE.MeshBasicMaterial({
+        color: 0xffffff,
+        transparent: true,
+        opacity: baseOpacity,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+      });
+      const mesh = new THREE.Mesh(orbGeom, mat);
       mesh.position.set(sx, sy, -5);
       orbGroup.add(mesh);
 
@@ -253,6 +267,7 @@ export function TarobotScene() {
 
       orbs.push({
         mesh,
+        mat,
         phase: 'travel',
         pos: new THREE.Vector3(sx, sy, -5),
         vel: new THREE.Vector3(),
@@ -262,6 +277,8 @@ export function TarobotScene() {
         travelDuration: ORB_TRAVEL_MIN_S + Math.random() * ORB_TRAVEL_JITTER_S,
         travelElapsed: 0,
         arcPeak,
+        baseOpacity,
+        flickerPhase: Math.random() * Math.PI * 2,
       });
     });
 
@@ -539,8 +556,9 @@ export function TarobotScene() {
       particleGeom.attributes.position.needsUpdate = true;
       particleGeom.attributes.color.needsUpdate = true;
 
-      // ── Data orbs: travel-up arc, then drift in a cloud ──
+      // ── Data orbs: travel-up arc, drift in a cloud, repel each other ──
       const orbTmp = _orbTmpA;
+      // Pass 1: integrate per-orb motion (travel or drift) and flicker.
       for (const orb of orbs) {
         if (orb.phase === 'travel') {
           orb.travelElapsed += dt;
@@ -552,7 +570,6 @@ export function TarobotScene() {
             oneMinusU * oneMinusU * orb.travelStart.y + 2 * oneMinusU * u * orb.arcPeak.y + u * u * orb.target.y,
             oneMinusU * oneMinusU * orb.travelStart.z + 2 * oneMinusU * u * orb.arcPeak.z + u * u * orb.target.z,
           );
-          orb.mesh.position.copy(orb.pos);
           if (u >= 1) {
             orb.phase = 'drift';
             orb.vel.set(0, 0, 0);
@@ -570,11 +587,45 @@ export function TarobotScene() {
           orb.vel.z = orb.vel.z * 0.90 + orbTmp.z * dt;
           orb.vel.x += (Math.random() - 0.5) * 8 * dt;
           orb.vel.y += (Math.random() - 0.5) * 8 * dt;
+        }
+        // Slow per-orb sine flicker — modulates baseOpacity, never reaches zero.
+        const flick = 1 - ORB_FLICKER_AMP + ORB_FLICKER_AMP * (0.5 + 0.5 * Math.sin(t * ORB_FLICKER_RATE + orb.flickerPhase));
+        orb.mat.opacity = orb.baseOpacity * flick;
+      }
+
+      // Pass 2: pairwise repulsion between drift-phase orbs. Tiny stars don't
+      // like sharing a pixel — pushes them apart when they crowd.
+      for (let i = 0; i < orbs.length; i++) {
+        const a = orbs[i]!;
+        if (a.phase !== 'drift') continue;
+        for (let j = i + 1; j < orbs.length; j++) {
+          const b = orbs[j]!;
+          if (b.phase !== 'drift') continue;
+          const dx = a.pos.x - b.pos.x;
+          const dy = a.pos.y - b.pos.y;
+          const distSq = dx * dx + dy * dy;
+          if (distSq >= ORB_REPULSE_RADIUS_PX * ORB_REPULSE_RADIUS_PX) continue;
+          const dist = Math.max(1, Math.sqrt(distSq));
+          // Force falls off linearly to zero at the repulse radius.
+          const falloff = 1 - dist / ORB_REPULSE_RADIUS_PX;
+          const f = (ORB_REPULSE_STRENGTH * falloff) / dist;
+          const ax = dx * f * dt;
+          const ay = dy * f * dt;
+          a.vel.x += ax;
+          a.vel.y += ay;
+          b.vel.x -= ax;
+          b.vel.y -= ay;
+        }
+      }
+
+      // Pass 3: integrate velocity for drift-phase orbs and commit mesh positions.
+      for (const orb of orbs) {
+        if (orb.phase === 'drift') {
           orb.pos.x += orb.vel.x * dt;
           orb.pos.y += orb.vel.y * dt;
           orb.pos.z += orb.vel.z * dt;
-          orb.mesh.position.copy(orb.pos);
         }
+        orb.mesh.position.copy(orb.pos);
       }
 
       composer.render();
@@ -590,10 +641,12 @@ export function TarobotScene() {
       window.removeEventListener('resize', sizeRenderer);
       document.removeEventListener('visibilitychange', onVisibilityChange);
       unsubscribeImpacts();
-      for (const orb of orbs) orbGroup.remove(orb.mesh);
+      for (const orb of orbs) {
+        orbGroup.remove(orb.mesh);
+        orb.mat.dispose();
+      }
       orbs.length = 0;
       orbGeom.dispose();
-      orbMat.dispose();
       for (const g of idleGeoms) g.dispose();
       catMat.dispose();
       particleGeom.dispose();

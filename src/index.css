@@ -1038,20 +1038,20 @@ a:hover { text-decoration: underline; }
   font-size: 1.25rem;
   letter-spacing: 0.06em;
   text-transform: lowercase;
-  padding: 0.85rem 1.1rem;
-  background-color: #7c3aed;             /* solid — no var indirection, no transparency */
+  padding: 0.85rem 1.4rem;
+  background-color: #4a1f88;             /* darker shade of the base violet */
   background-image: none;
-  color: #000;
-  border: 1px solid #7c3aed;
+  color: #f2ecff;
+  border: 1px solid #4a1f88;
   border-radius: 0;
   cursor: pointer;
-  text-align: center;
+  text-align: left;
   transition: filter 0.1s, transform 0.06s;
   width: 100%;
   min-height: 3.4rem;
   display: flex;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
 }
 .choice-button:hover:not(:disabled) {
   filter: brightness(1.12);
@@ -1063,7 +1063,8 @@ a:hover { text-decoration: underline; }
 .choice-button__text {
   display: inline-block;
   white-space: pre-wrap;
-  color: #000;
+  text-align: left;
+  color: #f2ecff;
 }
 .choice-button--on {
   filter: brightness(1.15);

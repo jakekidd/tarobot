@@ -16,8 +16,7 @@ import {
   mustEnd,
   newDirector,
   nextQuestion,
-  popComment,
-  pushComment,
+  // popComment, pushComment — DISABLED (see clat.ts); preserved for restore.
   type DirectorState,
   type Survey as SurveyData,
   type SurveyAnswer,
@@ -42,9 +41,10 @@ export function Survey({ apiKey, session, onComplete }: Props) {
     nextQuestion(newDirector()),
   );
 
-  // The comment shown UNDER the current question (popped off the queue
-  // on each advance). null = none.
-  const [activeComment, setActiveComment] = useState<string | null>(null);
+  // DISABLED — standalone comment feature. Preserved as commented-out state so
+  // the previous behavior is one toggle away. See clat.ts CLAT_SYSTEM for the
+  // long-form rationale. Snark now flows through SurveyQuestion.lead_in.
+  // const [activeComment, setActiveComment] = useState<string | null>(null);
   // Tracked but no longer surfaced — kept so the polling effect can serialize.
   const clatInFlightRef = useRef(false);
 
@@ -83,20 +83,20 @@ export function Survey({ apiKey, session, onComplete }: Props) {
       passed,
     };
 
-    // Apply answer, consume injection slot if this Q was Clat-injected,
-    // and pop the next comment from the queue (if any) to display.
+    // Apply answer + consume injection slot if this Q was Clat-injected.
+    // (Comment popping was previously done here; that feature is disabled —
+    // snark is now carried on the next question itself via lead_in.)
     let dirAfter: DirectorState | null = null;
-    let poppedComment: string | null = null;
 
     setDirector((prev) => {
       let next = applyAnswer(prev, answer);
       if (next.injected_queue[0]?.id === answeredQ.id) {
         next = consumeInjected(next);
       }
-      // Pop the next comment to display under the upcoming question.
-      const pop = popComment(next);
-      poppedComment = pop.comment;
-      next = pop.state;
+      // DISABLED:
+      // const pop = popComment(next);
+      // poppedComment = pop.comment;
+      // next = pop.state;
       dirAfter = next;
       return next;
     });
@@ -105,14 +105,15 @@ export function Survey({ apiKey, session, onComplete }: Props) {
     const dirSnap = dirAfter ?? (() => {
       let n = applyAnswer(director, answer);
       if (n.injected_queue[0]?.id === answeredQ.id) n = consumeInjected(n);
-      const pop = popComment(n);
-      poppedComment = pop.comment;
-      return pop.state;
+      // DISABLED — see above.
+      // const pop = popComment(n);
+      // poppedComment = pop.comment;
+      return n;
     })();
 
     const next = mustEnd(dirSnap) ? null : nextQuestion(dirSnap);
     setCurrentQ(next);
-    setActiveComment(poppedComment);
+    // setActiveComment(poppedComment);  // DISABLED
     setNameDraft('');
     setBMonth('');
     setBDay('');
@@ -173,9 +174,12 @@ export function Survey({ apiKey, session, onComplete }: Props) {
             };
             n = inject(n, cleaned);
           }
-          if (out.comment) {
-            n = pushComment(n, out.comment);
-          }
+          // DISABLED — standalone comment output is no longer requested from
+          // the model (see clat.ts). The pushComment plumbing is left intact
+          // so re-enabling is a one-line restore here.
+          // if (out.comment) {
+          //   n = pushComment(n, out.comment);
+          // }
           if (out.profile_notes && out.profile_notes.length > 0) {
             n = appendClatNotes(n, out.profile_notes);
           }
@@ -238,8 +242,8 @@ export function Survey({ apiKey, session, onComplete }: Props) {
       <Dialogue
         key={currentQ.id}
         text={
-          activeComment
-            ? `${currentQ.text.toLowerCase()}\n        ${activeComment.toLowerCase()}`
+          currentQ.lead_in
+            ? `${currentQ.lead_in.toLowerCase()}\n${currentQ.text.toLowerCase()}`
             : currentQ.text.toLowerCase()
         }
         onTypingChange={setSpeaking}

@@ -19,6 +19,8 @@ export type SurveyQuestionFormat = 'binary' | 'choice' | 'matrix-2x2' | 'multi-s
 export type SurveyQuestion = {
   id: string;
   text: string;
+  /** Optional short clat-voice preface that prints above the question text. */
+  lead_in?: string;
   format: SurveyQuestionFormat;
   options: string[];
   axes?: { x: [string, string]; y: [string, string] };
