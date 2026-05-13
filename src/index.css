@@ -4,22 +4,41 @@
    ===================================================================== */
 
 :root {
-  --void:        #000000;        /* the screen */
-  --void-soft:   #050309;        /* near-black for subtle layering */
-  --nav:         #140a22;        /* navbar — app dark purple */
-  --line:        rgba(179, 136, 255, 0.18);
-  --line-strong: rgba(179, 136, 255, 0.45);
+  /* ─── THE PALETTE ────────────────────────────────────
+     Five canonical colors. Every visual color in the app derives from
+     one of these. Do not introduce new hex values outside this block.
+  */
+  --color-black:        #000000;
+  --color-navbar:       #14092a;   /* navbar bg only — solid app dark purple */
+  --color-gray:         #564a78;   /* partial-violet gray; muted text, quiet buttons */
+  --color-violet:       #8b5cf6;   /* THE violet. royal, glowing on black. */
+  --color-white:        #f4ecff;   /* slight violet tint; primary text + chrome fill */
 
-  --violet:      #b388ff;        /* the cat / multiple-choice */
-  --violet-dim:  #8a64d8;
-  --violet-bg:   rgba(179, 136, 255, 0.12);
+  /* Derived rgba overlays (never define a new color, only opacity of canonicals) */
+  --violet-soft:        rgba(139, 92, 246, 0.12);
+  --violet-line:        rgba(139, 92, 246, 0.18);
+  --violet-line-strong: rgba(139, 92, 246, 0.45);
+  --white-soft:         rgba(244, 236, 255, 0.55);
 
-  --fg:          #f2ecff;
-  --fg-dim:      #9d8fc7;
-  --fg-faint:    #564a78;
+  /* ─── Semantic aliases (use these in component CSS) ── */
+  --bg:           var(--color-black);
+  --fg:           var(--color-white);
+  --fg-muted:     var(--color-gray);
+  --accent:       var(--color-violet);
+  --line:         var(--violet-line);
+  --line-strong:  var(--violet-line-strong);
+  --chrome-fill:  var(--color-white);
+  --chrome-text:  var(--color-black);
 
-  --chrome-fill: #f2ecff;
-  --chrome-text: #1a0f2c;
+  /* Legacy aliases — kept so we don't have to chase every reference today. */
+  --void:        var(--color-black);
+  --void-soft:   #050309;
+  --nav:         var(--color-navbar);
+  --violet:      var(--color-violet);
+  --violet-dim:  var(--color-gray);
+  --violet-bg:   var(--violet-soft);
+  --fg-dim:      var(--color-gray);
+  --fg-faint:    var(--color-gray);
 
   /* Fonts */
   --font-speech: 'IM Fell English', 'IM Fell DW Pica', 'Cormorant Garamond', serif;
@@ -66,18 +85,31 @@ a:hover { text-decoration: underline; }
   justify-content: space-between;
   align-items: center;
   padding: 0.5rem 1rem;
-  background: var(--nav);
+  background: var(--color-navbar);
   border-bottom: 1px solid var(--line);
-  z-index: 30;                  /* sits above the CRT layers */
   position: relative;
+  z-index: 100;                /* sits above the CRT overlay */
+}
+
+.app__brand-block {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
 }
 
 .app__brand {
   font-family: var(--font-mono);
   font-size: 1.3rem;
   letter-spacing: 0.4em;
-  color: var(--violet);
+  color: var(--color-black);    /* per spec: black brand mark */
   text-transform: lowercase;
+}
+
+.app__version {
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  letter-spacing: 0.1em;
+  color: var(--color-gray);
 }
 
 .app__topbar-actions {
@@ -86,12 +118,13 @@ a:hover { text-decoration: underline; }
   align-items: center;
 }
 
-.crt {
-  position: relative;
-  flex: 1;
-  display: flex;
-  background: var(--void);
-  overflow: hidden;
+/* CRT overlay — fixed full-viewport, sits above main content but below
+   the navbar (navbar z=100, CRT z=10-13, main z=0). */
+.crt-overlay {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 10;
 }
 
 .app__main {
@@ -103,6 +136,7 @@ a:hover { text-decoration: underline; }
   position: relative;
   z-index: 1;
   min-width: 0;
+  background: var(--color-black);
 }
 .app__main--full {
   padding: 0;
@@ -965,6 +999,25 @@ a:hover { text-decoration: underline; }
   display: flex;
   justify-content: center;
   margin-top: 1rem;
+}
+
+/* Clat's sidebar reaction — sits below the current question, indented,
+   with an empty row above for visual separation. */
+.survey__reaction {
+  width: min(64ch, calc(100vw - 4rem));
+  margin: 0 auto;
+  text-align: left;
+}
+.survey__reaction-spacer {
+  height: 1.1em;       /* the empty indent row */
+}
+.survey__reaction-text {
+  padding-left: 4em;   /* double-indent */
+  color: var(--color-gray);
+  font-family: var(--font-mono);
+  font-size: 0.95rem;
+  letter-spacing: 0.04em;
+  font-style: italic;
 }
 
 /* =====================================================================

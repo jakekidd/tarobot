@@ -107,7 +107,10 @@ export function App() {
   return (
     <div className="app">
       <header className="app__topbar">
-        <span className="app__brand">tarobot</span>
+        <div className="app__brand-block">
+          <span className="app__brand">tarobot</span>
+          <span className="app__version">v0.0.1-{__APP_COMMIT__}</span>
+        </div>
         <div className="app__topbar-actions">
           {phase.kind === 'tent' && (
             <button
@@ -126,12 +129,15 @@ export function App() {
         </div>
       </header>
 
-      <div className="crt">
-        <div className="crt__scanlines" aria-hidden />
-        <div className="crt__vignette" aria-hidden />
-        <div className="crt__aberration" aria-hidden />
-        <div className="crt__flicker" aria-hidden />
-        <main className={`app__main ${phase.kind === 'tent' ? 'app__main--full' : ''}`}>
+      {/* CRT overlay covers the entire viewport; navbar floats above via z-index. */}
+      <div className="crt-overlay" aria-hidden>
+        <div className="crt__scanlines" />
+        <div className="crt__vignette" />
+        <div className="crt__aberration" />
+        <div className="crt__flicker" />
+      </div>
+
+      <main className={`app__main ${phase.kind === 'tent' ? 'app__main--full' : ''}`}>
           {phase.kind === 'key' && (
             <KeyEntry onValidated={(k) => { setApiKey(k); goMenu(); }} />
           )}
@@ -183,7 +189,6 @@ export function App() {
             />
           )}
         </main>
-      </div>
     </div>
   );
 }

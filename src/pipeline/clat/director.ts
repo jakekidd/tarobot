@@ -52,9 +52,14 @@ export function applyAnswer(state: DirectorState, answer: SurveyAnswer): Directo
   };
 }
 
-/** Inject a Clat-agent-generated question to the front of the queue. */
+/**
+ * Inject a Clat-agent-generated question into the priority lane.
+ * Adds to the FRONT of the queue so newer Clat thoughts take precedence
+ * over older queued ones — "Clat just had a thought" jumps the line.
+ * Director drains this lane before touching the pool.
+ */
 export function inject(state: DirectorState, q: SurveyQuestion): DirectorState {
-  return { ...state, injected_queue: [...state.injected_queue, q] };
+  return { ...state, injected_queue: [q, ...state.injected_queue] };
 }
 
 /**
