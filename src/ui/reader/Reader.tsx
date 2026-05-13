@@ -14,6 +14,6 @@ type Props = {
  * bounding box and renders Clat there. Props kept for API parity with
  * existing call sites.
  */
-export function Reader({ size = 120 }: Props) {
+export function Reader({ size = 100 }: Props) {
   return <ReaderAnchor size={size} />;
 }

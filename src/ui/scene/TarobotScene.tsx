@@ -287,31 +287,27 @@ export function TarobotScene() {
     sizeRenderer();
 
     // ─── Mouse reactivity ─────────────────────────────────
-    let mouseSceneX = 999;       // viewport-pixel coords, center-origin
+    // Two coupled behaviors:
+    //   1. Hover drift — Clat continuously springs away from the cursor when
+    //      it's inside his "hitbox" (hover radius scales with anchor width).
+    //   2. Allergic vibration — after the cursor has dwelt in that hitbox for
+    //      VIBRATE_DWELL_S seconds, Clat looks up, snaps back to center, and
+    //      jitters left-right very subtly for VIBRATE_DURATION_S. Cooldown
+    //      prevents back-to-back episodes.
+    let mouseSceneX = 999;             // viewport-pixel coords, center-origin
     let mouseSceneY = 999;
-    let lastMouseT = 0;
-    let purrUntil = 0;
     const hoverVel = { x: 0, y: 0 };
     const hoverOffset = { x: 0, y: 0 };
-    const PURR_VELOCITY_TRIGGER = 1500;  // px/sec
-    const PURR_DURATION_MS = 700;
+    let hoverDwellSec = 0;             // accumulates while cursor is inside hitbox
+    let vibrateUntilMs = 0;            // > now means actively vibrating
+    let vibrateLastFiredAt = -999;     // seconds
+    const VIBRATE_DWELL_S = 3.2;
+    const VIBRATE_DURATION_S = 1.5;
+    const VIBRATE_COOLDOWN_S = 2.5;
 
     const onPointerMove = (e: PointerEvent) => {
-      const sx = e.clientX - viewportW / 2;
-      const sy = viewportH / 2 - e.clientY;
-      const now = performance.now();
-      if (lastMouseT > 0) {
-        const dt = Math.max(0.001, (now - lastMouseT) / 1000);
-        const dx = sx - mouseSceneX;
-        const dy = sy - mouseSceneY;
-        const speed = Math.hypot(dx, dy) / dt;
-        if (speed > PURR_VELOCITY_TRIGGER && mouseSceneX < 998) {
-          purrUntil = now + PURR_DURATION_MS;
-        }
-      }
-      mouseSceneX = sx;
-      mouseSceneY = sy;
-      lastMouseT = now;
+      mouseSceneX = e.clientX - viewportW / 2;
+      mouseSceneY = viewportH / 2 - e.clientY;
     };
     const onPointerLeave = () => {
       mouseSceneX = 999;
@@ -322,12 +318,15 @@ export function TarobotScene() {
     window.addEventListener('resize', sizeRenderer);
 
     // ─── Sprite frame state ───────────────────────────────
+    // Frame index 0 of the idle state is the blink (eyes closed) — handled by
+    // an independent blink algorithm below. Indices 1..9 are look directions.
     const fs = {
       state: 'idle',
-      frameIdx: 0,
+      shuffleIdx: 1,             // current "look around" frame; never 0
+      nextShuffleAt: 0,
       blinking: false,
-      nextBlinkAt: 0,
-      nextFrameAt: 0,
+      nextBlinkAtMs: 0,
+      blinkEndAtMs: 0,
     };
 
     let rafId = 0;
@@ -368,56 +367,102 @@ export function TarobotScene() {
         positionGroup.scale.setScalar(anchor.width);
       }
 
-      // ── Purr ──
-      const purring = now < purrUntil;
-
-      // ── Frame cycling ──
-      const stateData = data.states[fs.state] ?? data.states.idle!;
-      const mode = stateData.mode ?? 'shuffle';
-      const cycleMs = (stateData.ms ?? 1500) * 1.4;   // a touch faster than 1.7
-      if (mode !== 'hold' && stateData.frames.length > 1 && now >= fs.nextFrameAt) {
-        fs.frameIdx = mode === 'loop'
-          ? (fs.frameIdx + 1) % stateData.frames.length
-          : Math.floor(Math.random() * stateData.frames.length);
-        fs.nextFrameAt = now + cycleMs;
-      }
-      if (fs.state === 'idle' && stateData.blink) {
-        if (fs.nextBlinkAt === 0) fs.nextBlinkAt = now + 4000 + Math.random() * 5000;
-        if (!fs.blinking && now >= fs.nextBlinkAt) {
-          fs.blinking = true; fs.nextBlinkAt = now + 140;
-        } else if (fs.blinking && now >= fs.nextBlinkAt) {
-          fs.blinking = false; fs.nextBlinkAt = now + 4000 + Math.random() * 5000;
-        }
-      }
-      const showBlink = (fs.blinking || purring) && stateData.blink;
-      const frame = showBlink ? stateData.blink! : (stateData.frames[fs.frameIdx] ?? stateData.frames[0]!);
-      paintFrame(spriteCtx, frame, CAT_COLOR, CAT_BG);
-      tex.needsUpdate = true;
-
-      // ── Mouse reactivity (in cat-units; scale by anchor.width) ──
-      let targetOffsetX = 0, targetOffsetY = 0;
+      // ── Hover hitbox: distance + dwell accumulation ──
+      let mouseClose = false;
+      let mouseDx = 0, mouseDy = 0;
+      let hoverIntensity = 0;
       if (anchor && mouseSceneX < 998) {
         const catX = anchor.x - viewportW / 2;
         const catY = viewportH / 2 - anchor.y;
-        const dx = mouseSceneX - catX;
-        const dy = mouseSceneY - catY;
-        const dist = Math.hypot(dx, dy);
+        mouseDx = mouseSceneX - catX;
+        mouseDy = mouseSceneY - catY;
+        const dist = Math.hypot(mouseDx, mouseDy);
         const hoverRadiusPx = anchor.width * 1.3;
         if (dist < hoverRadiusPx) {
-          const intensity = (hoverRadiusPx - dist) / hoverRadiusPx;
-          const mag = dist || 1;
-          targetOffsetX = -(dx / mag) * intensity * 0.35;
-          targetOffsetY = -(dy / mag) * intensity * 0.22;
+          mouseClose = true;
+          hoverIntensity = (hoverRadiusPx - dist) / hoverRadiusPx;
+          hoverDwellSec += dt;
+          if (
+            hoverDwellSec >= VIBRATE_DWELL_S &&
+            t - vibrateLastFiredAt > VIBRATE_COOLDOWN_S
+          ) {
+            vibrateUntilMs = now + VIBRATE_DURATION_S * 1000;
+            vibrateLastFiredAt = t;
+            hoverDwellSec = 0;
+          }
         }
       }
-      hoverVel.x += (targetOffsetX - hoverOffset.x) * 9 * dt;
-      hoverVel.y += (targetOffsetY - hoverOffset.y) * 9 * dt;
+      if (!mouseClose) {
+        // Slow decay when mouse leaves so brief excursions don't reset progress.
+        hoverDwellSec = Math.max(0, hoverDwellSec - dt * 0.6);
+      }
+      const vibrating = now < vibrateUntilMs;
+
+      // ── Independent blink algorithm (idle only) ──
+      // 90% fast blink (~80-140ms), 10% slow blink (~200-310ms). Random interval
+      // 1.8-5.6s. The blink frame is sprite index 0; it's never picked by the
+      // shuffle so it only appears under this timer.
+      const stateData = data.states[fs.state] ?? data.states.idle!;
+      const frames = stateData.frames;
+      const mode = stateData.mode ?? 'shuffle';
+      if (fs.state === 'idle' && frames.length > 1) {
+        if (fs.nextBlinkAtMs === 0) {
+          fs.nextBlinkAtMs = now + 1800 + Math.random() * 3800;
+        }
+        if (!fs.blinking && now >= fs.nextBlinkAtMs) {
+          fs.blinking = true;
+          const slow = Math.random() < 0.10;
+          fs.blinkEndAtMs = now + (slow ? 200 + Math.random() * 110 : 80 + Math.random() * 60);
+        } else if (fs.blinking && now >= fs.blinkEndAtMs) {
+          fs.blinking = false;
+          fs.nextBlinkAtMs = now + 1800 + Math.random() * 3800;
+        }
+      }
+
+      // ── Shuffle pick (skip index 0 = blink) ──
+      const cycleMs = (stateData.ms ?? 1500) * 1.4;
+      if (mode === 'shuffle' && frames.length > 2 && now >= fs.nextShuffleAt) {
+        fs.shuffleIdx = 1 + Math.floor(Math.random() * (frames.length - 1));
+        fs.nextShuffleAt = now + cycleMs;
+      } else if (mode === 'loop' && frames.length > 1 && now >= fs.nextShuffleAt) {
+        fs.shuffleIdx = ((fs.shuffleIdx) % (frames.length - 1)) + 1;
+        fs.nextShuffleAt = now + cycleMs;
+      }
+
+      // ── Resolve which frame to render ──
+      let frameIdx: number;
+      if (fs.blinking) {
+        frameIdx = 0;                              // eyes closed
+      } else if (vibrating) {
+        frameIdx = 2;                              // looking up — startled
+      } else if (mouseClose && fs.state === 'idle' && frames.length >= 10) {
+        frameIdx = lookFrameForDirection(mouseDx, mouseDy);
+      } else {
+        frameIdx = fs.shuffleIdx;
+      }
+      const frame = frames[frameIdx] ?? frames[1] ?? frames[0]!;
+      paintFrame(spriteCtx, frame, CAT_COLOR, CAT_BG);
+      tex.needsUpdate = true;
+
+      // ── Spring drift away from mouse ──
+      let targetOffsetX = 0, targetOffsetY = 0;
+      if (mouseClose && !vibrating) {
+        const mag = Math.hypot(mouseDx, mouseDy) || 1;
+        targetOffsetX = -(mouseDx / mag) * hoverIntensity * 0.35;
+        targetOffsetY = -(mouseDy / mag) * hoverIntensity * 0.22;
+      }
+      // During vibration Clat returns to center deliberately, then trembles in place.
+      const springRate = vibrating ? 14 : 9;
+      hoverVel.x += (targetOffsetX - hoverOffset.x) * springRate * dt;
+      hoverVel.y += (targetOffsetY - hoverOffset.y) * springRate * dt;
       hoverVel.x *= 0.86;
       hoverVel.y *= 0.86;
       hoverOffset.x += hoverVel.x * dt;
       hoverOffset.y += hoverVel.y * dt;
-      const purrJitterX = purring ? (Math.random() - 0.5) * 0.04 : 0;
-      const purrJitterY = purring ? (Math.random() - 0.5) * 0.04 : 0;
+
+      // Vibration jitter: subtle L/R tremor only.
+      const purrJitterX = vibrating ? (Math.random() - 0.5) * 0.018 : 0;
+      const purrJitterY = 0;
 
       // ── Cat float + tilt + offset ──
       const tiltZ = (
@@ -551,6 +596,20 @@ export function TarobotScene() {
 }
 
 // ─── Helpers ───────────────────────────────────────────────
+
+/**
+ * Map a cat→mouse vector to one of the 8 directional look frames of the idle
+ * state. Sprite frame indices used:
+ *   2 up, 3 down, 4 left, 5 right, 6 up-left, 7 up-right, 8 down-left, 9 down-right
+ * Scene coords: +x right, +y up.
+ */
+function lookFrameForDirection(dx: number, dy: number): number {
+  // Bias the angle by π/8 so the 8 sectors align to the cardinal/intercardinal directions.
+  const a = (Math.atan2(dy, dx) + Math.PI * 2 + Math.PI / 8) % (Math.PI * 2);
+  const sector = Math.floor(a / (Math.PI / 4));     // 0..7, starting at +x (right) going CCW
+  const SECTOR_TO_FRAME = [5, 7, 2, 6, 4, 8, 3, 9]; // right, up-right, up, up-left, left, down-left, down, down-right
+  return SECTOR_TO_FRAME[sector] ?? 1;
+}
 
 function makeSquareParticleTexture(): THREE.CanvasTexture {
   // Plain white square — additive blending tints it to vertex color.

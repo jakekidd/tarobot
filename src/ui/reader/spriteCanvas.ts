@@ -27,13 +27,19 @@ export function paintFrame(
   const rows = frame.length;
   const cellPx = 2 * scale;             // each cell is a 2x2 quadrant block
   const quadPx = scale;
-  const w = cols * cellPx;
-  const h = rows * cellPx;
+  // Transparent padding around the sprite so the textured plane's outer edges
+  // never sample a non-zero alpha pixel. Without this, sprite content at row 0,
+  // row N-1, col 0, or col M-1 paints a thin rectangular outline along the
+  // plane's silhouette (a "box around Clat") that follows the cat's rotation.
+  const padPx = quadPx;
+  const w = cols * cellPx + 2 * padPx;
+  const h = rows * cellPx + 2 * padPx;
   ctx.canvas.width = w;
   ctx.canvas.height = h;
 
-  // Clear to fully transparent — sprite becomes a PNG-style cutout.
-  // The unfilled "0" cells of the sprite remain transparent rather than black.
+  // Setting canvas.width/height resets the 2D context state — re-apply the
+  // crisp-pixels flag and clear to fully transparent.
+  ctx.imageSmoothingEnabled = false;
   ctx.clearRect(0, 0, w, h);
   ctx.fillStyle = fg;
 
@@ -41,8 +47,8 @@ export function paintFrame(
     const line = frame[r]!;
     for (let c = 0; c < line.length; c++) {
       const ch = line[c]!.toUpperCase();
-      const x = c * cellPx;
-      const y = r * cellPx;
+      const x = c * cellPx + padPx;
+      const y = r * cellPx + padPx;
       if (ch === '0') continue;
       if (ch === 'I' || ch === 'F') {
         ctx.fillRect(x, y, cellPx, cellPx);
