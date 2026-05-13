@@ -12,7 +12,7 @@ export type {
   // Choice (unified)
   Choice, ChoiceSource,
   // Profile blobs
-  CastEntry, Thread, Hunch, Highlight,
+  CastEntry, Thread, Hunch, Highlight, ClatNote,
   // Profile (the growing blob)
   Profile,
   // Question (cognition→persona unit)
@@ -26,6 +26,9 @@ export type {
   Spread, SpreadPosition, SpreadPositionLayout, DrawnCard, DrawnCards,
   Chapter, Reading,
 } from './types';
+
+export { computeSunSign } from './astrology';
+export type { SunSign } from './astrology';
 
 // Cards & spreads (data + utilities for tarot phase)
 export { ALL_CARDS, drawCards, drawForSpread, getCard, findByName } from './cards';
@@ -51,14 +54,20 @@ export {
   answeredCount,
   canEnd,
   mustEnd,
+  pushComment,
+  popComment,
+  appendClatNotes,
+  markClatSawN,
   SURVEY_END_OFFER_AT,
   SURVEY_HARD_CAP,
+  COMMENT_QUEUE_CAP,
+  CLAT_HOLD_FOR_FIRST_N_ANSWERS,
 } from './clat/director';
 export type { DirectorState } from './clat/director';
 export { clatReact } from './clat/agent';
 export type { ClatOutput } from './clat/prompts/clat';
 
-// Compiler
+// Compiler — accepts survey + accumulated clat notes
 export { compile, pickOpener } from './compiler/compile';
 export type { CompilerOutput } from './compiler/prompts/compiler';
 

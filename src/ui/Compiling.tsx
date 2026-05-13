@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
-import { compile, createClaudeClient, type Profile, type Question, type Survey } from '../pipeline';
+import { compile, createClaudeClient, type ClatNote, type Profile, type Question, type Survey } from '../pipeline';
 import { Spinner } from './Spinner';
 
 type Props = {
   apiKey: string;
   survey: Survey;
+  clatNotes: ClatNote[];
   onReady: (profile: Profile, openers: Question[]) => void;
   onError: (msg: string) => void;
 };
@@ -16,7 +17,7 @@ const FLAVOR_LINES = [
   'she is choosing what to ask first.',
 ];
 
-export function Compiling({ apiKey, survey, onReady, onError }: Props) {
+export function Compiling({ apiKey, survey, clatNotes, onReady, onError }: Props) {
   const startedRef = useRef(false);
   const [flavorIdx, setFlavorIdx] = useState(0);
 
@@ -28,7 +29,7 @@ export function Compiling({ apiKey, survey, onReady, onError }: Props) {
     let cancelled = false;
     (async () => {
       try {
-        const { profile, openers } = await compile(client, survey);
+        const { profile, openers } = await compile(client, survey, clatNotes);
         if (cancelled) return;
         onReady(profile, openers);
       } catch (e) {
@@ -38,7 +39,7 @@ export function Compiling({ apiKey, survey, onReady, onError }: Props) {
       }
     })();
     return () => { cancelled = true; };
-  }, [apiKey, survey, onReady, onError]);
+  }, [apiKey, survey, clatNotes, onReady, onError]);
 
   useEffect(() => {
     const id = window.setInterval(

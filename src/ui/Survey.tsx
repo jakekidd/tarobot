@@ -4,15 +4,20 @@ import { Dialogue } from './dialogue/Dialogue';
 import { MultipleChoice } from './choices/MultipleChoice';
 import {
   applyAnswer,
+  appendClatNotes,
   canEnd,
   clatReact,
+  CLAT_HOLD_FOR_FIRST_N_ANSWERS,
   consumeInjected,
   createClaudeClient,
   finalizeSurvey,
   inject,
+  markClatSawN,
   mustEnd,
   newDirector,
   nextQuestion,
+  popComment,
+  pushComment,
   type DirectorState,
   type Survey as SurveyData,
   type SurveyAnswer,
@@ -21,40 +26,35 @@ import {
 
 type Props = {
   apiKey: string;
-  onComplete: (survey: SurveyData) => void;
+  onComplete: (survey: SurveyData, clatNotes: import('../pipeline').ClatNote[]) => void;
   onCancel: () => void;
 };
 
-/**
- * The Clat survey. Pure-tap. Director picks questions from the pool;
- * Clat agent fires in parallel on every answer and may inject follow-up
- * Qs (priority-lane → next pick) and a flavor reaction (rendered BELOW
- * the next question as a sub-comment).
- *
- * Atomicity: setDirector uses functional updates so injections landing
- * mid-answer apply correctly. The next-question pick uses the current
- * (already-rendered) director snapshot — late-arriving Clat injections
- * land at the question AFTER next, which is correct.
- */
+const CLAT_POLL_INTERVAL_MS = 1200;
+
 export function Survey({ apiKey, onComplete, onCancel }: Props) {
   const [director, setDirector] = useState<DirectorState>(() => newDirector());
   const [startedAt] = useState(() => Date.now());
   const clientRef = useRef(createClaudeClient(apiKey));
 
-  // The question currently shown. Picked at handleAnswer time.
   const [currentQ, setCurrentQ] = useState<SurveyQuestion | null>(() =>
     nextQuestion(newDirector()),
   );
 
-  // Clat's flavor reaction to the PREVIOUS answer. Renders below the
-  // CURRENT question as an indented sub-comment. Cleared on every advance.
-  const [reaction, setReaction] = useState<string | null>(null);
+  // The comment shown UNDER the current question (popped off the queue
+  // on each advance). null = none.
+  const [activeComment, setActiveComment] = useState<string | null>(null);
   const [clatThinking, setClatThinking] = useState(false);
+  const clatInFlightRef = useRef(false);
 
   const [speaking, setSpeaking] = useState(false);
   const [nameDraft, setNameDraft] = useState('');
   const [bMonth, setBMonth] = useState('');
   const [bDay, setBDay] = useState('');
+
+  // Director ref — used by the Clat polling effect to read fresh state.
+  const directorRef = useRef(director);
+  useEffect(() => { directorRef.current = director; }, [director]);
 
   function handleAnswer(picked: string[], passed = false) {
     if (!currentQ) return;
@@ -66,74 +66,136 @@ export function Survey({ apiKey, onComplete, onCancel }: Props) {
       passed,
     };
 
-    // Functional update: applies answer + consumes the injection slot
-    // (if this Q was Clat-injected). This is race-safe against Clat's
-    // own setDirector dispatch happening in parallel.
+    // Apply answer, consume injection slot if this Q was Clat-injected,
+    // and pop the next comment from the queue (if any) to display.
     let dirAfter: DirectorState | null = null;
+    let poppedComment: string | null = null;
+
     setDirector((prev) => {
       let next = applyAnswer(prev, answer);
       if (next.injected_queue[0]?.id === answeredQ.id) {
         next = consumeInjected(next);
       }
+      // Pop the next comment to display under the upcoming question.
+      const pop = popComment(next);
+      poppedComment = pop.comment;
+      next = pop.state;
       dirAfter = next;
       return next;
     });
 
-    // Pick next question from the dir state we just computed. If Clat
-    // lands a new injection between this dispatch and the next render,
-    // it'll show up on the question AFTER this one — acceptable.
-    const dirSnap = dirAfter ?? applyAnswer(director, answer);
+    // Synchronously preview the next pick from the post-answer state.
+    const dirSnap = dirAfter ?? (() => {
+      let n = applyAnswer(director, answer);
+      if (n.injected_queue[0]?.id === answeredQ.id) n = consumeInjected(n);
+      const pop = popComment(n);
+      poppedComment = pop.comment;
+      return pop.state;
+    })();
+
     const next = mustEnd(dirSnap) ? null : nextQuestion(dirSnap);
     setCurrentQ(next);
-    setReaction(null);
+    setActiveComment(poppedComment);
     setNameDraft('');
     setBMonth('');
     setBDay('');
+  }
 
-    // Hold Clat for the opening N answers. The first few questions are
-    // warmup; Clat firing on them risks fixating on a single domain and
-    // making the user feel cornered. Clat starts running from answer #4.
-    const CLAT_HOLD_FOR_FIRST_N = 3;
-    if (dirSnap.answer_log.length <= CLAT_HOLD_FOR_FIRST_N) {
-      return;
+  // Clat polling thread. Serialized (one in flight at a time). Fires only
+  // when there are new answers since last fire AND we're past the hold.
+  // Idles when there's nothing new — no consistent firing.
+  useEffect(() => {
+    let cancelled = false;
+    let tickTimer = 0;
+
+    async function maybeFire() {
+      if (cancelled) return;
+      if (clatInFlightRef.current) return;
+      const dir = directorRef.current;
+      if (dir.answer_log.length <= CLAT_HOLD_FOR_FIRST_N_ANSWERS) return;
+      if (dir.answer_log.length <= dir.clat_last_seen_count) return;
+
+      clatInFlightRef.current = true;
+      setClatThinking(true);
+      const snapshotN = dir.answer_log.length;
+
+      // Build the "upcoming questions" view for Clat — what she's about
+      // to put the subject through (priority lane + likely next pool pick).
+      const priority = dir.injected_queue.map((q) => ({
+        id: q.id, text: q.text, category: q.category,
+      }));
+      // Best-effort glimpse at the next pool pick (deterministic preview).
+      // We give Clat a sense of what's coming, but the comment is decoupled
+      // from where it will land in the queue.
+      let nextPool = null;
+      const peekFromPool = nextQuestion(dir, () => 0);
+      if (peekFromPool && peekFromPool.id !== dir.injected_queue[0]?.id) {
+        nextPool = { id: peekFromPool.id, text: peekFromPool.text, category: peekFromPool.category };
+      }
+      const upcoming = [...priority, ...(nextPool ? [nextPool] : [])];
+
+      try {
+        const out = await clatReact(
+          clientRef.current,
+          dir.pool,
+          dir.answer_log,
+          upcoming,
+          dir.clat_notes,
+        );
+
+        if (cancelled) return;
+
+        setDirector((prev) => {
+          let n = prev;
+          if (out.proposed_question) {
+            const q = out.proposed_question;
+            const cleaned: SurveyQuestion = {
+              ...q,
+              axes: q.axes
+                ? { x: [q.axes.x[0]!, q.axes.x[1]!], y: [q.axes.y[0]!, q.axes.y[1]!] }
+                : undefined,
+            };
+            n = inject(n, cleaned);
+          }
+          if (out.comment) {
+            n = pushComment(n, out.comment);
+          }
+          if (out.profile_notes && out.profile_notes.length > 0) {
+            n = appendClatNotes(n, out.profile_notes);
+          }
+          n = markClatSawN(n, snapshotN);
+          return n;
+        });
+      } catch {
+        // swallow — clat failures should not block the user
+      } finally {
+        clatInFlightRef.current = false;
+        setClatThinking(false);
+      }
     }
 
-    // Fire Clat in parallel. The reaction (if any) is appended UNDER
-    // whatever question is on screen when it lands. Injected questions
-    // go into the priority lane and apply via functional setDirector.
-    setClatThinking(true);
-    clatReact(clientRef.current, dirSnap.pool, dirSnap.answer_log, answer, next)
-      .then((out) => {
-        if (out.flavor_reaction) setReaction(out.flavor_reaction);
-        if (out.queued_questions && out.queued_questions.length > 0) {
-          const cleaned: SurveyQuestion[] = out.queued_questions.map((q) => ({
-            ...q,
-            axes: q.axes
-              ? {
-                  x: [q.axes.x[0]!, q.axes.x[1]!],
-                  y: [q.axes.y[0]!, q.axes.y[1]!],
-                }
-              : undefined,
-          }));
-          setDirector((prev) => {
-            let n = prev;
-            for (const q of cleaned) n = inject(n, q);
-            return n;
-          });
-        }
-      })
-      .catch(() => { /* swallow — clat failures shouldn't block the user */ })
-      .finally(() => setClatThinking(false));
-  }
+    function tick() {
+      void maybeFire();
+      if (!cancelled) {
+        tickTimer = window.setTimeout(tick, CLAT_POLL_INTERVAL_MS);
+      }
+    }
+    tick();
+
+    return () => {
+      cancelled = true;
+      if (tickTimer) window.clearTimeout(tickTimer);
+    };
+  }, []);
 
   function endNow() {
     setCurrentQ(null);
   }
 
-  // When currentQ becomes null, we're done.
+  // When currentQ becomes null, we're done. Hand survey + clat_notes off.
   useEffect(() => {
     if (currentQ === null && director.answered_ids.size > 0) {
-      onComplete(finalizeSurvey(director, startedAt));
+      onComplete(finalizeSurvey(director, startedAt), director.clat_notes);
     }
   }, [currentQ, director, onComplete, startedAt]);
 
@@ -158,10 +220,9 @@ export function Survey({ apiKey, onComplete, onCancel }: Props) {
       <Dialogue
         key={currentQ.id}
         text={currentQ.text.toLowerCase()}
-        subText={reaction ? reaction.toLowerCase() : null}
+        subText={activeComment ? activeComment.toLowerCase() : null}
         onTypingChange={setSpeaking}
       />
-
 
       <div className="ui-frame ui-frame--survey">
         <div className="ui-frame__choices">

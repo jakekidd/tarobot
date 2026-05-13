@@ -4,7 +4,8 @@ import { Dialogue } from './dialogue/Dialogue';
 import { chime } from './sound/sound';
 import {
   loadActive,
-  clearAll,
+  clearAllExceptKey,
+  clearApiKey,
   type Session,
 } from '../storage';
 
@@ -41,17 +42,30 @@ export function Menu({ onBegin, onResume, onSettings }: Props) {
         <button className="btn btn--ghost" onClick={onSettings}>
           settings
         </button>
-        <button
-          className="btn btn--quiet"
-          onClick={() => {
-            if (confirm('clear all stored data including your api key?')) {
-              clearAll();
-              window.location.reload();
-            }
-          }}
-        >
-          clear all data
-        </button>
+        <div className="menu__quiet-row">
+          <button
+            className="btn btn--quiet"
+            onClick={() => {
+              if (confirm('clear all sessions, archive, and settings? api key stays.')) {
+                clearAllExceptKey();
+                window.location.reload();
+              }
+            }}
+          >
+            clear all data
+          </button>
+          <button
+            className="btn btn--quiet"
+            onClick={() => {
+              if (confirm('reset the stored api key? you\'ll be asked for a new one.')) {
+                clearApiKey();
+                window.location.reload();
+              }
+            }}
+          >
+            reset api key
+          </button>
+        </div>
       </div>
     </div>
   );

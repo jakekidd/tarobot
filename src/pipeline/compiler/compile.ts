@@ -1,7 +1,8 @@
 import type Anthropic from '@anthropic-ai/sdk';
 import type { ClaudeClient } from '../claude';
 import { MODELS } from '../claude';
-import type { Profile, Question, Survey } from '../types';
+import { computeSunSign } from '../astrology';
+import type { ClatNote, Profile, Question, Survey } from '../types';
 import { findQuestion } from '../clat/pool';
 import { COMPILER_SYSTEM, COMPILER_TOOL, type CompilerOutput } from './prompts/compiler';
 
@@ -15,7 +16,14 @@ import { COMPILER_SYSTEM, COMPILER_TOOL, type CompilerOutput } from './prompts/c
 export async function compile(
   client: ClaudeClient,
   survey: Survey,
+  clatNotes: ClatNote[] = [],
 ): Promise<{ profile: Profile; openers: Question[]; raw: CompilerOutput }> {
+  // Derive the sun sign once so cognition can use it, and so the
+  // Compiler doesn't need an astrology table in its prompt.
+  const birthdayAnswer = survey.answers.find((a) => a.question_id === 'birthday');
+  const birthMonthDay = birthdayAnswer?.passed ? undefined : birthdayAnswer?.picked[0];
+  const sunSign = birthMonthDay ? computeSunSign(birthMonthDay) : null;
+
   const userPayload = {
     survey_answers: survey.answers.map((a) => {
       const q = findQuestion(a.question_id);
@@ -29,6 +37,10 @@ export async function compile(
       };
     }),
     answer_count: survey.answers.length,
+    derived: {
+      sun_sign: sunSign,           // null if no birthday given
+    },
+    clat_notes: clatNotes,         // Clat's accumulated observations during the survey
   };
 
   const response = await client.messages.create({
@@ -43,7 +55,12 @@ export async function compile(
   const out = readToolUse<CompilerOutput>(response, 'compile_seed');
 
   const profile: Profile = {
-    identity: out.identity,
+    identity: {
+      ...out.identity,
+      // Patch the derived fields ourselves — the model doesn't need to compute them.
+      birth_month_day: birthMonthDay ?? out.identity.birth_month_day,
+      sun_sign: sunSign ?? undefined,
+    },
     candidates: out.candidates,
     cast: out.cast.map((c) => ({ ...c, last_referenced_turn: 0 })),
     threads: [],

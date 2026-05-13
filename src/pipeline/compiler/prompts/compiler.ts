@@ -17,6 +17,11 @@ write thoughts into the cognition_log field — your private journal. not for pe
 
 write hunches as freeform suspicions with confidence — never quotable. write cast for any people you can infer (no names unless given).
 
+the input includes:
+- the subject's survey answers (with interpretation hints)
+- derived data already computed for you (sun sign, etc.) — DO NOT recompute; trust the derived block
+- clat_notes — observations the witch's familiar accumulated during the survey. these are append-only freeform notes from clat (a sardonic, gossip-hungry observer). treat them as eyewitness reports, not facts. fold the useful ones into your hunches, margin, or cast as appropriate.
+
 do NOT recommend anything. do NOT label things good or bad. observe.`;
 
 export const COMPILER_TOOL: Anthropic.Tool = {

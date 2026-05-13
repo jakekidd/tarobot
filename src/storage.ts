@@ -156,6 +156,14 @@ export function saveSettings(settings: Partial<Settings>): Settings {
   return merged;
 }
 
+/** Clear all session data EXCEPT the API key (used by "clear all data" button). */
+export function clearAllExceptKey(): void {
+  clearActive();
+  clearArchive();
+  localStorage.removeItem(K_SETTINGS);
+}
+
+/** Full wipe including the API key (used by "reset api key" button). */
 export function clearAll(): void {
   clearApiKey();
   clearActive();

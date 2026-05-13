@@ -1,16 +1,22 @@
-import type { Survey, SurveyAnswer, SurveyQuestion } from '../types';
+import type { ClatNote, Survey, SurveyAnswer, SurveyQuestion } from '../types';
 import { QUESTION_POOL } from './pool';
 
 // Pure logic. No LLM. Picks questions from the pool with category coverage,
-// drains the Clat-agent injection queue when it has entries.
+// drains the Clat-agent injection queue (priority lane), maintains a
+// comment queue and Clat's notepad.
 
 export type DirectorState = {
   pool: SurveyQuestion[];
   answered_ids: Set<string>;
-  injected_queue: SurveyQuestion[];   // Clat-agent inserts here
+  injected_queue: SurveyQuestion[];   // Clat-agent inserts here; drained first
   answer_log: SurveyAnswer[];
   category_counts: Record<string, number>;
-  identity_questions_required: string[];   // must always ask these (name, birthday)
+  identity_questions_required: string[];   // must always ask these in order
+
+  // Clat's outputs accumulate here. Survey UI reads them.
+  comment_queue: string[];             // FIFO; capped at COMMENT_QUEUE_CAP, oldest pruned
+  clat_notes: ClatNote[];              // append-only freeform observations for Compiler
+  clat_last_seen_count: number;        // # of answers the last Clat fire saw
 };
 
 export function newDirector(): DirectorState {
@@ -20,23 +26,25 @@ export function newDirector(): DirectorState {
     injected_queue: [],
     answer_log: [],
     category_counts: {},
-    // Order matters — these are asked in sequence before the pool RNG kicks in.
-    // The first three are deliberately projective/register-setting so they don't
-    // immediately lock cognition onto a single domain. "who came with you" was
-    // moved out of priority because it forces a relational thread before there's
-    // any context to interpret it against.
+    // Order matters — these are asked in sequence before pool RNG kicks in.
+    // Deliberately projective/register-setting to avoid locking cognition
+    // onto a single domain before any context exists.
     identity_questions_required: [
-      'name-input',         // necessary — establishes addressing
-      'want-from-reading',  // register: laugh / warning / clarity / idk
-      'familiar',           // projective: pure vibe, no domain lock
-      'birthday',           // soft identity / astrology hook
+      'name-input',          // necessary identity
+      'birthday',            // astrology hook computed downstream
+      'want-from-reading',   // register: laugh / warning / clarity / idk
+      'familiar',            // projective vibe, no domain lock
     ],
+    comment_queue: [],
+    clat_notes: [],
+    clat_last_seen_count: 0,
   };
 }
 
-/** The two limits the user agreed to: 20 = END button appears, 50 = hard cap. */
 export const SURVEY_END_OFFER_AT = 20;
 export const SURVEY_HARD_CAP = 50;
+export const COMMENT_QUEUE_CAP = 5;
+export const CLAT_HOLD_FOR_FIRST_N_ANSWERS = 3;
 
 export function answeredCount(state: DirectorState): number {
   return state.answered_ids.size;
@@ -64,18 +72,44 @@ export function applyAnswer(state: DirectorState, answer: SurveyAnswer): Directo
 
 /**
  * Inject a Clat-agent-generated question into the priority lane.
- * Adds to the FRONT of the queue so newer Clat thoughts take precedence
- * over older queued ones — "Clat just had a thought" jumps the line.
- * Director drains this lane before touching the pool.
+ * Adds to the FRONT — newer Clat thoughts jump the line. The director
+ * always drains injected_queue before touching the pool.
  */
 export function inject(state: DirectorState, q: SurveyQuestion): DirectorState {
   return { ...state, injected_queue: [q, ...state.injected_queue] };
 }
 
+/** Push a Clat comment to the tail of the FIFO queue. Prunes oldest if over cap. */
+export function pushComment(state: DirectorState, comment: string): DirectorState {
+  const next = [...state.comment_queue, comment];
+  return {
+    ...state,
+    comment_queue: next.length > COMMENT_QUEUE_CAP ? next.slice(-COMMENT_QUEUE_CAP) : next,
+  };
+}
+
+/** Pop the head of the comment queue. Returns { comment, state }. */
+export function popComment(state: DirectorState): { comment: string | null; state: DirectorState } {
+  if (state.comment_queue.length === 0) return { comment: null, state };
+  const [head, ...rest] = state.comment_queue;
+  return { comment: head ?? null, state: { ...state, comment_queue: rest } };
+}
+
+/** Append Clat profile notes (additive). */
+export function appendClatNotes(state: DirectorState, notes: ClatNote[]): DirectorState {
+  if (notes.length === 0) return state;
+  return { ...state, clat_notes: [...state.clat_notes, ...notes] };
+}
+
+/** Mark how many answers Clat has seen — gates the polling loop. */
+export function markClatSawN(state: DirectorState, n: number): DirectorState {
+  return { ...state, clat_last_seen_count: Math.max(state.clat_last_seen_count, n) };
+}
+
 /**
- * Pick the next question. Identity questions go first (name, who-with, birthday).
- * Then drain the injected queue. Then RNG-pick from the pool, weighted to
- * favor categories with the lowest current count (gentle coverage push).
+ * Pick the next question. Identity questions go first (in their declared
+ * order). Then drain the injected priority lane. Then RNG-pick from the
+ * pool, weighted to favor categories with the lowest current count.
  */
 export function nextQuestion(
   state: DirectorState,
@@ -89,16 +123,15 @@ export function nextQuestion(
     }
   }
 
-  // Drain injected queue (Clat agent's contributions)
+  // Drain priority lane (Clat-injected, front-first)
   if (state.injected_queue.length > 0) {
     return state.injected_queue[0]!;
   }
 
-  // RNG from pool, biased away from already-answered + saturated categories
+  // RNG from pool — bias away from already-answered + saturated categories
   const candidates = state.pool.filter((q) => !state.answered_ids.has(q.id));
   if (candidates.length === 0) return null;
 
-  // Weight: 1 / (1 + category_count). Less-asked categories are heavier.
   const weights = candidates.map((q) => {
     const c = state.category_counts[q.category] ?? 0;
     return 1 / (1 + c);
@@ -112,7 +145,7 @@ export function nextQuestion(
   return candidates[candidates.length - 1]!;
 }
 
-/** Drain the injected queue head — only call after that question is delivered. */
+/** Drain the injected queue head — only after that question is delivered. */
 export function consumeInjected(state: DirectorState): DirectorState {
   if (state.injected_queue.length === 0) return state;
   return { ...state, injected_queue: state.injected_queue.slice(1) };

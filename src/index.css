@@ -491,6 +491,14 @@ a:hover { text-decoration: underline; }
   max-width: 360px;
 }
 
+.menu__quiet-row {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: space-between;
+  margin-top: 0.3rem;
+}
+.menu__quiet-row .btn { flex: 1; }
+
 /* =====================================================================
    Survey
    ===================================================================== */

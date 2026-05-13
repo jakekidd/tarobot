@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import type { Profile, Question, Survey } from './pipeline';
+import type { ClatNote, Profile, Question, Survey } from './pipeline';
 import {
   archiveActive,
   clearActive,
@@ -21,7 +21,7 @@ type Phase =
   | { kind: 'menu' }
   | { kind: 'settings' }
   | { kind: 'survey'; session: Session }
-  | { kind: 'compiling'; session: Session; survey: Survey }
+  | { kind: 'compiling'; session: Session; survey: Survey; clatNotes: ClatNote[] }
   | { kind: 'enter-tent'; session: Session; survey: Survey; profile: Profile; openers: Question[] }
   | { kind: 'tent'; session: Session; survey: Survey; profile: Profile; openers: Question[] };
 
@@ -53,7 +53,7 @@ export function App() {
         return;
       case 'compiling':
         if (!s.survey) { startNewReading(); return; }
-        setPhase({ kind: 'compiling', session: s, survey: s.survey });
+        setPhase({ kind: 'compiling', session: s, survey: s.survey, clatNotes: [] });
         return;
       case 'enter-tent':
         if (!s.survey || !s.profile || !s.openers) { startNewReading(); return; }
@@ -81,10 +81,10 @@ export function App() {
     }
   }
 
-  function onSurveyComplete(session: Session, survey: Survey) {
+  function onSurveyComplete(session: Session, survey: Survey, clatNotes: ClatNote[]) {
     const next: Session = { ...session, phase: 'compiling', survey };
     saveActive(next);
-    setPhase({ kind: 'compiling', session: next, survey });
+    setPhase({ kind: 'compiling', session: next, survey, clatNotes });
   }
 
   function onCompiled(session: Session, survey: Survey, profile: Profile, openers: Question[]) {
@@ -155,7 +155,7 @@ export function App() {
           {phase.kind === 'survey' && apiKey && (
             <SurveyScreen
               apiKey={apiKey}
-              onComplete={(s) => onSurveyComplete(phase.session, s)}
+              onComplete={(s, notes) => onSurveyComplete(phase.session, s, notes)}
               onCancel={goMenu}
             />
           )}
@@ -164,6 +164,7 @@ export function App() {
             <Compiling
               apiKey={apiKey}
               survey={phase.survey}
+              clatNotes={phase.clatNotes}
               onReady={(profile, openers) =>
                 onCompiled(phase.session, phase.survey, profile, openers)
               }

@@ -87,10 +87,16 @@ export type Highlight = {
 
 // ─── Profile (the growing blob) ─────────────────────────
 
+export type ClatNote = {
+  category: 'observation' | 'suspicion' | 'contradiction' | 'gossip-flag';
+  text: string;
+};
+
 export type Profile = {
   identity: {
     name?: string;
     birth_month_day?: string;
+    sun_sign?: string;           // derived from birth_month_day in compile()
     came_with?: string;
     notes: string;               // freeform identity-related notes
   };
