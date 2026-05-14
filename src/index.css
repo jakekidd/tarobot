@@ -225,11 +225,11 @@ a:hover { text-decoration: underline; }
 .btn {
   font-family: var(--font-mono);
   font-size: 1rem;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.12em;
   padding: 0.45rem 1.1rem;
   border-radius: 0;                 /* hard edges */
   cursor: pointer;
-  text-transform: lowercase;
+  text-transform: uppercase;
   transition: filter 0.1s, transform 0.06s;
   border: 1px solid var(--chrome-fill);
 }
@@ -1083,8 +1083,8 @@ a:hover { text-decoration: underline; }
 .choice-button {
   font-family: var(--font-mono);
   font-size: 1.15rem;
-  letter-spacing: 0.06em;
-  text-transform: lowercase;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
   padding: 0.7rem 1.4rem;
   background-color: #4a1f88;             /* darker shade of the base violet */
   background-image: none;
@@ -1169,7 +1169,7 @@ a:hover { text-decoration: underline; }
   font-family: var(--font-mono);
   letter-spacing: 0.1em;
   font-size: 0.95rem;
-  text-transform: lowercase;
+  text-transform: uppercase;
   color: var(--fg);
 }
 .matrix-2x2__label {
@@ -1223,9 +1223,9 @@ a:hover { text-decoration: underline; }
 .matrix-2x2__cell-text {
   font-family: var(--font-mono);
   font-size: 0.85rem;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.08em;
   color: #000;
-  text-transform: lowercase;
+  text-transform: uppercase;
   opacity: 0;
   transition: opacity 0.15s;
   text-align: center;
