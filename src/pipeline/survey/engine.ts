@@ -154,7 +154,15 @@ export class SurveyEngine {
     if (treeNext && !this.state.asked_node_ids.includes(treeNext)) {
       this.enqueueDirect(treeNext, /* prompted_by */ null, inlineComment);
     } else {
-      await this.fireInvestigator(inlineComment);
+      // Investigator is the user-blocking path — flip the dizzy/thinking flag
+      // so the UI can show a loading state while we wait.
+      this.setState({ thinking: true });
+      this.emit();
+      try {
+        await this.fireInvestigator(inlineComment);
+      } finally {
+        this.setState({ thinking: false });
+      }
     }
 
     // 6. Fire Observer async — updates state when it resolves; doesn't block.
@@ -260,6 +268,7 @@ export class SurveyEngine {
       heat_history: [],    // unused
       phase: 'A',
       closed: false,
+      thinking: false,
     };
   }
 
@@ -452,6 +461,7 @@ export class SurveyEngine {
       close_reason: reason,
       phase: 'E',
       queue: [],
+      thinking: true,    // Compiler is about to run — keep dizzy state on
     });
     this.emit();
 
@@ -459,8 +469,14 @@ export class SurveyEngine {
       this.compilerPromise = runCompiler(this.opts.adapter, { state: this.state })
         .then((out) => {
           this.compilerOutput = out;
+          this.setState({ thinking: false });
           this.emit();
           return out;
+        })
+        .catch((err) => {
+          this.setState({ thinking: false });
+          this.emit();
+          throw err;
         });
     }
   }

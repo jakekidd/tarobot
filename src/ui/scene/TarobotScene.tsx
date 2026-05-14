@@ -8,6 +8,7 @@ import spriteData from '../reader/sprite.json';
 import { paintFrame, type SpriteFrame } from '../reader/spriteCanvas';
 import { getAnchor } from './anchorStore';
 import { subscribeImpacts, type Impact as ImpactEvent } from './impactStore';
+import { subscribeDizzy } from './dizzyStore';
 
 // Reverted from the voxel approach (it merged into a featureless silhouette —
 // the eye gaps disappeared into the surrounding side faces). Back to a flat
@@ -37,6 +38,17 @@ const ZOOM_IN_START_SCALE = 0.12;
 const PARTICLE_COUNT = 130;
 const PARTICLE_BURST_DURATION = 0.6;     // seconds; initial outward burst
 const PARTICLE_BASE_OMEGA = -0.0056;      // negative = clockwise; ~1/10 of prior pass (very slow drift)
+
+// "Dizzy" state — fires while a blocking LLM call is in flight. Eyes cycle
+// through the 8 look-directions for a spin effect; dust ramps to ~10× the
+// baseline omega clockwise, holds, then brakes fast when dizzy releases.
+const DIZZY_PEAK_MULTIPLIER = 10;
+const DIZZY_RAMP_UP_RATE = 0.05;          // per-frame lerp toward peak (slow start)
+const DIZZY_RAMP_DOWN_RATE = 0.25;        // per-frame lerp toward baseline (fast brake)
+const DIZZY_EYE_FRAME_MS = 80;            // ms per eye-spin frame
+// look-direction frame indices in clockwise order from "up":
+//   2 up, 7 up-right, 5 right, 9 down-right, 3 down, 8 down-left, 4 left, 6 up-left
+const DIZZY_EYE_CYCLE = [2, 7, 5, 9, 3, 8, 4, 6];
 const PARTICLE_MIN_RADIUS = 0.55;         // in cat-widths
 const PARTICLE_MAX_RADIUS = 1.6;
 const PARTICLE_SIZE_PX = 1.5;             // ~1/4 the prior visual size
@@ -350,6 +362,17 @@ export function TarobotScene() {
     window.addEventListener('pointerleave', onPointerLeave);
     window.addEventListener('resize', sizeRenderer);
 
+    // ─── Dizzy state ──────────────────────────────────────
+    // Subscribed to dizzyStore. While true, the eyes spin and the dust ramps
+    // to ~10× clockwise speed. Ramp-up is slow; the brake on release is fast.
+    let dizzy = false;
+    let dizzyMultiplier = 1;
+    let dizzyEnteredAt = 0;
+    const unsubscribeDizzy = subscribeDizzy((v) => {
+      if (v && !dizzy) dizzyEnteredAt = performance.now();
+      dizzy = v;
+    });
+
     // ─── Sprite frame state ───────────────────────────────
     // Frame index 0 of the idle state is the blink (eyes closed) — handled by
     // an independent blink algorithm below. Indices 1..9 are look directions.
@@ -470,9 +493,20 @@ export function TarobotScene() {
         fs.nextShuffleAt = now + cycleMs;
       }
 
+      // ── Dizzy multiplier ramp ──
+      // Lerp toward target each frame. Slow up, fast down per the design.
+      const dizzyTarget = dizzy ? DIZZY_PEAK_MULTIPLIER : 1;
+      const dizzyRate = dizzy ? DIZZY_RAMP_UP_RATE : DIZZY_RAMP_DOWN_RATE;
+      dizzyMultiplier += (dizzyTarget - dizzyMultiplier) * dizzyRate;
+
       // ── Resolve which frame to render ──
       let frameIdx: number;
-      if (fs.blinking) {
+      if (dizzy) {
+        // Eye-spin override. Cycle through the 8 look-direction frames at a
+        // brisk rate so the eyes appear to rotate clockwise.
+        const idx = Math.floor((now - dizzyEnteredAt) / DIZZY_EYE_FRAME_MS) % DIZZY_EYE_CYCLE.length;
+        frameIdx = DIZZY_EYE_CYCLE[idx] ?? 1;
+      } else if (fs.blinking) {
         frameIdx = 0;                              // eyes closed
       } else if (vibrating) {
         frameIdx = 2;                              // looking up — startled
@@ -556,9 +590,12 @@ export function TarobotScene() {
         pd.radialVel[i] += rError * 2.0 * dt;             // spring
         pd.radialVel[i] *= 0.92;                          // damping
 
-        // Angular: clockwise base + per-particle turbulence
+        // Angular: clockwise base + per-particle turbulence + dizzy multiplier.
+        // dizzyMultiplier is 1 at rest, ramps to DIZZY_PEAK_MULTIPLIER during
+        // loading states. Multiplies the angular velocity directly so spin is
+        // visibly clockwise faster while dizzy.
         const turbulence = Math.sin(t * 0.8 + pd.zBob[i]! * 1.7) * 0.3;
-        pd.theta[i] += (pd.omega[i]! + turbulence * pd.omega[i]!) * dt;
+        pd.theta[i] += (pd.omega[i]! + turbulence * pd.omega[i]!) * dt * dizzyMultiplier;
 
         // Z bob
         const zOffset = Math.sin(t * 0.6 + pd.zBob[i]!) * 0.1;
@@ -667,6 +704,7 @@ export function TarobotScene() {
       window.removeEventListener('resize', sizeRenderer);
       document.removeEventListener('visibilitychange', onVisibilityChange);
       unsubscribeImpacts();
+      unsubscribeDizzy();
       for (const orb of orbs) {
         orbGroup.remove(orb.mesh);
         orb.mat.dispose();

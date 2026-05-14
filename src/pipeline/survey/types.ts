@@ -181,11 +181,13 @@ export type EngineState = {
   asked_node_ids: string[];
   active_threads: ActiveThread[];
 
-  heat: number;                  // [0, 1]
-  heat_history: number[];        // one entry per recorded pick — drives fatigue close
+  heat: number;                  // unused — kept for telemetry/future use
+  heat_history: number[];        // unused
   phase: Phase;
   closed: boolean;
   close_reason?: CloseReason;
+  /** True while a blocking agent call is in flight. UI uses this to drive the dizzy loading state. */
+  thinking: boolean;
 };
 
 // ─── Behavioural events (engine-internal, drive heat) ───

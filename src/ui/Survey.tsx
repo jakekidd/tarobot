@@ -17,6 +17,7 @@ import { BirthdayForm } from './survey/BirthdayForm';
 import { NameForm } from './survey/NameForm';
 import { useSurveyEngine } from './survey/useSurveyEngine';
 import { downloadTranscript, persistLog } from './survey/transcript';
+import { setDizzy } from './scene/dizzyStore';
 import { listSessionNames, saveSession, type Session } from '../storage';
 import type { CompilerOutput } from '../pipeline/survey';
 
@@ -71,36 +72,44 @@ export function Survey({ apiKey, session, onComplete }: Props) {
     }
   }, [state.closed, compilerOutput, onComplete, state]);
 
-  // ─── render branches ──────────────────────────────────
+  // Push engine.thinking → dizzy scene store. Clear on unmount so the cat
+  // doesn't stay dizzy if Survey navigates away mid-thought.
+  useEffect(() => {
+    setDizzy(state.thinking);
+  }, [state.thinking]);
+  useEffect(() => {
+    return () => setDizzy(false);
+  }, []);
 
-  if (state.closed && !compilerOutput) {
-    return (
-      <div className="screen screen--survey">
-        <Reader />
-        <Dialogue
-          key="compiling"
-          text={'the witch is preparing.'}
-          onTypingChange={setSpeaking}
-        />
-        <Spinner label="preparing" />
-        <div className="survey__footer">
-          <button
-            className="btn btn--quiet"
-            onClick={() => downloadTranscript(state, compilerOutput)}
-          >
-            download transcript
-          </button>
-        </div>
-      </div>
-    );
-  }
+  // ─── render ───────────────────────────────────────────
+  // Single layout structure for all states so nothing reflows between
+  // questions, thinking pauses, or the compile step. Reader is always
+  // mounted (the scene reads its bbox + applies dizzy/eye-spin overrides);
+  // the dialogue slot is always present (text changes); the answer slot
+  // is always present (contents change based on question format or empty
+  // while waiting). Layout is anchored to .ui-frame's fixed height (23rem).
 
-  if (!currentQuestion) {
-    return (
-      <div className="screen">
-        <div className="screen__lede">…</div>
-      </div>
-    );
+  const isCompiling = state.closed && !compilerOutput;
+  const showReady =
+    !state.closed &&
+    state.picks_log.length >= READY_BUTTON_MIN_TURNS &&
+    !!currentQuestion;
+
+  // What text to put in the dialogue stage. Empty during compile/await
+  // — the dizzy scene carries the visual.
+  let dialogText = '';
+  let dialogKey = 'empty';
+  if (isCompiling) {
+    dialogText = 'the witch is preparing.';
+    dialogKey = 'compiling';
+  } else if (currentQuestion) {
+    dialogText = currentQuestion.preamble
+      ? `${currentQuestion.preamble.toLowerCase()}\n${currentQuestion.text.toLowerCase()}`
+      : currentQuestion.text.toLowerCase();
+    dialogKey = currentQuestion.node_id;
+  } else if (state.thinking) {
+    dialogText = '…';
+    dialogKey = 'thinking';
   }
 
   return (
@@ -108,29 +117,25 @@ export function Survey({ apiKey, session, onComplete }: Props) {
       <Reader isSpeaking={speaking} />
 
       <Dialogue
-        key={currentQuestion.node_id}
-        text={
-          currentQuestion.preamble
-            ? `${currentQuestion.preamble.toLowerCase()}\n${currentQuestion.text.toLowerCase()}`
-            : currentQuestion.text.toLowerCase()
-        }
+        key={dialogKey}
+        text={dialogText}
         onTypingChange={setSpeaking}
       />
 
       <div className="ui-frame ui-frame--survey">
         <div className="ui-frame__choices">
-          {currentQuestion.format === 'text' && (
+          {currentQuestion?.format === 'text' && (
             <NameForm
               existingNames={existingNames}
               onSubmit={(name) => void submitAnswer(name)}
             />
           )}
 
-          {currentQuestion.format === 'date' && (
+          {currentQuestion?.format === 'date' && (
             <BirthdayForm onSubmit={(iso) => void submitAnswer(iso)} />
           )}
 
-          {currentQuestion.format === 'matrix' && currentQuestion.axes && (
+          {currentQuestion?.format === 'matrix' && currentQuestion.axes && (
             <Matrix2x2Choice
               key={currentQuestion.node_id}
               axes={{ x: currentQuestion.axes[0], y: currentQuestion.axes[1] }}
@@ -139,7 +144,7 @@ export function Survey({ apiKey, session, onComplete }: Props) {
             />
           )}
 
-          {currentQuestion.format === 'multi' && (
+          {currentQuestion?.format === 'multi' && (
             <MultiSelectChoice
               key={currentQuestion.node_id}
               options={currentQuestion.options}
@@ -147,7 +152,8 @@ export function Survey({ apiKey, session, onComplete }: Props) {
             />
           )}
 
-          {(currentQuestion.format === 'choice' || currentQuestion.format === 'binary') && (
+          {currentQuestion &&
+            (currentQuestion.format === 'choice' || currentQuestion.format === 'binary') && (
             <MultipleChoice
               key={currentQuestion.node_id}
               suggestions={currentQuestion.options}
@@ -155,11 +161,15 @@ export function Survey({ apiKey, session, onComplete }: Props) {
               onPick={(v) => void submitAnswer(v)}
             />
           )}
+
+          {!currentQuestion && isCompiling && (
+            <div className="ui-frame__waiting"><Spinner label="preparing" /></div>
+          )}
         </div>
       </div>
 
-      {state.picks_log.length >= READY_BUTTON_MIN_TURNS && (
-        <div className="survey__footer">
+      <div className="survey__footer">
+        {showReady && (
           <button
             className="btn btn--quiet survey__ready"
             onClick={skipAhead}
@@ -167,8 +177,16 @@ export function Survey({ apiKey, session, onComplete }: Props) {
           >
             ready for the cards →
           </button>
-        </div>
-      )}
+        )}
+        {isCompiling && (
+          <button
+            className="btn btn--quiet"
+            onClick={() => downloadTranscript(state, compilerOutput)}
+          >
+            download transcript
+          </button>
+        )}
+      </div>
     </div>
   );
 }

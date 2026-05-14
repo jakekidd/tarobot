@@ -343,14 +343,14 @@ a:hover { text-decoration: underline; }
   width: 4.5em;
   padding: 0.5rem 0.4rem;
   text-align: center;
-  font-size: 1.1rem;
+  font-size: 1.05rem;
 }
 
 .text-input--year {
   width: 6em;
   padding: 0.5rem 0.4rem;
   text-align: center;
-  font-size: 1.1rem;
+  font-size: 1.05rem;
   border: 1px solid rgba(242, 236, 255, 0.55);
   font-family: var(--font-mono);
 }
@@ -647,7 +647,18 @@ a:hover { text-decoration: underline; }
    Survey
    ===================================================================== */
 
-.screen--survey { gap: 1rem; }
+/* Survey screen — pinned layout. The Reader anchor, dialogue stage, and
+   ui-frame all have pre-allocated heights, so the layout never reflows
+   between questions regardless of how many options or how much text. */
+.screen--survey {
+  gap: 1rem;
+  justify-content: flex-start;
+  padding-top: 2.5rem;
+  /* Fixed total height ensures contents don't recenter when content height
+     varies. The screen is anchored to the top of .app__main and just runs
+     downward. */
+  max-width: 720px;
+}
 
 .survey__body {
   width: 100%;
@@ -954,8 +965,8 @@ a:hover { text-decoration: underline; }
 }
 
 .ui-frame--survey {
-  height: auto;                  /* survey content is variable per step */
-  min-height: 13rem;
+  /* Inherit base .ui-frame height (23rem). Removed the auto/min-height
+     override that was letting the survey layout reflow per question. */
 }
 
 /* legacy classes — preserved for the conversation-history details */
@@ -1030,10 +1041,23 @@ a:hover { text-decoration: underline; }
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 0.3rem;
+  gap: 0.25rem;
   width: 100%;
 }
 .choice-list li { margin: 0; }
+
+/* Multi-select wrapper holds the choice-list plus the submit row. */
+.multi-select {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  align-items: center;
+  width: 100%;
+}
+.multi-select__submit {
+  align-self: center;
+  font-size: 0.95rem;
+}
 
 .choice-matrix {
   display: grid;
@@ -1042,11 +1066,11 @@ a:hover { text-decoration: underline; }
 }
 .choice-matrix--2x2 {
   grid-template-columns: 1fr 1fr;
-  grid-auto-rows: minmax(3.4rem, auto);
+  grid-auto-rows: minmax(3rem, auto);
 }
 .choice-matrix--3x2 {
   grid-template-columns: 1fr 1fr;
-  grid-auto-rows: minmax(3.4rem, auto);
+  grid-auto-rows: minmax(3rem, auto);
 }
 
 .choice-binary {
@@ -1058,10 +1082,10 @@ a:hover { text-decoration: underline; }
 
 .choice-button {
   font-family: var(--font-mono);
-  font-size: 1.25rem;
+  font-size: 1.15rem;
   letter-spacing: 0.06em;
   text-transform: lowercase;
-  padding: 0.85rem 1.4rem;
+  padding: 0.7rem 1.4rem;
   background-color: #4a1f88;             /* darker shade of the base violet */
   background-image: none;
   color: #f2ecff;
@@ -1071,7 +1095,7 @@ a:hover { text-decoration: underline; }
   text-align: left;
   transition: filter 0.1s, transform 0.06s;
   width: 100%;
-  min-height: 3.4rem;
+  min-height: 3rem;
   display: flex;
   align-items: center;
   justify-content: flex-start;
@@ -1226,7 +1250,7 @@ a:hover { text-decoration: underline; }
 
 .choice-button--binary {
   letter-spacing: 0.22em;
-  font-size: 1.2rem;
+  font-size: 1.1rem;
 }
 
 /* =====================================================================
