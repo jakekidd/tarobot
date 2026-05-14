@@ -71,7 +71,7 @@ export function App() {
       <header className="app__topbar">
         <div className="app__brand-block">
           <span className="app__brand">tarobot</span>
-          <span className="app__version">v0.0.1-{__APP_COMMIT__}</span>
+          <span className="app__version">v0.0.2-{__APP_COMMIT__}</span>
         </div>
         <div className="app__topbar-actions">
           {phase.kind !== 'menu' && phase.kind !== 'key' && (
