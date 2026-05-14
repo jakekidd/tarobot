@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import type { Profile, Question, Survey } from './pipeline';
 import type { CompilerOutput } from './pipeline/survey';
 import {
   loadApiKey,
@@ -12,8 +11,7 @@ import { Menu } from './ui/Menu';
 import { ResumeMenu } from './ui/ResumeMenu';
 import { Settings } from './ui/Settings';
 import { Survey as SurveyScreen } from './ui/Survey';
-import { EnterTent } from './ui/EnterTent';
-import { Tent } from './ui/Tent';
+import { Reading } from './ui/Reading';
 import { TarobotScene } from './ui/scene/TarobotScene';
 
 type Phase =
@@ -22,15 +20,13 @@ type Phase =
   | { kind: 'resume' }
   | { kind: 'settings' }
   | { kind: 'survey'; session: Session }
-  | { kind: 'enter-tent'; session: Session; survey: Survey; profile: Profile; openers: Question[] }
-  | { kind: 'tent'; session: Session; survey: Survey; profile: Profile; openers: Question[] };
+  | { kind: 'reading'; session: Session; brief: CompilerOutput };
 
 export function App() {
   const [apiKey, setApiKey] = useState<string | null>(() => loadApiKey());
   const [phase, setPhase] = useState<Phase>(() =>
     loadApiKey() ? { kind: 'menu' } : { kind: 'key' },
   );
-  const [debugOpen, setDebugOpen] = useState(false);
 
   function goMenu() {
     setPhase({ kind: 'menu' });
@@ -48,52 +44,23 @@ export function App() {
       case 'compiling':
         setPhase({ kind: 'survey', session: s });
         return;
-      case 'enter-tent':
-        if (!s.survey || !s.profile || !s.openers) { startNewReading(); return; }
-        setPhase({
-          kind: 'enter-tent', session: s, survey: s.survey,
-          profile: s.profile, openers: s.openers,
-        });
-        return;
-      case 'tent':
-        if (!s.survey || !s.profile || !s.openers) { startNewReading(); return; }
-        setPhase({
-          kind: 'tent', session: s, survey: s.survey,
-          profile: s.profile, openers: s.openers,
-        });
-        return;
+      // Past-survey sessions can't be resumed into a reading because the
+      // brief isn't persisted (and cards are drawn fresh each time anyway).
+      // Bounce to menu so the user can start a new one.
       default:
         goMenu();
     }
   }
 
   function onSurveyComplete(session: Session, brief: CompilerOutput) {
-    const surveyShim: Survey = {
-      answers: [],
-      started_at: session.started_at,
-      ended_at: Date.now(),
-    };
     const next: Session = {
       ...session,
-      phase: 'enter-tent',
-      survey: surveyShim,
+      phase: 'tent',
       profile: brief.profile,
       openers: brief.openers,
     };
     saveSession(next);
-    setPhase({
-      kind: 'enter-tent',
-      session: next,
-      survey: surveyShim,
-      profile: brief.profile,
-      openers: brief.openers,
-    });
-  }
-
-  function onEnter(session: Session, survey: Survey, profile: Profile, openers: Question[]) {
-    const next: Session = { ...session, phase: 'tent' };
-    saveSession(next);
-    setPhase({ kind: 'tent', session: next, survey, profile, openers });
+    setPhase({ kind: 'reading', session: next, brief });
   }
 
   return (
@@ -107,15 +74,6 @@ export function App() {
           <span className="app__version">v0.0.1-{__APP_COMMIT__}</span>
         </div>
         <div className="app__topbar-actions">
-          {phase.kind === 'tent' && (
-            <button
-              className={`btn btn--quiet ${debugOpen ? 'btn--quiet-on' : ''}`}
-              onClick={() => setDebugOpen((v) => !v)}
-              title="show cognition state"
-            >
-              {debugOpen ? '◀ debug' : 'debug ▶'}
-            </button>
-          )}
           {phase.kind !== 'menu' && phase.kind !== 'key' && (
             <button className="btn btn--quiet" onClick={goMenu}>
               exit
@@ -132,7 +90,7 @@ export function App() {
         <div className="crt__flicker" />
       </div>
 
-      <main className={`app__main ${phase.kind === 'tent' ? 'app__main--full' : ''}`}>
+      <main className={`app__main ${phase.kind === 'reading' ? 'app__main--full' : ''}`}>
           {phase.kind === 'key' && (
             <KeyEntry onValidated={(k) => { setApiKey(k); goMenu(); }} />
           )}
@@ -162,20 +120,11 @@ export function App() {
             />
           )}
 
-          {phase.kind === 'enter-tent' && (
-            <EnterTent
-              onEnter={() => onEnter(phase.session, phase.survey, phase.profile, phase.openers)}
-            />
-          )}
-
-          {phase.kind === 'tent' && apiKey && (
-            <Tent
+          {phase.kind === 'reading' && apiKey && (
+            <Reading
               apiKey={apiKey}
-              survey={phase.survey}
-              profile={phase.profile}
-              openers={phase.openers}
-              debugOpen={debugOpen}
-              onCloseDebug={() => setDebugOpen(false)}
+              brief={phase.brief}
+              onExit={goMenu}
             />
           )}
         </main>
