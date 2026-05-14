@@ -12,8 +12,8 @@ export type { ReturningMatch } from './returning';
 
 export { TREE, validateTree, renderQuestion, getNode, getRoots, getOpeners } from './tree';
 
-export { shouldClose, SURVEY_HARD_CAP } from './close';
-export { derivePhase, phaseFromHeat } from './phase';
+export { shouldClose } from './close';
+export { derivePhase, phaseFromTurns } from './phase';
 
 export type {
   AnswerFormat,

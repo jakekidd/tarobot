@@ -161,7 +161,7 @@ export type ActiveThread = {
 
 // ─── Engine state ───────────────────────────────────────
 
-export type CloseReason = 'saturation' | 'fatigue' | 'cap' | 'user_exit';
+export type CloseReason = 'user_exit' | 'queue_exhausted' | 'cap';
 
 export type EngineState = {
   session_id: string;

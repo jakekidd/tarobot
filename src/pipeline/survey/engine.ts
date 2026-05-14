@@ -23,17 +23,8 @@ import {
   resolveNextNode,
   TREE,
 } from './tree';
-import {
-  rollingMedian,
-  STARTING_HEAT_NEW,
-  STARTING_HEAT_RETURNING,
-  updateHeatFromBehavior,
-  updateHeatFromObserver,
-} from './heat';
 import { derivePhase } from './phase';
-import { shouldClose } from './close';
 import type {
-  BehavioralSignals,
   CastMember,
   CloseReason,
   CompilerOutput,
@@ -117,6 +108,18 @@ export class SurveyEngine {
       revisions: 0,
     };
 
+    // Defensive: a node should never be picked twice. If we somehow got
+    // here with an already-asked node, log loudly and skip the second
+    // recording (better than corrupting the picks_log).
+    if (this.state.asked_node_ids.includes(head.node_id)) {
+      console.warn(
+        `[survey] node '${head.node_id}' was already asked. dropping duplicate. queue: ${this.state.queue.map((q) => q.node_id).join(',')}`,
+      );
+      this.setState({ queue: this.state.queue.slice(1) });
+      this.emit();
+      return;
+    }
+
     this.setState({
       picks_log: [...this.state.picks_log, pick],
       timing_log: [...this.state.timing_log, timing],
@@ -127,29 +130,17 @@ export class SurveyEngine {
     // 2. Populate profile if this was an opener
     this.applyOpenerDataIfRelevant(head.node_id, answer);
 
-    // 3. For openers `name` and `birthday`, no agents fire. Just enqueue next.
+    // 3. Advance phase from turn count (no longer heat-driven).
+    this.setState({
+      phase: derivePhase(this.state.phase, this.state.picks_log.length, false),
+    });
+
+    // 4. For openers `name` and `birthday`, no agents fire. Just enqueue next.
     if (OPENER_FREE_AGENTS.has(head.node_id)) {
       this.enqueueTreeNext(head.node_id, answer, /* preamble */ null);
       this.emit();
       return;
     }
-
-    // 4. Behavioral heat update (deterministic)
-    const signals: BehavioralSignals = {
-      latency_ms: latencyMs,
-      rolling_median_ms: rollingMedian(this.state.timing_log.map((t) => t.latency_ms)),
-      is_pass: typeof answer === 'string' && answer === 'pass',
-      is_dark_question: node.is_dark === true,
-      is_multi_select: Array.isArray(answer),
-      multi_select_count: Array.isArray(answer) ? answer.length : undefined,
-      revisions: timing.revisions,
-    };
-    const newHeat = updateHeatFromBehavior(this.state.heat, signals);
-    this.setState({
-      heat: newHeat,
-      heat_history: [...this.state.heat_history, newHeat],
-      phase: derivePhase(this.state.phase, newHeat, false),
-    });
 
     // 5. Determine the next question.
     //    If the tree dictates a next (via answer-override or node.next), use it
@@ -172,13 +163,6 @@ export class SurveyEngine {
     });
 
     this.emit();
-
-    // 7. Pre-emptive close check based on current behavioral state (Observer
-    //    may also trigger a close when it resolves).
-    const closeCheck = shouldClose(this.state);
-    if (closeCheck.should) {
-      await this.finalize(closeCheck.reason);
-    }
   }
 
   skipAhead(): void {
@@ -246,7 +230,6 @@ export class SurveyEngine {
       ...(opts.returning?.profile_seed ?? {}),
     };
     const isReturning = !!opts.returning;
-    const startHeat = isReturning ? STARTING_HEAT_RETURNING : STARTING_HEAT_NEW;
 
     // Initial queue: ONLY the first unsatisfied opener. Each opener's `next`
     // field enqueues the following one, so listing them all up front would
@@ -273,9 +256,9 @@ export class SurveyEngine {
       timing_log: [],
       asked_node_ids: [],
       active_threads: [],
-      heat: startHeat,
-      heat_history: [],
-      phase: derivePhase('A', startHeat, false),
+      heat: 0,             // unused now — kept for telemetry only
+      heat_history: [],    // unused
+      phase: 'A',
       closed: false,
     };
   }
@@ -372,7 +355,8 @@ export class SurveyEngine {
   private async fireInvestigator(inlineComment: string | null): Promise<void> {
     const available = this.buildAvailableNodes();
     if (available.length === 0) {
-      // Out of questions; finalize will trigger on next close check
+      // No more roots — the dialogue tree is exhausted. Close cleanly.
+      await this.finalize('queue_exhausted');
       return;
     }
 
@@ -430,27 +414,12 @@ export class SurveyEngine {
         sections[section] = [...sections[section], note];
       }
 
-      const newContradictions = out.contradictions_found.length;
-      const newConfirmedThreads = out.thread_status_updates.filter(
-        (t) => t.status === 'confirmed',
-      ).length;
-      const newHeat = updateHeatFromObserver(
-        this.state.heat,
-        out.engagement_signal,
-        newContradictions,
-        newConfirmedThreads,
-      );
-
       // Thread updates
       const threadMap = new Map(this.state.active_threads.map((t) => [t.thread_id, t]));
       for (const upd of out.thread_status_updates) {
         const t = threadMap.get(upd.thread_id);
         if (t) threadMap.set(upd.thread_id, { ...t, status: upd.status });
       }
-
-      // Replace last heat_history entry (one entry per pick — Observer refines it)
-      const heatHistory = this.state.heat_history.slice(0, -1);
-      heatHistory.push(newHeat);
 
       this.setState({
         profile: {
@@ -465,18 +434,10 @@ export class SurveyEngine {
         choice_draft: out.choice_update ?? this.state.choice_draft,
         hypotheses: mergeHypotheses(this.state.hypotheses, out.hypotheses_updates),
         active_threads: Array.from(threadMap.values()),
-        heat: newHeat,
-        heat_history: heatHistory,
-        phase: derivePhase(this.state.phase, newHeat, false),
       });
 
       this.emit();
-
-      // Post-Observer close check (richer profile data may have crossed saturation)
-      const closeCheck = shouldClose(this.state);
-      if (closeCheck.should) {
-        await this.finalize(closeCheck.reason);
-      }
+      // No auto-close check — survey runs until user_exit or queue_exhausted.
     } catch {
       // Observer failure is non-fatal; engine continues with its current state.
     }

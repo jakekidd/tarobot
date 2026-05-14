@@ -6,7 +6,7 @@
 // back to the engine. On close, it waits for the Compiler to produce a brief,
 // then hands the brief upstream via onComplete.
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Reader } from './reader/Reader';
 import { Dialogue } from './dialogue/Dialogue';
 import { MultipleChoice } from './choices/MultipleChoice';
@@ -16,8 +16,13 @@ import { Spinner } from './Spinner';
 import { BirthdayForm } from './survey/BirthdayForm';
 import { NameForm } from './survey/NameForm';
 import { useSurveyEngine } from './survey/useSurveyEngine';
+import { downloadTranscript, persistLog } from './survey/transcript';
 import { listSessionNames, saveSession, type Session } from '../storage';
 import type { CompilerOutput } from '../pipeline/survey';
+
+// "ready for the cards" button appears after this many answered questions.
+// Below this, the user has to keep going (so they don't bail at Q2).
+const READY_BUTTON_MIN_TURNS = 6;
 
 type Props = {
   apiKey: string;
@@ -26,12 +31,13 @@ type Props = {
 };
 
 export function Survey({ apiKey, session, onComplete }: Props) {
-  const { state, currentQuestion, submitAnswer, compilerOutput } = useSurveyEngine({
+  const { state, currentQuestion, submitAnswer, skipAhead, compilerOutput } = useSurveyEngine({
     apiKey,
     sessionId: session.id,
   });
 
   const [speaking, setSpeaking] = useState(false);
+  const persistedFor = useRef<string | null>(null);
 
   // Snapshot existing names once at mount for the duplicate-name guard.
   const existingNames = useMemo(
@@ -56,12 +62,14 @@ export function Survey({ apiKey, session, onComplete }: Props) {
     }
   }, [state.profile.name, state.picks_log, state.started_at, session]);
 
-  // When the Compiler finishes, hand off.
+  // When the Compiler finishes, persist the transcript + hand off.
   useEffect(() => {
-    if (state.closed && compilerOutput) {
+    if (state.closed && compilerOutput && persistedFor.current !== state.session_id) {
+      persistLog(state, compilerOutput);
+      persistedFor.current = state.session_id;
       onComplete(compilerOutput);
     }
-  }, [state.closed, compilerOutput, onComplete]);
+  }, [state.closed, compilerOutput, onComplete, state]);
 
   // ─── render branches ──────────────────────────────────
 
@@ -75,6 +83,14 @@ export function Survey({ apiKey, session, onComplete }: Props) {
           onTypingChange={setSpeaking}
         />
         <Spinner label="preparing" />
+        <div className="survey__footer">
+          <button
+            className="btn btn--quiet"
+            onClick={() => downloadTranscript(state, compilerOutput)}
+          >
+            download transcript
+          </button>
+        </div>
       </div>
     );
   }
@@ -141,6 +157,18 @@ export function Survey({ apiKey, session, onComplete }: Props) {
           )}
         </div>
       </div>
+
+      {state.picks_log.length >= READY_BUTTON_MIN_TURNS && (
+        <div className="survey__footer">
+          <button
+            className="btn btn--quiet survey__ready"
+            onClick={skipAhead}
+            title="end the survey and proceed to the reading"
+          >
+            ready for the cards →
+          </button>
+        </div>
+      )}
     </div>
   );
 }

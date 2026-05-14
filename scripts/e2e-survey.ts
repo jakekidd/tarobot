@@ -27,14 +27,16 @@ const ARCHETYPES_DIR = path.join(ROOT, 'archetypes');
 const RUNS_DIR = path.join(ROOT, 'runs');
 const TOKENS_FILE = path.join(RUNS_DIR, 'tokens.json');
 
-function parseArgs(argv: string[]): { apiKey?: string; load?: string } {
-  const out: { apiKey?: string; load?: string } = {};
+function parseArgs(argv: string[]): { apiKey?: string; load?: string; maxQuestions?: number } {
+  const out: { apiKey?: string; load?: string; maxQuestions?: number } = {};
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i]!;
     if (arg.startsWith('--apiKey=')) out.apiKey = arg.slice('--apiKey='.length);
     else if (arg === '--apiKey') out.apiKey = argv[++i];
     else if (arg.startsWith('--load=')) out.load = arg.slice('--load='.length);
     else if (arg === '--load') out.load = argv[++i];
+    else if (arg.startsWith('--maxQuestions=')) out.maxQuestions = Number(arg.slice('--maxQuestions='.length));
+    else if (arg === '--maxQuestions') out.maxQuestions = Number(argv[++i]);
   }
   return out;
 }
@@ -64,7 +66,9 @@ async function main() {
   const logger = createLogger(RUNS_DIR, archetype.first_name);
   logger.archetypeGenerated(archetype.first_name, summarizeArchetype(archetype));
 
-  const result = await runSurvey(client, archetype, logger);
+  const result = await runSurvey(client, archetype, logger, {
+    maxQuestions: args.maxQuestions,
+  });
 
   // Write the markdown run log
   const logFile = logger.writeRunLog(archetype, result.final_state, result.brief);

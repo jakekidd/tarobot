@@ -669,6 +669,19 @@ a:hover { text-decoration: underline; }
 .survey__review p { margin: 0.25rem 0; }
 .survey__review em { color: var(--fg); font-style: normal; }
 
+/* Footer row beneath the question — holds "ready for the cards" + (post-close) download buttons. */
+.survey__footer {
+  margin-top: 1.2rem;
+  display: flex;
+  justify-content: center;
+  gap: 0.6rem;
+}
+.survey__ready {
+  letter-spacing: 0.14em;
+  text-transform: lowercase;
+  font-size: 0.85rem;
+}
+
 .name-step {
   display: flex;
   flex-direction: column;

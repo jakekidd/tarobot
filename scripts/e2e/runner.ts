@@ -19,11 +19,17 @@ export type RunResult = {
   transcript: TranscriptEntry[];
 };
 
+export type RunOptions = {
+  maxQuestions?: number;  // artificial cap; engine no longer auto-closes by count
+};
+
 export async function runSurvey(
   client: ClaudeClient,
   archetype: Archetype,
   logger: RunLogger,
+  options: RunOptions = {},
 ): Promise<RunResult> {
+  const maxQuestions = options.maxQuestions ?? 15;
   const adapter = new AnthropicAdapter(client, recordTokens);
   const engine = new SurveyEngine({ adapter });
 
@@ -34,8 +40,13 @@ export async function runSurvey(
 
   logger.phaseHeader(lastPhase, engine.getState().heat);
 
-  // Loop until the engine closes.
+  // Loop until the engine closes OR we hit the artificial cap.
   while (!engine.getState().closed) {
+    if (qIdx >= maxQuestions) {
+      // Artificial cutoff — close cleanly via skipAhead.
+      engine.skipAhead();
+      break;
+    }
     const question = engine.getCurrentQuestion();
     if (!question) {
       // No question available — wait briefly for any in-flight Observer to land
