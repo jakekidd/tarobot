@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import type { ClatNote, Profile, Question, Survey } from './pipeline';
+import type { Profile, Question, Survey } from './pipeline';
+import type { CompilerOutput } from './pipeline/survey';
 import {
   loadApiKey,
   newSession,
@@ -11,7 +12,6 @@ import { Menu } from './ui/Menu';
 import { ResumeMenu } from './ui/ResumeMenu';
 import { Settings } from './ui/Settings';
 import { Survey as SurveyScreen } from './ui/Survey';
-import { Compiling } from './ui/Compiling';
 import { EnterTent } from './ui/EnterTent';
 import { Tent } from './ui/Tent';
 import { TarobotScene } from './ui/scene/TarobotScene';
@@ -22,7 +22,6 @@ type Phase =
   | { kind: 'resume' }
   | { kind: 'settings' }
   | { kind: 'survey'; session: Session }
-  | { kind: 'compiling'; session: Session; survey: Survey; clatNotes: ClatNote[] }
   | { kind: 'enter-tent'; session: Session; survey: Survey; profile: Profile; openers: Question[] }
   | { kind: 'tent'; session: Session; survey: Survey; profile: Profile; openers: Question[] };
 
@@ -46,11 +45,8 @@ export function App() {
   function resumeSession(s: Session) {
     switch (s.phase) {
       case 'survey':
-        setPhase({ kind: 'survey', session: s });
-        return;
       case 'compiling':
-        if (!s.survey) { startNewReading(); return; }
-        setPhase({ kind: 'compiling', session: s, survey: s.survey, clatNotes: [] });
+        setPhase({ kind: 'survey', session: s });
         return;
       case 'enter-tent':
         if (!s.survey || !s.profile || !s.openers) { startNewReading(); return; }
@@ -71,16 +67,27 @@ export function App() {
     }
   }
 
-  function onSurveyComplete(session: Session, survey: Survey, clatNotes: ClatNote[]) {
-    const next: Session = { ...session, phase: 'compiling', survey };
+  function onSurveyComplete(session: Session, brief: CompilerOutput) {
+    const surveyShim: Survey = {
+      answers: [],
+      started_at: session.started_at,
+      ended_at: Date.now(),
+    };
+    const next: Session = {
+      ...session,
+      phase: 'enter-tent',
+      survey: surveyShim,
+      profile: brief.profile,
+      openers: brief.openers,
+    };
     saveSession(next);
-    setPhase({ kind: 'compiling', session: next, survey, clatNotes });
-  }
-
-  function onCompiled(session: Session, survey: Survey, profile: Profile, openers: Question[]) {
-    const next: Session = { ...session, phase: 'enter-tent', profile, openers };
-    saveSession(next);
-    setPhase({ kind: 'enter-tent', session: next, survey, profile, openers });
+    setPhase({
+      kind: 'enter-tent',
+      session: next,
+      survey: surveyShim,
+      profile: brief.profile,
+      openers: brief.openers,
+    });
   }
 
   function onEnter(session: Session, survey: Survey, profile: Profile, openers: Question[]) {
@@ -151,19 +158,7 @@ export function App() {
             <SurveyScreen
               apiKey={apiKey}
               session={phase.session}
-              onComplete={(s, notes) => onSurveyComplete(phase.session, s, notes)}
-            />
-          )}
-
-          {phase.kind === 'compiling' && apiKey && (
-            <Compiling
-              apiKey={apiKey}
-              survey={phase.survey}
-              clatNotes={phase.clatNotes}
-              onReady={(profile, openers) =>
-                onCompiled(phase.session, phase.survey, profile, openers)
-              }
-              onError={() => goMenu()}
+              onComplete={(brief) => onSurveyComplete(phase.session, brief)}
             />
           )}
 

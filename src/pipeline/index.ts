@@ -3,11 +3,11 @@
 //
 // Portability rule: this module must run unchanged in Node. No React,
 // no DOM. The eventual production system will import this directory
-// verbatim and swap in a different ClaudeClient + add a LocalLLMClient
-// for the persona layer.
+// verbatim and swap the LLMAdapter to a local LLM client.
 
 export type {
-  // Survey
+  // Survey (legacy shape — populated by the new survey engine's Compiler pass
+  // and consumed by the tent. The new engine has its own types under ./survey.)
   Survey, SurveyAnswer, SurveyQuestion, SurveyQuestionFormat,
   // Choice (unified)
   Choice, ChoiceSource,
@@ -21,12 +21,13 @@ export type {
   Speaker, TranscriptLine,
   // Engine
   EngineState, PersonaAnimation,
-  // Cards / Spreads / Reading (unused in MVP but kept for tarot phase)
+  // Cards / Spreads / Reading
   Arcana, Suit, Card,
   Spread, SpreadPosition, SpreadPositionLayout, DrawnCard, DrawnCards,
   Chapter, Reading,
 } from './types';
 
+// Astrology
 export {
   computeSunSign,
   computeAstroProfile,
@@ -43,11 +44,11 @@ export type {
   AstroProfile,
 } from './astrology';
 
-// Cards & spreads (data + utilities for tarot phase)
+// Cards & spreads
 export { ALL_CARDS, drawCards, drawForSpread, getCard, findByName } from './cards';
 export { ALL_SPREADS, FOUR_CARD_DIAMOND, getSpread } from './spreads';
 
-// Personas (the 3-voice registry, used by the tarot reading phase later)
+// Personas
 export { PERSONAS, DEFAULT_PERSONA, getPersona } from './personas';
 export type { Persona, PersonaId } from './personas';
 
@@ -55,36 +56,10 @@ export type { Persona, PersonaId } from './personas';
 export { createClaudeClient, validateKey, MODELS } from './claude';
 export type { ClaudeClient } from './claude';
 
-// Clat (survey)
-export { QUESTION_POOL, findQuestion } from './clat/pool';
-export {
-  newDirector,
-  applyAnswer,
-  inject,
-  consumeInjected,
-  nextQuestion,
-  finalize as finalizeSurvey,
-  answeredCount,
-  canEnd,
-  mustEnd,
-  pushComment,
-  popComment,
-  appendClatNotes,
-  markClatSawN,
-  SURVEY_END_OFFER_AT,
-  SURVEY_HARD_CAP,
-  COMMENT_QUEUE_CAP,
-  CLAT_HOLD_FOR_FIRST_N_ANSWERS,
-} from './clat/director';
-export type { DirectorState } from './clat/director';
-export { clatReact } from './clat/agent';
-export type { ClatOutput } from './clat/prompts/clat';
+// Openers helper (used by the tent)
+export { pickOpener } from './openers';
 
-// Compiler — accepts survey + accumulated clat notes
-export { compile, pickOpener } from './compiler/compile';
-export type { CompilerOutput } from './compiler/prompts/compiler';
-
-// Engine
+// Engine (tent / reading phase)
 export {
   newEngineState,
   appendTranscript,

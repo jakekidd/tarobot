@@ -35,3 +35,7 @@ pnpm-debug.log*
 .claude/
 .planning/
 .vercel
+
+# survey bot harness
+archetypes/
+runs/
