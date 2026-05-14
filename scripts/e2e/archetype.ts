@@ -4,6 +4,7 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import type { ClaudeClient } from '../../src/pipeline/claude';
+import { recordTokens } from './tokens';
 
 export type Archetype = {
   first_name: string;
@@ -94,8 +95,9 @@ const ARCHETYPE_TOOL = {
 } as const;
 
 export async function generateArchetype(client: ClaudeClient): Promise<Archetype> {
+  const model = 'claude-opus-4-7';
   const response = await client.messages.create({
-    model: 'claude-opus-4-7',
+    model,
     max_tokens: 3000,
     system: ARCHETYPE_SYSTEM,
     tools: [ARCHETYPE_TOOL as unknown as never],
@@ -104,6 +106,12 @@ export async function generateArchetype(client: ClaudeClient): Promise<Archetype
       { role: 'user', content: 'generate one synthetic participant. make them feel real.' },
     ],
   });
+  if (response.usage) {
+    recordTokens(model, {
+      input_tokens: response.usage.input_tokens ?? 0,
+      output_tokens: response.usage.output_tokens ?? 0,
+    });
+  }
   const block = response.content.find((b) => b.type === 'tool_use' && b.name === 'generate_archetype');
   if (!block || block.type !== 'tool_use') {
     throw new Error(`archetype: tool not called (stop_reason=${response.stop_reason})`);

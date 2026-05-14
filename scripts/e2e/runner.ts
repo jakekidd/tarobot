@@ -11,6 +11,7 @@ import type { ClaudeClient } from '../../src/pipeline/claude';
 import type { Archetype } from './archetype';
 import { pickAnswer, type TranscriptEntry } from './bot';
 import type { RunLogger } from './log';
+import { recordTokens } from './tokens';
 
 export type RunResult = {
   final_state: EngineState;
@@ -23,7 +24,7 @@ export async function runSurvey(
   archetype: Archetype,
   logger: RunLogger,
 ): Promise<RunResult> {
-  const adapter = new AnthropicAdapter(client);
+  const adapter = new AnthropicAdapter(client, recordTokens);
   const engine = new SurveyEngine({ adapter });
 
   const transcript: TranscriptEntry[] = [];

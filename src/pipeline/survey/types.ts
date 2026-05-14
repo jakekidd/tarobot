@@ -260,10 +260,25 @@ export type CompilerInput = {
   state: EngineState;
 };
 
+/**
+ * What the LLM contributes at compile time. Kept tight: just the synthesis
+ * fields. The engine maps the rest of the legacy Profile from EngineState
+ * deterministically — see assembleCompilerOutput() in engine.ts.
+ */
+export type CompilerLLMOutput = {
+  /** 3-6 sentence summary that goes into Profile.brief. */
+  brief_summary: string;
+  /** The opinionated PI brief the witch reads (200-400 words). */
+  prose_brief: string;
+  /** Three openers for the tent. Schema-locked to legacy Question shape. */
+  openers: Question[];
+};
+
+/** Final Compiler payload — legacy Profile + openers + the prose brief. */
 export type CompilerOutput = {
-  profile: Profile;       // legacy shape for the tent
-  openers: Question[];    // legacy shape for the tent
-  prose_brief: string;    // for the witch's prompt template
+  profile: Profile;
+  openers: Question[];
+  prose_brief: string;
 };
 
 // ─── Engine API ─────────────────────────────────────────

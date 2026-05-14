@@ -19,10 +19,13 @@ import {
 } from './e2e/archetype';
 import { runSurvey } from './e2e/runner';
 import { createLogger } from './e2e/log';
+import { formatSessionSummary, persistSession } from './e2e/tokens';
 
-const ROOT = path.resolve(__dirname, '..');
+// ESM: import.meta.dirname is the node-21+ equivalent of __dirname.
+const ROOT = path.resolve(import.meta.dirname, '..');
 const ARCHETYPES_DIR = path.join(ROOT, 'archetypes');
 const RUNS_DIR = path.join(ROOT, 'runs');
+const TOKENS_FILE = path.join(RUNS_DIR, 'tokens.json');
 
 function parseArgs(argv: string[]): { apiKey?: string; load?: string } {
   const out: { apiKey?: string; load?: string } = {};
@@ -66,6 +69,11 @@ async function main() {
   // Write the markdown run log
   const logFile = logger.writeRunLog(archetype, result.final_state, result.brief);
   console.log(kleur.cyan().bold(`\nRun log written to ${path.relative(ROOT, logFile)}`));
+
+  // Persist token totals so we can see lifetime spend across runs
+  persistSession(TOKENS_FILE, archetype.first_name, result.final_state.close_reason ?? null);
+  console.log(kleur.cyan().bold('\nTokens this session:'));
+  console.log(kleur.gray(formatSessionSummary()));
 }
 
 main().catch((err) => {

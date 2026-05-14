@@ -113,84 +113,6 @@ export const InvestigatorOutputSchema = z.object({
 
 // ─── Compiler ───────────────────────────────────────────
 
-const LegacyProfileIdentity = z.object({
-  name: z.string().optional(),
-  birth_date: z.string().optional(),
-  birth_month_day: z.string().optional(),
-  sun_sign: z.string().optional(),
-  life_path: z.number().optional(),
-  tarot_birth_card: z.object({
-    number: z.number(),
-    name: z.string(),
-  }).optional(),
-  came_with: z.string().optional(),
-  notes: z.string(),
-});
-
-const LegacyChoice = z.object({
-  id: z.string(),
-  description: z.string(),
-  options: z.array(z.object({
-    name: z.string(),
-    summary: z.string().optional(),
-  })),
-  source: z.enum(['stated', 'inferred', 'constructed']),
-  scores: z.object({
-    stakes: z.number(),
-    time_proximity: z.number(),
-    user_engagement: z.number(),
-  }),
-  stakes: z.string().optional(),
-  time_horizon: z.enum(['weeks', 'months', 'year+']).optional(),
-  blindspots: z.array(z.string()).optional(),
-  is_target: z.boolean(),
-  confidence: z.number(),
-  notes: z.string(),
-});
-
-const LegacyCast = z.object({
-  role: z.string(),
-  name: z.string().optional(),
-  valence: z.string(),
-  last_referenced_turn: z.number(),
-});
-
-const LegacyHunch = z.object({
-  suspicion: z.string(),
-  grounded_in: z.string(),
-  confidence: z.number(),
-  age_turns: z.number(),
-});
-
-const LegacyHighlight = z.object({
-  id: z.string(),
-  topic: z.string(),
-  reason: z.string(),
-  introduced_turn: z.number(),
-  ttl: z.number(),
-  salience: z.enum(['low', 'medium', 'high']),
-});
-
-const LegacyThread = z.object({
-  pattern: z.string(),
-  observations: z.array(z.number()),
-  salience: z.number(),
-});
-
-const LegacyProfile = z.object({
-  identity: LegacyProfileIdentity,
-  candidates: z.array(LegacyChoice),
-  cast: z.array(LegacyCast),
-  threads: z.array(LegacyThread),
-  hunches: z.array(LegacyHunch),
-  margin: z.string(),
-  cognition_log: z.string(),
-  highlights: z.array(LegacyHighlight),
-  brief: z.string(),
-  ready_to_close: z.boolean(),
-  version: z.number(),
-});
-
 const LegacyQuestion = z.object({
   id: z.string(),
   prompt: z.string(),
@@ -204,8 +126,13 @@ const LegacyQuestion = z.object({
   }),
 });
 
-export const CompilerOutputSchema = z.object({
-  profile: LegacyProfile,
-  openers: z.array(LegacyQuestion),
+/**
+ * What the LLM emits — JUST the synthesis bits. The engine maps the rest of
+ * the legacy Profile from EngineState deterministically, so we don't ask the
+ * model to construct ~11 nested shapes correctly each time.
+ */
+export const CompilerLLMOutputSchema = z.object({
+  brief_summary: z.string(),
   prose_brief: z.string(),
+  openers: z.array(LegacyQuestion),
 });

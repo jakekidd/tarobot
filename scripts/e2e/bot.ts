@@ -4,6 +4,7 @@
 import type { ClaudeClient } from '../../src/pipeline/claude';
 import type { Archetype } from './archetype';
 import type { RenderedQuestion } from '../../src/pipeline/survey';
+import { recordTokens } from './tokens';
 
 const BOT_SYSTEM = `you are role-playing as a specific person taking a multiple-choice survey. you will be given:
   - the archetype JSON describing who you are
@@ -71,14 +72,21 @@ export async function pickAnswer(
       axes: question.axes,
     },
   };
+  const model = 'claude-haiku-4-5';
   const response = await client.messages.create({
-    model: 'claude-haiku-4-5',
+    model,
     max_tokens: 800,
     system: BOT_SYSTEM,
     tools: [BOT_TOOL as unknown as never],
     tool_choice: { type: 'tool', name: 'pick_answer' },
     messages: [{ role: 'user', content: JSON.stringify(userPayload, null, 2) }],
   });
+  if (response.usage) {
+    recordTokens(model, {
+      input_tokens: response.usage.input_tokens ?? 0,
+      output_tokens: response.usage.output_tokens ?? 0,
+    });
+  }
   const block = response.content.find(
     (b) => b.type === 'tool_use' && b.name === 'pick_answer',
   );

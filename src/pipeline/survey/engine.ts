@@ -248,14 +248,16 @@ export class SurveyEngine {
     const isReturning = !!opts.returning;
     const startHeat = isReturning ? STARTING_HEAT_RETURNING : STARTING_HEAT_NEW;
 
-    // Initial queue: openers in declared order, skipping any already populated.
-    const openerQueue: QueueItem[] = getOpeners()
-      .filter((id) => !this.isOpenerSatisfiedFor(id, startProfile))
-      .map((node_id, idx) => ({
-        node_id,
-        prompted_by: null,
-        priority: idx === 0 ? 'high' : 'normal',
-      }));
+    // Initial queue: ONLY the first unsatisfied opener. Each opener's `next`
+    // field enqueues the following one, so listing them all up front would
+    // duplicate (every opener would be queued twice — once at init, once
+    // by the previous opener's tree-next).
+    const firstUnsatisfied = getOpeners().find(
+      (id) => !this.isOpenerSatisfiedFor(id, startProfile),
+    );
+    const openerQueue: QueueItem[] = firstUnsatisfied
+      ? [{ node_id: firstUnsatisfied, prompted_by: null, priority: 'high' }]
+      : [];
 
     return {
       session_id: opts.session_id ?? generateSessionId(),
@@ -323,6 +325,12 @@ export class SurveyEngine {
   }
 
   private enqueueDirect(node_id: string, promptedBy: string | null, preamble: string | null): void {
+    // Defensive dedupe — never enqueue a node that's already in the queue or
+    // already been asked. The engine's pick advance + tree.next chain + the
+    // Investigator output are three independent sources; this one check stops
+    // double-queueing from any of them.
+    if (this.state.asked_node_ids.includes(node_id)) return;
+    if (this.state.queue.some((q) => q.node_id === node_id)) return;
     this.setState({
       queue: [
         ...this.state.queue,

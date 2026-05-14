@@ -17,11 +17,18 @@ const MODEL_FOR: Record<ModelTier, string> = {
   deep:      'claude-opus-4-7',
 };
 
+export type UsageCallback = (
+  model: string,
+  usage: { input_tokens: number; output_tokens: number },
+) => void;
+
 export class AnthropicAdapter implements LLMAdapter {
   private readonly client: ClaudeClient;
+  private readonly onUsage: UsageCallback | undefined;
 
-  constructor(client: ClaudeClient) {
+  constructor(client: ClaudeClient, onUsage?: UsageCallback) {
     this.client = client;
+    this.onUsage = onUsage;
   }
 
   async invoke<T>(spec: InvocationSpec, schema: ZodType<T>): Promise<T> {
@@ -49,14 +56,22 @@ export class AnthropicAdapter implements LLMAdapter {
   }
 
   private async callOnce(spec: InvocationSpec, tool: Anthropic.Tool): Promise<unknown> {
+    const modelId = MODEL_FOR[spec.model];
     const response = await this.client.messages.create({
-      model: MODEL_FOR[spec.model],
+      model: modelId,
       max_tokens: spec.max_tokens,
       system: spec.system,
       tools: [tool],
       tool_choice: { type: 'tool', name: spec.tool.name },
       messages: [{ role: 'user', content: spec.user }],
     });
+
+    if (this.onUsage && response.usage) {
+      this.onUsage(modelId, {
+        input_tokens: response.usage.input_tokens ?? 0,
+        output_tokens: response.usage.output_tokens ?? 0,
+      });
+    }
 
     const block = response.content.find(
       (b) => b.type === 'tool_use' && b.name === spec.tool.name,
