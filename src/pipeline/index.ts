@@ -55,29 +55,3 @@ export type { Persona, PersonaId } from './personas';
 // Claude client
 export { createClaudeClient, validateKey, MODELS } from './claude';
 export type { ClaudeClient } from './claude';
-
-// Openers helper (used by the tent)
-export { pickOpener } from './openers';
-
-// Engine (tent / reading phase)
-export {
-  newEngineState,
-  appendTranscript,
-  appendHindsight,
-  applyProfileDeltas,
-  applyHighlightsUpdate,
-  enqueueQuestion,
-  dequeueQuestion,
-  setAnimation,
-  bumpTurn,
-  DEFAULT_HIGHLIGHT_TTL,
-  HIGHLIGHTS_SOFT_CAP,
-  QUEUE_REFILL_THRESHOLD,
-  QUEUE_MAX_DEPTH,
-} from './engine/state';
-export type { ProfileDeltas, HighlightsUpdate } from './engine/state';
-export { cognitionTick, applyCognitionOutput } from './engine/cognition';
-export type { CognitionOutput } from './engine/prompts/cognition';
-export { personaSpeak } from './engine/persona';
-export type { PersonaTurnOutput } from './engine/prompts/persona';
-export { bootEngine, userPick } from './engine/orchestrator';

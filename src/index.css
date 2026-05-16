@@ -715,7 +715,10 @@ a:hover { text-decoration: underline; }
   display: grid;
   grid-template-columns: 320px minmax(0, 1fr);
   width: 100%;
-  height: 100%;
+  /* Explicit viewport-based height — height:100% wasn't resolving up the
+     flex chain (.app min-height:100vh isn't strictly definite). 3rem ≈
+     topbar height (0.5rem padding × 2 + ~1.5rem content). */
+  height: calc(100vh - 3rem);
   align-items: stretch;
 }
 .reading__col-left {
@@ -926,6 +929,12 @@ a:hover { text-decoration: underline; }
   text-transform: uppercase;
   letter-spacing: 0.18em;
   font-size: 0.66rem;
+}
+.transcript__label {
+  color: var(--fg-faint);
+  font-style: italic;
+  text-transform: none;
+  letter-spacing: 0.04em;
 }
 .transcript__line--seer .transcript__who {
   color: var(--fg-dim);
@@ -2142,127 +2151,6 @@ a:hover { text-decoration: underline; }
   -webkit-line-clamp: 4;
   -webkit-box-orient: vertical;
   overflow: hidden;
-}
-
-/* =====================================================================
-   Spread 3D / Placement / Reading
-   ===================================================================== */
-
-.spread3d {
-  width: 100%;
-  height: 100%;
-  min-height: 360px;
-  position: relative;
-}
-.spread3d > canvas {
-  display: block;
-  width: 100% !important;
-  height: 100% !important;
-}
-
-.screen--placement,
-.screen--reading {
-  max-width: 920px;
-  gap: 1rem;
-  width: 100%;
-}
-
-.placement__board,
-.reading__board {
-  width: 100%;
-  height: 460px;
-  border: 1px solid var(--line);
-}
-
-.placement__meta {
-  display: flex;
-  width: 100%;
-  justify-content: space-between;
-  align-items: center;
-  color: var(--fg-faint);
-  font-size: 0.85rem;
-  letter-spacing: 0.2em;
-  text-transform: lowercase;
-}
-
-.reading__header {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.75rem;
-  width: 100%;
-}
-
-.reading__theme {
-  width: 100%;
-  max-width: 600px;
-  border-left: 2px solid var(--violet);
-  padding: 0.4rem 0.8rem;
-  text-align: left;
-  background: var(--violet-bg);
-}
-.reading__theme-label {
-  font-size: 0.8rem;
-  letter-spacing: 0.3em;
-  color: var(--violet);
-  text-transform: lowercase;
-}
-.reading__theme-text {
-  color: var(--fg);
-  font-style: italic;
-  margin-top: 0.2rem;
-}
-
-.reading__nav {
-  display: flex;
-  gap: 0.5rem;
-  flex-wrap: wrap;
-  justify-content: center;
-}
-
-.reading__transcript {
-  width: 100%;
-  text-align: left;
-  border-top: 1px solid var(--line);
-  padding-top: 1rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-}
-
-.reading__arc {
-  font-style: italic;
-  color: var(--violet);
-}
-
-.reading__chapter {
-  border-left: 2px solid var(--line);
-  padding: 0.4rem 0.8rem;
-}
-.reading__chapter--hidden {
-  opacity: 0.4;
-  border-left-color: var(--fg-faint);
-}
-.reading__chapter-head {
-  display: flex;
-  justify-content: space-between;
-  font-size: 0.85rem;
-  letter-spacing: 0.2em;
-  text-transform: lowercase;
-  color: var(--fg-faint);
-  margin-bottom: 0.3rem;
-}
-.reading__chapter-pos { color: var(--violet); }
-.reading__chapter-card { color: var(--fg-dim); }
-.reading__chapter-text {
-  color: var(--fg);
-  white-space: pre-wrap;
-}
-
-.closing__nav {
-  display: flex;
-  gap: 0.5rem;
-  justify-content: center;
 }
 
 /* =====================================================================

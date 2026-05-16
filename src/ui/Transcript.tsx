@@ -1,51 +1,57 @@
-// Running chat log between the user and the seer. Left column of the
-// reading layout. Auto-scrolls to bottom on new lines. Copy button in
-// the corner copies the full transcript as plain text.
-//
-// Receives the chat from the engine state; the seer's beats (monologues
-// attached to revealed cards) are NOT part of this transcript — those
-// are delivered in the centre dialogue box during the reading flow.
+// Running transcript of the reading — left column on desktop, full-page
+// overlay on mobile. Shows the seer's monologues (intro, per-card beats
+// with the card name prefix, outro) plus any user↔seer chat exchanges.
+// Auto-scrolls to bottom on new lines. Copy button writes the whole
+// thing as plain text.
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import type { ChatMessage } from '../pipeline/reading';
 import { pickStall } from '../pipeline/reading';
 
+export type TranscriptItem = {
+  speaker: 'user' | 'seer';
+  text: string;
+  /** Optional label rendered as a prefix on the "who" line (e.g., card name). */
+  label?: string;
+  key: string;
+};
+
 type Props = {
-  messages: ChatMessage[];
+  items: TranscriptItem[];
   /** True while a chat reply is being computed — show a brief stall row. */
   stallShown: boolean;
 };
 
-export function Transcript({ messages, stallShown }: Props) {
+export function Transcript({ items, stallShown }: Props) {
   const scrollRef = useRef<HTMLDivElement>(null);
-  // New stall phrase each time the stall transitions on, even though the
-  // dep isn't read inside — that's the point.
+  // New stall phrase each time the stall transitions on.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const stallPhrase = useMemo(() => pickStall('persona'), [stallShown]);
   const [copied, setCopied] = useState(false);
 
-  // Auto-scroll to bottom on new messages.
   useEffect(() => {
     const el = scrollRef.current;
     if (!el) return;
     el.scrollTop = el.scrollHeight;
-  }, [messages, stallShown]);
+  }, [items, stallShown]);
 
   async function copy() {
-    const text = messages
-      .map((m) => `${m.speaker === 'user' ? 'you' : 'the seer'}: ${m.text}`)
-      .join('\n');
+    const text = items
+      .map((m) => {
+        const who = m.speaker === 'user' ? 'you' : (m.label ? `the seer (${m.label})` : 'the seer');
+        return `${who}: ${m.text}`;
+      })
+      .join('\n\n');
     try {
       await navigator.clipboard.writeText(text);
       setCopied(true);
       setTimeout(() => setCopied(false), 1400);
     } catch {
-      /* no clipboard — silently swallow */
+      /* no clipboard */
     }
   }
 
   return (
-    <div className="transcript" aria-label="transcript with the seer">
+    <div className="transcript" aria-label="reading transcript">
       <div className="transcript__head">
         <span className="transcript__title">transcript</span>
         <button
@@ -53,24 +59,27 @@ export function Transcript({ messages, stallShown }: Props) {
           className="transcript__copy"
           onClick={copy}
           aria-label="copy transcript"
-          disabled={messages.length === 0}
+          disabled={items.length === 0}
         >
           {copied ? 'copied' : 'copy'}
         </button>
       </div>
       <div className="transcript__scroll" ref={scrollRef}>
-        {messages.length === 0 && !stallShown && (
+        {items.length === 0 && !stallShown && (
           <div className="transcript__empty">
             <em>nothing said yet.</em>
           </div>
         )}
-        {messages.map((m, i) => (
+        {items.map((m) => (
           <div
-            key={i}
+            key={m.key}
             className={`transcript__line transcript__line--${m.speaker}`}
           >
             <span className="transcript__who">
               {m.speaker === 'user' ? 'you' : 'the seer'}
+              {m.label && (
+                <span className="transcript__label"> · {m.label}</span>
+              )}
             </span>
             <span className="transcript__text">{m.text}</span>
           </div>

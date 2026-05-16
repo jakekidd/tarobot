@@ -48,7 +48,7 @@ import {
   type SlotName,
 } from './scene/cardSceneStore';
 import { Spinner } from './Spinner';
-import { Transcript } from './Transcript';
+import { Transcript, type TranscriptItem } from './Transcript';
 import { useTypewriter } from './dialogue/useTypewriter';
 import { setDizzy } from './scene/dizzyStore';
 import { setReaderMode } from './scene/readerModeStore';
@@ -153,6 +153,31 @@ export function Reading({ apiKey, brief, preferredIntro, onExit }: Props) {
   const subtitleVisible =
     state.phase === 'beat_pending' || state.phase === 'beat';
 
+  // Unified transcript: seer's intro + each beat (with card name label) +
+  // user/seer chat exchanges + outro (once delivered).
+  const transcriptItems = useMemo<TranscriptItem[]>(() => {
+    const items: TranscriptItem[] = [];
+    if (state.intro?.text) {
+      items.push({ speaker: 'seer', text: state.intro.text, key: 'intro' });
+    }
+    for (const r of state.revealed) {
+      const card = drawn.cards.find((c) => c.position.id === r.position_id)?.card;
+      items.push({
+        speaker: 'seer',
+        text: r.monologue.text,
+        ...(card ? { label: card.name } : {}),
+        key: `beat-${r.position_id}`,
+      });
+    }
+    state.chat.forEach((m, i) => {
+      items.push({ speaker: m.speaker, text: m.text, key: `chat-${i}` });
+    });
+    if (state.outro?.text && (state.phase === 'outro' || state.phase === 'done')) {
+      items.push({ speaker: 'seer', text: state.outro.text, key: 'outro' });
+    }
+    return items;
+  }, [state.intro, state.revealed, state.chat, state.outro, state.phase, drawn]);
+
   // Screen-wide click-to-advance. ChunkedLine watches advanceTick and
   // calls its tap() when it bumps. Clicks on interactive zones (input,
   // button, table-anchor, transcript-fullpage) are excluded.
@@ -174,7 +199,7 @@ export function Reading({ apiKey, brief, preferredIntro, onExit }: Props) {
       <div className="reading__cols">
         <aside className="reading__col-left">
           <Transcript
-            messages={state.chat}
+            items={transcriptItems}
             stallShown={state.phase === 'chat_pending'}
           />
         </aside>
@@ -217,7 +242,7 @@ export function Reading({ apiKey, brief, preferredIntro, onExit }: Props) {
           </button>
           <div className="reading__transcript-fullpage-body">
             <Transcript
-              messages={state.chat}
+              items={transcriptItems}
               stallShown={state.phase === 'chat_pending'}
             />
           </div>
