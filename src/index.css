@@ -699,87 +699,217 @@ a:hover { text-decoration: underline; }
    3D table-scene, subtitle, chat panel.
    ===================================================================== */
 
-/* The screen fills the main column; the rig itself is centred vertically
-   inside it. The table is the visual anchor — everything else stacks
-   above or below it with stable slot heights so long monologues never
-   reflow the layout. */
+/* Two-column reading layout. Left column = transcript (fixed width,
+   scrolls internally). Right column = eyes anchor + dialogue + table
+   anchor + subtitle + chat input, all stacked with stable heights so
+   the table never reflows. */
 .screen--reading {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
+  display: block;
+  width: 100%;
   height: 100%;
   min-height: 100%;
-  gap: 0;
   padding: 0;
   max-width: none;
 }
-.reading__rig {
+.reading__cols {
+  display: grid;
+  grid-template-columns: 320px minmax(0, 1fr);
+  width: 100%;
+  height: 100%;
+  align-items: stretch;
+}
+.reading__col-left {
+  border-right: 1px solid var(--violet-line);
+  padding: 0.6rem 0.8rem 0.6rem 1rem;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.reading__col-right {
   display: flex;
   flex-direction: column;
   align-items: center;
-  width: 760px;
-  max-width: calc(100vw - 2rem);
-  gap: 0.45rem;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 1rem 1rem 0.6rem;
+  position: relative;
+  z-index: 5;          /* above the canvas's pointer-events: none so the
+                          TableAnchor + chat capture input cleanly */
 }
-/* Eyes slot — the ReaderAnchor inside publishes its bbox to TarobotScene
-   which paints the seer's eyes (or Clat, if mode='cat') at this exact
-   position. Fixed size so the rig height doesn't move. */
 .reading__head {
-  width: 150px;
-  height: 150px;
+  width: 140px;
+  height: 140px;
   display: flex;
   align-items: center;
   justify-content: center;
+  flex-shrink: 0;
 }
-/* Stage slot — dialogue / stall / cue. Stable min-height so the longest
-   monologues don't push the table down. Top-aligned so short content
-   doesn't float in the middle. */
 .reading__stage-slot {
   width: 100%;
-  min-height: 8rem;
+  max-width: 64ch;
   display: flex;
   align-items: flex-start;
   justify-content: center;
+  flex-shrink: 0;
 }
-/* Table slot — wraps the canvas at its declared size. */
-.reading__table-slot {
-  height: 420px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-/* Chat slot — fixed min-height so the input doesn't move when chat lines
-   appear above it. */
 .reading__chat-slot {
   width: 100%;
+  max-width: 64ch;
   min-height: 5.2rem;
-}
-.table-scene {
-  margin: 0 auto;
+  flex-shrink: 0;
 }
 
-/* ─── Card subtitle — pops in when a card is lifted ───── */
+/* Rigid-size dialogue box. Long monologues chunk into "…" pages instead
+   of growing the box. Anything that overflows clips so the table never
+   moves down. */
+.reading__dialogue-rigid {
+  height: 6.4rem;
+  overflow: hidden;
+  display: flex;
+  align-items: flex-start;
+  cursor: pointer;
+}
+
+/* The table anchor — invisible div whose bbox is read by TarobotScene's
+   perspective layer. Sized for the lifted card + 4-card diamond to fit
+   without cropping. */
+.table-anchor {
+  width: 100%;
+  max-width: 720px;
+  height: 460px;
+  flex-shrink: 0;
+}
+
+/* ─── Card subtitle — sits BELOW the table; 3D-extruded floating letters */
 .card-subtitle {
   font-family: var(--font-speech);
   font-style: italic;
-  font-size: 1.45rem;
+  font-size: 1.55rem;
   letter-spacing: 0.32em;
-  color: #e8d9ff;
-  text-shadow:
-    0 0 14px rgba(179, 136, 255, 0.95),
-    0 0 28px rgba(124, 58, 237, 0.55);
   text-align: center;
-  min-height: 1.8rem;
-  margin: 0.2rem auto 0.1rem;
+  min-height: 2rem;
+  margin: -0.1rem auto 0.2rem;
   opacity: 0;
-  transform: translateY(-4px);
-  transition: opacity 0.45s ease, transform 0.45s ease;
+  transition: opacity 0.55s ease;
   pointer-events: none;
+  perspective: 600px;
 }
 .card-subtitle--on {
   opacity: 1;
-  transform: translateY(0);
+}
+.card-subtitle__inner {
+  display: inline-block;
+  transform-style: preserve-3d;
+  color: #e8d9ff;
+}
+.card-subtitle__letter {
+  display: inline-block;
+  transform-origin: center 70%;
+  text-shadow:
+    0 1px 0 #5c2db8,
+    0 2px 0 #4a219a,
+    0 3px 0 #3a187b,
+    0 4px 0 #2c105d,
+    0 5px 0 #1f0843,
+    0 6px 8px rgba(0, 0, 0, 0.7),
+    0 0 14px rgba(179, 136, 255, 0.95),
+    0 0 28px rgba(124, 58, 237, 0.55);
+  animation: subtitle-float 2.6s ease-in-out infinite;
+}
+.card-subtitle__space {
+  display: inline-block;
+  width: 0.3em;
+}
+@keyframes subtitle-float {
+  0%, 100% {
+    transform: translateY(0) rotateX(0deg);
+  }
+  50% {
+    transform: translateY(-4px) rotateX(10deg);
+  }
+}
+
+/* ─── Transcript (left column) ─────────────────────────── */
+.transcript {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  gap: 0.4rem;
+  font-family: var(--font-mono);
+}
+.transcript__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  padding-bottom: 0.35rem;
+  border-bottom: 1px solid var(--violet-line);
+}
+.transcript__title {
+  color: var(--fg-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.22em;
+  font-size: 0.72rem;
+}
+.transcript__copy {
+  background: transparent;
+  border: 1px solid var(--violet-line);
+  color: var(--fg-dim);
+  padding: 0.18rem 0.6rem;
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+.transcript__copy:hover:not(:disabled) {
+  color: var(--fg);
+  border-color: var(--violet-line-strong);
+}
+.transcript__copy:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+.transcript__scroll {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-top: 0.4rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  /* Fade top edge so lines appear to vanish as they scroll up */
+  mask-image: linear-gradient(to bottom, transparent 0, #000 24px, #000 100%);
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 24px, #000 100%);
+}
+.transcript__empty {
+  color: var(--fg-faint);
+  font-size: 0.8rem;
+  text-align: center;
+  margin-top: 1rem;
+}
+.transcript__line {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+.transcript__who {
+  color: var(--violet);
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  font-size: 0.66rem;
+}
+.transcript__line--seer .transcript__who {
+  color: var(--fg-dim);
+}
+.transcript__text {
+  color: var(--fg);
+  word-break: break-word;
+}
+.transcript__line--stall .transcript__text {
+  color: var(--fg-faint);
 }
 .reading__intro {
   font-family: var(--font-speech);

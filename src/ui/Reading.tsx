@@ -1,22 +1,27 @@
-// Reading screen — fan-out pipeline interface. The seer reads four cards
-// in a diamond. The user picks which face-down card to flip next.
+// Reading screen — fan-out pipeline interface.
 //
-// Cards live in a 3D scene (TableScene) on a procedural cloth-draped
-// table. Each phase maps a per-slot stage (face_down / face_up / lifted)
-// which the scene tweens between. The flip plays out as the rotation
-// from face_down → face_up; the lift fires once the beat is being
-// delivered.
+// Layout: two columns inside the centered rig.
+//   Left  — Transcript (the running chat log, scrolls upward as new lines
+//           arrive, copy button at the corner).
+//   Right — Eyes anchor (publishes bbox to the unified 3D scene), rigid
+//           dialogue box (chunked typewriter — never resizes), TableAnchor
+//           (publishes bbox so the perspective camera scissors here), card
+//           subtitle below the table, chat input at the bottom.
+//
+// All 3D — eyes, table, cards — renders in the single full-viewport
+// TarobotScene canvas. This component only places DOM anchors and routes
+// engine state into the scene's stores.
 //
 // Phase → render mapping:
 //   thinking            → stall over empty stage
-//   intro               → typewriter line, advances on tap
-//   awaiting_flip       → cards clickable in the scene; chat enabled
+//   intro               → chunked typewriter, advances on tap
+//   awaiting_flip       → cards clickable via TableAnchor; chat enabled
 //   flipping            → card tweens face_down → face_up
 //   beat_pending        → card tweens face_up → lifted (stall in stage)
-//   beat                → typewriter monologue; subtitle visible
+//   beat                → chunked typewriter monologue; subtitle visible
 //   chat_pending        → stall in the chat panel
-//   closing_thinking    → stall while closing cognition+persona run
-//   outro               → typewriter outro; advances on tap
+//   closing_thinking    → stall while closing
+//   outro               → chunked typewriter outro; advances on tap
 //   done                → chat still active; close button surfaced
 //   error               → message + close
 
@@ -36,8 +41,14 @@ import {
   pickStall,
 } from '../pipeline/reading';
 import { ReaderAnchor } from './scene/ReaderAnchor';
-import { TableScene, type SlotName, type CardStage } from './scene/TableScene';
+import { TableAnchor } from './scene/TableAnchor';
+import {
+  setCardScene,
+  type CardStage,
+  type SlotName,
+} from './scene/cardSceneStore';
 import { Spinner } from './Spinner';
+import { Transcript } from './Transcript';
 import { useTypewriter } from './dialogue/useTypewriter';
 import { setDizzy } from './scene/dizzyStore';
 import { setReaderMode } from './scene/readerModeStore';
@@ -51,6 +62,9 @@ type Props = {
 };
 
 const FLIP_ANIM_MS = 950;
+// Soft cap per dialogue chunk (chars). The rigid box holds ~four lines
+// of monologue text; this picks the sentence boundary nearest the cap.
+const CHUNK_MAX_CHARS = 260;
 
 export function Reading({ apiKey, brief, preferredIntro, onExit }: Props) {
   const drawn: DrawnCards = useMemo(
@@ -84,14 +98,13 @@ export function Reading({ apiKey, brief, preferredIntro, onExit }: Props) {
     return () => setDizzy(false);
   }, [state.awaiting_tier]);
 
-  // The reader is the seer (eyes) during the reading. Restore cat on exit
-  // so menu/survey go back to Clat.
+  // Eyes face on the reader anchor; restore cat when we leave.
   useEffect(() => {
     setReaderMode('eyes');
     return () => setReaderMode('cat');
   }, []);
 
-  // Drive the flip → beat transition once CSS animation has played.
+  // Drive flip-tween → engine handoff once the CSS-3D rotation has played.
   useEffect(() => {
     if (state.phase !== 'flipping') return;
     const t = window.setTimeout(() => engine.advanceFromFlip(), FLIP_ANIM_MS);
@@ -100,9 +113,7 @@ export function Reading({ apiKey, brief, preferredIntro, onExit }: Props) {
 
   useEffect(() => () => setDizzy(false), []);
 
-  // Per-slot stage. Already-revealed slots are face_up; the current slot
-  // overrides to face_up during flipping (tween animates the half-turn)
-  // and lifted during beat_pending/beat (close-to-camera).
+  // Per-slot stage map for the perspective layer.
   const stages = useMemo<Partial<Record<SlotName, CardStage>>>(() => {
     const m: Partial<Record<SlotName, CardStage>> = {};
     for (const r of state.revealed) {
@@ -116,7 +127,23 @@ export function Reading({ apiKey, brief, preferredIntro, onExit }: Props) {
     return m;
   }, [state.revealed, state.phase, state.current_slot]);
 
-  // Card name for the subtitle, derived from the active slot's drawn card.
+  const pickable = state.phase === 'awaiting_flip';
+
+  // Push the scene state into the store — TarobotScene's perspective
+  // layer reads from there.
+  useEffect(() => {
+    setCardScene({ drawn, stages, pickable });
+  }, [drawn, stages, pickable]);
+
+  // On unmount, clear the scene state so the table/cards hide and the
+  // perspective render is skipped.
+  useEffect(() => {
+    return () => {
+      setCardScene({ drawn: null, stages: {}, pickable: false });
+    };
+  }, []);
+
+  // Card name for the subtitle.
   const activeCardName = useMemo(() => {
     if (!state.current_slot) return null;
     const dc = drawn.cards.find((c) => c.position.id === state.current_slot);
@@ -128,37 +155,39 @@ export function Reading({ apiKey, brief, preferredIntro, onExit }: Props) {
 
   return (
     <div className="screen screen--reading">
-      <div className="reading__rig">
-        <div className="reading__head">
-          <ReaderAnchor size={150} />
-        </div>
-        <div className="reading__stage-slot">
-          <ReadingStage state={state} engine={engine} />
-        </div>
-        <CardSubtitle name={activeCardName} visible={subtitleVisible} />
-        <div className="reading__table-slot">
-          <TableScene
-            drawn={drawn}
-            stages={stages}
-            pickable={state.phase === 'awaiting_flip'}
-            onPick={(slot) => engine.pickSlot(slot)}
-            width={760}
-            height={420}
+      <div className="reading__cols">
+        <aside className="reading__col-left">
+          <Transcript
+            messages={state.chat}
+            stallShown={state.phase === 'chat_pending'}
           />
-        </div>
-        <div className="reading__chat-slot">
-          <ChatPanel
-            state={state}
-            onSend={(text) => void engine.submitChat(text)}
-          />
-        </div>
-        <ReadingFooter state={state} onExit={onExit} />
+        </aside>
+
+        <section className="reading__col-right">
+          <div className="reading__head">
+            <ReaderAnchor size={140} />
+          </div>
+
+          <div className="reading__stage-slot">
+            <ReadingStage state={state} engine={engine} />
+          </div>
+
+          <TableAnchor pickable={pickable} onPick={(slot) => engine.pickSlot(slot)} />
+
+          <CardSubtitle name={activeCardName} visible={subtitleVisible} />
+
+          <div className="reading__chat-slot">
+            <ChatForm state={state} onSend={(text) => void engine.submitChat(text)} />
+          </div>
+
+          <ReadingFooter state={state} onExit={onExit} />
+        </section>
       </div>
     </div>
   );
 }
 
-// ─── Card subtitle (briefly shows card name when lifted) ─────
+// ─── Card subtitle (3D-ish floating letters below the lifted card) ──
 
 function CardSubtitle({
   name,
@@ -168,12 +197,29 @@ function CardSubtitle({
   visible: boolean;
 }) {
   const display = name ?? '';
+  // Split into letters so each gets its own animation phase. Spaces stay
+  // as non-animated gaps.
+  const letters = display.toUpperCase().split('');
   return (
     <div
       className={`card-subtitle ${visible && display ? 'card-subtitle--on' : ''}`}
       aria-live="polite"
     >
-      {display.toUpperCase()}
+      <span className="card-subtitle__inner">
+        {letters.map((ch, i) =>
+          ch === ' ' ? (
+            <span key={i} className="card-subtitle__space">&nbsp;</span>
+          ) : (
+            <span
+              key={i}
+              className="card-subtitle__letter"
+              style={{ animationDelay: `${(i * 90) % 1400}ms` }}
+            >
+              {ch}
+            </span>
+          ),
+        )}
+      </span>
     </div>
   );
 }
@@ -191,7 +237,7 @@ function ReadingStage({ state, engine }: StageProps) {
   }
   if (state.phase === 'intro' && state.intro) {
     return (
-      <TypedLine
+      <ChunkedLine
         key="intro"
         kind="intro"
         text={state.intro.text}
@@ -213,7 +259,7 @@ function ReadingStage({ state, engine }: StageProps) {
     const monologue = engine.getCurrentMonologue();
     if (!monologue) return <div className="reading__beat" />;
     return (
-      <TypedLine
+      <ChunkedLine
         key={`beat-${state.current_slot}-${state.revealed.length}`}
         kind="beat"
         text={monologue.text}
@@ -226,7 +272,7 @@ function ReadingStage({ state, engine }: StageProps) {
   }
   if (state.phase === 'outro' && state.outro) {
     return (
-      <TypedLine
+      <ChunkedLine
         key="outro"
         kind="outro"
         text={state.outro.text}
@@ -240,10 +286,9 @@ function ReadingStage({ state, engine }: StageProps) {
   return null;
 }
 
-// ─── Stall line (catchphrase by tier) ────────────────────
+// ─── Stall line ──────────────────────────────────────────
 
 function StallLine({ tier, label }: { tier: 'cognition' | 'persona'; label: string }) {
-  // Hold one stall per mount so it doesn't flicker on re-renders.
   const phrase = useMemo(() => pickStall(tier), [tier]);
   return (
     <div className={`reading__stall reading__stall--${tier}`}>
@@ -252,9 +297,12 @@ function StallLine({ tier, label }: { tier: 'cognition' | 'persona'; label: stri
   );
 }
 
-// ─── Typed line (intro / beat / outro) ───────────────────
+// ─── Chunked typed line ──────────────────────────────────
+// Breaks long monologues into chunks that fit a rigid-size dialogue box.
+// Click finishes the current typing animation; click on a completed
+// chunk advances to the next one (or calls onAdvance on the final chunk).
 
-function TypedLine({
+function ChunkedLine({
   kind,
   text,
   onAdvance,
@@ -263,27 +311,71 @@ function TypedLine({
   text: string;
   onAdvance: () => void;
 }) {
+  const chunks = useMemo(() => chunkText(text, CHUNK_MAX_CHARS), [text]);
+  const [idx, setIdx] = useState(0);
   const settings = useMemo(() => loadSettings(), []);
+  const current = chunks[idx] ?? '';
   const { displayed, done, skip } = useTypewriter(
-    text.toLowerCase(),
+    current.toLowerCase(),
     settings.charDelayMs,
   );
+  const isLast = idx >= chunks.length - 1;
+
+  function tap() {
+    if (!done) skip();
+    else if (!isLast) setIdx(idx + 1);
+    else onAdvance();
+  }
+
+  const caret = !done ? '' : isLast ? ' ▸' : ' …';
+
   return (
     <div
-      className={`reading__${kind}`}
-      onClick={done ? onAdvance : skip}
+      className={`reading__${kind} reading__dialogue-rigid`}
+      onClick={tap}
       role="button"
       tabIndex={0}
     >
-      {displayed}
-      {done && <span aria-hidden>  ▸</span>}
+      <span>{displayed}{done && <span aria-hidden>{caret}</span>}</span>
     </div>
   );
 }
 
-// ─── Chat panel ──────────────────────────────────────────
+function chunkText(text: string, maxLen: number): string[] {
+  const trimmed = text.trim();
+  if (trimmed.length <= maxLen) return [trimmed];
+  // Split into sentences (keep terminator + trailing whitespace with each).
+  const sentences = trimmed.match(/[^.!?…]+[.!?…]+\s*|[^.!?…]+$/g) ?? [trimmed];
+  const out: string[] = [];
+  let buf = '';
+  for (const s of sentences) {
+    if (buf.length === 0) {
+      buf = s;
+    } else if (buf.length + s.length <= maxLen) {
+      buf += s;
+    } else {
+      out.push(buf.trim());
+      buf = s;
+    }
+  }
+  if (buf) out.push(buf.trim());
+  // If a single sentence is itself longer than maxLen, hard-split it.
+  const final: string[] = [];
+  for (const c of out) {
+    if (c.length <= maxLen) {
+      final.push(c);
+    } else {
+      for (let i = 0; i < c.length; i += maxLen) {
+        final.push(c.slice(i, i + maxLen));
+      }
+    }
+  }
+  return final;
+}
 
-function ChatPanel({
+// ─── Chat form (no log — log lives in Transcript) ───────
+
+function ChatForm({
   state,
   onSend,
 }: {
@@ -293,51 +385,23 @@ function ChatPanel({
   const [draft, setDraft] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
   const canSend = state.phase === 'awaiting_flip' || state.phase === 'done';
-  const showStall = state.phase === 'chat_pending';
   const activePrompt = state.active_prompt_to_user;
 
-  // When the seer invites a response, focus the chat input so the user
-  // can type immediately. Only fires on transitions, not every render.
   useEffect(() => {
-    if (activePrompt && canSend) {
-      inputRef.current?.focus();
-    }
+    if (activePrompt && canSend) inputRef.current?.focus();
   }, [activePrompt, canSend]);
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!canSend) return;
     const text = draft.trim();
-    if (text.length === 0) return;
+    if (!text) return;
     onSend(text);
     setDraft('');
   }
 
   return (
     <div className="reading__chat">
-      {state.chat.length > 0 && (
-        <div className="reading__chat-log">
-          {state.chat.map((m, i) => (
-            <div
-              key={i}
-              className={`reading__chat-line reading__chat-line--${m.speaker}`}
-            >
-              <span className="reading__chat-who">
-                {m.speaker === 'user' ? 'you' : 'the seer'}
-              </span>
-              <span className="reading__chat-text">{m.text}</span>
-            </div>
-          ))}
-          {showStall && (
-            <div className="reading__chat-line reading__chat-line--seer reading__chat-line--stall">
-              <span className="reading__chat-who">the seer</span>
-              <span className="reading__chat-text">
-                <em>{pickStall('persona')}</em>
-              </span>
-            </div>
-          )}
-        </div>
-      )}
       {activePrompt && canSend && (
         <div className="reading__chat-prompt" aria-live="polite">
           <em>{activePrompt.toLowerCase()}</em>

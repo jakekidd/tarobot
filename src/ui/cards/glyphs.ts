@@ -4,37 +4,40 @@
 
 import type { Card } from '../../pipeline';
 
-// Major Arcana glyphs. Chosen for cross-platform unicode rendering.
+// Major Arcana emoji — one unique emoji per card. Renders cross-platform
+// via the system's color emoji font (Apple Color Emoji on macOS / iOS,
+// Segoe UI Emoji on Windows, Noto Color Emoji on most Linux).
 const MAJOR_GLYPHS: readonly string[] = [
-  '◯',  // 0 The Fool
-  '✦',  // 1 The Magician
-  '☾',  // 2 The High Priestess
-  '✿',  // 3 The Empress
-  '▣',  // 4 The Emperor
-  '☥',  // 5 The Hierophant
-  '♥',  // 6 The Lovers
-  '⚜',  // 7 The Chariot
-  '✪',  // 8 Strength
-  '◐',  // 9 The Hermit
-  '⊕',  // 10 Wheel of Fortune
-  '⚖',  // 11 Justice
-  '⚓',  // 12 The Hanged Man
-  '☠',  // 13 Death
-  '⚯',  // 14 Temperance
-  '⛧',  // 15 The Devil
-  '⚡',  // 16 The Tower
-  '★',  // 17 The Star
-  '☽',  // 18 The Moon
-  '☼',  // 19 The Sun
-  '◬',  // 20 Judgement
-  '⊜',  // 21 The World
+  '🤡', // 0  The Fool
+  '🎩', // 1  The Magician
+  '🔮', // 2  The High Priestess
+  '🌹', // 3  The Empress
+  '👑', // 4  The Emperor
+  '⛪', // 5  The Hierophant
+  '💞', // 6  The Lovers
+  '🏇', // 7  The Chariot
+  '🦁', // 8  Strength
+  '🕯️', // 9  The Hermit
+  '🎡', // 10 Wheel of Fortune
+  '⚖️', // 11 Justice
+  '🙃', // 12 The Hanged Man
+  '💀', // 13 Death
+  '🍷', // 14 Temperance
+  '😈', // 15 The Devil
+  '⚡', // 16 The Tower
+  '⭐', // 17 The Star
+  '🌙', // 18 The Moon
+  '☀️', // 19 The Sun
+  '📯', // 20 Judgement
+  '🌍', // 21 The World
 ];
 
+// Suit emoji — one per suit, shared across all 14 cards in that suit.
 const SUIT_GLYPH: Record<string, string> = {
-  wands: '✦',
-  cups: '♥',
-  swords: '✕',
-  pentacles: '◈',
+  wands: '🔥',
+  cups: '☕',
+  swords: '⚔️',
+  pentacles: '🪙',
 };
 
 const ROMAN: readonly string[] = [

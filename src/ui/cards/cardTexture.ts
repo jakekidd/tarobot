@@ -89,12 +89,11 @@ function paintFace(ctx: CanvasRenderingContext2D, card: Card): void {
   ctx.fillText(numeralFor(card), 0, 0);
   ctx.restore();
 
-  // Big centre glyph
-  ctx.fillStyle = GLYPH;
-  ctx.font = '320px "Apple Color Emoji", "Segoe UI Symbol", "DejaVu Sans", sans-serif';
+  // Big centre emoji
+  ctx.font = '260px "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", "Twemoji Mozilla", sans-serif';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.fillText(glyphFor(card), TEX_W / 2, TEX_H / 2 - 30);
+  ctx.fillText(glyphFor(card), TEX_W / 2, TEX_H / 2 - 10);
 
   // Label, bottom centre
   ctx.fillStyle = INK;
@@ -132,10 +131,11 @@ function paintBack(ctx: CanvasRenderingContext2D): void {
   }
   ctx.globalAlpha = 1;
 
-  // Centre star glyph for ornament
+  // Centre star glyph for ornament — kept unicode (geometric) so the back
+  // pattern doesn't compete with the front's color emoji.
   ctx.fillStyle = GLYPH;
   ctx.globalAlpha = 0.85;
-  ctx.font = '160px "Apple Color Emoji", "Segoe UI Symbol", "DejaVu Sans", sans-serif';
+  ctx.font = '160px "Segoe UI Symbol", "DejaVu Sans", sans-serif';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.fillText('✦', cx, cy);

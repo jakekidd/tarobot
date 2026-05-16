@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import * as THREE from 'three';
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
-import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { Pass } from 'three/addons/postprocessing/Pass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import spriteData from '../reader/sprite.json';
@@ -10,6 +10,15 @@ import { getAnchor } from './anchorStore';
 import { subscribeImpacts, type Impact as ImpactEvent } from './impactStore';
 import { subscribeDizzy } from './dizzyStore';
 import { subscribeReaderMode, type ReaderMode } from './readerModeStore';
+import { getTableAnchor } from './tableAnchorStore';
+import {
+  subscribeCardScene,
+  type CardSceneState,
+  type CardStage,
+  type SlotName,
+} from './cardSceneStore';
+import { registerPicker, unregisterPicker } from './pickService';
+import { cardBackTexture, cardFaceTexture, disposeCardTextures } from '../cards/cardTexture';
 
 // Reverted from the voxel approach (it merged into a featureless silhouette —
 // the eye gaps disappeared into the surrounding side faces). Back to a flat
@@ -344,9 +353,236 @@ export function TarobotScene() {
       });
     });
 
+    // ─── Perspective layer (table + cards) ───────────────
+    // Lives in the SAME canvas as the ortho scene above. Rendered to the
+    // table-anchor rect (scissored sub-viewport). When no anchor is set
+    // (menu / survey), the perspective render is skipped entirely.
+
+    const perspScene = new THREE.Scene();
+    const perspCamera = new THREE.PerspectiveCamera(38, 1, 0.05, 80);
+    perspCamera.position.set(0, 2.4, 5.0);
+    perspCamera.lookAt(0, 0.25, 0);
+
+    // lighting
+    perspScene.add(new THREE.AmbientLight(0x2a1a55, 1.2));
+    const keyLight = new THREE.DirectionalLight(0xefe1ff, 1.25);
+    keyLight.position.set(1.2, 4.5, 2.4);
+    perspScene.add(keyLight);
+    const rimLight = new THREE.PointLight(0xb27cff, 0.8, 7, 1.6);
+    rimLight.position.set(0, 0.4, 3.0);
+    perspScene.add(rimLight);
+
+    // ── Table (red velvet top, dark cloth skirt) ───
+    const TABLE_TOP_RADIUS = 2.55;
+    const TABLE_TOP_THICK = 0.12;
+    const TABLE_SKIRT_H = 1.45;
+    const tableGroup = new THREE.Group();
+    perspScene.add(tableGroup);
+
+    const tableTopGeom = new THREE.CylinderGeometry(
+      TABLE_TOP_RADIUS, TABLE_TOP_RADIUS, TABLE_TOP_THICK, 80,
+    );
+    const tableTopMat = new THREE.MeshStandardMaterial({
+      color: 0x6b0e1c,        // deep crimson velvet
+      roughness: 0.7,
+      metalness: 0.0,
+    });
+    const tableTop = new THREE.Mesh(tableTopGeom, tableTopMat);
+    tableGroup.add(tableTop);
+
+    const skirtGeom = new THREE.CylinderGeometry(
+      TABLE_TOP_RADIUS, TABLE_TOP_RADIUS + 0.42, TABLE_SKIRT_H, 80, 1, true,
+    );
+    const skirtMat = new THREE.MeshStandardMaterial({
+      color: 0x1a0a1f,
+      roughness: 0.95,
+      metalness: 0,
+      side: THREE.DoubleSide,
+    });
+    const skirt = new THREE.Mesh(skirtGeom, skirtMat);
+    skirt.position.y = -TABLE_TOP_THICK / 2 - TABLE_SKIRT_H / 2;
+    tableGroup.add(skirt);
+
+    // Hand-wavy cloth wobble on the skirt
+    const skirtPos = skirtGeom.attributes.position;
+    if (skirtPos) {
+      const arr = skirtPos.array as Float32Array;
+      for (let i = 0; i < arr.length; i += 3) {
+        const x = arr[i + 0]!;
+        const y = arr[i + 1]!;
+        const z = arr[i + 2]!;
+        const angle = Math.atan2(z, x);
+        const radial = Math.hypot(x, z);
+        const heightFactor = (TABLE_SKIRT_H / 2 - y) / TABLE_SKIRT_H;
+        const wob = Math.sin(angle * 8) * 0.06 * heightFactor +
+                    Math.sin(angle * 17 + 1.3) * 0.025 * heightFactor;
+        const r2 = radial + wob;
+        arr[i + 0] = Math.cos(angle) * r2;
+        arr[i + 2] = Math.sin(angle) * r2;
+      }
+      skirtPos.needsUpdate = true;
+      skirtGeom.computeVertexNormals();
+    }
+
+    // ── Cards (4 rigs, materials swapped per draw) ───
+    const CARD_W = 0.84;
+    const CARD_H = 1.26;
+    const CARD_THICK = 0.01;
+    const SURFACE_Y = TABLE_TOP_THICK / 2 + 0.012;
+
+    const SLOT_POS: Record<SlotName, [number, number]> = {
+      top:    [0, -1.05],
+      left:   [-1.25, 0],
+      right:  [1.25, 0],
+      bottom: [0, 1.05],
+    };
+    const LIFT_POS = new THREE.Vector3(0, 1.55, 2.05);
+    const STAGE_QUAT: Record<CardStage, THREE.Quaternion> = {
+      face_down: new THREE.Quaternion().setFromEuler(new THREE.Euler(Math.PI / 2, 0, 0)),
+      face_up:   new THREE.Quaternion().setFromEuler(new THREE.Euler(-Math.PI / 2, 0, 0)),
+      lifted:    new THREE.Quaternion().setFromEuler(new THREE.Euler(-0.08, 0, 0)),
+    };
+    const STAGE_MS: Record<CardStage, number> = {
+      face_down: 600, face_up: 900, lifted: 700,
+    };
+
+    const cardGeom = new THREE.PlaneGeometry(CARD_W, CARD_H);
+
+    type CardRig = {
+      slot: SlotName;
+      group: THREE.Group;
+      frontMesh: THREE.Mesh;
+      backMesh: THREE.Mesh;
+      frontMat: THREE.MeshBasicMaterial;
+      backMat: THREE.MeshBasicMaterial;
+      stage: CardStage;
+      tweenStart: number;
+      tweenDur: number;
+      fromPos: THREE.Vector3;
+      fromQuat: THREE.Quaternion;
+      toPos: THREE.Vector3;
+      toQuat: THREE.Quaternion;
+    };
+
+    const SLOTS: SlotName[] = ['top', 'left', 'right', 'bottom'];
+    const cardRigs: CardRig[] = SLOTS.map((slot) => {
+      const xy = SLOT_POS[slot];
+      const frontMat = new THREE.MeshBasicMaterial({ transparent: true, opacity: 1 });
+      const backMat = new THREE.MeshBasicMaterial({ map: cardBackTexture() });
+      const front = new THREE.Mesh(cardGeom, frontMat);
+      const back = new THREE.Mesh(cardGeom, backMat);
+      back.rotation.y = Math.PI;
+      front.position.z = CARD_THICK / 2;
+      back.position.z = -CARD_THICK / 2;
+      front.userData.slot = slot;
+      back.userData.slot = slot;
+      const group = new THREE.Group();
+      group.add(front);
+      group.add(back);
+      group.position.set(xy[0], SURFACE_Y, xy[1]);
+      group.quaternion.copy(STAGE_QUAT.face_down);
+      group.visible = false;     // hidden until a reading mounts
+      perspScene.add(group);
+      const fromPos = group.position.clone();
+      const fromQuat = group.quaternion.clone();
+      return {
+        slot,
+        group, frontMesh: front, backMesh: back,
+        frontMat, backMat,
+        stage: 'face_down',
+        tweenStart: 0, tweenDur: 1,
+        fromPos, fromQuat,
+        toPos: fromPos.clone(), toQuat: fromQuat.clone(),
+      };
+    });
+
+    // ── Card scene subscription ────────────────────
+    let cardScene: CardSceneState = { drawn: null, stages: {}, pickable: false };
+    const unsubscribeCardScene = subscribeCardScene((s) => {
+      // Drawn changed → re-bind face textures
+      if (s.drawn !== cardScene.drawn) {
+        if (s.drawn) {
+          for (const dc of s.drawn.cards) {
+            const rig = cardRigs.find((r) => r.slot === dc.position.id);
+            if (!rig) continue;
+            rig.frontMat.map = cardFaceTexture(dc.card);
+            rig.frontMat.needsUpdate = true;
+            rig.group.visible = true;
+          }
+          tableGroup.visible = true;
+        } else {
+          for (const rig of cardRigs) rig.group.visible = false;
+          tableGroup.visible = false;
+        }
+      }
+      cardScene = s;
+    });
+
+    // Raycaster for slot picking. Registered via pickService; TableAnchor
+    // forwards pointerdown to pickAt.
+    const raycaster = new THREE.Raycaster();
+    function pickAt(clientX: number, clientY: number): SlotName | null {
+      if (!cardScene.pickable) return null;
+      const rect = getTableAnchor();
+      if (!rect) return null;
+      const ndcX = ((clientX - rect.x) / rect.width) * 2 - 1;
+      const ndcY = -((clientY - rect.y) / rect.height) * 2 + 1;
+      perspCamera.aspect = rect.width / rect.height;
+      perspCamera.updateProjectionMatrix();
+      raycaster.setFromCamera(new THREE.Vector2(ndcX, ndcY), perspCamera);
+      const pickable: THREE.Object3D[] = [];
+      for (const rig of cardRigs) {
+        if (rig.stage !== 'face_down' || !rig.group.visible) continue;
+        pickable.push(rig.frontMesh, rig.backMesh);
+      }
+      const hits = raycaster.intersectObjects(pickable, false);
+      for (const h of hits) {
+        const slot = h.object.userData.slot as SlotName | undefined;
+        if (slot) return slot;
+      }
+      return null;
+    }
+    registerPicker(pickAt);
+
+    // ── Composed pass (ortho then perspective into scissor rect) ───
+    class CombinedPass extends Pass {
+      override needsSwap = false;
+      override render(rdr: THREE.WebGLRenderer, writeBuffer: THREE.WebGLRenderTarget) {
+        const rt = this.renderToScreen ? null : writeBuffer;
+        rdr.setRenderTarget(rt);
+        // Reset to full viewport for the ortho render
+        rdr.setScissorTest(false);
+        rdr.setViewport(0, 0, rdr.domElement.width, rdr.domElement.height);
+        if (this.clear) rdr.clear();
+        rdr.render(scene, camera);   // ortho scene (cat / eyes / particles / orbs)
+
+        const rect = getTableAnchor();
+        const drawnPresent = cardScene.drawn !== null;
+        if (rect && drawnPresent && rect.width > 1 && rect.height > 1) {
+          const dpr = rdr.getPixelRatio();
+          const drawH = rdr.domElement.height;
+          const x = Math.round(rect.x * dpr);
+          const y = Math.round((window.innerHeight - rect.y - rect.height) * dpr);
+          // Clamp y in case of any DPR rounding drift
+          const yClamped = Math.max(0, Math.min(y, drawH));
+          const w = Math.round(rect.width * dpr);
+          const h = Math.round(rect.height * dpr);
+          rdr.clearDepth();
+          rdr.setScissorTest(true);
+          rdr.setScissor(x, yClamped, w, h);
+          rdr.setViewport(x, yClamped, w, h);
+          perspCamera.aspect = rect.width / rect.height;
+          perspCamera.updateProjectionMatrix();
+          rdr.render(perspScene, perspCamera);
+          rdr.setScissorTest(false);
+          rdr.setViewport(0, 0, rdr.domElement.width, drawH);
+        }
+      }
+    }
+
     // ─── Bloom ────────────────────────────────────────────
     const composer = new EffectComposer(renderer);
-    composer.addPass(new RenderPass(scene, camera));
+    composer.addPass(new CombinedPass());
     const bloom = new UnrealBloomPass(
       new THREE.Vector2(window.innerWidth, window.innerHeight),
       0.85,    // strength — dialed back from 1.4
@@ -746,6 +982,38 @@ export function TarobotScene() {
         orb.mesh.position.copy(orb.pos);
       }
 
+      // ── Card rigs: drive stage transitions + tweens ─────
+      if (cardScene.drawn) {
+        for (const rig of cardRigs) {
+          const wanted: CardStage = cardScene.stages[rig.slot] ?? 'face_down';
+          if (wanted !== rig.stage) {
+            rig.fromPos.copy(rig.group.position);
+            rig.fromQuat.copy(rig.group.quaternion);
+            rig.toQuat.copy(STAGE_QUAT[wanted]);
+            if (wanted === 'lifted') {
+              rig.toPos.copy(LIFT_POS);
+            } else {
+              const xy = SLOT_POS[rig.slot];
+              rig.toPos.set(xy[0], SURFACE_Y, xy[1]);
+            }
+            rig.tweenStart = now;
+            rig.tweenDur = STAGE_MS[wanted];
+            rig.stage = wanted;
+          }
+          const u = Math.min(1, (now - rig.tweenStart) / rig.tweenDur);
+          const eased = u < 0.5 ? 4 * u * u * u : 1 - Math.pow(-2 * u + 2, 3) / 2;
+          rig.group.position.lerpVectors(rig.fromPos, rig.toPos, eased);
+          rig.group.quaternion.copy(rig.fromQuat).slerp(rig.toQuat, eased);
+          if (rig.stage === 'lifted' && u >= 1) {
+            rig.group.position.y = LIFT_POS.y + Math.sin(t * 1.4) * 0.018;
+            const yawDrift = Math.sin(t * 0.7) * 0.05;
+            const driftQuat = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, yawDrift, 0));
+            rig.group.quaternion.copy(STAGE_QUAT.lifted).multiply(driftQuat);
+          }
+        }
+        tableGroup.position.y = Math.sin(t * 0.35) * 0.005;
+      }
+
       composer.render();
       rafId = requestAnimationFrame(animate);
     };
@@ -761,6 +1029,8 @@ export function TarobotScene() {
       unsubscribeImpacts();
       unsubscribeDizzy();
       unsubscribeReaderMode();
+      unsubscribeCardScene();
+      unregisterPicker(pickAt);
       for (const orb of orbs) {
         orbGroup.remove(orb.mesh);
         orb.mat.dispose();
@@ -773,6 +1043,17 @@ export function TarobotScene() {
       eyeGeom.dispose();
       eyeMat.dispose();
       (rightEye.material as THREE.MeshBasicMaterial).dispose();
+      // Perspective layer
+      for (const rig of cardRigs) {
+        rig.frontMat.dispose();
+        rig.backMat.dispose();
+      }
+      cardGeom.dispose();
+      tableTopGeom.dispose();
+      tableTopMat.dispose();
+      skirtGeom.dispose();
+      skirtMat.dispose();
+      disposeCardTextures();
       particleGeom.dispose();
       particleMat.dispose();
       particleTex.dispose();
