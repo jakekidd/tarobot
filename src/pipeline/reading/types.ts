@@ -1,137 +1,220 @@
 // Reading types.
 //
 // The reading phase consumes the survey's CompilerOutput (Profile + Brief
-// + Choice) and produces a sequenced, card-flipped portrait of the user-
-// at-the-fork. Plan-and-Write architecture:
+// + Choice) and produces a fan-out, card-flipped portrait of the user-at-
+// the-fork. New architecture (replaces the older Plan-and-Write):
 //
-//   1. COGNITION (one call) — given brief + drawn cards, produce a
-//      ReadingPlan: a 1-sentence arc thesis + per-card structural angles.
-//      "What angle does this card permit me to illuminate?" — NOT outcome
-//      predictions. Mirror-not-oracle: each angle illuminates the user's
-//      position at the fork, not the fork's answer.
+//   1. INTRO — short monologue establishing presence. Pre-baked for demo
+//      (see fixtures.ts); cognition+persona generated in production.
 //
-//   2. PERSONA (one call) — given the plan + voice rules + brief, produce
-//      a Reading: the witch's intro line + one beat per card + optional
-//      closing line. Under-specify on purpose; co-authorship with the user.
+//   2. PER-CARD FAN-OUT — at the start of each round (round N = the
+//      user is about to flip their Nth card), spawn one cognition+persona
+//      pair per still-face-down slot, IN PARALLEL. Each thread treats
+//      its slot as the hypothetical-next-flip. None of these threads
+//      know the faces of slots they're not assigned. When the user
+//      picks a slot, we look up the pre-computed monologue for
+//      [round, picked-slot] and deliver it.
 //
-// The UI then sequences the card flips and renders the beats one at a time.
-// No mid-reading LLM calls; latency lives at the pre-reading boundary, not
-// between flips.
+//   3. CLOSING — after all four flips, one cognition+persona pair
+//      synthesizes a structural takeaway across the full revealed arc.
+//
+// Mirror-not-oracle: cards illuminate the user's RELATIONSHIP to the
+// fork, never the answer. Cognition produces understanding; persona
+// produces utterance. The split is load-bearing — cognition can route
+// to deep-tier cloud Claude; persona can eventually route to local
+// uncensored OSS LLMs.
 
 import type { DrawnCards, Profile } from '../types';
 import type { CompilerOutput } from '../survey';
 
-// ─── Inputs (from survey close + card draw) ────────────────────
+// ─── Inputs (from survey close OR demo fixture) ────────────────
 
 export type ReadingInputs = {
-  profile: Profile;             // legacy shape from CompilerOutput
-  prose_brief: string;          // the witch's primary read
-  drawn: DrawnCards;            // cards already selected + assigned positions
+  profile: Profile;
+  prose_brief: string;
+  drawn: DrawnCards;
+  /** If set, engine uses this verbatim and skips the intro generation
+   *  call. The demo path supplies a hand-written intro. */
+  preferred_intro?: Monologue;
 };
 
 export function readingInputsFromCompiler(
   compiler: CompilerOutput,
   drawn: DrawnCards,
+  opts?: { preferred_intro?: Monologue },
 ): ReadingInputs {
   return {
     profile: compiler.profile,
     prose_brief: compiler.prose_brief,
     drawn,
+    ...(opts?.preferred_intro ? { preferred_intro: opts.preferred_intro } : {}),
   };
 }
 
-// ─── Cognition output (the plan) ───────────────────────────────
+// ─── Per-card cognition (the clinical layer) ───────────────────
 
-/** Narrative-arc role for a card position. Borrowed from Dramatron's
- *  scene-label pattern; gives the persona structural scaffolding. */
+/** Narrative-arc role for a flip. Borrowed from Dramatron's scene labels.
+ *  Mapped from flip ORDER (not slot identity), so the same slot might be
+ *  'opening' in one reading and 'turning' in another, depending on when
+ *  the user chose to flip it. */
 export type NarrativeRole = 'opening' | 'rising' | 'turning' | 'closing';
 
-export type CardAngle = {
-  /** The spread position id (from src/pipeline/spreads.ts). */
-  position_id: string;
-  /** The drawn card's id (0-77). */
-  card_id: number;
-  /** Structural intent — what THIS card permits the witch to illuminate
-   *  about THIS user's position at THE fork. 1-2 sentences. Internal,
-   *  not user-facing. */
-  angle: string;
-  /** The card's symbolic constraint, named explicitly so the persona
-   *  can lean on it. 1 sentence. */
-  constraint: string;
-  /** Narrative scaffolding for the witch's pacing. */
+export type ClinicalIntent = {
+  position_id: string;             // which slot this clinical is for
+  card_id: number;                 // the card face at that slot
+  flip_round: number;              // 1..4 — when in the reading this happens
   narrative_role: NarrativeRole;
+  /** What THIS card permits about THIS user's RELATIONSHIP to THE fork.
+   *  1-2 sentences. Internal — persona will voice it, never quote it. */
+  angle: string;
+  /** 2-3 specific things to surface about the user, under-specified on
+   *  purpose. The persona uses these as material; she doesn't recite. */
+  noticings: string[];
+  /** ONE mirror-shaped lens, not an outcome prediction. */
+  structural_prediction: string;
+  /** Pacing, tone, things to leave unsaid, callback opportunities. */
+  director_notes: string;
 };
 
-export type ReadingPlan = {
-  /** One-sentence thesis for the whole reading. The structural shape of
-   *  the user-at-fork that all four cards together illuminate. */
-  arc_thesis: string;
-  /** Per-card structural angles, in flip order. */
-  cards: CardAngle[];
+// ─── Persona output (the voiced layer) ─────────────────────────
+
+export type Monologue = {
+  /** The spoken text. Lowercase voice, mirror register, 2-4 sentences
+   *  for beats; 1 short line for intro; 1 sentence for outro. */
+  text: string;
+  /** Optional invitation for user response. If non-empty, UI may
+   *  surface it as a hint above the chat box. */
+  prompt_to_user?: string;
 };
 
-// ─── Persona output (the voice) ────────────────────────────────
+// ─── Closing ───────────────────────────────────────────────────
 
-export type Beat = {
-  /** Matches one CardAngle by position_id. */
-  position_id: string;
-  /** The witch's spoken beat for this card. 2-4 sentences, mirror-not-
-   *  oracle, specific-but-under-determined. */
+export type ClosingIntent = {
+  /** ONE-sentence structural takeaway. The frame the user carries
+   *  out of the tent. */
+  takeaway: string;
+  /** Pacing / tone direction for the persona's outro delivery. */
+  director_notes: string;
+};
+
+// ─── Engine state ──────────────────────────────────────────────
+
+export type ReadingPhase =
+  | 'idle'              // not started
+  | 'thinking'          // intro generation in flight (only if no preferred_intro)
+  | 'intro'             // intro typewriter active
+  | 'awaiting_flip'     // user can pick a face-down card or chat
+  | 'flipping'          // CSS-3D flip animation playing
+  | 'beat_pending'      // monologue not yet ready (fan-out still in flight)
+  | 'beat'              // monologue typewriter active
+  | 'chat_pending'      // persona generating reply to a user chat message
+  | 'closing_thinking'  // cognition + persona running after the 4th flip
+  | 'outro'             // closing monologue typewriter active
+  | 'done'              // reading complete; chat may still be possible
+  | 'error';
+
+export type ChatSpeaker = 'user' | 'seer';
+
+export type ChatMessage = {
+  speaker: ChatSpeaker;
   text: string;
 };
 
-export type Reading = {
-  /** The witch's opening line, before any cards flip. */
-  intro: string;
-  /** One beat per card position, in flip order. */
-  beats: Beat[];
-  /** Optional closing line after the last flip. Empty allowed. */
-  outro: string;
+export type RevealedSlot = {
+  position_id: string;
+  card_id: number;
+  clinical: ClinicalIntent;
+  monologue: Monologue;
 };
-
-// ─── Engine state (UI-facing) ──────────────────────────────────
-
-export type ReadingPhase =
-  | 'idle'           // not yet started
-  | 'thinking'       // cognition + persona in flight
-  | 'intro'          // intro line typing out
-  | 'flipping'       // a card is flipping
-  | 'beat'           // a beat is being voiced
-  | 'between'        // brief pause between cards
-  | 'outro'          // outro line typing out
-  | 'done';
 
 export type ReadingState = {
   inputs: ReadingInputs;
-  plan: ReadingPlan | null;
-  reading: Reading | null;
   phase: ReadingPhase;
-  /** Which card index we're currently on (0..3 for four-card-diamond).
-   *  -1 means before the first card. */
-  current_index: number;
-  /** Position ids that have been flipped + voiced. */
-  revealed_position_ids: string[];
-  closed: boolean;
+  intro: Monologue | null;
+  outro: Monologue | null;
+  revealed: RevealedSlot[];           // in flip order
+  /** The slot the user has picked for the current flip (or is being voiced). */
+  current_slot: string | null;
+  /** Which model tier we're awaiting, for catchphrase selection. null = no wait. */
+  awaiting_tier: 'cognition' | 'persona' | null;
+  /** Live invitation from the seer for the user to respond. Set when a
+   *  delivered Monologue carried a prompt_to_user; cleared when the user
+   *  responds (picks a card or sends a chat). */
+  active_prompt_to_user: string | null;
+  chat: ChatMessage[];
   error?: string;
 };
 
-// ─── Agent I/O ─────────────────────────────────────────────────
-
-export type CognitionInput = {
-  profile: Profile;
-  prose_brief: string;
-  drawn: DrawnCards;
-};
-
-export type CognitionOutput = ReadingPlan;
-
-export type PersonaInput = {
-  profile: Profile;
-  prose_brief: string;
-  drawn: DrawnCards;
-  plan: ReadingPlan;
-};
-
-export type PersonaOutput = Reading;
-
 export type ReadingListener = (state: ReadingState) => void;
+
+// ─── Agent I/O (for the call wrappers) ─────────────────────────
+
+export type PerCardCognitionInput = {
+  profile: Profile;
+  prose_brief: string;
+  /** All slots in the spread (with prompt_labels) so the model knows
+   *  the structure, but face information is restricted to this_slot +
+   *  already-revealed. */
+  spread_id: string;
+  spread_name: string;
+  all_positions: Array<{ id: string; role: string; prompt_label: string }>;
+  /** The slot this thread is reading for, including its card face. */
+  this_slot: {
+    position_id: string;
+    role: string;
+    prompt_label: string;
+    card_id: number;
+    card_name: string;
+    card_keywords: string[];
+    card_upright_meaning: string;
+  };
+  flip_round: number;
+  /** Cards already revealed in this session, with their delivered beats. */
+  revealed_history: Array<{
+    position_id: string;
+    card_name: string;
+    beat_text: string;
+  }>;
+  /** Chat exchanges so far. */
+  chat_history: ChatMessage[];
+};
+
+export type PerCardPersonaInput = {
+  profile: Profile;
+  prose_brief: string;
+  clinical: ClinicalIntent;
+  /** The card face being voiced. */
+  card: { name: string; keywords: string[]; upright_meaning: string };
+  /** Slot role (e.g. "what surrounds the choice"). */
+  slot_label: string;
+  revealed_history: Array<{ position_id: string; card_name: string; beat_text: string }>;
+  chat_history: ChatMessage[];
+};
+
+export type IntroPersonaInput = {
+  profile: Profile;
+  prose_brief: string;
+};
+
+export type ClosingCognitionInput = {
+  profile: Profile;
+  prose_brief: string;
+  revealed: RevealedSlot[];
+  chat_history: ChatMessage[];
+};
+
+export type ClosingPersonaInput = {
+  profile: Profile;
+  prose_brief: string;
+  revealed: RevealedSlot[];
+  chat_history: ChatMessage[];
+  closing: ClosingIntent;
+};
+
+export type ChatPersonaInput = {
+  profile: Profile;
+  prose_brief: string;
+  revealed: RevealedSlot[];
+  chat_history: ChatMessage[];
+  user_message: string;
+};

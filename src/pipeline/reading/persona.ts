@@ -1,45 +1,134 @@
-// Reading persona agent — Plan-and-Write's WRITE stage.
-// Voices the witch's reading from the plan. One call, all four beats +
-// intro + outro at once. UI then sequences the reveal client-side.
+// Persona-tier call wrappers. Each function builds an InvocationSpec and
+// routes through adapter.invoke(). The voiced layer.
+//
+// All four are 'deep' tier today because voice quality is load-bearing
+// and we're on Anthropic. When local OSS LLM swap lands, these are the
+// call sites to repoint at the local adapter.
 
 import type { LLMAdapter } from '../survey/adapter';
-import { ReadingSchema } from './schemas';
-import { READING_PERSONA_SYSTEM, READING_PERSONA_TOOL } from './prompts/persona';
-import type { PersonaInput, PersonaOutput } from './types';
+import { MonologueSchema } from './schemas';
+import {
+  PER_CARD_PERSONA_SYSTEM,
+  PER_CARD_PERSONA_TOOL,
+  INTRO_PERSONA_SYSTEM,
+  INTRO_PERSONA_TOOL,
+  CLOSING_PERSONA_SYSTEM,
+  CLOSING_PERSONA_TOOL,
+  CHAT_PERSONA_SYSTEM,
+  CHAT_PERSONA_TOOL,
+} from './prompts/persona';
+import type {
+  ChatPersonaInput,
+  ClosingPersonaInput,
+  IntroPersonaInput,
+  Monologue,
+  PerCardPersonaInput,
+} from './types';
 
-export async function voiceReading(
+export async function personaPerCard(
   adapter: LLMAdapter,
-  input: PersonaInput,
-): Promise<PersonaOutput> {
+  input: PerCardPersonaInput,
+): Promise<Monologue> {
   const payload = {
     identity: input.profile.identity,
-    choice: input.profile.candidates.find((c) => c.is_target) ?? input.profile.candidates[0] ?? null,
-    cast: input.profile.cast,
-    highlights: input.profile.highlights,
     prose_brief: input.prose_brief,
-    drawn: input.drawn.cards.map((dc) => ({
-      position_id: dc.position.id,
-      position_role: dc.position.role,
-      card: {
-        id: dc.card.id,
-        name: dc.card.name,
-        keywords: dc.card.keywords,
-        upright_meaning: dc.card.upright_meaning,
-      },
-    })),
-    plan: input.plan,
-    instruction:
-      'voice the reading in the witch\'s style. emit intro + one beat per card position (matching the plan) + outro. mirror, not oracle.',
+    clinical: input.clinical,
+    card: input.card,
+    slot_label: input.slot_label,
+    revealed_history: input.revealed_history,
+    chat_history: input.chat_history,
+    instruction: 'voice ONE beat as the seer, from the clinical intent.',
   };
 
-  return adapter.invoke<PersonaOutput>(
+  return adapter.invoke<Monologue>(
     {
-      system: READING_PERSONA_SYSTEM,
+      system: PER_CARD_PERSONA_SYSTEM,
       user: JSON.stringify(payload, null, 2),
-      tool: READING_PERSONA_TOOL,
-      model: 'deep',         // Opus — voice quality is load-bearing here
-      max_tokens: 2500,
+      tool: PER_CARD_PERSONA_TOOL,
+      model: 'deep',
+      max_tokens: 600,
     },
-    ReadingSchema,
+    MonologueSchema,
+  );
+}
+
+export async function personaIntro(
+  adapter: LLMAdapter,
+  input: IntroPersonaInput,
+): Promise<Monologue> {
+  const payload = {
+    identity: input.profile.identity,
+    prose_brief: input.prose_brief,
+    instruction:
+      'voice ONE short opening line as the seer. land them in the room. do not demonstrate insight yet.',
+  };
+
+  return adapter.invoke<Monologue>(
+    {
+      system: INTRO_PERSONA_SYSTEM,
+      user: JSON.stringify(payload, null, 2),
+      tool: INTRO_PERSONA_TOOL,
+      model: 'deep',
+      max_tokens: 200,
+    },
+    MonologueSchema,
+  );
+}
+
+export async function personaClosing(
+  adapter: LLMAdapter,
+  input: ClosingPersonaInput,
+): Promise<Monologue> {
+  const payload = {
+    identity: input.profile.identity,
+    prose_brief: input.prose_brief,
+    revealed: input.revealed.map((r) => ({
+      position_id: r.position_id,
+      card_id: r.card_id,
+      beat_text: r.monologue.text,
+    })),
+    chat_history: input.chat_history,
+    closing: input.closing,
+    instruction: 'voice the outro. one or two sentences. drop the voice.',
+  };
+
+  return adapter.invoke<Monologue>(
+    {
+      system: CLOSING_PERSONA_SYSTEM,
+      user: JSON.stringify(payload, null, 2),
+      tool: CLOSING_PERSONA_TOOL,
+      model: 'deep',
+      max_tokens: 300,
+    },
+    MonologueSchema,
+  );
+}
+
+export async function personaChat(
+  adapter: LLMAdapter,
+  input: ChatPersonaInput,
+): Promise<Monologue> {
+  const payload = {
+    identity: input.profile.identity,
+    prose_brief: input.prose_brief,
+    revealed: input.revealed.map((r) => ({
+      position_id: r.position_id,
+      card_id: r.card_id,
+      beat_text: r.monologue.text,
+    })),
+    chat_history: input.chat_history,
+    user_message: input.user_message,
+    instruction: 'respond to the participant as the seer. short.',
+  };
+
+  return adapter.invoke<Monologue>(
+    {
+      system: CHAT_PERSONA_SYSTEM,
+      user: JSON.stringify(payload, null, 2),
+      tool: CHAT_PERSONA_TOOL,
+      model: 'deep',
+      max_tokens: 400,
+    },
+    MonologueSchema,
   );
 }

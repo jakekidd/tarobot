@@ -13,6 +13,7 @@ import { Settings } from './ui/Settings';
 import { Survey as SurveyScreen } from './ui/Survey';
 import { Reading } from './ui/Reading';
 import { TarobotScene } from './ui/scene/TarobotScene';
+import { buildMarisolDemoBrief, MARISOL_INTRO } from './pipeline/reading';
 
 type Phase =
   | { kind: 'key' }
@@ -20,7 +21,7 @@ type Phase =
   | { kind: 'resume' }
   | { kind: 'settings' }
   | { kind: 'survey'; session: Session }
-  | { kind: 'reading'; session: Session; brief: CompilerOutput };
+  | { kind: 'reading'; session: Session; brief: CompilerOutput; preferredIntro?: typeof MARISOL_INTRO };
 
 export function App() {
   const [apiKey, setApiKey] = useState<string | null>(() => loadApiKey());
@@ -36,6 +37,19 @@ export function App() {
     const s = newSession();
     saveSession(s);
     setPhase({ kind: 'survey', session: s });
+  }
+
+  /** Skip survey: synthesize a session and route straight into the
+   *  reading with a hand-authored brief and intro. */
+  function startReadDemo() {
+    const s: Session = { ...newSession(), phase: 'tent' };
+    saveSession(s);
+    setPhase({
+      kind: 'reading',
+      session: s,
+      brief: buildMarisolDemoBrief(),
+      preferredIntro: MARISOL_INTRO,
+    });
   }
 
   function resumeSession(s: Session) {
@@ -98,6 +112,7 @@ export function App() {
           {phase.kind === 'menu' && (
             <Menu
               onBegin={startNewReading}
+              onReadDemo={startReadDemo}
               onOpenResume={() => setPhase({ kind: 'resume' })}
               onSettings={() => setPhase({ kind: 'settings' })}
             />
@@ -124,6 +139,7 @@ export function App() {
             <Reading
               apiKey={apiKey}
               brief={phase.brief}
+              preferredIntro={phase.preferredIntro}
               onExit={goMenu}
             />
           )}

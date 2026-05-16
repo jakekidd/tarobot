@@ -1,17 +1,21 @@
-// Reading screen — mirror-not-oracle phase. The witch reads four cards.
+// Reading screen — fan-out pipeline interface. The seer reads four cards
+// in a diamond. The user picks which face-down card to flip next.
 //
-// Lifecycle is driven by the ReadingEngine state machine:
-//   thinking → intro → flipping → beat → between → flipping → ... → outro → done
-//
-// We auto-advance on phase boundaries that don't need user input (flipping
-// → beat, between → next flipping). For the typed beats and the intro/outro,
-// the user taps to continue once typing finishes.
+// Engine drives the phase machine. UI maps each phase to a render:
+//   thinking            → stall over empty stage
+//   intro               → typewriter line, advances on tap
+//   awaiting_flip       → cards clickable; chat input enabled
+//   flipping            → CSS-3D flip plays out; UI nudges engine when done
+//   beat_pending        → stall (persona still computing for this slot)
+//   beat                → typewriter monologue; advances on tap
+//   chat_pending        → stall in the chat panel
+//   closing_thinking    → stall while closing cognition+persona run
+//   outro               → typewriter outro; advances on tap
+//   done                → chat still active; close button surfaced
+//   error               → message + close
 
-import { useEffect, useMemo, useState } from 'react';
-import {
-  AnthropicAdapter,
-  type CompilerOutput,
-} from '../pipeline/survey';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { AnthropicAdapter, type CompilerOutput } from '../pipeline/survey';
 import {
   drawForSpread,
   FOUR_CARD_DIAMOND,
@@ -21,10 +25,12 @@ import { createClaudeClient } from '../pipeline/claude';
 import {
   ReadingEngine,
   readingInputsFromCompiler,
+  type Monologue,
   type ReadingState,
+  pickStall,
 } from '../pipeline/reading';
 import { Reader } from './reader/Reader';
-import { CardSpread } from './cards/CardSpread';
+import { Card } from './cards/Card';
 import { Spinner } from './Spinner';
 import { useTypewriter } from './dialogue/useTypewriter';
 import { setDizzy } from './scene/dizzyStore';
@@ -33,16 +39,13 @@ import { loadSettings } from '../storage';
 type Props = {
   apiKey: string;
   brief: CompilerOutput;
+  preferredIntro?: Monologue;
   onExit: () => void;
 };
 
-const FLIP_ANIM_MS = 950;       // matches the CSS transition duration
-const BETWEEN_PAUSE_MS = 700;
+const FLIP_ANIM_MS = 950;
 
-export function Reading({ apiKey, brief, onExit }: Props) {
-  // Draw the cards exactly once at mount. Faces are known to the engine
-  // from this moment forward — the UI animates a reveal that's already
-  // determined.
+export function Reading({ apiKey, brief, preferredIntro, onExit }: Props) {
   const drawn: DrawnCards = useMemo(
     () => drawForSpread(FOUR_CARD_DIAMOND),
     [],
@@ -53,7 +56,9 @@ export function Reading({ apiKey, brief, onExit }: Props) {
     const adapter = new AnthropicAdapter(client);
     return new ReadingEngine({
       adapter,
-      inputs: readingInputsFromCompiler(brief, drawn),
+      inputs: readingInputsFromCompiler(brief, drawn, {
+        ...(preferredIntro ? { preferred_intro: preferredIntro } : {}),
+      }),
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [apiKey, drawn]);
@@ -66,151 +71,192 @@ export function Reading({ apiKey, brief, onExit }: Props) {
     return unsub;
   }, [engine]);
 
-  // Drive dizzy state while we're waiting on cognition + persona.
+  // Dizzy while we're awaiting an LLM call (any tier).
   useEffect(() => {
-    setDizzy(state.phase === 'thinking');
+    setDizzy(state.awaiting_tier !== null);
     return () => setDizzy(false);
-  }, [state.phase]);
+  }, [state.awaiting_tier]);
 
-  // Auto-advance flipping → beat after the flip animation, and between →
-  // next flip after a short pause. User taps drive intro / beat / outro.
+  // Drive the flip → beat transition once CSS animation has played.
   useEffect(() => {
-    if (state.phase === 'flipping') {
-      const t = window.setTimeout(() => engine.advance(), FLIP_ANIM_MS);
-      return () => window.clearTimeout(t);
-    }
-    if (state.phase === 'between') {
-      const t = window.setTimeout(() => engine.advance(), BETWEEN_PAUSE_MS);
-      return () => window.clearTimeout(t);
-    }
-    return;
+    if (state.phase !== 'flipping') return;
+    const t = window.setTimeout(() => engine.advanceFromFlip(), FLIP_ANIM_MS);
+    return () => window.clearTimeout(t);
   }, [state.phase, engine]);
 
-  // Cleanup: clear dizzy on unmount.
   useEffect(() => () => setDizzy(false), []);
 
-  // ─── derived ─────────────────────────────────────────
-
-  const revealedThroughFlip = computeRevealed(state);
-  const activeSlot = state.plan?.cards[state.current_index]?.position_id ?? null;
+  // Compute which slots are face-up at this instant. While flipping/beat-
+  // delivering, the current slot is treated as revealed so its CSS flip
+  // plays out.
+  const revealedSet = useMemo(() => {
+    const s = new Set<string>(state.revealed.map((r) => r.position_id));
+    if (
+      (state.phase === 'flipping' ||
+        state.phase === 'beat_pending' ||
+        state.phase === 'beat') &&
+      state.current_slot
+    ) {
+      s.add(state.current_slot);
+    }
+    return s;
+  }, [state.revealed, state.phase, state.current_slot]);
 
   return (
     <div className="screen screen--reading">
       <Reader />
-      <ReadingTextStage state={state} onAdvance={() => engine.advance()} />
-      <CardSpread
+      <ReadingStage state={state} engine={engine} />
+      <SpreadBoard
         drawn={drawn}
-        revealed={revealedThroughFlip}
-        active={state.phase === 'flipping' ? activeSlot : null}
+        revealedSet={revealedSet}
+        activeSlot={state.phase === 'flipping' ? state.current_slot : null}
+        canPick={state.phase === 'awaiting_flip'}
+        onPick={(slot) => engine.pickSlot(slot)}
       />
-      <ReadingFooter
+      <ChatPanel
         state={state}
-        onAdvance={() => engine.advance()}
-        onExit={onExit}
+        onSend={(text) => void engine.submitChat(text)}
       />
+      <ReadingFooter state={state} onExit={onExit} />
     </div>
   );
 }
 
-/** Determine which cards should be face-up given the current phase + index. */
-function computeRevealed(state: ReadingState): string[] {
-  const ids = [...state.revealed_position_ids];
-  // While flipping the current card, treat it as revealed so the CSS-3D
-  // transform plays out. The beat phase keeps the same revealed set.
-  if (state.plan && (state.phase === 'flipping' || state.phase === 'beat')) {
-    const cur = state.plan.cards[state.current_index];
-    if (cur && !ids.includes(cur.position_id)) ids.push(cur.position_id);
-  }
-  return ids;
-}
+// ─── Stage (intro / beat / outro / stall) ────────────────
 
-// ─── Text stage (intro / beat / outro / thinking) ────────
+type StageProps = { state: ReadingState; engine: ReadingEngine };
 
-type StageProps = {
-  state: ReadingState;
-  onAdvance: () => void;
-};
-
-function ReadingTextStage({ state, onAdvance }: StageProps) {
+function ReadingStage({ state, engine }: StageProps) {
   if (state.phase === 'idle' || state.phase === 'thinking') {
-    return (
-      <div className="reading__intro reading__intro--thinking">
-        <Spinner label="laying the cards" />
-      </div>
-    );
+    return <StallLine tier="persona" label="opening the reading" />;
   }
-  if (state.error) {
-    return <div className="reading__error">{state.error}</div>;
+  if (state.phase === 'error') {
+    return <div className="reading__error">{state.error ?? 'something went wrong.'}</div>;
   }
-
-  if (state.phase === 'intro' && state.reading) {
+  if (state.phase === 'intro' && state.intro) {
     return (
-      <IntroLine
+      <TypedLine
         key="intro"
-        text={state.reading.intro.toLowerCase()}
-        onAdvance={onAdvance}
+        kind="intro"
+        text={state.intro.text}
+        onAdvance={() => engine.advanceFromIntro()}
       />
     );
   }
-  if (state.phase === 'beat' && state.reading && state.plan) {
-    const angle = state.plan.cards[state.current_index];
-    const beat = angle && state.reading.beats.find((b) => b.position_id === angle.position_id);
-    if (!beat) return <div className="reading__beat" />;
+  if (state.phase === 'awaiting_flip') {
     return (
-      <BeatLine
-        key={`beat-${state.current_index}`}
-        text={beat.text.toLowerCase()}
-        onAdvance={onAdvance}
-      />
-    );
-  }
-  if (state.phase === 'flipping' || state.phase === 'between') {
-    // Keep the previous beat visible while the next card flips, to anchor
-    // the eye. If there's no previous beat yet, render an empty placeholder
-    // so the layout doesn't reflow.
-    const prevIdx = Math.max(0, state.current_index - (state.phase === 'between' ? 0 : 1));
-    const angle = state.plan?.cards[prevIdx];
-    const beat = angle && state.reading?.beats.find((b) => b.position_id === angle.position_id);
-    return (
-      <div className="reading__beat" aria-hidden>
-        {beat ? beat.text.toLowerCase() : ''}
+      <div className="reading__cue">
+        <em>pick a card.</em>
       </div>
     );
   }
-  if (state.phase === 'outro' && state.reading) {
+  if (state.phase === 'flipping' || state.phase === 'beat_pending') {
+    return <StallLine tier={state.awaiting_tier ?? 'persona'} label="" />;
+  }
+  if (state.phase === 'beat') {
+    const monologue = engine.getCurrentMonologue();
+    if (!monologue) return <div className="reading__beat" />;
     return (
-      <OutroLine
-        key="outro"
-        text={state.reading.outro.toLowerCase()}
-        onAdvance={onAdvance}
+      <TypedLine
+        key={`beat-${state.current_slot}-${state.revealed.length}`}
+        kind="beat"
+        text={monologue.text}
+        onAdvance={() => engine.advanceFromBeat()}
       />
     );
   }
-  if (state.phase === 'done' && state.reading) {
-    return <div className="reading__outro">{state.reading.outro.toLowerCase()}</div>;
+  if (state.phase === 'closing_thinking') {
+    return <StallLine tier={state.awaiting_tier ?? 'cognition'} label="closing" />;
+  }
+  if (state.phase === 'outro' && state.outro) {
+    return (
+      <TypedLine
+        key="outro"
+        kind="outro"
+        text={state.outro.text}
+        onAdvance={() => engine.advanceFromOutro()}
+      />
+    );
+  }
+  if (state.phase === 'done' && state.outro) {
+    return <div className="reading__outro">{state.outro.text}</div>;
   }
   return null;
 }
 
-// ─── Typed lines ─────────────────────────────────────────
+// ─── Spread (clickable face-down cards) ──────────────────
 
-function IntroLine({ text, onAdvance }: { text: string; onAdvance: () => void }) {
-  const settings = useMemo(() => loadSettings(), []);
-  const { displayed, done } = useTypewriter(text, settings.charDelayMs);
+function SpreadBoard({
+  drawn,
+  revealedSet,
+  activeSlot,
+  canPick,
+  onPick,
+}: {
+  drawn: DrawnCards;
+  revealedSet: Set<string>;
+  activeSlot: string | null;
+  canPick: boolean;
+  onPick: (slot: string) => void;
+}) {
   return (
-    <div className="reading__intro" onClick={done ? onAdvance : undefined}>
-      {displayed}
-      {done && <span className="reading__intro-caret" aria-hidden> ▸</span>}
+    <div className="card-spread" aria-label="four-card diamond spread">
+      {drawn.cards.map((dc) => {
+        const slot = dc.position.id;
+        const isRevealed = revealedSet.has(slot);
+        const isActive = activeSlot === slot;
+        const isPickable = canPick && !isRevealed;
+        return (
+          <div
+            key={slot}
+            className={`card-spread__slot card-spread__slot--${slot} ${
+              isActive ? 'card-spread__slot--active' : ''
+            } ${isPickable ? 'card-spread__slot--pickable' : ''}`}
+            aria-label={dc.position.role}
+          >
+            <Card
+              card={dc.card}
+              revealed={isRevealed}
+              {...(isPickable ? { onClick: () => onPick(slot) } : {})}
+            />
+          </div>
+        );
+      })}
     </div>
   );
 }
 
-function BeatLine({ text, onAdvance }: { text: string; onAdvance: () => void }) {
+// ─── Stall line (catchphrase by tier) ────────────────────
+
+function StallLine({ tier, label }: { tier: 'cognition' | 'persona'; label: string }) {
+  // Hold one stall per mount so it doesn't flicker on re-renders.
+  const phrase = useMemo(() => pickStall(tier), [tier]);
+  return (
+    <div className={`reading__stall reading__stall--${tier}`}>
+      <Spinner label={label || phrase} />
+    </div>
+  );
+}
+
+// ─── Typed line (intro / beat / outro) ───────────────────
+
+function TypedLine({
+  kind,
+  text,
+  onAdvance,
+}: {
+  kind: 'intro' | 'beat' | 'outro';
+  text: string;
+  onAdvance: () => void;
+}) {
   const settings = useMemo(() => loadSettings(), []);
-  const { displayed, done, skip } = useTypewriter(text, settings.charDelayMs);
+  const { displayed, done, skip } = useTypewriter(
+    text.toLowerCase(),
+    settings.charDelayMs,
+  );
   return (
     <div
-      className="reading__beat"
+      className={`reading__${kind}`}
       onClick={done ? onAdvance : skip}
       role="button"
       tabIndex={0}
@@ -221,13 +267,92 @@ function BeatLine({ text, onAdvance }: { text: string; onAdvance: () => void }) 
   );
 }
 
-function OutroLine({ text, onAdvance }: { text: string; onAdvance: () => void }) {
-  const settings = useMemo(() => loadSettings(), []);
-  const { displayed, done } = useTypewriter(text, settings.charDelayMs);
+// ─── Chat panel ──────────────────────────────────────────
+
+function ChatPanel({
+  state,
+  onSend,
+}: {
+  state: ReadingState;
+  onSend: (text: string) => void;
+}) {
+  const [draft, setDraft] = useState('');
+  const inputRef = useRef<HTMLInputElement>(null);
+  const canSend = state.phase === 'awaiting_flip' || state.phase === 'done';
+  const showStall = state.phase === 'chat_pending';
+  const activePrompt = state.active_prompt_to_user;
+
+  // When the seer invites a response, focus the chat input so the user
+  // can type immediately. Only fires on transitions, not every render.
+  useEffect(() => {
+    if (activePrompt && canSend) {
+      inputRef.current?.focus();
+    }
+  }, [activePrompt, canSend]);
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!canSend) return;
+    const text = draft.trim();
+    if (text.length === 0) return;
+    onSend(text);
+    setDraft('');
+  }
+
   return (
-    <div className="reading__outro" onClick={done ? onAdvance : undefined}>
-      {displayed}
-      {done && <span aria-hidden>  ▸</span>}
+    <div className="reading__chat">
+      {state.chat.length > 0 && (
+        <div className="reading__chat-log">
+          {state.chat.map((m, i) => (
+            <div
+              key={i}
+              className={`reading__chat-line reading__chat-line--${m.speaker}`}
+            >
+              <span className="reading__chat-who">
+                {m.speaker === 'user' ? 'you' : 'the seer'}
+              </span>
+              <span className="reading__chat-text">{m.text}</span>
+            </div>
+          ))}
+          {showStall && (
+            <div className="reading__chat-line reading__chat-line--seer reading__chat-line--stall">
+              <span className="reading__chat-who">the seer</span>
+              <span className="reading__chat-text">
+                <em>{pickStall('persona')}</em>
+              </span>
+            </div>
+          )}
+        </div>
+      )}
+      {activePrompt && canSend && (
+        <div className="reading__chat-prompt" aria-live="polite">
+          <em>{activePrompt.toLowerCase()}</em>
+        </div>
+      )}
+      <form className="reading__chat-form" onSubmit={handleSubmit}>
+        <input
+          ref={inputRef}
+          className="reading__chat-input"
+          type="text"
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          placeholder={
+            !canSend
+              ? 'wait for the seer to finish...'
+              : activePrompt
+                ? '...'
+                : 'say something to the seer'
+          }
+          aria-label="chat with the seer"
+        />
+        <button
+          type="submit"
+          className="btn btn--ghost reading__chat-send"
+          disabled={!canSend || draft.trim().length === 0}
+        >
+          SEND
+        </button>
+      </form>
     </div>
   );
 }
@@ -236,17 +361,12 @@ function OutroLine({ text, onAdvance }: { text: string; onAdvance: () => void })
 
 function ReadingFooter({
   state,
-  onAdvance,
   onExit,
 }: {
   state: ReadingState;
-  onAdvance: () => void;
   onExit: () => void;
 }) {
-  const advanceLabel = useAdvanceLabel(state);
-
-  // After 'done', keep an exit-to-menu pathway visible.
-  if (state.phase === 'done' || state.closed) {
+  if (state.phase === 'done' || state.phase === 'error') {
     return (
       <div className="survey__footer">
         <button className="btn btn--quiet" onClick={onExit}>
@@ -255,20 +375,5 @@ function ReadingFooter({
       </div>
     );
   }
-  if (!advanceLabel) return <div className="survey__footer" />;
-
-  return (
-    <div className="survey__footer">
-      <button className="reading__advance" onClick={onAdvance}>
-        {advanceLabel}
-      </button>
-    </div>
-  );
-}
-
-function useAdvanceLabel(state: ReadingState): string | null {
-  if (state.phase === 'intro') return 'begin';
-  if (state.phase === 'beat') return 'continue';
-  if (state.phase === 'outro') return 'finish';
-  return null;
+  return <div className="survey__footer" />;
 }

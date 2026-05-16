@@ -87,6 +87,56 @@ Removed in 314b850 per direction. If the survey gets too rambly without a
 close signal we can reintroduce a soft "she's heard enough" trigger — but
 ideally that's the Investigator's saturation_signal, not a turn-count cap.
 
+## reading
+
+### chat-staleness in fan-out
+Round-N fan-out spawns when the user advances out of the round-(N-1) beat
+(or at boot for round 1). If the user chats during the awaiting_flip that
+follows, those chat messages are NOT in the pre-computed monologue for
+the slot they then pick. Chat REPLIES are always fresh; only the per-card
+beat monologues miss this signal.
+
+Mitigation options:
+- on chat submit, invalidate `slotPromises`/`slotResults` for the current
+  round and re-spawn fan-out with the updated chat snapshot. Wasteful
+  (3 extra calls per chat exchange) but accurate.
+- only invalidate the slots the user has NOT picked yet — by the time
+  they pick, the prior cards' fan-out is irrelevant.
+- accept the gap; let the chat reply absorb anything the user said that
+  would have mattered. Cheapest, lowest fidelity.
+
+### eyes-only seer visual
+The reading screen still mounts the Clat sprite via `<Reader />`. The
+intended visual ("two eyes floating in the void") needs a new asset and a
+small TarobotScene mode switch. Sprite painter already supports per-frame
+overrides; could repaint just-eyes during the reading phase.
+
+### demo profile rotation
+`fixtures.ts` currently has one demo profile (Marisol). Adding 2-3 more
+archetypes (the cynic, the avoidant, the person in active crisis) would
+let us run the READ DEMO path against multiple fork shapes without a
+survey rebuild. The Menu could have a small dropdown next to READ DEMO,
+or a sub-menu of demo names.
+
+### local OSS LLM swap path
+All persona-tier calls (`personaIntro`, `personaPerCard`, `personaClosing`,
+`personaChat`) route through `adapter.invoke` with `model: 'deep'`. The
+local adapter swap lives at `MODEL_FOR.deep` in `adapter-anthropic.ts`
+(or a new adapter implementation entirely). Cognition stays Anthropic.
+The `awaiting_tier` field already telegraphs which side is the bottleneck.
+
+### shared voice bible could be cache-anchored
+`SEER_VOICE_BIBLE` is concatenated into 4 prompt strings. If we adopt
+Anthropic prompt caching, mark the bible as a cache anchor and pull
+per-call instructions into the user message tail instead.
+
+### per-card cognition's narrative_role override
+The cognition prompt asks the model to derive `narrative_role` from
+`flip_round`, but the engine ALSO normalizes it post-hoc
+(`{ ...clinical, narrative_role: role, flip_round: round }`). Belt and
+suspenders. One of the two could go; keeping the engine normalization
+is safer.
+
 ## scene / UI
 
 ### Clat animations from claude-cat repo

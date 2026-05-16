@@ -1,34 +1,49 @@
-// Reading engine — orchestrates the cognition + persona calls and exposes
-// a state machine the UI can subscribe to.
+// Reading engine — orchestrates fan-out cognition + persona, exposes a
+// state machine the UI subscribes to.
 //
-// Lifecycle:
-//   construct(inputs)          → state.phase = 'idle'
-//   start()                    → fires cognition, then persona; phase = 'thinking'
-//                                while both run. On success, phase = 'intro'.
-//   advance()                  → moves through phases:
-//                                'intro' → 'flipping' (card 0)
-//                                'flipping' → 'beat' (card N) → 'between' →
-//                                  'flipping' (card N+1) → ... → 'beat' (last)
-//                                → 'outro' → 'done'
-//                                The UI calls advance() when the current
-//                                phase's animation finishes (or on user tap).
-//   subscribe(listener)        → state-change callback.
+// Architecture (replaces the older Plan-and-Write single-shot):
 //
-// No mid-reading LLM calls. Latency lives entirely between start() and
-// phase='intro'. After that, sequencing is local.
+//   start() →
+//     intro (preferred OR generated) +
+//     round-1 fan-out (4 parallel cognition→persona threads, one per
+//     face-down slot, each treating its slot as the hypothetical-next-
+//     flip and seeing no other faces)
+//
+//   user picks slot S in round N →
+//     CSS flip animation plays for FLIP_ANIM_MS, then we look up
+//     monologueCache[round=N][slot=S]:
+//       - hit  → phase = 'beat'
+//       - miss → phase = 'beat_pending' (still computing); resolve as the
+//                slot's promise lands.
+//     After the beat is delivered and user advances, kick off round-(N+1)
+//     fan-out (3, 2, 1 threads respectively) AND, if last beat, run the
+//     closing cognition+persona pair.
+//
+//   user submits chat in 'awaiting_flip' or 'done' →
+//     chat_pending → persona reply → back to entry phase.
+//
+// The 'awaiting_tier' field tells the UI which kind of latency to mask
+// (cognition stall vs persona stall) so eventually-local-OSS-LLM costs
+// are visually distinguishable today.
 
 import type { LLMAdapter } from '../survey/adapter';
-import { planReading } from './cognition';
-import { voiceReading } from './persona';
+import { cognitionPerCard, cognitionClosing } from './cognition';
+import {
+  personaPerCard,
+  personaIntro,
+  personaClosing,
+  personaChat,
+} from './persona';
 import type {
-  Beat,
-  CardAngle,
-  Reading,
+  ChatMessage,
+  ClinicalIntent,
+  Monologue,
+  NarrativeRole,
   ReadingInputs,
   ReadingListener,
   ReadingPhase,
-  ReadingPlan,
   ReadingState,
+  RevealedSlot,
 } from './types';
 
 export type ReadingOpts = {
@@ -36,21 +51,39 @@ export type ReadingOpts = {
   inputs: ReadingInputs;
 };
 
+type SlotResult = { clinical: ClinicalIntent; monologue: Monologue };
+
+const ROUND_TO_ROLE: Record<number, NarrativeRole> = {
+  1: 'opening',
+  2: 'rising',
+  3: 'turning',
+  4: 'closing',
+};
+
 export class ReadingEngine {
   private state: ReadingState;
   private adapter: LLMAdapter;
   private listeners = new Set<ReadingListener>();
 
+  /** key = `${round}:${position_id}` → eventual SlotResult */
+  private slotPromises = new Map<string, Promise<SlotResult>>();
+  /** key = `${round}:${position_id}` → resolved SlotResult (sync cache) */
+  private slotResults = new Map<string, SlotResult>();
+  /** Phase to return to after a chat round completes. */
+  private phaseBeforeChat: ReadingPhase | null = null;
+
   constructor(opts: ReadingOpts) {
     this.adapter = opts.adapter;
     this.state = {
       inputs: opts.inputs,
-      plan: null,
-      reading: null,
       phase: 'idle',
-      current_index: -1,
-      revealed_position_ids: [],
-      closed: false,
+      intro: null,
+      outro: null,
+      revealed: [],
+      current_slot: null,
+      awaiting_tier: null,
+      active_prompt_to_user: null,
+      chat: [],
     };
   }
 
@@ -58,114 +91,333 @@ export class ReadingEngine {
     return this.state;
   }
 
-  /** Kick off cognition + persona. Resolves when persona returns. */
-  async start(): Promise<void> {
-    if (this.state.phase !== 'idle') return;
-    this.setState({ phase: 'thinking' });
-
-    try {
-      const plan = await planReading(this.adapter, this.state.inputs);
-      this.setState({ plan });
-
-      const reading = await voiceReading(this.adapter, {
-        profile: this.state.inputs.profile,
-        prose_brief: this.state.inputs.prose_brief,
-        drawn: this.state.inputs.drawn,
-        plan,
-      });
-
-      // Sort beats to match plan's card order (defensive — the model should
-      // return them in the same order, but order matters for the UI).
-      const orderedBeats = orderBeatsByPlan(reading, plan);
-      this.setState({
-        reading: { ...reading, beats: orderedBeats },
-        phase: 'intro',
-      });
-    } catch (err) {
-      this.setState({
-        phase: 'idle',
-        error: err instanceof Error ? err.message : 'reading failed',
-      });
-    }
-  }
-
-  /**
-   * Advance to the next stage of the reading. Called by the UI after each
-   * animation completes (intro typed out → flip → beat typed out → between
-   * → next flip → ...).
-   */
-  advance(): void {
-    const { phase, plan, reading, current_index } = this.state;
-    if (!plan || !reading) return;
-
-    if (phase === 'intro') {
-      // intro just finished → flip the first card
-      this.setState({ phase: 'flipping', current_index: 0 });
-      return;
-    }
-    if (phase === 'flipping') {
-      // flip done → voice the beat
-      this.setState({ phase: 'beat' });
-      return;
-    }
-    if (phase === 'beat') {
-      // beat finished. Mark this position revealed.
-      const pos = plan.cards[current_index]?.position_id;
-      const revealed = pos
-        ? [...this.state.revealed_position_ids, pos]
-        : this.state.revealed_position_ids;
-
-      const isLast = current_index >= plan.cards.length - 1;
-      if (isLast) {
-        this.setState({
-          revealed_position_ids: revealed,
-          phase: reading.outro.trim().length > 0 ? 'outro' : 'done',
-          closed: reading.outro.trim().length === 0,
-        });
-      } else {
-        this.setState({
-          revealed_position_ids: revealed,
-          phase: 'between',
-        });
-      }
-      return;
-    }
-    if (phase === 'between') {
-      // between pause → flip the next card
-      this.setState({
-        phase: 'flipping',
-        current_index: current_index + 1,
-      });
-      return;
-    }
-    if (phase === 'outro') {
-      this.setState({ phase: 'done', closed: true });
-      return;
-    }
-  }
-
-  /**
-   * Get the current beat that should be playing, or null. Convenience for
-   * the UI — looks up by current_index from the plan's card order.
-   */
-  getCurrentBeat(): Beat | null {
-    if (!this.state.reading || !this.state.plan) return null;
-    const angle = this.state.plan.cards[this.state.current_index];
-    if (!angle) return null;
-    return this.state.reading.beats.find((b) => b.position_id === angle.position_id) ?? null;
-  }
-
-  getCurrentAngle(): CardAngle | null {
-    if (!this.state.plan) return null;
-    return this.state.plan.cards[this.state.current_index] ?? null;
-  }
-
   subscribe(listener: ReadingListener): () => void {
     this.listeners.add(listener);
     return () => { this.listeners.delete(listener); };
   }
 
-  // ─── internals ──────────────────────────────────────
+  /** Kick off intro + round-1 fan-out. Resolves once the intro is ready. */
+  async start(): Promise<void> {
+    if (this.state.phase !== 'idle') return;
+
+    // Spawn round-1 fan-out immediately, in parallel with intro generation.
+    // If intro is pre-baked (demo), fan-out gets a head start.
+    this.spawnFanOut(1, []);
+
+    const preferred = this.state.inputs.preferred_intro;
+    if (preferred) {
+      this.setState({ phase: 'intro', intro: preferred, awaiting_tier: null });
+      return;
+    }
+
+    this.setState({ phase: 'thinking', awaiting_tier: 'persona' });
+    try {
+      const intro = await personaIntro(this.adapter, {
+        profile: this.state.inputs.profile,
+        prose_brief: this.state.inputs.prose_brief,
+      });
+      this.setState({ phase: 'intro', intro, awaiting_tier: null });
+    } catch (err) {
+      this.setState({
+        phase: 'error',
+        awaiting_tier: null,
+        error: err instanceof Error ? err.message : 'intro generation failed',
+      });
+    }
+  }
+
+  /** Called by UI after the intro typewriter completes AND user taps. */
+  advanceFromIntro(): void {
+    if (this.state.phase !== 'intro') return;
+    this.setState({
+      phase: 'awaiting_flip',
+      awaiting_tier: null,
+      active_prompt_to_user: promptOrNull(this.state.intro),
+    });
+  }
+
+  /** User picks a face-down card to flip. Engine handles the rest. */
+  pickSlot(slot: string): void {
+    if (this.state.phase !== 'awaiting_flip') return;
+    if (this.state.revealed.some((r) => r.position_id === slot)) return;
+    this.setState({
+      phase: 'flipping',
+      current_slot: slot,
+      active_prompt_to_user: null,
+    });
+    // After the flip animation finishes, advance to beat (or beat_pending).
+    // The UI calls advanceFromFlip() when its CSS transition fires.
+  }
+
+  /** Called by UI after the CSS card-flip animation completes. */
+  advanceFromFlip(): void {
+    if (this.state.phase !== 'flipping') return;
+    const slot = this.state.current_slot;
+    if (!slot) return;
+    const round = this.state.revealed.length + 1;
+    const key = roundKey(round, slot);
+    const cached = this.slotResults.get(key);
+    if (cached) {
+      this.setState({ phase: 'beat', awaiting_tier: null });
+      return;
+    }
+    // Not ready yet — show stall and await the slot's promise.
+    this.setState({ phase: 'beat_pending', awaiting_tier: 'persona' });
+    const pending = this.slotPromises.get(key);
+    if (!pending) {
+      // Defensive — spawn it now if somehow missing.
+      this.spawnFanOut(round, this.state.revealed);
+      const retry = this.slotPromises.get(key);
+      if (retry) {
+        retry
+          .then(() => this.setState({ phase: 'beat', awaiting_tier: null }))
+          .catch((err) => this.setState({
+            phase: 'error',
+            awaiting_tier: null,
+            error: err instanceof Error ? err.message : 'fan-out failed',
+          }));
+      }
+      return;
+    }
+    pending
+      .then(() => this.setState({ phase: 'beat', awaiting_tier: null }))
+      .catch((err) => this.setState({
+        phase: 'error',
+        awaiting_tier: null,
+        error: err instanceof Error ? err.message : 'fan-out failed',
+      }));
+  }
+
+  /** Called by UI when the beat typewriter completes AND user taps to continue. */
+  advanceFromBeat(): void {
+    if (this.state.phase !== 'beat') return;
+    const slot = this.state.current_slot;
+    if (!slot) return;
+    const round = this.state.revealed.length + 1;
+    const key = roundKey(round, slot);
+    const result = this.slotResults.get(key);
+    if (!result) return;
+
+    const drawn = this.state.inputs.drawn.cards.find((dc) => dc.position.id === slot);
+    if (!drawn) return;
+
+    const revealed: RevealedSlot = {
+      position_id: slot,
+      card_id: drawn.card.id,
+      clinical: result.clinical,
+      monologue: result.monologue,
+    };
+    const nextRevealed = [...this.state.revealed, revealed];
+
+    if (nextRevealed.length >= this.state.inputs.drawn.cards.length) {
+      // Last flip — run closing.
+      this.setState({
+        revealed: nextRevealed,
+        current_slot: null,
+        phase: 'closing_thinking',
+        awaiting_tier: 'cognition',
+        active_prompt_to_user: null,
+      });
+      void this.runClosing(nextRevealed);
+      return;
+    }
+
+    // Otherwise: back to awaiting_flip and spawn round-(N+1) fan-out.
+    this.setState({
+      revealed: nextRevealed,
+      current_slot: null,
+      phase: 'awaiting_flip',
+      awaiting_tier: null,
+      active_prompt_to_user: promptOrNull(result.monologue),
+    });
+    this.spawnFanOut(nextRevealed.length + 1, nextRevealed);
+  }
+
+  /** Called by UI after the outro typewriter completes AND user taps. */
+  advanceFromOutro(): void {
+    if (this.state.phase !== 'outro') return;
+    this.setState({
+      phase: 'done',
+      awaiting_tier: null,
+      active_prompt_to_user: promptOrNull(this.state.outro),
+    });
+  }
+
+  /** Submit a chat message. Allowed only in awaiting_flip or done. */
+  async submitChat(text: string): Promise<void> {
+    const trimmed = text.trim();
+    if (trimmed.length === 0) return;
+    if (this.state.phase !== 'awaiting_flip' && this.state.phase !== 'done') {
+      return;
+    }
+    this.phaseBeforeChat = this.state.phase;
+    const priorChat = this.state.chat;
+    const userMsg: ChatMessage = { speaker: 'user', text: trimmed };
+    this.setState({
+      chat: [...priorChat, userMsg],
+      phase: 'chat_pending',
+      awaiting_tier: 'persona',
+      active_prompt_to_user: null,
+    });
+
+    try {
+      const reply = await personaChat(this.adapter, {
+        profile: this.state.inputs.profile,
+        prose_brief: this.state.inputs.prose_brief,
+        revealed: this.state.revealed,
+        chat_history: priorChat,
+        user_message: trimmed,
+      });
+      const seerMsg: ChatMessage = {
+        speaker: 'seer',
+        text: reply.text,
+      };
+      this.setState({
+        chat: [...this.state.chat, seerMsg],
+        phase: this.phaseBeforeChat ?? 'awaiting_flip',
+        awaiting_tier: null,
+        active_prompt_to_user: promptOrNull(reply),
+      });
+      this.phaseBeforeChat = null;
+    } catch {
+      // In-character fallback so the user gets a response instead of dead
+      // air. The thrown error is not surfaced — the reading should
+      // continue.
+      const fallback: ChatMessage = {
+        speaker: 'seer',
+        text: 'the cards did not speak just then. ask again.',
+      };
+      this.setState({
+        chat: [...this.state.chat, fallback],
+        phase: this.phaseBeforeChat ?? 'awaiting_flip',
+        awaiting_tier: null,
+      });
+      this.phaseBeforeChat = null;
+    }
+  }
+
+  /** Convenience for UI: is sending a chat message currently allowed? */
+  canSendChat(): boolean {
+    return this.state.phase === 'awaiting_flip' || this.state.phase === 'done';
+  }
+
+  /** The monologue currently being delivered (intro/beat/outro). */
+  getCurrentMonologue(): Monologue | null {
+    const { phase, intro, outro, current_slot, revealed } = this.state;
+    if (phase === 'intro') return intro;
+    if (phase === 'outro') return outro;
+    if (phase === 'beat' && current_slot) {
+      const round = revealed.length + 1;
+      const key = roundKey(round, current_slot);
+      const r = this.slotResults.get(key);
+      return r?.monologue ?? null;
+    }
+    return null;
+  }
+
+  // ─── internals ──────────────────────────────────────────────
+
+  private spawnFanOut(round: number, revealedSnapshot: RevealedSlot[]): void {
+    const revealedIds = new Set(revealedSnapshot.map((r) => r.position_id));
+    const all = this.state.inputs.drawn.cards;
+    const targets = all.filter((dc) => !revealedIds.has(dc.position.id));
+
+    const revealed_history = revealedSnapshot.map((r) => {
+      const dc = all.find((c) => c.position.id === r.position_id);
+      return {
+        position_id: r.position_id,
+        card_name: dc?.card.name ?? '?',
+        beat_text: r.monologue.text,
+      };
+    });
+    const all_positions = all.map((dc) => ({
+      id: dc.position.id,
+      role: dc.position.role,
+      prompt_label: dc.position.prompt_label,
+    }));
+    const chat_snapshot = [...this.state.chat];
+
+    const role: NarrativeRole = ROUND_TO_ROLE[round] ?? 'rising';
+
+    for (const dc of targets) {
+      const key = roundKey(round, dc.position.id);
+      if (this.slotPromises.has(key)) continue;
+
+      const slotPromise: Promise<SlotResult> = (async () => {
+        const clinical = await cognitionPerCard(this.adapter, {
+          profile: this.state.inputs.profile,
+          prose_brief: this.state.inputs.prose_brief,
+          spread_id: this.state.inputs.drawn.spread.id,
+          spread_name: this.state.inputs.drawn.spread.name,
+          all_positions,
+          this_slot: {
+            position_id: dc.position.id,
+            role: dc.position.role,
+            prompt_label: dc.position.prompt_label,
+            card_id: dc.card.id,
+            card_name: dc.card.name,
+            card_keywords: dc.card.keywords,
+            card_upright_meaning: dc.card.upright_meaning,
+          },
+          flip_round: round,
+          revealed_history,
+          chat_history: chat_snapshot,
+        });
+        // Ensure cognition's declared role matches the round.
+        const normalized: ClinicalIntent = { ...clinical, narrative_role: role, flip_round: round };
+
+        const monologue = await personaPerCard(this.adapter, {
+          profile: this.state.inputs.profile,
+          prose_brief: this.state.inputs.prose_brief,
+          clinical: normalized,
+          card: {
+            name: dc.card.name,
+            keywords: dc.card.keywords,
+            upright_meaning: dc.card.upright_meaning,
+          },
+          slot_label: dc.position.prompt_label,
+          revealed_history,
+          chat_history: chat_snapshot,
+        });
+
+        const result: SlotResult = { clinical: normalized, monologue };
+        this.slotResults.set(key, result);
+        return result;
+      })();
+
+      this.slotPromises.set(key, slotPromise);
+      // Swallow rejection here — the consumer (advanceFromFlip) attaches
+      // its own .catch when it awaits this promise. We don't want an
+      // unhandled rejection if no one awaits this slot.
+      slotPromise.catch(() => { /* surfaced when picked */ });
+    }
+  }
+
+  private async runClosing(revealed: RevealedSlot[]): Promise<void> {
+    try {
+      const closing = await cognitionClosing(this.adapter, {
+        profile: this.state.inputs.profile,
+        prose_brief: this.state.inputs.prose_brief,
+        revealed,
+        chat_history: this.state.chat,
+      });
+      this.setState({ awaiting_tier: 'persona' });
+      const outro = await personaClosing(this.adapter, {
+        profile: this.state.inputs.profile,
+        prose_brief: this.state.inputs.prose_brief,
+        revealed,
+        chat_history: this.state.chat,
+        closing,
+      });
+      this.setState({ phase: 'outro', outro, awaiting_tier: null });
+    } catch (err) {
+      this.setState({
+        phase: 'error',
+        awaiting_tier: null,
+        error: err instanceof Error ? err.message : 'closing failed',
+      });
+    }
+  }
 
   private setState(partial: Partial<ReadingState>): void {
     this.state = { ...this.state, ...partial };
@@ -175,14 +427,13 @@ export class ReadingEngine {
   }
 }
 
-function orderBeatsByPlan(reading: Reading, plan: ReadingPlan): Beat[] {
-  const byPosition = new Map(reading.beats.map((b) => [b.position_id, b]));
-  const ordered: Beat[] = [];
-  for (const card of plan.cards) {
-    const beat = byPosition.get(card.position_id);
-    if (beat) ordered.push(beat);
-  }
-  return ordered;
+function roundKey(round: number, slot: string): string {
+  return `${round}:${slot}`;
+}
+
+function promptOrNull(m: Monologue | null): string | null {
+  const p = m?.prompt_to_user?.trim();
+  return p && p.length > 0 ? p : null;
 }
 
 export type { ReadingPhase };

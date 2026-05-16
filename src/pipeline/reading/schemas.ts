@@ -4,26 +4,23 @@ import { z } from 'zod';
 
 const NarrativeRole = z.enum(['opening', 'rising', 'turning', 'closing']);
 
-const CardAngle = z.object({
+export const ClinicalIntentSchema = z.object({
   position_id: z.string(),
   card_id: z.number().int().min(0),
-  angle: z.string(),
-  constraint: z.string(),
+  flip_round: z.number().int().min(1).max(4),
   narrative_role: NarrativeRole,
+  angle: z.string(),
+  noticings: z.array(z.string()).min(1).max(4),
+  structural_prediction: z.string(),
+  director_notes: z.string(),
 });
 
-export const ReadingPlanSchema = z.object({
-  arc_thesis: z.string(),
-  cards: z.array(CardAngle),
-});
-
-const Beat = z.object({
-  position_id: z.string(),
+export const MonologueSchema = z.object({
   text: z.string(),
+  prompt_to_user: z.string().optional(),
 });
 
-export const ReadingSchema = z.object({
-  intro: z.string(),
-  beats: z.array(Beat),
-  outro: z.string(),
+export const ClosingIntentSchema = z.object({
+  takeaway: z.string(),
+  director_notes: z.string(),
 });

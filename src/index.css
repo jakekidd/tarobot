@@ -813,8 +813,8 @@ a:hover { text-decoration: underline; }
 .card-spread__slot--active { filter: drop-shadow(0 0 16px rgba(179, 136, 255, 0.55)); }
 
 /* =====================================================================
-   Reading screen — pinned layout. Clat (small, top), witch dialogue,
-   card spread, advance indicator.
+   Reading screen — pinned layout. Reader (small, top), seer dialogue,
+   card spread, chat panel.
    ===================================================================== */
 
 .screen--reading {
@@ -871,6 +871,119 @@ a:hover { text-decoration: underline; }
   font-size: 0.95rem;
   text-align: center;
   margin-top: 1rem;
+}
+
+/* ─── Cue (small prompt above the cards when picking) ─ */
+.reading__cue {
+  font-family: var(--font-speech);
+  font-size: 0.95rem;
+  color: var(--fg-dim);
+  text-align: center;
+  letter-spacing: 0.02em;
+  min-height: 1.6rem;
+}
+
+/* ─── Stall (latency catchphrase) ───────────────────── */
+.reading__stall {
+  text-align: center;
+  font-family: var(--font-speech);
+  font-style: italic;
+  font-size: 0.95rem;
+  min-height: 2rem;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+.reading__stall--cognition { color: rgba(179, 136, 255, 0.85); }
+.reading__stall--persona   { color: var(--fg-dim); }
+
+/* ─── Pickable slot — soft pulse to invite a click ───── */
+.card-spread__slot--pickable {
+  cursor: pointer;
+}
+.card-spread__slot--pickable:hover {
+  filter: drop-shadow(0 0 14px rgba(179, 136, 255, 0.65));
+  transform-origin: center;
+}
+
+/* ─── Chat panel ─────────────────────────────────────── */
+.reading__chat {
+  width: min(64ch, calc(100vw - 4rem));
+  margin: 1rem auto 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.reading__chat-log {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  max-height: 9rem;
+  overflow-y: auto;
+  font-family: var(--font-mono);
+  font-size: 0.88rem;
+  border-top: 1px solid var(--violet-line);
+  padding-top: 0.5rem;
+}
+.reading__chat-line {
+  display: flex;
+  gap: 0.6rem;
+  align-items: baseline;
+  line-height: 1.45;
+}
+.reading__chat-who {
+  flex: 0 0 5.5rem;
+  text-align: right;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  font-size: 0.72rem;
+  color: var(--fg-faint);
+}
+.reading__chat-line--user  .reading__chat-who { color: var(--violet); }
+.reading__chat-line--seer  .reading__chat-who { color: var(--fg-dim); }
+.reading__chat-line--stall .reading__chat-text { opacity: 0.7; }
+.reading__chat-text { color: var(--fg); }
+.reading__chat-prompt {
+  font-family: var(--font-speech);
+  font-style: italic;
+  font-size: 0.92rem;
+  color: var(--violet);
+  text-shadow: 0 0 8px rgba(179, 136, 255, 0.3);
+  text-align: center;
+  padding: 0.2rem 0.4rem;
+  letter-spacing: 0.02em;
+}
+.reading__chat-form {
+  display: flex;
+  gap: 0.4rem;
+  align-items: stretch;
+}
+.reading__chat-input {
+  flex: 1;
+  background: rgba(10, 4, 24, 0.85);
+  border: 1px solid var(--violet-line);
+  color: var(--fg);
+  padding: 0.5rem 0.7rem;
+  font-family: var(--font-mono);
+  font-size: 0.9rem;
+  outline: none;
+}
+.reading__chat-input:focus {
+  border-color: var(--violet);
+  box-shadow: 0 0 12px rgba(179, 136, 255, 0.28);
+}
+.reading__chat-input::placeholder {
+  color: var(--fg-faint);
+  font-style: italic;
+}
+.reading__chat-send {
+  letter-spacing: 0.2em;
+  font-size: 0.78rem;
+  padding: 0.5rem 0.9rem;
+}
+.reading__chat-send:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
 }
 
 /* Footer row beneath the question — holds "ready for the cards" + (post-close) download buttons. */

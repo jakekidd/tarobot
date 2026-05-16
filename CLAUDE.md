@@ -139,19 +139,49 @@ the openers; Compiler runs once at survey close.
 
 ### Reading engine (`src/pipeline/reading/`)
 
-Plan-and-Write architecture. Two LLM calls total per reading:
+Fan-out architecture (replaced the earlier Plan-and-Write). The user picks
+which face-down card to flip next; the engine pre-computes a monologue per
+hypothetical-next-flip, in parallel, while the user reads the previous
+beat. Latency disappears behind delivery. Director (cognition) and
+performer (persona) stay separated at every step.
 
-1. **Plan (cognition tier)** — given the brief and the four drawn cards,
-   produces an `arc_thesis` plus four `CardAngle`s (one per slot, each with
-   an angle + constraint + narrative role). This is the director's
-   structural read on the user at the fork.
-2. **Voice (deep tier)** — given the plan, produces the witch's intro, four
-   beats keyed to each slot, and the outro. This is the performance.
+The persona is **the Seer** (formerly "the witch" — renamed for classic-
+user-expectation). Voice register and constraints are unchanged.
 
-UI sequences the reveal client-side via a phase state machine: `idle →
-thinking → intro → flipping → beat → between → flipping → … → outro → done`.
-No mid-reading LLM calls. The card faces are known from the moment of draw;
-the flips are theater.
+Calls per round R (revealed.length + 1):
+- For each still-face-down slot S: `cognitionPerCard(S, R, history)` →
+  `personaPerCard(clinical, history)` → Monologue cached at `[R, S]`.
+- The cognition thread for slot S sees its OWN card face plus revealed
+  history; it does NOT see the faces of other still-face-down slots.
+  That constraint is load-bearing — without it, threads cross-leak and
+  the round-1 monologues become a single-shot Plan-and-Write in
+  disguise.
+
+Total LLM-call budget per reading (full 4-card spread):
+- 1 intro persona call (skipped when `preferred_intro` is supplied; the
+  READ DEMO path uses a hand-authored intro from `fixtures.ts`).
+- 4 + 3 + 2 + 1 = 10 cognition calls (per-card across 4 rounds).
+- 10 persona calls (one per cognition).
+- 1 closing cognition + 1 closing persona after the 4th flip.
+- N chat persona calls (user-initiated; persona-only).
+
+That's ~23 calls/reading. Wasteful by design — the cost of hiding
+latency *and* not letting cognition cheat by seeing unflipped cards.
+
+Engine state machine (`ReadingPhase`):
+```
+idle → thinking? → intro → awaiting_flip → flipping → beat_pending? → beat →
+  (loop: awaiting_flip → … → beat) →
+  closing_thinking → outro → done
+```
+Chat can be sent from `awaiting_flip` or `done` (`chat_pending` returns
+to entry phase).
+
+`awaiting_tier` is `'cognition' | 'persona' | null` — UI uses it to pick a
+latency catchphrase from `stalls.ts`. Cognition stalls and persona stalls
+render in different colors so it's visually obvious which tier the system
+is waiting on. (Persona is the tier eventually swappable to local OSS
+LLMs; cognition stays cloud.)
 
 The slot meanings are *mirror-shaped*, not classical:
 
@@ -274,9 +304,13 @@ the doc.
   Investigator + trigger-fired Observer + specific-guess-injection +
   flat-pool / runtime-tree. Refactor is gated on actually walking through
   the reading first, but expect this subsystem to change significantly.
-- **Reading engine.** Just shipped. Plan-and-Write split. Slot meanings are
-  load-bearing; pacing constants (flip 950ms, between 700ms) are placeholder
-  numbers. Persona prompt voice will iterate after real walkthroughs.
+- **Reading engine.** Fan-out architecture just shipped. Per-card cognition
+  + persona threads spawn per round; user picks which face-down card to
+  flip. Slot meanings are load-bearing; FLIP_ANIM_MS (950) is a placeholder
+  number. The chat plumbing exists but persona-chat voice will iterate after
+  real walkthroughs. The READ DEMO menu path skips survey and uses a hand-
+  authored Marisol fixture — useful for iterating on the reading without
+  burning survey time.
 - **Card faces.** Currently unicode-glyph + roman-numeral placeholders.
   Real art replaces this later; the contract (each card has a glyph + label)
   stays the same.

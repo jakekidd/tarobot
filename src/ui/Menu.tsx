@@ -6,13 +6,14 @@ import { listResumable } from '../storage';
 
 type Props = {
   onBegin: () => void;
+  onReadDemo: () => void;
   onOpenResume: () => void;
   onSettings: () => void;
 };
 
 const GREETING = 'come in. tell me you want to know.';
 
-export function Menu({ onBegin, onOpenResume, onSettings }: Props) {
+export function Menu({ onBegin, onReadDemo, onOpenResume, onSettings }: Props) {
   const [resumeCount] = useState(() => listResumable().length);
   const [speaking, setSpeaking] = useState(false);
 
@@ -34,6 +35,9 @@ export function Menu({ onBegin, onOpenResume, onSettings }: Props) {
             RESUME
           </button>
         )}
+        <button className="btn btn--ghost btn--menu" onClick={onReadDemo}>
+          READ DEMO
+        </button>
         <button className="btn btn--ghost btn--menu" onClick={onSettings}>
           SETTINGS
         </button>

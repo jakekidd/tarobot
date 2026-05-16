@@ -2,21 +2,33 @@
 
 export { ReadingEngine } from './reading';
 export type { ReadingOpts } from './reading';
-export { planReading } from './cognition';
-export { voiceReading } from './persona';
+
+export {
+  cognitionPerCard,
+  cognitionClosing,
+} from './cognition';
+export {
+  personaPerCard,
+  personaIntro,
+  personaClosing,
+  personaChat,
+} from './persona';
+
 export type {
-  Beat,
-  CardAngle,
-  CognitionInput,
-  CognitionOutput,
+  ChatMessage,
+  ChatSpeaker,
+  ClinicalIntent,
+  ClosingIntent,
+  Monologue,
   NarrativeRole,
-  PersonaInput,
-  PersonaOutput,
-  Reading,
   ReadingInputs,
   ReadingListener,
   ReadingPhase,
-  ReadingPlan,
   ReadingState,
+  RevealedSlot,
 } from './types';
 export { readingInputsFromCompiler } from './types';
+
+export { buildMarisolDemoBrief, MARISOL_INTRO } from './fixtures';
+export { pickStall } from './stalls';
+export type { StallTier } from './stalls';

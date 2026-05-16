@@ -1,54 +1,93 @@
-// Reading cognition agent — Plan-and-Write's PLAN stage.
-// Calls the model once at reading start. Output is consumed by persona.
+// Cognition-tier call wrappers. Each function builds an InvocationSpec and
+// routes through adapter.invoke(). No SDK calls live in here.
 
 import type { LLMAdapter } from '../survey/adapter';
-import { ReadingPlanSchema } from './schemas';
-import { READING_COGNITION_SYSTEM, READING_COGNITION_TOOL } from './prompts/cognition';
-import type { CognitionInput, CognitionOutput } from './types';
+import { ClinicalIntentSchema, ClosingIntentSchema } from './schemas';
+import {
+  PER_CARD_COGNITION_SYSTEM,
+  PER_CARD_COGNITION_TOOL,
+  CLOSING_COGNITION_SYSTEM,
+  CLOSING_COGNITION_TOOL,
+} from './prompts/cognition';
+import type {
+  ClinicalIntent,
+  ClosingCognitionInput,
+  ClosingIntent,
+  PerCardCognitionInput,
+} from './types';
 
-export async function planReading(
+export async function cognitionPerCard(
   adapter: LLMAdapter,
-  input: CognitionInput,
-): Promise<CognitionOutput> {
-  // Build a tight payload — full card data (so the model has keywords +
-  // upright_meaning to use as constraint) plus the brief + the choice +
-  // hooks + contradictions. Skip raw picks_log — already digested in the
-  // brief.
+  input: PerCardCognitionInput,
+): Promise<ClinicalIntent> {
   const payload = {
     identity: input.profile.identity,
-    choice: input.profile.candidates.find((c) => c.is_target) ?? input.profile.candidates[0] ?? null,
+    choice:
+      input.profile.candidates.find((c) => c.is_target) ??
+      input.profile.candidates[0] ??
+      null,
     cast: input.profile.cast,
     hunches: input.profile.hunches,
     margin: input.profile.margin,
     cognition_log: input.profile.cognition_log,
     highlights: input.profile.highlights,
     prose_brief: input.prose_brief,
-    drawn: {
-      spread_id: input.drawn.spread.id,
-      spread_name: input.drawn.spread.name,
-      cards: input.drawn.cards.map((dc) => ({
-        position_id: dc.position.id,
-        position_role: dc.position.role,
-        position_prompt_label: dc.position.prompt_label,
-        card_id: dc.card.id,
-        name: dc.card.name,
-        arcana: dc.card.arcana,
-        keywords: dc.card.keywords,
-        upright_meaning: dc.card.upright_meaning,
-      })),
-    },
+    spread_id: input.spread_id,
+    spread_name: input.spread_name,
+    all_positions: input.all_positions,
+    this_slot: input.this_slot,
+    flip_round: input.flip_round,
+    revealed_history: input.revealed_history,
+    chat_history: input.chat_history,
     instruction:
-      'plan the four-card reading. emit one arc_thesis + four CardAngles in flip order (top, left, right, bottom).',
+      'emit ONE ClinicalIntent for this_slot, voiced for flip_round. you do not know the other face-down cards.',
   };
 
-  return adapter.invoke<CognitionOutput>(
+  return adapter.invoke<ClinicalIntent>(
     {
-      system: READING_COGNITION_SYSTEM,
+      system: PER_CARD_COGNITION_SYSTEM,
       user: JSON.stringify(payload, null, 2),
-      tool: READING_COGNITION_TOOL,
+      tool: PER_CARD_COGNITION_TOOL,
       model: 'cognition',
-      max_tokens: 2000,
+      max_tokens: 1200,
     },
-    ReadingPlanSchema,
+    ClinicalIntentSchema,
+  );
+}
+
+export async function cognitionClosing(
+  adapter: LLMAdapter,
+  input: ClosingCognitionInput,
+): Promise<ClosingIntent> {
+  const payload = {
+    identity: input.profile.identity,
+    choice:
+      input.profile.candidates.find((c) => c.is_target) ??
+      input.profile.candidates[0] ??
+      null,
+    cast: input.profile.cast,
+    hunches: input.profile.hunches,
+    margin: input.profile.margin,
+    prose_brief: input.prose_brief,
+    revealed: input.revealed.map((r) => ({
+      position_id: r.position_id,
+      card_id: r.card_id,
+      clinical: r.clinical,
+      beat_text: r.monologue.text,
+    })),
+    chat_history: input.chat_history,
+    instruction:
+      'emit ONE ClosingIntent — a structural takeaway, not a recap. mirror, not oracle.',
+  };
+
+  return adapter.invoke<ClosingIntent>(
+    {
+      system: CLOSING_COGNITION_SYSTEM,
+      user: JSON.stringify(payload, null, 2),
+      tool: CLOSING_COGNITION_TOOL,
+      model: 'cognition',
+      max_tokens: 800,
+    },
+    ClosingIntentSchema,
   );
 }
