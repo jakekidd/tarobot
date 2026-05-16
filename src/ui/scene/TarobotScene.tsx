@@ -359,9 +359,13 @@ export function TarobotScene() {
     // (menu / survey), the perspective render is skipped entirely.
 
     const perspScene = new THREE.Scene();
-    const perspCamera = new THREE.PerspectiveCamera(38, 1, 0.05, 80);
-    perspCamera.position.set(0, 2.4, 5.0);
-    perspCamera.lookAt(0, 0.25, 0);
+    const perspCamera = new THREE.PerspectiveCamera(36, 1, 0.05, 80);
+    // Pulled back + lookAt raised so when the perspective scissor covers
+    // the entire right column (not just a 460px window), the cards land
+    // in the lower-middle of the canvas, leaving room above for the
+    // dialogue overlay and eyes anchor.
+    perspCamera.position.set(0, 2.6, 5.6);
+    perspCamera.lookAt(0, 0.7, 0);
 
     // lighting
     perspScene.add(new THREE.AmbientLight(0x2a1a55, 1.2));

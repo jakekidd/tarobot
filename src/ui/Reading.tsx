@@ -180,23 +180,19 @@ export function Reading({ apiKey, brief, preferredIntro, onExit }: Props) {
         </aside>
 
         <section className="reading__col-right">
-          <div className="reading__head">
-            <ReaderAnchor size={140} />
-          </div>
+          {/* TableAnchor fills the entire right column — its bbox IS the
+              scene rect. Everything else is an absolute overlay on top. */}
+          <TableAnchor pickable={pickable} onPick={(slot) => engine.pickSlot(slot)} />
 
+          <div className="reading__head">
+            <ReaderAnchor size={130} />
+          </div>
           <div className="reading__stage-slot">
             <ReadingStage state={state} engine={engine} advanceTick={advanceTick} />
           </div>
-
-          {/* table-rig: relative-positioned wrapper so subtitle + chat are
-              absolute overlays anchored to the table — they never push
-              flow around when they appear/disappear. */}
-          <div className="reading__table-rig">
-            <TableAnchor pickable={pickable} onPick={(slot) => engine.pickSlot(slot)} />
-            <CardSubtitle name={activeCardName} visible={subtitleVisible} />
-            <div className="reading__chat-slot">
-              <ChatForm state={state} onSend={(text) => void engine.submitChat(text)} />
-            </div>
+          <CardSubtitle name={activeCardName} visible={subtitleVisible} />
+          <div className="reading__chat-slot">
+            <ChatForm state={state} onSend={(text) => void engine.submitChat(text)} />
           </div>
 
           <button
@@ -206,7 +202,6 @@ export function Reading({ apiKey, brief, preferredIntro, onExit }: Props) {
           >
             TRANSCRIPT
           </button>
-
           <ReadingFooter state={state} onExit={onExit} />
         </section>
       </div>

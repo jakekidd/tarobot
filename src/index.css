@@ -725,17 +725,17 @@ a:hover { text-decoration: underline; }
   flex-direction: column;
   overflow: hidden;
 }
+/* Right column = scene container. TableAnchor fills it (its bbox is the
+   perspective scissor); all UI is absolute overlay on top. Zero padding
+   per directive — canvas anchored to top + left of column. */
 .reading__col-right {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 0.2rem;
-  padding: 1rem 1rem 0.6rem;
+  display: block;
   position: relative;
-  z-index: 5;          /* above the canvas's pointer-events: none so the
-                          TableAnchor + chat capture input cleanly */
-  cursor: pointer;     /* signals "click anywhere to advance dialogue" */
+  padding: 0;
+  z-index: 5;
+  cursor: pointer;     /* "click anywhere to advance dialogue" */
+  height: 100%;
+  overflow: hidden;
 }
 .reading__col-right input,
 .reading__col-right button,
@@ -744,30 +744,38 @@ a:hover { text-decoration: underline; }
 }
 .reading__col-right input { cursor: text; }
 .reading__col-right button { cursor: pointer; }
+/* Overlays — all absolute on the right column. The TableAnchor is z:1
+   underneath; UI sits at z:3..7 above it. */
 .reading__head {
-  width: 140px;
-  height: 140px;
+  position: absolute;
+  top: 0.6rem;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 130px;
+  height: 130px;
   display: flex;
   align-items: center;
   justify-content: center;
-  flex-shrink: 0;
+  z-index: 3;
 }
 .reading__stage-slot {
-  width: 100%;
-  max-width: 64ch;
+  position: absolute;
+  top: 9.5rem;       /* under the eyes */
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(64ch, calc(100% - 3rem));
+  z-index: 4;
   display: flex;
   align-items: flex-start;
   justify-content: center;
-  flex-shrink: 0;
 }
 .reading__chat-slot {
-  /* Absolutely attached to the bottom edge of the table-rig. Doesn't
-     move when subtitle/dialogue change. */
+  /* Bottom of the canvas, never moves. */
   position: absolute;
-  bottom: -2rem;
+  bottom: 0.8rem;
   left: 50%;
   transform: translateX(-50%);
-  width: min(64ch, 100%);
+  width: min(64ch, calc(100% - 2rem));
   z-index: 7;
 }
 
@@ -782,30 +790,23 @@ a:hover { text-decoration: underline; }
   cursor: pointer;
 }
 
-/* table-rig — wraps table + subtitle + chat. subtitle + chat are
-   absolute children so they don't reflow the layout when they appear /
-   change. The table-anchor's own height defines the rig height; the
-   chat-slot extends below via negative bottom. */
-.reading__table-rig {
-  position: relative;
-  width: 100%;
-  max-width: 720px;
-  flex-shrink: 0;
-  /* reserve space below the table for the absolutely-positioned chat
-     input that extends 2rem past the rig's bottom edge */
-  margin-bottom: 4.6rem;
-}
+/* TableAnchor — fills the right column. Its bbox is what the perspective
+   scene scissors to. No background; canvas behind it does the rendering. */
 .table-anchor {
+  position: absolute;
+  inset: 0;
   width: 100%;
-  height: 460px;
+  height: 100%;
+  z-index: 1;
 }
 
-/* ─── Card subtitle — absolutely positioned over the table area,
-       just above the chat input; 3D-extruded floating letters. Doesn't
-       affect layout flow so the chat never moves. */
+/* ─── Card subtitle — sits ON the table, just below the lifted card.
+       Absolute on the right column. 3D-extruded floating letters. */
 .card-subtitle {
   position: absolute;
-  bottom: 1.6rem;
+  /* roughly where the lifted card's lower-middle projects to —
+     close enough that the title reads as resting on the table */
+  top: 56%;
   left: 0;
   right: 0;
   font-family: var(--font-speech);
@@ -813,7 +814,6 @@ a:hover { text-decoration: underline; }
   font-size: 1.55rem;
   letter-spacing: 0.32em;
   text-align: center;
-  min-height: 2rem;
   opacity: 0;
   transition: opacity 0.55s ease;
   pointer-events: none;
@@ -1152,7 +1152,7 @@ a:hover { text-decoration: underline; }
   background: rgba(10, 4, 24, 0.92);
   border: 1.5px solid var(--violet-line-strong);
   color: var(--fg);
-  padding: 1rem 1.2rem;
+  padding: 0.55rem 1.1rem;     /* shorter row; font size preserved */
   font-family: var(--font-mono);
   font-size: 1.05rem;
   outline: none;
@@ -1171,7 +1171,7 @@ a:hover { text-decoration: underline; }
 .reading__chat-send {
   letter-spacing: 0.22em;
   font-size: 0.92rem;
-  padding: 1rem 1.5rem;
+  padding: 0.55rem 1.4rem;     /* matches input height */
   background: rgba(10, 4, 24, 0.92);
   box-shadow: 0 0 18px rgba(0, 0, 0, 0.55);
 }
