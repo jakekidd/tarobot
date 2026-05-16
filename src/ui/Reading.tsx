@@ -188,20 +188,24 @@ export function Reading({ apiKey, brief, preferredIntro, onExit }: Props) {
             <ReadingStage state={state} engine={engine} advanceTick={advanceTick} />
           </div>
 
-          <TableAnchor pickable={pickable} onPick={(slot) => engine.pickSlot(slot)} />
-
-          <CardSubtitle name={activeCardName} visible={subtitleVisible} />
-
-          <div className="reading__chat-slot">
-            <ChatForm state={state} onSend={(text) => void engine.submitChat(text)} />
-            <button
-              type="button"
-              className="reading__transcript-open"
-              onClick={() => setTranscriptOpen(true)}
-            >
-              TRANSCRIPT
-            </button>
+          {/* table-rig: relative-positioned wrapper so subtitle + chat are
+              absolute overlays anchored to the table — they never push
+              flow around when they appear/disappear. */}
+          <div className="reading__table-rig">
+            <TableAnchor pickable={pickable} onPick={(slot) => engine.pickSlot(slot)} />
+            <CardSubtitle name={activeCardName} visible={subtitleVisible} />
+            <div className="reading__chat-slot">
+              <ChatForm state={state} onSend={(text) => void engine.submitChat(text)} />
+            </div>
           </div>
+
+          <button
+            type="button"
+            className="reading__transcript-open"
+            onClick={() => setTranscriptOpen(true)}
+          >
+            TRANSCRIPT
+          </button>
 
           <ReadingFooter state={state} onExit={onExit} />
         </section>
@@ -213,9 +217,8 @@ export function Reading({ apiKey, brief, preferredIntro, onExit }: Props) {
             type="button"
             className="reading__transcript-close"
             onClick={() => setTranscriptOpen(false)}
-            aria-label="close transcript"
           >
-            ×
+            ← BACK
           </button>
           <div className="reading__transcript-fullpage-body">
             <Transcript

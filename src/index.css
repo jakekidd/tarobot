@@ -761,14 +761,14 @@ a:hover { text-decoration: underline; }
   flex-shrink: 0;
 }
 .reading__chat-slot {
-  width: 100%;
-  max-width: 64ch;
-  min-height: 4.4rem;
-  flex-shrink: 0;
-  margin-top: -1.5rem;   /* tug the chat up so it sits flush under
-                            (and slightly into) the table area */
-  position: relative;
-  z-index: 6;
+  /* Absolutely attached to the bottom edge of the table-rig. Doesn't
+     move when subtitle/dialogue change. */
+  position: absolute;
+  bottom: -2rem;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(64ch, 100%);
+  z-index: 7;
 }
 
 /* Rigid-size dialogue box. Long monologues chunk into "…" pages instead
@@ -782,29 +782,43 @@ a:hover { text-decoration: underline; }
   cursor: pointer;
 }
 
-/* The table anchor — invisible div whose bbox is read by TarobotScene's
-   perspective layer. Sized for the lifted card + 4-card diamond to fit
-   without cropping. */
-.table-anchor {
+/* table-rig — wraps table + subtitle + chat. subtitle + chat are
+   absolute children so they don't reflow the layout when they appear /
+   change. The table-anchor's own height defines the rig height; the
+   chat-slot extends below via negative bottom. */
+.reading__table-rig {
+  position: relative;
   width: 100%;
   max-width: 720px;
-  height: 460px;
   flex-shrink: 0;
+  /* reserve space below the table for the absolutely-positioned chat
+     input that extends 2rem past the rig's bottom edge */
+  margin-bottom: 4.6rem;
+}
+.table-anchor {
+  width: 100%;
+  height: 460px;
 }
 
-/* ─── Card subtitle — sits BELOW the table; 3D-extruded floating letters */
+/* ─── Card subtitle — absolutely positioned over the table area,
+       just above the chat input; 3D-extruded floating letters. Doesn't
+       affect layout flow so the chat never moves. */
 .card-subtitle {
+  position: absolute;
+  bottom: 1.6rem;
+  left: 0;
+  right: 0;
   font-family: var(--font-speech);
   font-style: italic;
   font-size: 1.55rem;
   letter-spacing: 0.32em;
   text-align: center;
   min-height: 2rem;
-  margin: -0.1rem auto 0.2rem;
   opacity: 0;
   transition: opacity 0.55s ease;
   pointer-events: none;
   perspective: 600px;
+  z-index: 8;
 }
 .card-subtitle--on {
   opacity: 1;
@@ -962,18 +976,25 @@ a:hover { text-decoration: underline; }
 }
 .reading__transcript-close {
   position: absolute;
-  top: 0.6rem;
-  right: 0.8rem;
-  background: transparent;
-  border: 0;
-  color: var(--fg-dim);
-  font-size: 2rem;
-  line-height: 1;
-  padding: 0.4rem 0.7rem;
+  top: 0.8rem;
+  left: 0.8rem;
+  background: rgba(10, 4, 24, 0.92);
+  border: 1.5px solid var(--violet-line-strong);
+  color: var(--fg);
+  font-size: 0.95rem;
+  letter-spacing: 0.22em;
+  padding: 0.7rem 1.2rem;
   cursor: pointer;
   font-family: var(--font-mono);
+  z-index: 60;
 }
-.reading__transcript-close:hover { color: var(--fg); }
+.reading__transcript-close:hover {
+  border-color: var(--violet);
+  box-shadow: 0 0 14px rgba(179, 136, 255, 0.35);
+}
+.reading__transcript-fullpage-body {
+  padding-top: 3.4rem;        /* leave room for the BACK button */
+}
 
 @media (max-width: 760px) {
   /* Collapse the transcript column; the right column gets full width. */
@@ -1123,31 +1144,36 @@ a:hover { text-decoration: underline; }
 }
 .reading__chat-form {
   display: flex;
-  gap: 0.4rem;
+  gap: 0.5rem;
   align-items: stretch;
 }
 .reading__chat-input {
   flex: 1;
-  background: rgba(10, 4, 24, 0.85);
-  border: 1px solid var(--violet-line);
+  background: rgba(10, 4, 24, 0.92);
+  border: 1.5px solid var(--violet-line-strong);
   color: var(--fg);
-  padding: 0.5rem 0.7rem;
+  padding: 1rem 1.2rem;
   font-family: var(--font-mono);
-  font-size: 0.9rem;
+  font-size: 1.05rem;
   outline: none;
+  box-shadow: 0 0 18px rgba(0, 0, 0, 0.55);
 }
 .reading__chat-input:focus {
   border-color: var(--violet);
-  box-shadow: 0 0 12px rgba(179, 136, 255, 0.28);
+  box-shadow:
+    0 0 14px rgba(179, 136, 255, 0.4),
+    0 0 26px rgba(124, 58, 237, 0.18);
 }
 .reading__chat-input::placeholder {
   color: var(--fg-faint);
   font-style: italic;
 }
 .reading__chat-send {
-  letter-spacing: 0.2em;
-  font-size: 0.78rem;
-  padding: 0.5rem 0.9rem;
+  letter-spacing: 0.22em;
+  font-size: 0.92rem;
+  padding: 1rem 1.5rem;
+  background: rgba(10, 4, 24, 0.92);
+  box-shadow: 0 0 18px rgba(0, 0, 0, 0.55);
 }
 .reading__chat-send:disabled {
   opacity: 0.4;
