@@ -46,7 +46,8 @@
     "parents_version",
     "live_here",
     "would_rather_be",
-    "you_make"
+    "you_make",
+    "destination_map"
   ],
 
   "nodes": {
@@ -430,6 +431,14 @@
         ["not really"],
         ["i used to", "noted."]
       ]
+    },
+    "destination_map": {
+      "q": "would you rather have a destination with no map, or a map with no destination?",
+      "f": "binary",
+      "a": [
+        ["destination, no map"],
+        ["map, no destination"]
+      ]
     }
   },
 
@@ -615,6 +624,9 @@
     "you_make.yes — i make": "creative identity active. ask what they make at reading time.",
     "you_make.yes, but i don't call it that": "creative work disowned. self-perception lags reality.",
     "you_make.not really": "no current creative outlet. neutral — not all lives have one.",
-    "you_make.i used to": "creative loss. specific kind of grief. probe what changed."
+    "you_make.i used to": "creative loss. specific kind of grief. probe what changed.",
+
+    "destination_map.destination, no map": "outcome-driven; knows what they want, not how. faith over plan. often acts first, figures it out en route. fork tends to be 'which destination', not 'whether to go'.",
+    "destination_map.map, no destination": "process-driven; skill-rich without aim. existential drift. the 'good at things but lost' pattern. fork tends to be identity/meaning, not logistics. high risk of competence-as-avoidance."
   }
 }
