@@ -554,9 +554,9 @@ export function TarobotScene() {
       override render(
         rdr: THREE.WebGLRenderer,
         writeBuffer: THREE.WebGLRenderTarget,
-        readBuffer: THREE.WebGLRenderTarget,
-        deltaTime: number,
-        maskActive: boolean,
+        _readBuffer: THREE.WebGLRenderTarget,
+        _deltaTime: number,
+        _maskActive: boolean,
       ) {
         const rect = getTableAnchor();
         if (!rect || cardScene.drawn === null || rect.width < 2 || rect.height < 2) {
@@ -570,14 +570,20 @@ export function TarobotScene() {
         const w = Math.round(rect.width * dpr);
         const h = Math.round(rect.height * dpr);
 
-        perspCamera.aspect = rect.width / rect.height;
-        perspCamera.updateProjectionMatrix();
-
+        // setRenderTarget() RESETS viewport + scissor — so we set them
+        // AFTER, not before. Same trap as the previous CombinedPass
+        // attempt; the fix is to inline the render flow instead of calling
+        // super.render().
+        rdr.setRenderTarget(this.renderToScreen ? null : writeBuffer);
         rdr.setScissorTest(true);
         rdr.setScissor(x, y, w, h);
         rdr.setViewport(x, y, w, h);
+        rdr.clearDepth();
 
-        super.render(rdr, writeBuffer, readBuffer, deltaTime, maskActive);
+        perspCamera.aspect = rect.width / rect.height;
+        perspCamera.updateProjectionMatrix();
+
+        rdr.render(this.scene, this.camera);
 
         rdr.setScissorTest(false);
         rdr.setViewport(0, 0, drawW, drawH);
