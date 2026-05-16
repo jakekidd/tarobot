@@ -544,59 +544,15 @@ export function TarobotScene() {
     }
     registerPicker(pickAt);
 
-    // ── Composer passes ────────────────────────────────
-    // Pass 1: ortho scene full-canvas (cat / eyes / particles / orbs).
-    // Pass 2: perspective scene scissored to the table anchor rect (table
-    //         + cards). Clear=false so the ortho render stays visible;
-    //         clearDepth=true so the perspective renders correctly on top.
-    // Pass 3: bloom + output.
-    class TableRenderPass extends RenderPass {
-      override render(
-        rdr: THREE.WebGLRenderer,
-        writeBuffer: THREE.WebGLRenderTarget,
-        _readBuffer: THREE.WebGLRenderTarget,
-        _deltaTime: number,
-        _maskActive: boolean,
-      ) {
-        const rect = getTableAnchor();
-        if (!rect || cardScene.drawn === null || rect.width < 2 || rect.height < 2) {
-          return;
-        }
-        const dpr = rdr.getPixelRatio();
-        const drawW = rdr.domElement.width;
-        const drawH = rdr.domElement.height;
-        const x = Math.round(rect.x * dpr);
-        const y = Math.round((window.innerHeight - rect.y - rect.height) * dpr);
-        const w = Math.round(rect.width * dpr);
-        const h = Math.round(rect.height * dpr);
-
-        // setRenderTarget() RESETS viewport + scissor — so we set them
-        // AFTER, not before. Same trap as the previous CombinedPass
-        // attempt; the fix is to inline the render flow instead of calling
-        // super.render().
-        rdr.setRenderTarget(this.renderToScreen ? null : writeBuffer);
-        rdr.setScissorTest(true);
-        rdr.setScissor(x, y, w, h);
-        rdr.setViewport(x, y, w, h);
-        rdr.clearDepth();
-
-        perspCamera.aspect = rect.width / rect.height;
-        perspCamera.updateProjectionMatrix();
-
-        rdr.render(this.scene, this.camera);
-
-        rdr.setScissorTest(false);
-        rdr.setViewport(0, 0, drawW, drawH);
-      }
-    }
-
+    // ─── Composer (ortho only) ────────────────────────────
+    // The perspective layer renders DIRECTLY to canvas after composer.render(),
+    // scissored. Trying to embed it as a composer Pass was breaking buffer
+    // state for bloom; layering it via a second renderer.render() call on the
+    // already-composited canvas is cleaner and more predictable. Trade-off:
+    // perspective doesn't get bloom applied. Fine for now (table is dark, card
+    // emoji aren't bright enough to need bloom).
     const composer = new EffectComposer(renderer);
     composer.addPass(new RenderPass(scene, camera));
-    const tablePass = new TableRenderPass(perspScene, perspCamera);
-    tablePass.clear = false;
-    tablePass.clearDepth = true;
-    composer.addPass(tablePass);
-
     const bloom = new UnrealBloomPass(
       new THREE.Vector2(window.innerWidth, window.innerHeight),
       0.85,
@@ -1029,6 +985,40 @@ export function TarobotScene() {
       }
 
       composer.render();
+
+      // ── Perspective overlay (table + cards) — second-pass render ─
+      // Layered on top of the composited ortho output. Scissored to the
+      // table-anchor rect so it only fills that region; clearDepth keeps
+      // the perspective from being z-occluded by ortho geometry.
+      if (cardScene.drawn) {
+        const rect = getTableAnchor();
+        if (rect && rect.width >= 2 && rect.height >= 2) {
+          const dpr = renderer.getPixelRatio();
+          const drawW = renderer.domElement.width;
+          const drawH = renderer.domElement.height;
+          const x = Math.round(rect.x * dpr);
+          const y = Math.round((window.innerHeight - rect.y - rect.height) * dpr);
+          const w = Math.round(rect.width * dpr);
+          const h = Math.round(rect.height * dpr);
+
+          renderer.autoClear = false;
+          renderer.setRenderTarget(null);
+          renderer.setScissorTest(true);
+          renderer.setScissor(x, y, w, h);
+          renderer.setViewport(x, y, w, h);
+          renderer.clearDepth();
+
+          perspCamera.aspect = rect.width / rect.height;
+          perspCamera.updateProjectionMatrix();
+
+          renderer.render(perspScene, perspCamera);
+
+          renderer.setScissorTest(false);
+          renderer.setViewport(0, 0, drawW, drawH);
+          renderer.autoClear = true;
+        }
+      }
+
       rafId = requestAnimationFrame(animate);
     };
     rafId = requestAnimationFrame(animate);
