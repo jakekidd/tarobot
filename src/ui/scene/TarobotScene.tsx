@@ -4,6 +4,7 @@ import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import spriteData from '../reader/sprite.json';
 import { paintFrame, type SpriteFrame } from '../reader/spriteCanvas';
 import { getAnchor } from './anchorStore';
@@ -367,72 +368,65 @@ export function TarobotScene() {
     perspCamera.position.set(0, 2.6, 5.6);
     perspCamera.lookAt(0, 0.7, 0);
 
-    // lighting
-    perspScene.add(new THREE.AmbientLight(0x2a1a55, 1.2));
-    const keyLight = new THREE.DirectionalLight(0xefe1ff, 1.25);
-    keyLight.position.set(1.2, 4.5, 2.4);
-    perspScene.add(keyLight);
-    const rimLight = new THREE.PointLight(0xb27cff, 0.8, 7, 1.6);
-    rimLight.position.set(0, 0.4, 3.0);
-    perspScene.add(rimLight);
+    // ── Lighting ───────────────────────────────────────
+    // Warm key from above (the "orb" that hovers over a real tarot table)
+    // + cool purple hemisphere ambient so the cloth's drape stays
+    // legible all the way down to its pooling at the floor. The fill
+    // light below catches the underside of the cloth so the table
+    // doesn't read as a flat red circle.
+    perspScene.add(new THREE.HemisphereLight(0x4030a0, 0x331515, 0.55));
 
-    // ── Table (red velvet top, dark cloth skirt) ───
-    const TABLE_TOP_RADIUS = 2.55;
-    const TABLE_TOP_THICK = 0.12;
-    const TABLE_SKIRT_H = 1.45;
-    const tableGroup = new THREE.Group();
-    perspScene.add(tableGroup);
+    const orbLight = new THREE.PointLight(0xffd9a8, 2.4, 9, 1.6);
+    orbLight.position.set(0, 3.0, 0.4);
+    perspScene.add(orbLight);
 
-    const tableTopGeom = new THREE.CylinderGeometry(
-      TABLE_TOP_RADIUS, TABLE_TOP_RADIUS, TABLE_TOP_THICK, 80,
-    );
-    const tableTopMat = new THREE.MeshStandardMaterial({
-      color: 0x6b0e1c,        // deep crimson velvet
-      roughness: 0.7,
-      metalness: 0.0,
-    });
-    const tableTop = new THREE.Mesh(tableTopGeom, tableTopMat);
-    tableGroup.add(tableTop);
+    const underFill = new THREE.PointLight(0x6b3aa8, 0.65, 7, 1.8);
+    underFill.position.set(0, -1.8, 1.4);
+    perspScene.add(underFill);
 
-    const skirtGeom = new THREE.CylinderGeometry(
-      TABLE_TOP_RADIUS, TABLE_TOP_RADIUS + 0.42, TABLE_SKIRT_H, 80, 1, true,
-    );
-    const skirtMat = new THREE.MeshStandardMaterial({
-      color: 0x1a0a1f,
-      roughness: 0.95,
-      metalness: 0,
-      side: THREE.DoubleSide,
-    });
-    const skirt = new THREE.Mesh(skirtGeom, skirtMat);
-    skirt.position.y = -TABLE_TOP_THICK / 2 - TABLE_SKIRT_H / 2;
-    tableGroup.add(skirt);
-
-    // Hand-wavy cloth wobble on the skirt
-    const skirtPos = skirtGeom.attributes.position;
-    if (skirtPos) {
-      const arr = skirtPos.array as Float32Array;
-      for (let i = 0; i < arr.length; i += 3) {
-        const x = arr[i + 0]!;
-        const y = arr[i + 1]!;
-        const z = arr[i + 2]!;
-        const angle = Math.atan2(z, x);
-        const radial = Math.hypot(x, z);
-        const heightFactor = (TABLE_SKIRT_H / 2 - y) / TABLE_SKIRT_H;
-        const wob = Math.sin(angle * 8) * 0.06 * heightFactor +
-                    Math.sin(angle * 17 + 1.3) * 0.025 * heightFactor;
-        const r2 = radial + wob;
-        arr[i + 0] = Math.cos(angle) * r2;
-        arr[i + 2] = Math.sin(angle) * r2;
-      }
-      skirtPos.needsUpdate = true;
-      skirtGeom.computeVertexNormals();
-    }
-
-    // ── Cards (4 rigs, materials swapped per draw) ───
+    // ── Cards constants (define before table loader so SURFACE_Y is in scope) ──
     const CARD_W = 0.84;
     const CARD_H = 1.26;
     const CARD_THICK = 0.01;
-    const SURFACE_Y = TABLE_TOP_THICK / 2 + 0.012;
+    const SURFACE_Y = 0.072;          // y where cards rest
+
+    // ── Table (GLB) ────────────────────────────────────
+    // The GLB is a lathed cloth-on-rigid-top set, native dims:
+    //   tableRadius = 0.55, tableHeight = 0.75 (crown ~0.77)
+    // Scale up to match the world coords cards expect, and shift so the
+    // cloth crown lands just below SURFACE_Y so cards rest on it.
+    const GLB_RADIUS = 0.55;
+    const GLB_CROWN_Y = 0.77;
+    const TABLE_TARGET_RADIUS = 2.55;
+    const TABLE_SCALE = TABLE_TARGET_RADIUS / GLB_RADIUS;   // ~4.64
+
+    const tableGroup = new THREE.Group();
+    tableGroup.visible = false;       // toggled by cardSceneStore subscriber
+    perspScene.add(tableGroup);
+    const tableMeshes: THREE.Mesh[] = [];
+
+    const loader = new GLTFLoader();
+    loader.load(
+      '/tarot_table.glb',
+      (gltf) => {
+        const model = gltf.scene;
+        model.scale.setScalar(TABLE_SCALE);
+        const crownAfterScale = TABLE_SCALE * GLB_CROWN_Y;
+        model.position.y = (SURFACE_Y - 0.005) - crownAfterScale;
+        model.traverse((obj) => {
+          if (obj instanceof THREE.Mesh) {
+            obj.castShadow = true;
+            obj.receiveShadow = true;
+            tableMeshes.push(obj);
+          }
+        });
+        tableGroup.add(model);
+      },
+      undefined,
+      (err) => {
+        console.error('[tarobot] failed to load tarot_table.glb', err);
+      },
+    );
 
     const SLOT_POS: Record<SlotName, [number, number]> = {
       top:    [0, -1.05],
@@ -1057,10 +1051,13 @@ export function TarobotScene() {
         rig.backMat.dispose();
       }
       cardGeom.dispose();
-      tableTopGeom.dispose();
-      tableTopMat.dispose();
-      skirtGeom.dispose();
-      skirtMat.dispose();
+      // GLB table meshes
+      for (const m of tableMeshes) {
+        m.geometry.dispose();
+        const mat = m.material as THREE.Material | THREE.Material[];
+        if (Array.isArray(mat)) mat.forEach((x) => x.dispose());
+        else mat.dispose();
+      }
       disposeCardTextures();
       particleGeom.dispose();
       particleMat.dispose();
