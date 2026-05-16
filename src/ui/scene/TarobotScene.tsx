@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import * as THREE from 'three';
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
-import { Pass } from 'three/addons/postprocessing/Pass.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import spriteData from '../reader/sprite.json';
@@ -544,50 +544,58 @@ export function TarobotScene() {
     }
     registerPicker(pickAt);
 
-    // ── Composed pass (ortho then perspective into scissor rect) ───
-    class CombinedPass extends Pass {
-      override needsSwap = false;
-      override render(rdr: THREE.WebGLRenderer, writeBuffer: THREE.WebGLRenderTarget) {
-        const rt = this.renderToScreen ? null : writeBuffer;
-        rdr.setRenderTarget(rt);
-        // Reset to full viewport for the ortho render
-        rdr.setScissorTest(false);
-        rdr.setViewport(0, 0, rdr.domElement.width, rdr.domElement.height);
-        if (this.clear) rdr.clear();
-        rdr.render(scene, camera);   // ortho scene (cat / eyes / particles / orbs)
-
+    // ── Composer passes ────────────────────────────────
+    // Pass 1: ortho scene full-canvas (cat / eyes / particles / orbs).
+    // Pass 2: perspective scene scissored to the table anchor rect (table
+    //         + cards). Clear=false so the ortho render stays visible;
+    //         clearDepth=true so the perspective renders correctly on top.
+    // Pass 3: bloom + output.
+    class TableRenderPass extends RenderPass {
+      override render(
+        rdr: THREE.WebGLRenderer,
+        writeBuffer: THREE.WebGLRenderTarget,
+        readBuffer: THREE.WebGLRenderTarget,
+        deltaTime: number,
+        maskActive: boolean,
+      ) {
         const rect = getTableAnchor();
-        const drawnPresent = cardScene.drawn !== null;
-        if (rect && drawnPresent && rect.width > 1 && rect.height > 1) {
-          const dpr = rdr.getPixelRatio();
-          const drawH = rdr.domElement.height;
-          const x = Math.round(rect.x * dpr);
-          const y = Math.round((window.innerHeight - rect.y - rect.height) * dpr);
-          // Clamp y in case of any DPR rounding drift
-          const yClamped = Math.max(0, Math.min(y, drawH));
-          const w = Math.round(rect.width * dpr);
-          const h = Math.round(rect.height * dpr);
-          rdr.clearDepth();
-          rdr.setScissorTest(true);
-          rdr.setScissor(x, yClamped, w, h);
-          rdr.setViewport(x, yClamped, w, h);
-          perspCamera.aspect = rect.width / rect.height;
-          perspCamera.updateProjectionMatrix();
-          rdr.render(perspScene, perspCamera);
-          rdr.setScissorTest(false);
-          rdr.setViewport(0, 0, rdr.domElement.width, drawH);
+        if (!rect || cardScene.drawn === null || rect.width < 2 || rect.height < 2) {
+          return;
         }
+        const dpr = rdr.getPixelRatio();
+        const drawW = rdr.domElement.width;
+        const drawH = rdr.domElement.height;
+        const x = Math.round(rect.x * dpr);
+        const y = Math.round((window.innerHeight - rect.y - rect.height) * dpr);
+        const w = Math.round(rect.width * dpr);
+        const h = Math.round(rect.height * dpr);
+
+        perspCamera.aspect = rect.width / rect.height;
+        perspCamera.updateProjectionMatrix();
+
+        rdr.setScissorTest(true);
+        rdr.setScissor(x, y, w, h);
+        rdr.setViewport(x, y, w, h);
+
+        super.render(rdr, writeBuffer, readBuffer, deltaTime, maskActive);
+
+        rdr.setScissorTest(false);
+        rdr.setViewport(0, 0, drawW, drawH);
       }
     }
 
-    // ─── Bloom ────────────────────────────────────────────
     const composer = new EffectComposer(renderer);
-    composer.addPass(new CombinedPass());
+    composer.addPass(new RenderPass(scene, camera));
+    const tablePass = new TableRenderPass(perspScene, perspCamera);
+    tablePass.clear = false;
+    tablePass.clearDepth = true;
+    composer.addPass(tablePass);
+
     const bloom = new UnrealBloomPass(
       new THREE.Vector2(window.innerWidth, window.innerHeight),
-      0.85,    // strength — dialed back from 1.4
-      0.8,     // radius
-      0.30,    // threshold — only the brighter pixels bloom (less halo on whole cat)
+      0.85,
+      0.8,
+      0.30,
     );
     composer.addPass(bloom);
     composer.addPass(new OutputPass());
