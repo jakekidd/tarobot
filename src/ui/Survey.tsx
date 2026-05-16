@@ -100,7 +100,7 @@ export function Survey({ apiKey, session, onComplete }: Props) {
   let dialogText = '';
   let dialogKey = 'empty';
   if (isCompiling) {
-    dialogText = 'the witch is preparing.';
+    dialogText = 'the seer is preparing.';
     dialogKey = 'compiling';
   } else if (currentQuestion) {
     dialogText = currentQuestion.preamble

@@ -270,9 +270,9 @@ export type CompilerInput = {
 export type CompilerLLMOutput = {
   /** 3-6 sentence summary that goes into Profile.brief. */
   brief_summary: string;
-  /** The opinionated PI brief the witch reads (200-400 words). */
+  /** The opinionated PI brief the seer reads (200-400 words). */
   prose_brief: string;
-  /** Three openers for the tent. Schema-locked to legacy Question shape. */
+  /** Three openers for the reading. Schema-locked to legacy Question shape. */
   openers: Question[];
 };
 

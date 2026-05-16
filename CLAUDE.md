@@ -11,9 +11,9 @@ delete it rather than patch it.
 
 A tarot-themed web app. The visible product is: a user lands in a dark
 purple game-feel CRT scene, a cat (Clat) interviews them via a sequence of
-multiple-choice questions, the cat compiles a brief, a witch then reads four
-cards in a diamond spread for them. The reading is the thing the rest exists
-to serve.
+multiple-choice questions, the cat compiles a brief, the Seer then reads
+four cards in a diamond spread for them. The reading is the thing the rest
+exists to serve.
 
 Deploy is Vercel static. The browser holds the user's Anthropic API key and
 calls the model directly — there is no backend, no database, no auth layer.
@@ -41,7 +41,7 @@ constrain. Each card's job is to license one specific angle on the user at
 the threshold. The win condition is the user feeling *seen*, not the system
 appearing prescient.
 
-Operationally: the witch must not advise, moralize, or assign verdicts.
+Operationally: the Seer must not advise, moralize, or assign verdicts.
 "You will…" / "you should…" / "the answer is…" are failure modes. "You are
 carrying X into this" / "the part you are not looking at is Y" are the
 register.
@@ -54,11 +54,11 @@ the whole arc, models the user on multiple timescales, and produces
 the director's notes and improvises the actual utterance in-character.
 
 The split exists because alignment-trained models pull toward
-helpful-and-clear, which is the opposite of what the witch needs.
+helpful-and-clear, which is the opposite of what the Seer needs.
 Asking one model to both reason carefully *and* perform character at once
 collapses the reasoning. Keep them separated.
 
-The thematic restatement: the witch is a medium. Cognition is what she
+The thematic restatement: the Seer is a medium. Cognition is what she
 channels. There really is an intelligence whispering to her that she does
 not fully see. Architecturally and narratively, the same shape.
 
@@ -145,8 +145,8 @@ hypothetical-next-flip, in parallel, while the user reads the previous
 beat. Latency disappears behind delivery. Director (cognition) and
 performer (persona) stay separated at every step.
 
-The persona is **the Seer** (formerly "the witch" — renamed for classic-
-user-expectation). Voice register and constraints are unchanged.
+The persona is **the Seer**. Voice register: composed, low-volume,
+mirror-shaped, no advise/moralize/verdict. Lowercase output throughout.
 
 Calls per round R (revealed.length + 1):
 - For each still-face-down slot S: `cognitionPerCard(S, R, history)` →
@@ -193,13 +193,6 @@ The slot meanings are *mirror-shaped*, not classical:
 These slot meanings are stated in the cognition prompt and are
 load-bearing. Changing them changes the reading.
 
-### Older tent / dialogue engine (`src/pipeline/engine/`, `src/ui/Tent.tsx`)
-
-Dormant. This was the chat-with-witch interface before the reading flow
-replaced it. Unrouted as of v0.0.2 but kept on disk pending walkthrough
-validation. Safe to delete once the reading flow is confirmed acceptable.
-Do not extend this code path.
-
 ### Static data
 
 `cards.ts` (78-card Rider-Waite deck with keywords and upright meanings),
@@ -221,10 +214,10 @@ tarot birth card). Treat these as ground truth; do not duplicate inline.
 | Reading engine + prompts | `src/pipeline/reading/` |
 | Card draw mechanics | `src/pipeline/cards.ts` |
 | Spread definitions | `src/pipeline/spreads.ts` |
-| three.js Clat scene + dizzy bus | `src/ui/scene/` |
-| CSS-3D card components | `src/ui/cards/` |
+| three.js scene (Clat + eyes + perspective table/cards + scene stores) | `src/ui/scene/`, `src/ui/scene/TarobotScene.tsx` |
+| Card face/back canvas painters (used by the perspective layer) | `src/ui/cards/cardTexture.ts`, `glyphs.ts` |
 | Survey UI (questions, choices) | `src/ui/Survey.tsx`, `src/ui/choices/` |
-| Reading UI (witch screen) | `src/ui/Reading.tsx` |
+| Reading UI (the Seer screen) | `src/ui/Reading.tsx`, `src/ui/Transcript.tsx` |
 | Persistence (API key, sessions) | `src/storage.ts` |
 | E2E bot harness (Opus archetype + Haiku answerer) | `scripts/e2e/`, `scripts/e2e-survey.ts` |
 | Character bibles (free-form) | `persona/` |
@@ -397,14 +390,18 @@ the doc.
    from behavioral signals; phase derives from heat (monotonic). Close
    predicates fire on saturation / fatigue / cap.
 4. On close, Compiler runs (Sonnet) and returns `CompilerOutput` = profile +
-   openers + prose brief.
+   openers + prose brief. (Openers are produced but currently unread by the
+   reading flow — vestige from the dormant tent path.)
 5. App routes survey-complete directly into the reading phase. Reading
-   mounts, draws four cards via `drawForSpread(FOUR_CARD_DIAMOND)`, then
-   fires Plan (cognition) → Voice (deep) serially. Dizzy spinner runs as
-   the visible transition.
-6. Phase machine sequences the reveal: intro (typed, user-tap to advance) →
-   flip (auto, 950ms) → beat (typed, user-tap) → between (auto, 700ms) →
-   next flip → … → outro (typed, user-tap) → done.
+   mounts, draws four cards via `drawForSpread(FOUR_CARD_DIAMOND)`, sets
+   reader-mode to `'eyes'`, publishes the drawn cards into `cardSceneStore`
+   so the perspective layer renders the table + face-down cards, then
+   spawns intro (or uses `preferred_intro`) and round-1 fan-out.
+6. Phase machine sequences the reveal: intro → awaiting_flip (user clicks a
+   face-down card) → flipping (CSS-3D anim, 950ms) → beat (typed, user-tap)
+   → next awaiting_flip → … → closing_thinking → outro (typed, user-tap) →
+   done. Chat is enabled in awaiting_flip and done; persona replies are
+   their own LLM call.
 7. User can exit at any point via the topbar `exit` button. No persistence
    for in-progress readings; cards re-draw fresh on resume.
 

@@ -468,7 +468,7 @@
     "creature.cat": "self-sufficient, curious, on their own terms. may resist being read.",
 
     "putting_off.a conversation": "relational stasis. specific person almost certainly exists.",
-    "putting_off.a decision": "fork is live and unresolved. witch's primary material.",
+    "putting_off.a decision": "fork is live and unresolved. seer's primary material.",
     "putting_off.a task": "lowest signal unless paired with too much.",
     "putting_off.i'm not": "denial or genuine clarity. watch subsequent picks for contradiction.",
 
@@ -556,7 +556,7 @@
     "someones_secret.pass": "the question was accurate. high confidence yes suppressed.",
 
     "honesty_grid.honest + okay": "genuinely well.",
-    "honesty_grid.honest + not okay": "self-aware and struggling. most open to witch's work.",
+    "honesty_grid.honest + not okay": "self-aware and struggling. most open to seer's work.",
     "honesty_grid.performing + okay": "fronting wellness.",
     "honesty_grid.performing + not okay": "performing while suffering. the gap is the story.",
 
@@ -570,10 +570,10 @@
     "last_changed_mind.can't remember": "settled or avoidant of uncertainty.",
     "last_changed_mind.always changing": "unstable convictions or high adaptability.",
 
-    "tarot_familiarity.yes — i'm into it": "believer or invested. witch can be more reverent. they'll catch unforced theatrics.",
+    "tarot_familiarity.yes — i'm into it": "believer or invested. seer can be more reverent. they'll catch unforced theatrics.",
     "tarot_familiarity.once or twice": "neutral curiosity. open but not committed.",
-    "tarot_familiarity.not really": "first-timer. baseline calibration; witch leans into theatrical pacing.",
-    "tarot_familiarity.i don't believe in it": "skeptic. witch should lean into irony, embrace doubt. don't over-promise.",
+    "tarot_familiarity.not really": "first-timer. baseline calibration; seer leans into theatrical pacing.",
+    "tarot_familiarity.i don't believe in it": "skeptic. seer should lean into irony, embrace doubt. don't over-promise.",
 
     "moment_to_share.something i'm proud of": "positive self-narrative active. note what they share.",
     "moment_to_share.something i regret": "live regret. specific.",
@@ -589,7 +589,7 @@
     "birth_time.yes — morning": "rising sign approximation: sunrise window. astrology-engaged.",
     "birth_time.yes — afternoon or evening": "rising sign approximation: midday-to-dusk. astrology-engaged.",
     "birth_time.yes — overnight": "rising sign approximation: nighttime. astrology-engaged.",
-    "birth_time.no idea": "rising sign null. not astrology-engaged — witch should weight astrological framing less.",
+    "birth_time.no idea": "rising sign null. not astrology-engaged — seer should weight astrological framing less.",
 
     "work_feeling.meaningful": "occupational alignment. not a fork candidate; anchor.",
     "work_feeling.fine": "neutral surface. probe for what's underneath.",

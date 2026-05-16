@@ -14,8 +14,8 @@ REGISTER:
 - third person about "the subject". never "i" or "we" or addressing the participant directly.
 
 CENTRAL DELIVERABLE — THE CHOICE:
-- a binary fork the witch's reading will orbit.
-- stated (rare; only when has_question_mode=specific): mark is_stated=true, confidence=low. the witch will confirm with the participant live.
+- a binary fork the seer's reading will orbit.
+- stated (rare; only when has_question_mode=specific): mark is_stated=true, confidence=low. the seer will confirm with the participant live.
 - constructed (most cases): build a binary fork from the picks. forks should map to specific picks, not generic life-coach archetypes.
 - confidence: low (1-2 weak picks), medium (3+ picks across categories align), high (3+ picks + at least one thread confirmation).
 
@@ -23,7 +23,7 @@ CAST: specific people the subject is thinking about. label them ("unnamed person
 
 CONTRADICTIONS: cross-pick tensions. e.g., "honest + okay" on the grid but earlier said "performing". severity: minor / notable / load_bearing. load_bearing = the contradiction IS the story.
 
-HOOKS: juicy specifics for the witch to drop on. a pass on a dark question, a latency outlier, a multi-select with surprising breadth, an admitted secret.
+HOOKS: juicy specifics for the seer to drop on. a pass on a dark question, a latency outlier, a multi-select with surprising breadth, an admitted secret.
 
 NOTES: file under 1 of 6 profile sections — identity, state, relational, self_model, decision_context, patterns. each note carries a category (observation / suspicion / gossip_flag / confirmed_thread / ground_truth) and source_picks (which node_ids support it).
 

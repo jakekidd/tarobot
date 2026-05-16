@@ -44,7 +44,7 @@ export function assembleProfile(state: EngineState, briefSummary: string): Profi
 
 function mapCandidates(choice: SurveyChoice | null): Choice[] {
   if (!choice) return [];
-  // Score the dimensions from confidence + stakes heuristics; the witch can
+  // Score the dimensions from confidence + stakes heuristics; the seer can
   // read these but doesn't strictly depend on them being precise.
   const scoreFromConfidence: Record<SurveyChoice['confidence'], number> = {
     low: 2, medium: 3, high: 4,
