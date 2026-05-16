@@ -1,6 +1,20 @@
 // Web Audio API procedural sound. No audio assets.
-// AudioContext must be created from a user gesture; init() should be called
-// once from a click handler before any other function here.
+//
+// AudioContext requires a user gesture to BOTH create and resume — and
+// browsers (especially Safari) silently refuse resume() calls from non-
+// gesture stacks (setTimeout typewriter ticks, useEffect mounts). The
+// previous version coupled init() to KeyEntry's form submit, which meant:
+//   (a) returning users with a saved key never ran init(), so ctx stayed
+//       null and every blip/chime/flip silently no-op'd.
+//   (b) even users who did init the ctx lost sound once the browser
+//       auto-suspended it (idle / backgrounded / OS sleep), because
+//       ensureRunning()'s resume() call wasn't inside a gesture stack.
+// Re-entering the API key "fixed" it because that path runs init() from
+// the submit handler — itself a gesture.
+//
+// Fix: attachGestureGuard() registers a window-level pointerdown+keydown
+// listener that runs init+resume from inside every real user gesture.
+// Called once from main.tsx.
 
 let ctx: AudioContext | null = null;
 let master: GainNode | null = null;
@@ -22,9 +36,33 @@ export function init(): void {
   master.connect(ctx.destination);
 }
 
+let gestureGuardAttached = false;
+
 /**
- * Resume the AudioContext if it's been auto-suspended by the browser
- * (tab backgrounded, etc.). Safe to call from any event handler.
+ * Wire sound bootstrap to user gestures. Idempotent. Call once at app
+ * boot. Every pointerdown/keydown anywhere in the page will (a) create
+ * the AudioContext if it doesn't exist, and (b) resume it if the browser
+ * has suspended it. Capture-phase + passive so it never interferes with
+ * normal event handling.
+ */
+export function attachGestureGuard(): void {
+  if (gestureGuardAttached) return;
+  gestureGuardAttached = true;
+  const onGesture = () => {
+    init();
+    if (ctx && ctx.state === 'suspended') {
+      ctx.resume().catch(() => {});
+    }
+  };
+  window.addEventListener('pointerdown', onGesture, { capture: true, passive: true });
+  window.addEventListener('keydown', onGesture, { capture: true });
+}
+
+/**
+ * Defensive resume attempt from any caller. Browsers may refuse this if
+ * the page hasn't seen a gesture yet — the gesture guard handles the
+ * real bootstrap. Kept so blip/chime/flip stay self-healing even if the
+ * guard isn't attached.
  */
 function ensureRunning(): void {
   if (ctx && ctx.state === 'suspended') {

@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { createClaudeClient, validateKey } from '../pipeline';
 import { saveApiKey } from '../storage';
-import { init as initSound } from './sound/sound';
 
 type Props = {
   onValidated: (key: string) => void;
@@ -16,7 +15,6 @@ export function KeyEntry({ onValidated }: Props) {
     e.preventDefault();
     if (busy) return;
     setErr(null);
-    initSound(); // user gesture — first chance to start AudioContext
     if (!value.trim().startsWith('sk-ant-')) {
       setErr('that key does not look right. it should start with sk-ant-…');
       return;
