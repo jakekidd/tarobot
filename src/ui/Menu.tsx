@@ -42,6 +42,11 @@ export function Menu({ onBegin, onReadDemo, onOpenResume, onSettings }: Props) {
           SETTINGS
         </button>
       </div>
+
+      <p className="menu__consent">
+        by continuing, you consent to sharing anonymous usage data with the
+        development team to improve the experience.
+      </p>
     </div>
   );
 }

@@ -9,6 +9,7 @@ import { paintFrame, type SpriteFrame } from '../reader/spriteCanvas';
 import { getAnchor } from './anchorStore';
 import { subscribeImpacts, type Impact as ImpactEvent } from './impactStore';
 import { subscribeDizzy } from './dizzyStore';
+import { subscribeReaderMode, type ReaderMode } from './readerModeStore';
 
 // Reverted from the voxel approach (it merged into a featureless silhouette —
 // the eye gaps disappeared into the surrounding side faces). Back to a flat
@@ -166,12 +167,40 @@ export function TarobotScene() {
     catGroup.add(catFront);
     let lastFrameIdx = -1;
 
+    // ─── Eyes (alternative face — the seer) ──────────────
+    // Two glowing spheres parented to a single group so they share head
+    // motion. Sized in world units relative to anchor.width (just like
+    // Clat). Bloom on the composer makes them read as light sources.
+    const eyesGroup = new THREE.Group();
+    const eyeGeom = new THREE.SphereGeometry(0.075, 28, 18);
+    const eyeMat = new THREE.MeshBasicMaterial({ color: 0xc9a5ff });
+    const leftEye = new THREE.Mesh(eyeGeom, eyeMat);
+    const rightEye = new THREE.Mesh(eyeGeom, eyeMat.clone());
+    leftEye.position.set(-0.16, 0.02, 0);
+    rightEye.position.set(0.16, 0.02, 0);
+    eyesGroup.add(leftEye);
+    eyesGroup.add(rightEye);
+    eyesGroup.visible = false;
+
     const particleGroup = new THREE.Group();
 
     const positionGroup = new THREE.Group();
     positionGroup.add(catGroup);
+    positionGroup.add(eyesGroup);
     positionGroup.add(particleGroup);
     scene.add(positionGroup);
+
+    // Reader mode subscription — flips which face is shown at the anchor.
+    let readerMode: ReaderMode = 'cat';
+    const unsubscribeReaderMode = subscribeReaderMode((m) => { readerMode = m; });
+
+    // Eyes blink state — independent of Clat's sprite-frame blink, since
+    // 'eyes' mode has no spritesheet.
+    const eyesBlink = {
+      blinking: false,
+      nextAt: 0,
+      endsAt: 0,
+    };
 
     // ─── Particles ────────────────────────────────────────
     // Camera-facing square sprites via Points + flat white-square texture.
@@ -416,6 +445,32 @@ export function TarobotScene() {
       const anchor = getAnchor();
       const wantVisible = anchor !== null;
       positionGroup.visible = wantVisible;
+      // Reader mode: show one face at the anchor; never both.
+      catGroup.visible = readerMode === 'cat';
+      eyesGroup.visible = readerMode === 'eyes';
+
+      // ── Eyes blink (independent of Clat's sprite blink) ─────
+      if (eyesGroup.visible) {
+        if (eyesBlink.nextAt === 0) {
+          eyesBlink.nextAt = now + 1800 + Math.random() * 3800;
+        }
+        if (!eyesBlink.blinking && now >= eyesBlink.nextAt) {
+          eyesBlink.blinking = true;
+          eyesBlink.endsAt = now + 130 + Math.random() * 60;
+        } else if (eyesBlink.blinking && now >= eyesBlink.endsAt) {
+          eyesBlink.blinking = false;
+          eyesBlink.nextAt = now + 1800 + Math.random() * 3800;
+        }
+        let sy = 1;
+        if (eyesBlink.blinking) {
+          const u = 1 - (eyesBlink.endsAt - now) / 130;
+          // triangle 1 → 0 → 1 over the blink
+          sy = u < 0.5 ? 1 - u * 2 : (u - 0.5) * 2;
+          sy = Math.max(0.05, sy);
+        }
+        leftEye.scale.y = sy;
+        rightEye.scale.y = sy;
+      }
 
       const elapsedSinceMount = now - start;
       let zoomScale = 1;
@@ -705,6 +760,7 @@ export function TarobotScene() {
       document.removeEventListener('visibilitychange', onVisibilityChange);
       unsubscribeImpacts();
       unsubscribeDizzy();
+      unsubscribeReaderMode();
       for (const orb of orbs) {
         orbGroup.remove(orb.mesh);
         orb.mat.dispose();
@@ -714,6 +770,9 @@ export function TarobotScene() {
       catGeom.dispose();
       catMat.dispose();
       tex.dispose();
+      eyeGeom.dispose();
+      eyeMat.dispose();
+      (rightEye.material as THREE.MeshBasicMaterial).dispose();
       particleGeom.dispose();
       particleMat.dispose();
       particleTex.dispose();

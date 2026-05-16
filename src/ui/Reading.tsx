@@ -35,11 +35,12 @@ import {
   type ReadingState,
   pickStall,
 } from '../pipeline/reading';
-import { Eyes } from './eyes/Eyes';
+import { ReaderAnchor } from './scene/ReaderAnchor';
 import { TableScene, type SlotName, type CardStage } from './scene/TableScene';
 import { Spinner } from './Spinner';
 import { useTypewriter } from './dialogue/useTypewriter';
 import { setDizzy } from './scene/dizzyStore';
+import { setReaderMode } from './scene/readerModeStore';
 import { loadSettings } from '../storage';
 
 type Props = {
@@ -83,6 +84,13 @@ export function Reading({ apiKey, brief, preferredIntro, onExit }: Props) {
     return () => setDizzy(false);
   }, [state.awaiting_tier]);
 
+  // The reader is the seer (eyes) during the reading. Restore cat on exit
+  // so menu/survey go back to Clat.
+  useEffect(() => {
+    setReaderMode('eyes');
+    return () => setReaderMode('cat');
+  }, []);
+
   // Drive the flip → beat transition once CSS animation has played.
   useEffect(() => {
     if (state.phase !== 'flipping') return;
@@ -120,24 +128,32 @@ export function Reading({ apiKey, brief, preferredIntro, onExit }: Props) {
 
   return (
     <div className="screen screen--reading">
-      <div className="reading__eyes">
-        <Eyes />
+      <div className="reading__rig">
+        <div className="reading__head">
+          <ReaderAnchor size={150} />
+        </div>
+        <div className="reading__stage-slot">
+          <ReadingStage state={state} engine={engine} />
+        </div>
+        <CardSubtitle name={activeCardName} visible={subtitleVisible} />
+        <div className="reading__table-slot">
+          <TableScene
+            drawn={drawn}
+            stages={stages}
+            pickable={state.phase === 'awaiting_flip'}
+            onPick={(slot) => engine.pickSlot(slot)}
+            width={760}
+            height={420}
+          />
+        </div>
+        <div className="reading__chat-slot">
+          <ChatPanel
+            state={state}
+            onSend={(text) => void engine.submitChat(text)}
+          />
+        </div>
+        <ReadingFooter state={state} onExit={onExit} />
       </div>
-      <ReadingStage state={state} engine={engine} />
-      <CardSubtitle name={activeCardName} visible={subtitleVisible} />
-      <TableScene
-        drawn={drawn}
-        stages={stages}
-        pickable={state.phase === 'awaiting_flip'}
-        onPick={(slot) => engine.pickSlot(slot)}
-        width={760}
-        height={460}
-      />
-      <ChatPanel
-        state={state}
-        onSend={(text) => void engine.submitChat(text)}
-      />
-      <ReadingFooter state={state} onExit={onExit} />
     </div>
   );
 }
