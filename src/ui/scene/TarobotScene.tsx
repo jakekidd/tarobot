@@ -990,16 +990,16 @@ export function TarobotScene() {
       // Layered on top of the composited ortho output. Scissored to the
       // table-anchor rect so it only fills that region; clearDepth keeps
       // the perspective from being z-occluded by ortho geometry.
+      //
+      // IMPORTANT: setScissor/setViewport take CSS pixels — three.js
+      // multiplies by pixelRatio internally. Don't pre-multiply.
       if (cardScene.drawn) {
         const rect = getTableAnchor();
         if (rect && rect.width >= 2 && rect.height >= 2) {
-          const dpr = renderer.getPixelRatio();
-          const drawW = renderer.domElement.width;
-          const drawH = renderer.domElement.height;
-          const x = Math.round(rect.x * dpr);
-          const y = Math.round((window.innerHeight - rect.y - rect.height) * dpr);
-          const w = Math.round(rect.width * dpr);
-          const h = Math.round(rect.height * dpr);
+          const x = Math.round(rect.x);
+          const y = Math.round(window.innerHeight - rect.y - rect.height);
+          const w = Math.round(rect.width);
+          const h = Math.round(rect.height);
 
           renderer.autoClear = false;
           renderer.setRenderTarget(null);
@@ -1014,7 +1014,7 @@ export function TarobotScene() {
           renderer.render(perspScene, perspCamera);
 
           renderer.setScissorTest(false);
-          renderer.setViewport(0, 0, drawW, drawH);
+          renderer.setViewport(0, 0, window.innerWidth, window.innerHeight);
           renderer.autoClear = true;
         }
       }
