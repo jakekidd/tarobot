@@ -153,8 +153,24 @@ export function Reading({ apiKey, brief, preferredIntro, onExit }: Props) {
   const subtitleVisible =
     state.phase === 'beat_pending' || state.phase === 'beat';
 
+  // Screen-wide click-to-advance. ChunkedLine watches advanceTick and
+  // calls its tap() when it bumps. Clicks on interactive zones (input,
+  // button, table-anchor, transcript-fullpage) are excluded.
+  const [advanceTick, setAdvanceTick] = useState(0);
+  const [transcriptOpen, setTranscriptOpen] = useState(false);
+
+  function onScreenClick(e: React.MouseEvent<HTMLDivElement>) {
+    if (transcriptOpen) return;
+    const target = e.target as HTMLElement;
+    if (target.closest('input, button, .table-anchor, .reading__chat')) return;
+    // Only advance when in an advance-able phase
+    if (state.phase === 'intro' || state.phase === 'beat' || state.phase === 'outro') {
+      setAdvanceTick((t) => t + 1);
+    }
+  }
+
   return (
-    <div className="screen screen--reading">
+    <div className="screen screen--reading" onClick={onScreenClick}>
       <div className="reading__cols">
         <aside className="reading__col-left">
           <Transcript
@@ -169,7 +185,7 @@ export function Reading({ apiKey, brief, preferredIntro, onExit }: Props) {
           </div>
 
           <div className="reading__stage-slot">
-            <ReadingStage state={state} engine={engine} />
+            <ReadingStage state={state} engine={engine} advanceTick={advanceTick} />
           </div>
 
           <TableAnchor pickable={pickable} onPick={(slot) => engine.pickSlot(slot)} />
@@ -178,11 +194,37 @@ export function Reading({ apiKey, brief, preferredIntro, onExit }: Props) {
 
           <div className="reading__chat-slot">
             <ChatForm state={state} onSend={(text) => void engine.submitChat(text)} />
+            <button
+              type="button"
+              className="reading__transcript-open"
+              onClick={() => setTranscriptOpen(true)}
+            >
+              TRANSCRIPT
+            </button>
           </div>
 
           <ReadingFooter state={state} onExit={onExit} />
         </section>
       </div>
+
+      {transcriptOpen && (
+        <div className="reading__transcript-fullpage" role="dialog">
+          <button
+            type="button"
+            className="reading__transcript-close"
+            onClick={() => setTranscriptOpen(false)}
+            aria-label="close transcript"
+          >
+            ×
+          </button>
+          <div className="reading__transcript-fullpage-body">
+            <Transcript
+              messages={state.chat}
+              stallShown={state.phase === 'chat_pending'}
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -226,9 +268,9 @@ function CardSubtitle({
 
 // ─── Stage (intro / beat / outro / stall) ────────────────
 
-type StageProps = { state: ReadingState; engine: ReadingEngine };
+type StageProps = { state: ReadingState; engine: ReadingEngine; advanceTick: number };
 
-function ReadingStage({ state, engine }: StageProps) {
+function ReadingStage({ state, engine, advanceTick }: StageProps) {
   if (state.phase === 'idle' || state.phase === 'thinking') {
     return <StallLine tier="persona" label="opening the reading" />;
   }
@@ -241,6 +283,7 @@ function ReadingStage({ state, engine }: StageProps) {
         key="intro"
         kind="intro"
         text={state.intro.text}
+        advanceTick={advanceTick}
         onAdvance={() => engine.advanceFromIntro()}
       />
     );
@@ -263,6 +306,7 @@ function ReadingStage({ state, engine }: StageProps) {
         key={`beat-${state.current_slot}-${state.revealed.length}`}
         kind="beat"
         text={monologue.text}
+        advanceTick={advanceTick}
         onAdvance={() => engine.advanceFromBeat()}
       />
     );
@@ -276,6 +320,7 @@ function ReadingStage({ state, engine }: StageProps) {
         key="outro"
         kind="outro"
         text={state.outro.text}
+        advanceTick={advanceTick}
         onAdvance={() => engine.advanceFromOutro()}
       />
     );
@@ -305,10 +350,12 @@ function StallLine({ tier, label }: { tier: 'cognition' | 'persona'; label: stri
 function ChunkedLine({
   kind,
   text,
+  advanceTick,
   onAdvance,
 }: {
   kind: 'intro' | 'beat' | 'outro';
   text: string;
+  advanceTick: number;
   onAdvance: () => void;
 }) {
   const chunks = useMemo(() => chunkText(text, CHUNK_MAX_CHARS), [text]);
@@ -326,6 +373,21 @@ function ChunkedLine({
     else if (!isLast) setIdx(idx + 1);
     else onAdvance();
   }
+
+  // Screen-wide click: parent increments advanceTick → we call tap with
+  // the LATEST state. Ref is updated in an effect (React 19 strict lint
+  // forbids ref assignment during render).
+  const tapRef = useRef(tap);
+  // tap is a fresh closure each render — keep the ref pointing at the
+  // latest one. No deps array → fires every render (cheap; just a ref
+  // assignment).
+  useEffect(() => { tapRef.current = tap; });
+  const lastTickRef = useRef(advanceTick);
+  useEffect(() => {
+    if (advanceTick === lastTickRef.current) return;
+    lastTickRef.current = advanceTick;
+    tapRef.current();
+  }, [advanceTick]);
 
   const caret = !done ? '' : isLast ? ' ▸' : ' …';
 
