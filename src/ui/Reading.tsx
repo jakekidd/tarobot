@@ -1,13 +1,19 @@
 // Reading screen — fan-out pipeline interface. The seer reads four cards
 // in a diamond. The user picks which face-down card to flip next.
 //
-// Engine drives the phase machine. UI maps each phase to a render:
+// Cards live in a 3D scene (TableScene) on a procedural cloth-draped
+// table. Each phase maps a per-slot stage (face_down / face_up / lifted)
+// which the scene tweens between. The flip plays out as the rotation
+// from face_down → face_up; the lift fires once the beat is being
+// delivered.
+//
+// Phase → render mapping:
 //   thinking            → stall over empty stage
 //   intro               → typewriter line, advances on tap
-//   awaiting_flip       → cards clickable; chat input enabled
-//   flipping            → CSS-3D flip plays out; UI nudges engine when done
-//   beat_pending        → stall (persona still computing for this slot)
-//   beat                → typewriter monologue; advances on tap
+//   awaiting_flip       → cards clickable in the scene; chat enabled
+//   flipping            → card tweens face_down → face_up
+//   beat_pending        → card tweens face_up → lifted (stall in stage)
+//   beat                → typewriter monologue; subtitle visible
 //   chat_pending        → stall in the chat panel
 //   closing_thinking    → stall while closing cognition+persona run
 //   outro               → typewriter outro; advances on tap
@@ -29,8 +35,8 @@ import {
   type ReadingState,
   pickStall,
 } from '../pipeline/reading';
-import { Reader } from './reader/Reader';
-import { Card } from './cards/Card';
+import { Eyes } from './eyes/Eyes';
+import { TableScene, type SlotName, type CardStage } from './scene/TableScene';
 import { Spinner } from './Spinner';
 import { useTypewriter } from './dialogue/useTypewriter';
 import { setDizzy } from './scene/dizzyStore';
@@ -86,38 +92,72 @@ export function Reading({ apiKey, brief, preferredIntro, onExit }: Props) {
 
   useEffect(() => () => setDizzy(false), []);
 
-  // Compute which slots are face-up at this instant. While flipping/beat-
-  // delivering, the current slot is treated as revealed so its CSS flip
-  // plays out.
-  const revealedSet = useMemo(() => {
-    const s = new Set<string>(state.revealed.map((r) => r.position_id));
-    if (
-      (state.phase === 'flipping' ||
-        state.phase === 'beat_pending' ||
-        state.phase === 'beat') &&
-      state.current_slot
-    ) {
-      s.add(state.current_slot);
+  // Per-slot stage. Already-revealed slots are face_up; the current slot
+  // overrides to face_up during flipping (tween animates the half-turn)
+  // and lifted during beat_pending/beat (close-to-camera).
+  const stages = useMemo<Partial<Record<SlotName, CardStage>>>(() => {
+    const m: Partial<Record<SlotName, CardStage>> = {};
+    for (const r of state.revealed) {
+      m[r.position_id as SlotName] = 'face_up';
     }
-    return s;
+    if (state.current_slot) {
+      const slot = state.current_slot as SlotName;
+      if (state.phase === 'flipping') m[slot] = 'face_up';
+      else if (state.phase === 'beat_pending' || state.phase === 'beat') m[slot] = 'lifted';
+    }
+    return m;
   }, [state.revealed, state.phase, state.current_slot]);
+
+  // Card name for the subtitle, derived from the active slot's drawn card.
+  const activeCardName = useMemo(() => {
+    if (!state.current_slot) return null;
+    const dc = drawn.cards.find((c) => c.position.id === state.current_slot);
+    return dc?.card.name ?? null;
+  }, [state.current_slot, drawn]);
+
+  const subtitleVisible =
+    state.phase === 'beat_pending' || state.phase === 'beat';
 
   return (
     <div className="screen screen--reading">
-      <Reader />
+      <div className="reading__eyes">
+        <Eyes />
+      </div>
       <ReadingStage state={state} engine={engine} />
-      <SpreadBoard
+      <CardSubtitle name={activeCardName} visible={subtitleVisible} />
+      <TableScene
         drawn={drawn}
-        revealedSet={revealedSet}
-        activeSlot={state.phase === 'flipping' ? state.current_slot : null}
-        canPick={state.phase === 'awaiting_flip'}
+        stages={stages}
+        pickable={state.phase === 'awaiting_flip'}
         onPick={(slot) => engine.pickSlot(slot)}
+        width={760}
+        height={460}
       />
       <ChatPanel
         state={state}
         onSend={(text) => void engine.submitChat(text)}
       />
       <ReadingFooter state={state} onExit={onExit} />
+    </div>
+  );
+}
+
+// ─── Card subtitle (briefly shows card name when lifted) ─────
+
+function CardSubtitle({
+  name,
+  visible,
+}: {
+  name: string | null;
+  visible: boolean;
+}) {
+  const display = name ?? '';
+  return (
+    <div
+      className={`card-subtitle ${visible && display ? 'card-subtitle--on' : ''}`}
+      aria-live="polite"
+    >
+      {display.toUpperCase()}
     </div>
   );
 }
@@ -182,48 +222,6 @@ function ReadingStage({ state, engine }: StageProps) {
     return <div className="reading__outro">{state.outro.text}</div>;
   }
   return null;
-}
-
-// ─── Spread (clickable face-down cards) ──────────────────
-
-function SpreadBoard({
-  drawn,
-  revealedSet,
-  activeSlot,
-  canPick,
-  onPick,
-}: {
-  drawn: DrawnCards;
-  revealedSet: Set<string>;
-  activeSlot: string | null;
-  canPick: boolean;
-  onPick: (slot: string) => void;
-}) {
-  return (
-    <div className="card-spread" aria-label="four-card diamond spread">
-      {drawn.cards.map((dc) => {
-        const slot = dc.position.id;
-        const isRevealed = revealedSet.has(slot);
-        const isActive = activeSlot === slot;
-        const isPickable = canPick && !isRevealed;
-        return (
-          <div
-            key={slot}
-            className={`card-spread__slot card-spread__slot--${slot} ${
-              isActive ? 'card-spread__slot--active' : ''
-            } ${isPickable ? 'card-spread__slot--pickable' : ''}`}
-            aria-label={dc.position.role}
-          >
-            <Card
-              card={dc.card}
-              revealed={isRevealed}
-              {...(isPickable ? { onClick: () => onPick(slot) } : {})}
-            />
-          </div>
-        );
-      })}
-    </div>
-  );
 }
 
 // ─── Stall line (catchphrase by tier) ────────────────────
@@ -336,6 +334,7 @@ function ChatPanel({
           type="text"
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
+          disabled={!canSend}
           placeholder={
             !canSend
               ? 'wait for the seer to finish...'

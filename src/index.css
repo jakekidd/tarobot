@@ -680,148 +680,52 @@ a:hover { text-decoration: underline; }
 .survey__review p { margin: 0.25rem 0; }
 .survey__review em { color: var(--fg); font-style: normal; }
 
-/* =====================================================================
-   Tarot cards — CSS-3D flip placeholders. Real art replaces the faces
-   later; the contract (a flippable, sized rectangle with a numeral +
-   glyph + name) stays.
-   ===================================================================== */
-
-.tarot-card {
-  position: relative;
-  width: 8rem;
-  height: 12rem;          /* ~2:3 card aspect */
-  perspective: 1000px;
-  background: transparent;
-  border: 0;
-  padding: 0;
-  cursor: pointer;
-  display: block;
-}
-.tarot-card[disabled],
-.tarot-card--revealed { cursor: default; }
-
-.tarot-card__inner {
-  position: absolute;
-  inset: 0;
-  transform-style: preserve-3d;
-  transition: transform 0.9s cubic-bezier(0.45, 0.1, 0.25, 1);
-}
-.tarot-card--revealed .tarot-card__inner {
-  transform: rotateY(180deg);
-}
-
-.tarot-card__face {
-  position: absolute;
-  inset: 0;
-  backface-visibility: hidden;
-  -webkit-backface-visibility: hidden;
-  border: 1px solid var(--violet-line-strong);
-  border-radius: 4px;
-  box-sizing: border-box;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-/* ─── Back face — cosmic violet plate. */
-.tarot-card__face--back {
-  background:
-    radial-gradient(ellipse at center, rgba(124, 58, 237, 0.45) 0%, rgba(20, 8, 40, 1) 75%),
-    #0a0418;
-  box-shadow: 0 0 16px rgba(179, 136, 255, 0.18) inset;
-}
-.tarot-card__back-pattern {
-  width: 70%;
-  height: 70%;
-  border: 1px solid rgba(179, 136, 255, 0.45);
-  border-radius: 2px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  position: relative;
-}
-.tarot-card__back-pattern::before {
-  content: '';
-  position: absolute;
-  inset: 18%;
-  border: 1px solid rgba(179, 136, 255, 0.32);
-  transform: rotate(45deg);
-}
-.tarot-card__back-pattern::after {
-  content: '✦';
-  font-size: 1.4rem;
-  color: rgba(179, 136, 255, 0.7);
-  text-shadow: 0 0 12px rgba(179, 136, 255, 0.6);
-}
-
-/* ─── Front face — numeral, glyph, label. */
-.tarot-card__face--front {
-  transform: rotateY(180deg);
-  background:
-    linear-gradient(180deg, rgba(124, 58, 237, 0.10), rgba(10, 4, 24, 0.95)),
-    #0a0418;
-  flex-direction: column;
-  padding: 0.7rem;
-  color: var(--fg);
-  text-align: center;
-}
-.tarot-card__numeral {
-  font-family: var(--font-mono);
-  font-size: 0.82rem;
-  letter-spacing: 0.16em;
-  color: var(--violet);
-  text-shadow: 0 0 8px rgba(179, 136, 255, 0.4);
-  align-self: flex-start;
-  margin-bottom: 0.4rem;
-}
-.tarot-card__glyph {
-  font-size: 2.6rem;
-  color: var(--fg);
-  text-shadow: 0 0 12px rgba(179, 136, 255, 0.55);
-  flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-.tarot-card__label {
-  font-family: var(--font-speech);
-  font-size: 0.82rem;
-  font-style: italic;
-  color: var(--fg-dim);
-  letter-spacing: 0.04em;
-  margin-top: 0.4rem;
-}
-
-/* ─── Spread — four-card diamond. Fixed-size container, absolute slots. */
-
-.card-spread {
-  position: relative;
-  width: 26rem;
-  height: 22rem;
-  margin: 0 auto;
-}
-.card-spread__slot {
-  position: absolute;
-  width: 8rem;
-  height: 12rem;
-  transition: filter 0.3s, transform 0.3s;
-}
-.card-spread__slot--top    { top: 0;       left: 50%; transform: translateX(-50%); }
-.card-spread__slot--left   { top: 50%;     left: 0;   transform: translateY(-50%); }
-.card-spread__slot--right  { top: 50%;     right: 0;  transform: translateY(-50%); }
-.card-spread__slot--bottom { bottom: 0;    left: 50%; transform: translateX(-50%); }
-.card-spread__slot--active { filter: drop-shadow(0 0 16px rgba(179, 136, 255, 0.55)); }
+/* Tarot cards now render in 3D inside TableScene — no DOM card styles. */
 
 /* =====================================================================
-   Reading screen — pinned layout. Reader (small, top), seer dialogue,
-   card spread, chat panel.
+   Reading screen — pinned layout. Eyes (small, top), seer dialogue,
+   3D table-scene, subtitle, chat panel.
    ===================================================================== */
 
 .screen--reading {
-  gap: 1rem;
+  gap: 0.75rem;
   justify-content: flex-start;
-  padding-top: 1.8rem;
-  max-width: 720px;
+  padding-top: 0.6rem;
+  max-width: 880px;
+}
+.reading__eyes {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 0.3rem;
+}
+.table-scene {
+  margin: 0 auto;
+  /* The renderer canvas is sized by the component's width/height props;
+     this just keeps the container centred and lets the canvas sit cleanly
+     above the chat. */
+}
+
+/* ─── Card subtitle — pops in when a card is lifted ───── */
+.card-subtitle {
+  font-family: var(--font-speech);
+  font-style: italic;
+  font-size: 1.45rem;
+  letter-spacing: 0.32em;
+  color: #e8d9ff;
+  text-shadow:
+    0 0 14px rgba(179, 136, 255, 0.95),
+    0 0 28px rgba(124, 58, 237, 0.55);
+  text-align: center;
+  min-height: 1.8rem;
+  margin: 0.2rem auto 0.1rem;
+  opacity: 0;
+  transform: translateY(-4px);
+  transition: opacity 0.45s ease, transform 0.45s ease;
+  pointer-events: none;
+}
+.card-subtitle--on {
+  opacity: 1;
+  transform: translateY(0);
 }
 .reading__intro {
   font-family: var(--font-speech);
@@ -896,15 +800,6 @@ a:hover { text-decoration: underline; }
 }
 .reading__stall--cognition { color: rgba(179, 136, 255, 0.85); }
 .reading__stall--persona   { color: var(--fg-dim); }
-
-/* ─── Pickable slot — soft pulse to invite a click ───── */
-.card-spread__slot--pickable {
-  cursor: pointer;
-}
-.card-spread__slot--pickable:hover {
-  filter: drop-shadow(0 0 14px rgba(179, 136, 255, 0.65));
-  transform-origin: center;
-}
 
 /* ─── Chat panel ─────────────────────────────────────── */
 .reading__chat {
