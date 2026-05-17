@@ -22,6 +22,8 @@ type Props = {
   stallShown: boolean;
   /** Names to color-emphasize inside message text. */
   highlights: Highlights;
+  /** Optional close handler — when set, renders an X button next to COPY. */
+  onClose?: () => void;
 };
 
 /** Strip persona's `_emphasis_` markers and lowercase everything for
@@ -32,7 +34,7 @@ function cleanForTranscript(s: string): string {
   return s.replace(/_/g, '').toLowerCase();
 }
 
-export function Transcript({ items, stallShown, highlights }: Props) {
+export function Transcript({ items, stallShown, highlights, onClose }: Props) {
   const scrollRef = useRef<HTMLDivElement>(null);
   // New stall phrase each time the stall transitions on.
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -65,15 +67,27 @@ export function Transcript({ items, stallShown, highlights }: Props) {
     <div className="transcript" aria-label="reading transcript">
       <div className="transcript__head">
         <span className="transcript__title">transcript</span>
-        <button
-          type="button"
-          className="transcript__copy"
-          onClick={copy}
-          aria-label="copy transcript"
-          disabled={items.length === 0}
-        >
-          {copied ? 'copied' : 'copy'}
-        </button>
+        <div className="transcript__actions">
+          <button
+            type="button"
+            className="transcript__copy"
+            onClick={copy}
+            aria-label="copy transcript"
+            disabled={items.length === 0}
+          >
+            {copied ? 'copied' : 'copy'}
+          </button>
+          {onClose && (
+            <button
+              type="button"
+              className="transcript__close-x"
+              onClick={onClose}
+              aria-label="close transcript"
+            >
+              ✕
+            </button>
+          )}
+        </div>
       </div>
       <div className="transcript__scroll" ref={scrollRef}>
         {items.length === 0 && !stallShown && (

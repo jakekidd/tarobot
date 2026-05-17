@@ -368,12 +368,12 @@ export function TarobotScene() {
       } else {
         // Calm — larger dark pupil with generous wander room. Two
         // independent low-freq sines on each axis = naturalistic drift.
-        // When `gaze` is non-zero (mouse over the table during card
-        // pick), bias the pupil toward the mouse with a smooth blend
-        // against the drift — eyes tracking the cursor.
-        const pupilR = Math.min(rx, ry) * 0.38;
-        const wanderX = rx * 0.30;        // bumped to give gaze more reach
-        const wanderY = ry * 0.26;
+        // When `gaze` is non-zero (mouse over the table), bias the
+        // pupil toward the mouse with a smooth blend against the
+        // drift — eyes tracking the cursor.
+        const pupilR = Math.min(rx, ry) * 0.34;
+        const wanderX = rx * 0.45;        // big reach so gaze is obvious
+        const wanderY = ry * 0.42;
         const driftX = (
           Math.sin(timeSec * 0.31 + jitter * 6.28) * 0.65 +
           Math.sin(timeSec * 0.83 + jitter * 3.14) * 0.35
@@ -1086,18 +1086,18 @@ export function TarobotScene() {
 
         // Mood: dizzy (any tier awaiting) → thinking spiral; else calm.
         const mood: 'calm' | 'thinking' = dizzy ? 'thinking' : 'calm';
-        // Gaze: while picking a card, eyes track the mouse over the
-        // table area. NDC (-1..1) within the table-anchor rect; (0,0)
-        // outside / not picking → idle drift takes over.
+        // Gaze: eyes track the mouse over the table region whenever
+        // the seer is shown (not just during pickable). NDC (-1..1)
+        // within the table-anchor rect; idle drift takes over outside.
         const gaze = { x: 0, y: 0 };
-        if (cardScene.pickable && mouseSceneX < 998) {
+        if (mouseSceneX < 998) {
           const tr = getTableAnchor();
           if (tr && tr.width > 0 && tr.height > 0) {
             const screenX = mouseSceneX + viewportW / 2;
             const screenY = viewportH / 2 - mouseSceneY;
             const u = (screenX - tr.x) / tr.width;
             const v = (screenY - tr.y) / tr.height;
-            if (u >= -0.2 && u <= 1.2 && v >= -0.2 && v <= 1.2) {
+            if (u >= -0.3 && u <= 1.3 && v >= -0.3 && v <= 1.3) {
               gaze.x = Math.max(-1, Math.min(1, (u - 0.5) * 2));
               gaze.y = Math.max(-1, Math.min(1, (v - 0.5) * 2));
             }

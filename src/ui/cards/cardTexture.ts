@@ -6,6 +6,7 @@
 import * as THREE from 'three';
 import type { Card } from '../../pipeline';
 import { glyphFor, numeralFor } from './glyphs';
+import { drawSuitSymbol, pipLayout, type SuitName } from './suitSymbols';
 
 const TEX_W = 512;
 const TEX_H = 768;
@@ -101,24 +102,82 @@ function paintFace(ctx: CanvasRenderingContext2D, card: Card): void {
   ctx.fillText(numeralFor(card), 0, 0);
   ctx.restore();
 
-  // Big centre emoji — CRT-wash silhouette in DARK ink so it pops on
-  // the pale panel. Offscreen-then-source-in tinting avoids painting
-  // over the panel/borders.
+  // Centre artwork — three distinct paths.
+  if (card.arcana === 'minor' && card.suit && card.number !== undefined) {
+    const n = card.number;
+    if (n >= 1 && n <= 10) {
+      paintPipFace(ctx, card.suit as SuitName, n);
+    } else if (n >= 11 && n <= 14) {
+      paintCourtFace(ctx, card.suit as SuitName, n);
+    }
+  } else {
+    paintMajorFace(ctx, card);
+  }
+  // (label intentionally omitted — card name lives in the subtitle below the table)
+}
+
+/** Pip card (1-10): N suit symbols laid out in a symmetric pattern.
+ *  Symbols stroked in dark INK on the pale panel — readable, line-art
+ *  feel. Sizes scale with N so 10 symbols pack without crowding. */
+function paintPipFace(ctx: CanvasRenderingContext2D, suit: SuitName, n: number): void {
+  // Available area for the pip grid — inside the panel, with breathing
+  // room around the numerals at the corners.
+  const areaLeft = 110;
+  const areaRight = TEX_W - 110;
+  const areaTop = 180;
+  const areaBottom = TEX_H - 180;
+  const areaW = areaRight - areaLeft;
+  const areaH = areaBottom - areaTop;
+  const cx0 = (areaLeft + areaRight) / 2;
+  const cy0 = (areaTop + areaBottom) / 2;
+  // Symbol size shrinks as N grows so they don't crowd.
+  const sizeByN: Record<number, number> = {
+    1: 280, 2: 200, 3: 175, 4: 165,
+    5: 155, 6: 145, 7: 130, 8: 130,
+    9: 120, 10: 105,
+  };
+  const size = sizeByN[n] ?? 130;
+  for (const [nx, ny] of pipLayout(n)) {
+    const px = cx0 + nx * (areaW / 2);
+    const py = cy0 + ny * (areaH / 2);
+    drawSuitSymbol(ctx, suit, px, py, size, INK);
+  }
+}
+
+/** Court card (page=11, knight=12, queen=13, king=14): one big suit
+ *  symbol with a small rank emblem above it. Roman/letter rank in the
+ *  corners already covers numbering; this is centerpiece artwork. */
+function paintCourtFace(ctx: CanvasRenderingContext2D, suit: SuitName, n: number): void {
+  drawSuitSymbol(ctx, suit, TEX_W / 2, TEX_H / 2 + 30, 330, INK);
+  // Small rank glyph above the suit — drawn as text since court ranks
+  // map cleanly to a single character.
+  const rank = n === 11 ? 'P' : n === 12 ? 'N' : n === 13 ? 'Q' : 'K';
+  ctx.fillStyle = INK;
+  ctx.font = '700 56px "Cinzel", serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(rank, TEX_W / 2, TEX_H / 2 - 200);
+}
+
+/** Major Arcana: emoji silhouette, but with a softer filter so detail
+ *  doesn't collapse. Source-in tints the silhouette to INK; the
+ *  grayscale+contrast pass is dropped entirely (it was destroying the
+ *  fine details of crossed-swords / chariot / wheel emoji etc.). */
+function paintMajorFace(ctx: CanvasRenderingContext2D, card: Card): void {
   const off = document.createElement('canvas');
   off.width = TEX_W;
   off.height = TEX_H;
   const offCtx = off.getContext('2d')!;
-  offCtx.filter = 'grayscale(1) brightness(1.55) contrast(1.7)';
   offCtx.font = '260px "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", "Twemoji Mozilla", sans-serif';
   offCtx.textAlign = 'center';
   offCtx.textBaseline = 'middle';
   offCtx.fillText(glyphFor(card), TEX_W / 2, TEX_H / 2 - 10);
-  offCtx.filter = 'none';
+  // source-in masks the INK fill by the emoji's alpha → keeps shape,
+  // discards the OS-rendered colored pixels.
   offCtx.globalCompositeOperation = 'source-in';
   offCtx.fillStyle = INK;
   offCtx.fillRect(0, 0, TEX_W, TEX_H);
   ctx.drawImage(off, 0, 0);
-  // (label intentionally omitted — card name lives in the subtitle below the table)
 }
 
 function paintBack(ctx: CanvasRenderingContext2D): void {

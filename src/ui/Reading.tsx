@@ -332,18 +332,12 @@ export function Reading({ apiKey, brief, preferredIntro, onExit }: Props) {
 
       {transcriptOpen && (
         <div className="reading__transcript-fullpage" role="dialog">
-          <button
-            type="button"
-            className="reading__transcript-close"
-            onClick={() => setTranscriptOpen(false)}
-          >
-            ← BACK
-          </button>
           <div className="reading__transcript-fullpage-body">
             <Transcript
               items={transcriptItems}
               stallShown={state.phase === 'chat_pending'}
               highlights={highlights}
+              onClose={() => setTranscriptOpen(false)}
             />
           </div>
         </div>

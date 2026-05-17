@@ -779,7 +779,7 @@ a:hover { text-decoration: underline; }
      directive, chat can sit over the scene. Was 9rem; dropped ~40px to
      6.5rem at user request to clear more of the table view. */
   position: absolute;
-  bottom: 5.5rem;     /* 6.5rem → 5.5rem (~16px down) */
+  bottom: 5.25rem;    /* nudge 4px further down */
   left: 50%;
   transform: translateX(-50%);
   width: min(64ch, calc(100% - 2rem));
@@ -915,7 +915,7 @@ a:hover { text-decoration: underline; }
      ~2.6rem tall; gap above it ≈ 0.6rem). Card name stays visible
      between the table and the input. */
   top: auto;
-  bottom: 8.7rem;
+  bottom: 9.45rem;    /* 8.7rem → 9.45rem (12px up) */
   left: 0;
   right: 0;
   font-family: var(--font-speech);
@@ -996,31 +996,46 @@ a:hover { text-decoration: underline; }
 }
 .transcript__head {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   justify-content: space-between;
-  padding-bottom: 0.35rem;
+  gap: 0.6rem;
+  padding-bottom: 0.6rem;
   border-bottom: 1px solid var(--violet-line);
 }
 .transcript__title {
-  color: var(--fg-dim);
+  color: var(--fg);                /* whiter — was fg-dim */
   text-transform: uppercase;
   letter-spacing: 0.22em;
-  font-size: 0.72rem;
+  font-size: 1.1rem;               /* bigger — was 0.72rem */
+  font-weight: 600;
 }
-.transcript__copy {
+.transcript__actions {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+.transcript__copy,
+.transcript__close-x {
   background: transparent;
-  border: 1px solid var(--violet-line);
-  color: var(--fg-dim);
-  padding: 0.18rem 0.6rem;
+  border: 1px solid var(--violet-line-strong);
+  color: var(--fg);                /* whiter */
+  padding: 0.4rem 0.95rem;
   font-family: var(--font-mono);
-  font-size: 0.7rem;
-  letter-spacing: 0.18em;
+  font-size: 1rem;                 /* bigger */
+  letter-spacing: 0.2em;
   text-transform: uppercase;
   cursor: pointer;
+  font-weight: 600;
 }
-.transcript__copy:hover:not(:disabled) {
-  color: var(--fg);
-  border-color: var(--violet-line-strong);
+.transcript__close-x {
+  padding: 0.4rem 0.85rem;
+  letter-spacing: 0;
+}
+.transcript__copy:hover:not(:disabled),
+.transcript__close-x:hover {
+  color: #fff;
+  border-color: var(--violet);
+  box-shadow: 0 0 10px rgba(179, 136, 255, 0.35);
 }
 .transcript__copy:disabled {
   opacity: 0.35;
@@ -1133,8 +1148,10 @@ a:hover { text-decoration: underline; }
 }
 .reading__transcript-close {
   position: absolute;
-  top: 0.8rem;
-  left: 0.8rem;
+  /* Was top: 0.8rem — collided with the 3rem navbar overhead. Sits
+     below the topbar now with breathing room. */
+  top: 4.4rem;
+  left: 1rem;
   background: rgba(10, 4, 24, 0.92);
   border: 1.5px solid var(--violet-line-strong);
   color: var(--fg);
@@ -1150,7 +1167,7 @@ a:hover { text-decoration: underline; }
   box-shadow: 0 0 14px rgba(179, 136, 255, 0.35);
 }
 .reading__transcript-fullpage-body {
-  padding-top: 3.4rem;        /* leave room for the BACK button */
+  padding-top: 1.4rem;        /* X button is in the head row now */
 }
 
 @media (max-width: 760px) {
