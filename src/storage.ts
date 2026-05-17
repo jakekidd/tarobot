@@ -5,6 +5,7 @@ import type {
   Question,
   Survey,
 } from './pipeline';
+import { DEFAULT_MASCOT_ID, type MascotId } from './ui/scene/mascots';
 
 // Browser-only persistence layer. Sits OUTSIDE src/pipeline/ so the
 // pipeline lib stays Node-portable.
@@ -158,12 +159,14 @@ export type Settings = {
   soundOn: boolean;
   charDelayMs: number;
   personaId: PersonaId;
+  mascotId: MascotId;
 };
 
 const DEFAULT_SETTINGS: Settings = {
   soundOn: true,
   charDelayMs: 28,
   personaId: 'mater_tenebris',
+  mascotId: DEFAULT_MASCOT_ID,
 };
 
 export function loadSettings(): Settings {

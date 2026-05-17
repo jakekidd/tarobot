@@ -5,8 +5,6 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
-import spriteData from '../reader/sprite.json';
-import { paintFrame, type SpriteFrame } from '../reader/spriteCanvas';
 import { getAnchor } from './anchorStore';
 import { subscribeImpacts, type Impact as ImpactEvent } from './impactStore';
 import { subscribeDizzy } from './dizzyStore';
@@ -20,35 +18,16 @@ import {
 } from './cardSceneStore';
 import { registerPicker, unregisterPicker } from './pickService';
 import { cardBackTexture, cardFaceTexture, disposeCardTextures } from '../cards/cardTexture';
-import { createTurtleMascot } from './mascots/turtle';
-import type { Mascot } from './mascots/types';
+import { createMascot, resolveMascotId, type Mascot } from './mascots';
+import { loadSettings } from '../../storage';
 import { subscribeDebugVisible } from '../../debug/visibilityStorage';
 import { publishDebug, clearDebug } from '../../debug/debugBus';
 import { flip as playFlipSfx } from '../sound/sound';
 import { subscribeFlyIn, endFlyIn, type FlyInState } from './flyInStore';
 
-// Reverted from the voxel approach (it merged into a featureless silhouette —
-// the eye gaps disappeared into the surrounding side faces). Back to a flat
-// textured plane so Clat has a face. To recover some sense of depth, a second
-// plane sits at z = -CAT_DEPTH carrying the same texture; rotation reveals a
-// parallax offset between the two layers. Proper extrusion-from-silhouette is
-// a follow-up — see spriteGeometry.ts for the dormant voxel builder.
-const CAT_DEPTH = 0.16;
-
-type StateData = {
-  frames: SpriteFrame[];
-  blink?: SpriteFrame;
-  mode?: 'shuffle' | 'loop' | 'hold';
-  ms?: number;
-};
-type SpriteData = {
-  states: Record<string, StateData>;
-  reactions: Record<string, { frame: SpriteFrame }>;
-};
-const data = spriteData as SpriteData;
-
-// Time-based intro: when the page first loads Clat zooms in from a tiny dot
-// to full scale. Once-per-session (the scene only mounts once at app boot).
+// Time-based intro: when the page first loads the mascot zooms in from
+// a tiny dot to full scale. Once-per-session (the scene only mounts
+// once at app boot).
 const ZOOM_IN_DURATION_MS = 1100;
 const ZOOM_IN_START_SCALE = 0.12;
 
@@ -63,17 +42,14 @@ const PARTICLE_BURST_DURATION = 0.6;     // seconds; initial outward burst
 // so the "accelerate while waiting" behavior comes free on top.
 const PARTICLE_BASE_OMEGA = -0.012;
 
-// "Dizzy" state — fires while a blocking LLM call is in flight. Eyes cycle
-// through the 8 look-directions for a spin effect; dust ramps to ~10× the
-// baseline omega clockwise, holds, then brakes fast when dizzy releases.
+// "Dizzy" state — fires while a blocking LLM call is in flight. Dust
+// ramps to ~10× baseline omega clockwise, holds, then brakes fast when
+// dizzy releases. The mascot is passed `dizzy` via context and may
+// react however it wants (Clat spins her eyes; turtle ignores).
 const DIZZY_PEAK_MULTIPLIER = 10;
 const DIZZY_RAMP_UP_RATE = 0.05;          // per-frame lerp toward peak (slow start)
 const DIZZY_RAMP_DOWN_RATE = 0.25;        // per-frame lerp toward baseline (fast brake)
-const DIZZY_EYE_FRAME_MS = 80;            // ms per eye-spin frame
-// look-direction frame indices in clockwise order from "up":
-//   2 up, 7 up-right, 5 right, 9 down-right, 3 down, 8 down-left, 4 left, 6 up-left
-const DIZZY_EYE_CYCLE = [2, 7, 5, 9, 3, 8, 4, 6];
-const PARTICLE_MIN_RADIUS = 0.55;         // in cat-widths
+const PARTICLE_MIN_RADIUS = 0.55;         // in mascot-widths
 // Bumped 1.6 → 3.2 so the swirl extends down past the eyes over the
 // cloak body — gives stars to occlude where there were none before.
 const PARTICLE_MAX_RADIUS = 3.2;
@@ -156,41 +132,8 @@ export function TarobotScene() {
       composer.setSize(viewportW, viewportH);
     }
 
-    // ─── Cat mesh ─────────────────────────────────────────
-    // Flat textured-plane Clat. The canvas is repainted from the active sprite
-    // frame each tick the frame index changes; the back plane shares the same
-    // texture so updates appear on both. alphaTest keeps the transparent
-    // padding around the sprite from leaving a visible plane edge.
-    const spriteCanvas = document.createElement('canvas');
-    const spriteCtx = spriteCanvas.getContext('2d')!;
-    spriteCtx.imageSmoothingEnabled = false;
-
-    const tex = new THREE.CanvasTexture(spriteCanvas);
-    tex.colorSpace = THREE.SRGBColorSpace;
-    tex.minFilter = THREE.NearestFilter;
-    tex.magFilter = THREE.NearestFilter;
-    tex.generateMipmaps = false;
-
-    const catMat = new THREE.MeshBasicMaterial({
-      map: tex,
-      transparent: true,
-      alphaTest: 0.05,
-    });
-    const catGeom = new THREE.PlaneGeometry(1, 1);
-
-    // Two planes carrying the same texture: the back plane sits CAT_DEPTH
-    // behind the front one. From any non-zero yaw/pitch the offset becomes
-    // visible as a thin parallax slab — gives a hint of dimensionality
-    // without losing the face details.
-    const catFront = new THREE.Mesh(catGeom, catMat);
-    catFront.position.z = 0;
-    const catBack = new THREE.Mesh(catGeom, catMat);
-    catBack.position.z = -CAT_DEPTH;
-
-    const catGroup = new THREE.Group();
-    catGroup.add(catBack);          // draw back first so the front overlays it
-    catGroup.add(catFront);
-    let lastFrameIdx = -1;
+    // (Mascot mesh + texture + sprite logic now lives in
+    //  ./mascots/<id>.ts and is constructed below.)
 
     // ─── Eyes (alternative face — the seer) ──────────────
     // Two flat planes textured by a per-eye canvas, plus a dark
@@ -400,88 +343,29 @@ export function TarobotScene() {
     const particleGroup = new THREE.Group();
 
     // ── Mascot (the survey-side figure) ───────────────────
-    // Currently: turtle. Swappable with any other Mascot impl — the
-    // scene only depends on the Mascot interface (./mascots/types.ts).
-    // Clat the cat's code below is gated off but preserved for
-    // eventual extraction into mascots/clat.ts.
-    const mascot: Mascot = createTurtleMascot();
+    // Selected once at scene mount. Resolution order:
+    //   ?mascot=<id> URL param  →  localStorage Settings.mascotId
+    //   →  DEFAULT_MASCOT_ID (currently 'turtle').
+    // The scene treats this as an opaque Mascot; it doesn't know
+    // which one is running. See ./mascots/index.ts.
+    const mascotId = resolveMascotId(loadSettings().mascotId);
+    const mascot: Mascot = createMascot(mascotId);
 
     const positionGroup = new THREE.Group();
-    positionGroup.add(catGroup);
-    positionGroup.add(eyesGroup);
     positionGroup.add(mascot.group);
+    positionGroup.add(eyesGroup);
     positionGroup.add(particleGroup);
     scene.add(positionGroup);
 
     // Reader mode subscription — flips which face is shown at the anchor.
-    // When transitioning cat → eyes, we trigger the "explosion" effect:
-    // Clat shatters into a 5x5 grid of textured chunks that drift
-    // outward + spin + fade, so the seer's arrival isn't a hard cut.
+    // (The old cat→eyes "shatter" transition is deferred — it lived
+    // here because it used Clat's sprite texture; will be re-added as
+    // a Mascot lifecycle hook when another mascot also wants a custom
+    // transition. See TODO.md → "mascot exit animation hook".)
     let readerMode: ReaderMode = 'cat';
     const unsubscribeReaderMode = subscribeReaderMode((m) => {
-      if (readerMode === 'cat' && m === 'eyes') explodeClat();
       readerMode = m;
     });
-
-    // ── Clat explosion chunks ────────────────────────────
-    type ClatChunk = {
-      mesh: THREE.Mesh;
-      mat: THREE.MeshBasicMaterial;
-      geom: THREE.PlaneGeometry;
-      vx: number; vy: number; vz: number;
-      angVel: number;
-      age: number;
-      lifespan: number;
-    };
-    const clatChunks: ClatChunk[] = [];
-    const CHUNK_GRID = 5;
-
-    function explodeClat() {
-      if (clatChunks.length > 0) return;
-      const cellSize = 1 / CHUNK_GRID;
-      for (let i = 0; i < CHUNK_GRID; i++) {
-        for (let j = 0; j < CHUNK_GRID; j++) {
-          const u0 = i * cellSize;
-          const v0 = 1 - (j + 1) * cellSize;
-          const geom = new THREE.PlaneGeometry(cellSize, cellSize);
-          const uvAttr = geom.attributes.uv;
-          // Three's PlaneGeometry default UV order: idx 0=topLeft,
-          // 1=topRight, 2=botLeft, 3=botRight.
-          uvAttr.setXY(0, u0, v0 + cellSize);
-          uvAttr.setXY(1, u0 + cellSize, v0 + cellSize);
-          uvAttr.setXY(2, u0, v0);
-          uvAttr.setXY(3, u0 + cellSize, v0);
-          uvAttr.needsUpdate = true;
-
-          const mat = new THREE.MeshBasicMaterial({
-            map: tex,
-            transparent: true,
-            depthWrite: false,
-            alphaTest: 0.02,
-          });
-          const mesh = new THREE.Mesh(geom, mat);
-          const localX = (i - (CHUNK_GRID - 1) / 2) * cellSize;
-          const localY = ((CHUNK_GRID - 1) / 2 - j) * cellSize;
-          mesh.position.set(localX, localY, 0);
-
-          // Outward radial velocity + slight upward bias + random
-          // angular jitter so the explosion isn't perfectly symmetric.
-          const angle = Math.atan2(localY, localX) + (Math.random() - 0.5) * 0.7;
-          const speed = 0.45 + Math.random() * 0.55;
-          const vx = Math.cos(angle) * speed;
-          const vy = Math.sin(angle) * speed + 0.25;
-          const vz = (Math.random() - 0.5) * 0.35;
-          const angVel = (Math.random() - 0.5) * 5.5;
-
-          clatChunks.push({
-            mesh, mat, geom,
-            vx, vy, vz, angVel,
-            age: 0, lifespan: 1.6 + Math.random() * 0.7,
-          });
-          positionGroup.add(mesh);
-        }
-      }
-    }
 
     // Eyes blink state — independent of Clat's sprite-frame blink, since
     // 'eyes' mode has no spritesheet.
@@ -956,26 +840,12 @@ export function TarobotScene() {
 
     sizeRenderer();
 
-    // ─── Mouse reactivity ─────────────────────────────────
-    // Two coupled behaviors:
-    //   1. Hover drift — Clat continuously springs away from the cursor when
-    //      it's inside his "hitbox" (hover radius scales with anchor width).
-    //   2. Allergic vibration — after the cursor has dwelt in that hitbox for
-    //      VIBRATE_DWELL_S seconds, Clat looks up, snaps back to center, and
-    //      jitters left-right very subtly for VIBRATE_DURATION_S. Cooldown
-    //      prevents back-to-back episodes.
+    // ─── Mouse position tracking ──────────────────────────
+    // We track the mouse in scene coords and pass {dx, dy, close,
+    // intensity} to the mascot per frame. The mascot decides whether
+    // and how to react (Clat: drift away + dwell-vibrate; turtle: ignore).
     let mouseSceneX = 999;             // viewport-pixel coords, center-origin
     let mouseSceneY = 999;
-    const hoverVel = { x: 0, y: 0 };
-    const hoverOffset = { x: 0, y: 0 };
-    const tiltVel = { x: 0, y: 0 };    // for the mouse-bias tilt spring
-    const tiltOffset = { x: 0, y: 0 };
-    let hoverDwellSec = 0;             // accumulates while cursor is inside hitbox
-    let vibrateUntilMs = 0;            // > now means actively vibrating
-    let vibrateLastFiredAt = -999;     // seconds
-    const VIBRATE_DWELL_S = 3.2;
-    const VIBRATE_DURATION_S = 1.5;
-    const VIBRATE_COOLDOWN_S = 2.5;
 
     const onPointerMove = (e: PointerEvent) => {
       mouseSceneX = e.clientX - viewportW / 2;
@@ -990,27 +860,15 @@ export function TarobotScene() {
     window.addEventListener('resize', sizeRenderer);
 
     // ─── Dizzy state ──────────────────────────────────────
-    // Subscribed to dizzyStore. While true, the eyes spin and the dust ramps
-    // to ~10× clockwise speed. Ramp-up is slow; the brake on release is fast.
+    // Subscribed to dizzyStore (fires while a blocking LLM call is in
+    // flight). The mascot reads `dizzy` via context and reacts however
+    // it wants (Clat spins her eyes; turtle ignores). Particles ramp
+    // their clockwise omega up using dizzyMultiplier.
     let dizzy = false;
     let dizzyMultiplier = 1;
-    let dizzyEnteredAt = 0;
     const unsubscribeDizzy = subscribeDizzy((v) => {
-      if (v && !dizzy) dizzyEnteredAt = performance.now();
       dizzy = v;
     });
-
-    // ─── Sprite frame state ───────────────────────────────
-    // Frame index 0 of the idle state is the blink (eyes closed) — handled by
-    // an independent blink algorithm below. Indices 1..9 are look directions.
-    const fs = {
-      state: 'idle',
-      shuffleIdx: 1,             // current "look around" frame; never 0
-      nextShuffleAt: 0,
-      blinking: false,
-      nextBlinkAtMs: 0,
-      blinkEndAtMs: 0,
-    };
 
     let rafId = 0;
     let mounted = true;
@@ -1044,32 +902,11 @@ export function TarobotScene() {
       const wantVisible = anchor !== null;
       positionGroup.visible = wantVisible;
       // Reader mode: show one face at the anchor; never both.
-      // CAT is currently commented out — the Mascot takes the cat-mode
-      // slot. Clat will be ported into a Mascot impl later; for now its
-      // sprite code below still runs (cheap) but the group stays hidden.
-      // catGroup.visible = readerMode === 'cat';
-      catGroup.visible = false;
       mascot.group.visible = readerMode === 'cat';
       eyesGroup.visible = readerMode === 'eyes';
 
-      // ── Clat explosion chunks: integrate motion + fade ──
-      for (let ci = clatChunks.length - 1; ci >= 0; ci--) {
-        const c = clatChunks[ci]!;
-        c.age += dt;
-        c.mesh.position.x += c.vx * dt;
-        c.mesh.position.y += c.vy * dt;
-        c.mesh.position.z += c.vz * dt;
-        c.mesh.rotation.z += c.angVel * dt;
-        c.vy -= 0.55 * dt;            // gentle gravity-like drift down
-        const u = c.age / c.lifespan;
-        c.mat.opacity = Math.max(0, 1 - u * u);
-        if (u >= 1) {
-          positionGroup.remove(c.mesh);
-          c.mat.dispose();
-          c.geom.dispose();
-          clatChunks.splice(ci, 1);
-        }
-      }
+      // (Legacy Clat explosion-chunk loop removed with cat extraction.
+      //  Lived here; replaced when Mascot exit-hook lands. See TODO.md.)
 
       // ── Eyes: blink + per-frame canvas paint with current mood ───
       if (eyesGroup.visible) {
@@ -1138,156 +975,38 @@ export function TarobotScene() {
         positionGroup.scale.setScalar(anchor.width * zoomScale);
       }
 
-      // ── Hover hitbox: distance + dwell accumulation ──
+      // ── Mouse hitbox → mascot context ─────────────────────
+      // The scene only TRACKS the mouse and computes a generic
+      // (dx, dy, close, intensity). The mascot decides what to do
+      // with that (drift, tilt, vibrate, ignore). Hitbox radius
+      // scales with anchor.width like the cat's used to.
       let mouseClose = false;
       let mouseDx = 0, mouseDy = 0;
       let hoverIntensity = 0;
       if (anchor && mouseSceneX < 998) {
-        const catX = anchor.x - viewportW / 2;
-        const catY = viewportH / 2 - anchor.y;
-        mouseDx = mouseSceneX - catX;
-        mouseDy = mouseSceneY - catY;
+        const cx = anchor.x - viewportW / 2;
+        const cy = viewportH / 2 - anchor.y;
+        mouseDx = mouseSceneX - cx;
+        mouseDy = mouseSceneY - cy;
         const dist = Math.hypot(mouseDx, mouseDy);
         const hoverRadiusPx = anchor.width * 1.3;
         if (dist < hoverRadiusPx) {
           mouseClose = true;
           hoverIntensity = (hoverRadiusPx - dist) / hoverRadiusPx;
-          hoverDwellSec += dt;
-          if (
-            hoverDwellSec >= VIBRATE_DWELL_S &&
-            t - vibrateLastFiredAt > VIBRATE_COOLDOWN_S
-          ) {
-            vibrateUntilMs = now + VIBRATE_DURATION_S * 1000;
-            vibrateLastFiredAt = t;
-            hoverDwellSec = 0;
-          }
         }
       }
-      if (!mouseClose) {
-        // Slow decay when mouse leaves so brief excursions don't reset progress.
-        hoverDwellSec = Math.max(0, hoverDwellSec - dt * 0.6);
-      }
-      const vibrating = now < vibrateUntilMs;
 
-      // Mascot tick — uniform per-frame context. Turtle ignores most
-      // fields; future mascots (or Clat once ported) consult them.
       mascot.update({
         dt, t,
         mouse: { dx: mouseDx, dy: mouseDy, close: mouseClose, intensity: hoverIntensity },
         dizzy,
       });
 
-      // ── Independent blink algorithm (idle only) ──
-      // 90% fast blink (~80-140ms), 10% slow blink (~200-310ms). Random interval
-      // 1.8-5.6s. The blink frame is sprite index 0; it's never picked by the
-      // shuffle so it only appears under this timer.
-      const stateData = data.states[fs.state] ?? data.states.idle!;
-      const frames = stateData.frames;
-      const mode = stateData.mode ?? 'shuffle';
-      if (fs.state === 'idle' && frames.length > 1) {
-        if (fs.nextBlinkAtMs === 0) {
-          fs.nextBlinkAtMs = now + 1800 + Math.random() * 3800;
-        }
-        if (!fs.blinking && now >= fs.nextBlinkAtMs) {
-          fs.blinking = true;
-          const slow = Math.random() < 0.10;
-          fs.blinkEndAtMs = now + (slow ? 200 + Math.random() * 110 : 80 + Math.random() * 60);
-        } else if (fs.blinking && now >= fs.blinkEndAtMs) {
-          fs.blinking = false;
-          fs.nextBlinkAtMs = now + 1800 + Math.random() * 3800;
-        }
-      }
-
-      // ── Shuffle pick (skip index 0 = blink) ──
-      const cycleMs = (stateData.ms ?? 1500) * 1.4;
-      if (mode === 'shuffle' && frames.length > 2 && now >= fs.nextShuffleAt) {
-        fs.shuffleIdx = 1 + Math.floor(Math.random() * (frames.length - 1));
-        fs.nextShuffleAt = now + cycleMs;
-      } else if (mode === 'loop' && frames.length > 1 && now >= fs.nextShuffleAt) {
-        fs.shuffleIdx = ((fs.shuffleIdx) % (frames.length - 1)) + 1;
-        fs.nextShuffleAt = now + cycleMs;
-      }
-
-      // ── Dizzy multiplier ramp ──
+      // ── Dizzy multiplier ramp (for particles) ─────────────
       // Lerp toward target each frame. Slow up, fast down per the design.
       const dizzyTarget = dizzy ? DIZZY_PEAK_MULTIPLIER : 1;
       const dizzyRate = dizzy ? DIZZY_RAMP_UP_RATE : DIZZY_RAMP_DOWN_RATE;
       dizzyMultiplier += (dizzyTarget - dizzyMultiplier) * dizzyRate;
-
-      // ── Resolve which frame to render ──
-      let frameIdx: number;
-      if (dizzy) {
-        // Eye-spin override. Cycle through the 8 look-direction frames at a
-        // brisk rate so the eyes appear to rotate clockwise.
-        const idx = Math.floor((now - dizzyEnteredAt) / DIZZY_EYE_FRAME_MS) % DIZZY_EYE_CYCLE.length;
-        frameIdx = DIZZY_EYE_CYCLE[idx] ?? 1;
-      } else if (fs.blinking) {
-        frameIdx = 0;                              // eyes closed
-      } else if (vibrating) {
-        frameIdx = 2;                              // looking up — startled
-      } else if (mouseClose && fs.state === 'idle' && frames.length >= 10) {
-        frameIdx = lookFrameForDirection(mouseDx, mouseDy);
-      } else {
-        frameIdx = fs.shuffleIdx;
-      }
-      // Repaint the shared canvas texture only when the frame index changes —
-      // saves a paint per tick when Clat's holding a single look-direction.
-      if (frameIdx !== lastFrameIdx) {
-        const f = frames[frameIdx] ?? frames[1] ?? frames[0];
-        if (f) {
-          paintFrame(spriteCtx, f, '#7c3aed', '#000000');
-          tex.needsUpdate = true;
-        }
-        lastFrameIdx = frameIdx;
-      }
-
-      // ── Spring drift away from mouse ──
-      let targetOffsetX = 0, targetOffsetY = 0;
-      if (mouseClose && !vibrating) {
-        const mag = Math.hypot(mouseDx, mouseDy) || 1;
-        targetOffsetX = -(mouseDx / mag) * hoverIntensity * 0.35;
-        targetOffsetY = -(mouseDy / mag) * hoverIntensity * 0.22;
-      }
-      // During vibration Clat returns to center deliberately, then trembles in place.
-      const springRate = vibrating ? 14 : 9;
-      hoverVel.x += (targetOffsetX - hoverOffset.x) * springRate * dt;
-      hoverVel.y += (targetOffsetY - hoverOffset.y) * springRate * dt;
-      hoverVel.x *= 0.86;
-      hoverVel.y *= 0.86;
-      hoverOffset.x += hoverVel.x * dt;
-      hoverOffset.y += hoverVel.y * dt;
-
-      // Vibration jitter: subtle L/R tremor only.
-      const purrJitterX = vibrating ? (Math.random() - 0.5) * 0.018 : 0;
-      const purrJitterY = 0;
-
-      // ── Cat float + tilt + offset ──
-      const tiltZ = (
-        Math.sin(t * 0.43) * 0.5 +
-        Math.sin(t * 0.79) * 0.3 +
-        Math.sin(t * 1.27) * 0.2
-      ) * 0.06;
-      const yaw = Math.sin(t * 0.31) * 0.06;
-      const pitch = -0.04 + Math.sin(t * 0.46) * 0.025;
-
-      // Mouse-bias tilt: when the cursor is inside the hitbox, lean Clat
-      // toward it. Yaw responds to horizontal offset, pitch to vertical. The
-      // spring keeps the transition smooth, and the targets are zeroed when
-      // the cursor leaves, returning to ambient float.
-      const targetTiltX = mouseClose ? clamp(-mouseDy / (anchor?.width ?? 1), -1, 1) * 0.18 : 0;
-      const targetTiltY = mouseClose ? clamp(mouseDx / (anchor?.width ?? 1), -1, 1) * 0.22 : 0;
-      tiltVel.x += (targetTiltX - tiltOffset.x) * 9 * dt;
-      tiltVel.y += (targetTiltY - tiltOffset.y) * 9 * dt;
-      tiltVel.x *= 0.85;
-      tiltVel.y *= 0.85;
-      tiltOffset.x += tiltVel.x * dt;
-      tiltOffset.y += tiltVel.y * dt;
-
-      catGroup.rotation.z = tiltZ;
-      catGroup.rotation.y = yaw + tiltOffset.y;
-      catGroup.rotation.x = pitch + tiltOffset.x;
-      catGroup.position.x = Math.sin(t * 0.27) * 0.02 + hoverOffset.x + purrJitterX;
-      catGroup.position.y = Math.sin(t * 0.55) * 0.03 + hoverOffset.y + purrJitterY;
 
       // ── Particles: clockwise swirl with per-particle randomness ──
       const posArr = particleGeom.attributes.position.array as Float32Array;
@@ -1575,15 +1294,6 @@ export function TarobotScene() {
       }
       orbs.length = 0;
       orbGeom.dispose();
-      catGeom.dispose();
-      catMat.dispose();
-      tex.dispose();
-      for (const c of clatChunks) {
-        positionGroup.remove(c.mesh);
-        c.mat.dispose();
-        c.geom.dispose();
-      }
-      clatChunks.length = 0;
       eyeGeom.dispose();
       leftEye.mat.dispose();
       rightEye.mat.dispose();
@@ -1639,20 +1349,8 @@ export function TarobotScene() {
  *   2 up, 3 down, 4 left, 5 right, 6 up-left, 7 up-right, 8 down-left, 9 down-right
  * Scene coords: +x right, +y up.
  */
-function clamp(v: number, lo: number, hi: number): number {
-  return v < lo ? lo : v > hi ? hi : v;
-}
-
 function fmtXYZ(v: THREE.Vector3): string {
   return `${v.x.toFixed(2)},${v.y.toFixed(2)},${v.z.toFixed(2)}`;
-}
-
-function lookFrameForDirection(dx: number, dy: number): number {
-  // Bias the angle by π/8 so the 8 sectors align to the cardinal/intercardinal directions.
-  const a = (Math.atan2(dy, dx) + Math.PI * 2 + Math.PI / 8) % (Math.PI * 2);
-  const sector = Math.floor(a / (Math.PI / 4));     // 0..7, starting at +x (right) going CCW
-  const SECTOR_TO_FRAME = [5, 7, 2, 6, 4, 8, 3, 9]; // right, up-right, up, up-left, left, down-left, down, down-right
-  return SECTOR_TO_FRAME[sector] ?? 1;
 }
 
 function makeSquareParticleTexture(): THREE.CanvasTexture {

@@ -486,32 +486,55 @@ export class SurveyEngine {
   }
 
   private async runPipeline(pick: PickEvent): Promise<void> {
-    // Sibling pipelines may be in flight from earlier user answers. To
-    // keep each agent looking at the FRESHEST data, we rebuild ctx
-    // from current engine state at every stage boundary — not just
-    // once at pipeline start. Writes merge based on current state too
-    // (last-write-wins by field), so two pipelines for two different
-    // user answers don't trample each other's outputs.
+    // Each pipeline takes ONE snapshot of engine state at fire-time.
+    // The three agents run in serial against that snapshot, evolving
+    // a local view as they go (observer's output feeds detective's
+    // ctx; detective's feeds interrogator's). Agents NEVER re-read
+    // engine state mid-pipeline — sibling pipelines may have written
+    // since this one started, and seeing those writes would muddy the
+    // pipeline's own reasoning. The cost of that "ignorance" is a
+    // little staleness on the prompt input; the benefit is each
+    // pipeline produces internally-consistent output without
+    // synchronization across pipelines.
+    //
+    // The collision handling lives in the merge functions (apply…)
+    // which write into CURRENT engine state. Outputs are designed to
+    // be commutative-ish: notes append, hypotheses upsert by id,
+    // contradictions/hooks append-with-dedupe, choice_draft replaces.
+    // Two sibling pipelines stomping on the same field = the later
+    // writer wins (per spec).
 
-    const baseCtx = (): PipelineContext => ({
-      index: this.state.picks_log.length,
-      question: pick.question_text,
-      options_shown: pick.options_shown,
-      answer: pick.answer,
+    const snapshot = {
       profile: this.state.profile,
       investigation: this.state.investigation,
       history: this.state.picks_log,
       queue: this.state.queue,
       basket: this.buildBasket(),
-    });
+    };
+    const thisTurn = {
+      index: this.state.picks_log.length,
+      question: pick.question_text,
+      options_shown: pick.options_shown,
+      answer: pick.answer,
+    };
 
     // ── STAGE 1: Observer ────────────────────────────
+    // Observer sees snapshot. Outputs profile updates.
     this.agentInFlight.observer += 1; this.publishInflight();
+    let observerOut: ObserverOutput | null = null;
     try {
-      const ctx = baseCtx();
-      const out: ObserverOutput = await runObserver(this.opts.adapter, ctx);
-      const nextProfile = applyObserverOutput(this.state.profile, out);
-      this.setState({ profile: nextProfile });
+      const ctx: PipelineContext = {
+        ...thisTurn,
+        profile: snapshot.profile,
+        investigation: snapshot.investigation,
+        history: snapshot.history,
+        queue: snapshot.queue,
+        basket: snapshot.basket,
+      };
+      observerOut = await runObserver(this.opts.adapter, ctx);
+      this.setState({
+        profile: applyObserverOutput(this.state.profile, observerOut),
+      });
       this.emit();
     } catch (e) {
       console.warn('[survey] observer failed', e);
@@ -520,20 +543,27 @@ export class SurveyEngine {
     }
 
     // ── STAGE 2: Detective ───────────────────────────
+    // Detective sees snapshot + observer's just-produced output. That
+    // projection is built from `snapshot.profile`, NOT engine state,
+    // so sibling pipelines' writes don't leak into this prompt.
+    const profileAfterObserver = observerOut
+      ? applyObserverOutput(snapshot.profile, observerOut)
+      : snapshot.profile;
+
     this.agentInFlight.detective += 1; this.publishInflight();
+    let detectiveOut: DetectiveOutput | null = null;
     try {
-      // Rebuild ctx — observer's output landed in state, and so may
-      // have a sibling pipeline's output. Detective sees the latest.
-      const ctx = baseCtx();
-      const out: DetectiveOutput = await runDetective(this.opts.adapter, ctx);
-      let nextInvestigation = applyDetectiveOutput(this.state.investigation, out);
-      // Quietly prune stale low-confidence leads. The detective never
-      // sees this — like a real detective forgetting the suspects she
-      // hasn't been actively chasing.
-      nextInvestigation = pruneStaleHypotheses(
-        nextInvestigation,
-        this.state.picks_log,
-      );
+      const ctx: PipelineContext = {
+        ...thisTurn,
+        profile: profileAfterObserver,
+        investigation: snapshot.investigation,
+        history: snapshot.history,
+        queue: snapshot.queue,
+        basket: snapshot.basket,
+      };
+      detectiveOut = await runDetective(this.opts.adapter, ctx);
+      let nextInvestigation = applyDetectiveOutput(this.state.investigation, detectiveOut);
+      nextInvestigation = pruneStaleHypotheses(nextInvestigation, this.state.picks_log);
       this.setState({ investigation: nextInvestigation });
       this.emit();
     } catch (e) {
@@ -543,12 +573,25 @@ export class SurveyEngine {
     }
 
     // ── STAGE 3: Interrogator ────────────────────────
+    // Interrogator sees snapshot + observer + detective. Same projection
+    // pattern — never re-reads engine state.
+    const investigationAfterDetective = detectiveOut
+      ? pruneStaleHypotheses(
+          applyDetectiveOutput(snapshot.investigation, detectiveOut),
+          snapshot.history,
+        )
+      : snapshot.investigation;
+
     this.agentInFlight.interrogator += 1; this.publishInflight();
     try {
-      // Rebuild ctx again — detective's investigation update landed,
-      // basket may have shifted (sibling pipeline appended to queue),
-      // queue may have changed.
-      const ctx = baseCtx();
+      const ctx: PipelineContext = {
+        ...thisTurn,
+        profile: profileAfterObserver,
+        investigation: investigationAfterDetective,
+        history: snapshot.history,
+        queue: snapshot.queue,
+        basket: snapshot.basket,
+      };
       const out: InterrogatorOutput = await runInterrogator(this.opts.adapter, ctx);
       this.applyInterrogatorOutput(out);
     } catch (e) {
@@ -673,9 +716,18 @@ function applyObserverOutput(profile: SurveyProfile, out: ObserverOutput): Surve
   };
 }
 
-/** Apply detective output to investigation — upsert hypotheses, mark
- *  refuted by id, append contradictions/hooks, replace choice draft
- *  when emitted, update thread statuses + posture. */
+/** Apply detective output to investigation. Designed for safe
+ *  composition: sibling pipelines stomping on the same field do NOT
+ *  corrupt state — each merge rule is associative-ish.
+ *
+ *    hypotheses        upsert by id (per-id last-write-wins)
+ *    contradictions    union-by-description (no dupes from two pipelines flagging same tension)
+ *    hooks             union-by-description (same)
+ *    choice_draft      replace ONLY if incoming has confidence >= existing
+ *                       (so a slower / less-informed detective can't regress a stronger draft)
+ *    active_threads    upsert by thread_id
+ *    posture           replace if incoming non-null (last-write-wins)
+ */
 function applyDetectiveOutput(inv: Investigation, out: DetectiveOutput): Investigation {
   let hypotheses = mergeHypotheses(inv.hypotheses, out.hypothesis_updates);
   if (out.hypothesis_refutes.length > 0) {
@@ -692,12 +744,40 @@ function applyDetectiveOutput(inv: Investigation, out: DetectiveOutput): Investi
   return {
     ...inv,
     hypotheses,
-    choice_draft: out.choice_update ?? inv.choice_draft,
-    contradictions: [...inv.contradictions, ...out.contradictions_found],
-    hooks: [...inv.hooks, ...out.hooks_found],
+    choice_draft: pickStrongerChoice(inv.choice_draft, out.choice_update),
+    contradictions: unionByKey(inv.contradictions, out.contradictions_found, (c) => c.description.toLowerCase()),
+    hooks: unionByKey(inv.hooks, out.hooks_found, (h) => h.description.toLowerCase()),
     active_threads: Array.from(threadMap.values()),
     posture: out.posture ?? inv.posture,
   };
+}
+
+const CONFIDENCE_RANK: Record<'low' | 'medium' | 'high', number> = { low: 1, medium: 2, high: 3 };
+
+/** Choice-draft merge: only replace when incoming is at least as
+ *  confident as existing. A late-arriving pipeline whose detective is
+ *  LESS confident can't regress an already-strong draft. */
+function pickStrongerChoice(existing: Investigation['choice_draft'], incoming: Investigation['choice_draft']) {
+  if (!incoming) return existing;
+  if (!existing) return incoming;
+  return CONFIDENCE_RANK[incoming.confidence] >= CONFIDENCE_RANK[existing.confidence]
+    ? incoming
+    : existing;
+}
+
+/** Append-with-dedupe. Items with the same key from the existing list
+ *  are kept (first-seen wins); only NEW keys from incoming are added. */
+function unionByKey<T>(existing: T[], incoming: T[], key: (t: T) => string): T[] {
+  const seen = new Set(existing.map(key));
+  const out = [...existing];
+  for (const item of incoming) {
+    const k = key(item);
+    if (!seen.has(k)) {
+      out.push(item);
+      seen.add(k);
+    }
+  }
+  return out;
 }
 
 function mergeCast(existing: CastMember[], updates: CastMember[]): CastMember[] {
