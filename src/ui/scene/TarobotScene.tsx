@@ -315,6 +315,7 @@ export function TarobotScene() {
       timeSec: number,
       mood: 'calm' | 'thinking',
       jitter: number,                  // 0..1 per-eye phase offset
+      gaze: { x: number; y: number },  // -1..1 within the table area; (0,0) = idle drift
     ) {
       const W = ctx.canvas.width;
       const H = ctx.canvas.height;
@@ -367,9 +368,12 @@ export function TarobotScene() {
       } else {
         // Calm — larger dark pupil with generous wander room. Two
         // independent low-freq sines on each axis = naturalistic drift.
+        // When `gaze` is non-zero (mouse over the table during card
+        // pick), bias the pupil toward the mouse with a smooth blend
+        // against the drift — eyes tracking the cursor.
         const pupilR = Math.min(rx, ry) * 0.38;
-        const wanderX = rx * 0.22;
-        const wanderY = ry * 0.18;
+        const wanderX = rx * 0.30;        // bumped to give gaze more reach
+        const wanderY = ry * 0.26;
         const driftX = (
           Math.sin(timeSec * 0.31 + jitter * 6.28) * 0.65 +
           Math.sin(timeSec * 0.83 + jitter * 3.14) * 0.35
@@ -378,9 +382,15 @@ export function TarobotScene() {
           Math.cos(timeSec * 0.27 + jitter * 6.28) * 0.65 +
           Math.cos(timeSec * 0.71 + jitter * 1.57) * 0.35
         ) * wanderY;
+        const gazeMag = Math.min(1, Math.hypot(gaze.x, gaze.y));
+        const blend = Math.min(1, gazeMag * 1.4);
+        const targetX = gaze.x * wanderX;
+        const targetY = gaze.y * wanderY;
+        const offsetX = driftX * (1 - blend) + targetX * blend;
+        const offsetY = driftY * (1 - blend) + targetY * blend;
         ctx.fillStyle = 'rgba(12, 4, 28, 0.95)';
         ctx.beginPath();
-        ctx.ellipse(cx + driftX, cy + driftY, pupilR, pupilR, 0, 0, Math.PI * 2);
+        ctx.ellipse(cx + offsetX, cy + offsetY, pupilR, pupilR, 0, 0, Math.PI * 2);
         ctx.fill();
       }
     }
@@ -721,7 +731,32 @@ export function TarobotScene() {
       fromQuat: THREE.Quaternion;
       toPos: THREE.Vector3;
       toQuat: THREE.Quaternion;
+      // Hover glow: a flat additive cyan disc on the table beneath
+      // each pickable face-down card. Brightens + scales up when the
+      // mouse is over THIS card. Lerps each frame for smoothness.
+      glowMesh: THREE.Mesh;
+      glowMat: THREE.MeshBasicMaterial;
+      hovered: boolean;
+      hoverAmt: number;
     };
+
+    // Glow disc texture — cyan radial gradient on transparent.
+    const glowTex = (() => {
+      const c = document.createElement('canvas');
+      c.width = 256; c.height = 256;
+      const g = c.getContext('2d')!;
+      const grad = g.createRadialGradient(128, 128, 0, 128, 128, 128);
+      grad.addColorStop(0.00, 'rgba(34, 211, 238, 0.95)');
+      grad.addColorStop(0.30, 'rgba(34, 211, 238, 0.55)');
+      grad.addColorStop(0.70, 'rgba(34, 211, 238, 0.15)');
+      grad.addColorStop(1.00, 'rgba(34, 211, 238, 0)');
+      g.fillStyle = grad;
+      g.fillRect(0, 0, 256, 256);
+      const tex = new THREE.CanvasTexture(c);
+      tex.colorSpace = THREE.SRGBColorSpace;
+      return tex;
+    })();
+    const glowGeom = new THREE.PlaneGeometry(CARD_W * 1.8, CARD_H * 1.4);
 
     const SLOTS: SlotName[] = ['top', 'left', 'right', 'bottom'];
     const cardRigs: CardRig[] = SLOTS.map((slot) => {
@@ -742,6 +777,20 @@ export function TarobotScene() {
       group.quaternion.copy(STAGE_QUAT.face_down);
       group.visible = false;     // hidden until a reading mounts
       perspScene.add(group);
+      // Glow lives at the slot in world coords (not as a child of the
+      // rig group) so it stays put on the table even if the card lifts.
+      const glowMat = new THREE.MeshBasicMaterial({
+        map: glowTex,
+        transparent: true,
+        depthWrite: false,
+        blending: THREE.AdditiveBlending,
+        opacity: 0,
+      });
+      const glowMesh = new THREE.Mesh(glowGeom, glowMat);
+      glowMesh.rotation.x = -Math.PI / 2;       // flat on the table
+      glowMesh.position.set(xy[0], SURFACE_Y - 0.005, xy[1]);
+      glowMesh.visible = false;
+      perspScene.add(glowMesh);
       const fromPos = group.position.clone();
       const fromQuat = group.quaternion.clone();
       return {
@@ -752,6 +801,9 @@ export function TarobotScene() {
         tweenStart: 0, tweenDur: 1,
         fromPos, fromQuat,
         toPos: fromPos.clone(), toQuat: fromQuat.clone(),
+        glowMesh, glowMat,
+        hovered: false,
+        hoverAmt: 0,
       };
     });
 
@@ -770,7 +822,12 @@ export function TarobotScene() {
           }
           tableGroup.visible = true;
         } else {
-          for (const rig of cardRigs) rig.group.visible = false;
+          for (const rig of cardRigs) {
+            rig.group.visible = false;
+            rig.glowMesh.visible = false;
+            rig.glowMat.opacity = 0;
+            rig.hoverAmt = 0;
+          }
           tableGroup.visible = false;
         }
       }
@@ -944,8 +1001,25 @@ export function TarobotScene() {
 
         // Mood: dizzy (any tier awaiting) → thinking spiral; else calm.
         const mood: 'calm' | 'thinking' = dizzy ? 'thinking' : 'calm';
-        paintEye(leftEye.ctx, t, mood, 0.0);
-        paintEye(rightEye.ctx, t, mood, 0.37);
+        // Gaze: while picking a card, eyes track the mouse over the
+        // table area. NDC (-1..1) within the table-anchor rect; (0,0)
+        // outside / not picking → idle drift takes over.
+        const gaze = { x: 0, y: 0 };
+        if (cardScene.pickable && mouseSceneX < 998) {
+          const tr = getTableAnchor();
+          if (tr && tr.width > 0 && tr.height > 0) {
+            const screenX = mouseSceneX + viewportW / 2;
+            const screenY = viewportH / 2 - mouseSceneY;
+            const u = (screenX - tr.x) / tr.width;
+            const v = (screenY - tr.y) / tr.height;
+            if (u >= -0.2 && u <= 1.2 && v >= -0.2 && v <= 1.2) {
+              gaze.x = Math.max(-1, Math.min(1, (u - 0.5) * 2));
+              gaze.y = Math.max(-1, Math.min(1, (v - 0.5) * 2));
+            }
+          }
+        }
+        paintEye(leftEye.ctx, t, mood, 0.0, gaze);
+        paintEye(rightEye.ctx, t, mood, 0.37, gaze);
         leftEye.tex.needsUpdate = true;
         rightEye.tex.needsUpdate = true;
       }
@@ -1224,6 +1298,33 @@ export function TarobotScene() {
         orb.mesh.position.copy(orb.pos);
       }
 
+      // ── Card hover: raycast against face-down pickable cards ──
+      let hoveredSlot: SlotName | null = null;
+      if (cardScene.pickable && mouseSceneX < 998 && cardScene.drawn) {
+        const tr = getTableAnchor();
+        if (tr && tr.width > 0 && tr.height > 0) {
+          const screenX = mouseSceneX + viewportW / 2;
+          const screenY = viewportH / 2 - mouseSceneY;
+          if (screenX >= tr.x && screenX <= tr.x + tr.width && screenY >= tr.y && screenY <= tr.y + tr.height) {
+            const ndcX = ((screenX - tr.x) / tr.width) * 2 - 1;
+            const ndcY = -((screenY - tr.y) / tr.height) * 2 + 1;
+            perspCamera.aspect = tr.width / tr.height;
+            perspCamera.updateProjectionMatrix();
+            raycaster.setFromCamera(new THREE.Vector2(ndcX, ndcY), perspCamera);
+            const targets: THREE.Object3D[] = [];
+            for (const rig of cardRigs) {
+              if (rig.stage !== 'face_down' || !rig.group.visible) continue;
+              targets.push(rig.frontMesh, rig.backMesh);
+            }
+            const hits = raycaster.intersectObjects(targets, false);
+            for (const h of hits) {
+              const slot = h.object.userData.slot as SlotName | undefined;
+              if (slot) { hoveredSlot = slot; break; }
+            }
+          }
+        }
+      }
+
       // ── Card rigs: drive stage transitions + tweens ─────
       if (cardScene.drawn) {
         for (const rig of cardRigs) {
@@ -1256,6 +1357,22 @@ export function TarobotScene() {
             const yawDrift = Math.sin(t * 0.7) * 0.05;
             const driftQuat = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, yawDrift, 0));
             rig.group.quaternion.copy(STAGE_QUAT.lifted).multiply(driftQuat);
+          }
+          // Hover glow + tiny lift while pickable. Glow opacity rests at
+          // ~0.25 for any pickable face_down card; ramps to ~0.85 when
+          // the mouse is over THIS specific card. Glow always visible
+          // when card is face-down and pickable; faded out otherwise.
+          rig.hovered = hoveredSlot === rig.slot;
+          const showGlow = cardScene.pickable && rig.stage === 'face_down';
+          const targetGlow = showGlow ? (rig.hovered ? 0.85 : 0.25) : 0;
+          rig.hoverAmt += ((rig.hovered && showGlow ? 1 : 0) - rig.hoverAmt) * 0.18;
+          rig.glowMat.opacity += (targetGlow - rig.glowMat.opacity) * 0.18;
+          rig.glowMesh.visible = rig.glowMat.opacity > 0.01;
+          const glowScale = 1 + rig.hoverAmt * 0.35;
+          rig.glowMesh.scale.set(glowScale, glowScale, 1);
+          // Tiny hair-lift on the hovered face-down card.
+          if (rig.stage === 'face_down') {
+            rig.group.position.y = SURFACE_Y + rig.hoverAmt * 0.045;
           }
         }
         tableGroup.position.y = Math.sin(t * 0.35) * 0.005;
@@ -1369,8 +1486,11 @@ export function TarobotScene() {
       for (const rig of cardRigs) {
         rig.frontMat.dispose();
         rig.backMat.dispose();
+        rig.glowMat.dispose();
       }
       cardGeom.dispose();
+      glowGeom.dispose();
+      glowTex.dispose();
       // GLB table meshes
       for (const m of tableMeshes) {
         m.geometry.dispose();
