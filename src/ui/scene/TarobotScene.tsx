@@ -209,7 +209,8 @@ export function TarobotScene() {
     // ortho camera looking down -z sees into the hood — exactly what we
     // want (eyes appear floating inside the hood opening).
     const cowlGroup = new THREE.Group();
-    cowlGroup.scale.setScalar(4.0);
+    // Bumped 4.0 → 5.5 (thicker silhouette, more presence).
+    cowlGroup.scale.setScalar(5.5);
     // z=-1.2 pushes the cowl BEHIND the eyes (at z=0) so the eyes
     // float in front of the hood opening rather than being obscured.
     cowlGroup.position.set(0, -0.4, -1.2);
@@ -224,11 +225,15 @@ export function TarobotScene() {
         const model = gltf.scene;
         model.traverse((obj) => {
           if (obj instanceof THREE.Mesh) {
-            // Dark grey-purple — visible against the void so the cowl
-            // actually reads as a hooded figure, not just invisible
-            // stars-occlusion. (Was pure black; user couldn't see it.)
+            // Preserve the gltf's baseColor texture (the cowl's natural
+            // cloth color from the Sketchfab source) but flatten the
+            // material to MeshBasicMaterial so it doesn't need lights
+            // in the ortho scene.
+            const orig = obj.material as THREE.MeshStandardMaterial | undefined;
+            const origMap = orig?.map ?? null;
             const mat = new THREE.MeshBasicMaterial({
-              color: 0x2a2438,
+              map: origMap,
+              color: origMap ? 0xffffff : 0x4a4250,  // fallback grey
               transparent: true,
               depthWrite: false,
             });
@@ -315,13 +320,10 @@ export function TarobotScene() {
       const rx = W * 0.46;
       const ry = H * 0.46;
 
-      // Outer halo — soft radial gradient ellipse, almost the whole eye
-      const halo = ctx.createRadialGradient(cx, cy, ry * 0.08, cx, cy, rx);
-      halo.addColorStop(0.00, 'rgba(248, 240, 255, 1.0)');
-      halo.addColorStop(0.35, 'rgba(201, 165, 255, 0.95)');
-      halo.addColorStop(0.75, 'rgba(124, 58, 237, 0.45)');
-      halo.addColorStop(1.00, 'rgba(80, 30, 160, 0.0)');
-      ctx.fillStyle = halo;
+      // Eye orb — solid brand violet (was a radial gradient; user wants
+      // the eye to read as a flat painted disc against the cowl's
+      // hood-interior darkness, not as a glowing halo).
+      ctx.fillStyle = 'rgba(124, 58, 237, 1.0)';
       ctx.beginPath();
       ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2);
       ctx.fill();
