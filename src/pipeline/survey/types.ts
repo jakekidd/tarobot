@@ -134,6 +134,11 @@ export type Investigation = {
   hooks: Hook[];
   active_threads: ActiveThread[];
   posture: 'warm' | 'careful' | 'direct' | null;
+  /** Write-only stack of intention guesses from the Detective. Every
+   *  pipeline turn appends one (optional) — duplicates are signal, not
+   *  noise (a question coming up 3 times is pressing). The Shaman
+   *  reads the whole stack at survey close to divine 4 candidates. */
+  intention_guesses: string[];
 };
 
 // ─── Events ─────────────────────────────────────────────
@@ -182,13 +187,28 @@ export type ActiveThread = {
 
 export type CloseReason = 'user_exit' | 'queue_exhausted' | 'cap';
 
+/** Post-question-cap lifecycle:
+ *
+ *   questions          → user is still answering survey questions
+ *   shaman_thinking    → cap hit, shaman call in flight, loading state
+ *   awaiting_intention → shaman returned, user is picking from offered intentions
+ *   compiling          → user picked, compiler running for the reading handoff
+ *   reading_ready      → compiler done, app routes to reading
+ */
+export type SurveyStage =
+  | 'questions'
+  | 'shaman_thinking'
+  | 'awaiting_intention'
+  | 'compiling'
+  | 'reading_ready';
+
 export type EngineState = {
   session_id: string;
   started_at: number;
   tree_version: string;
 
   profile: SurveyProfile;
-  investigation: Investigation;     // NEW — the Clue tools live here
+  investigation: Investigation;     // the Clue tools live here
   is_returning_user: boolean;
   prior_session_summary?: string;
 
@@ -204,6 +224,13 @@ export type EngineState = {
   close_reason?: CloseReason;
   /** True while a blocking agent call is in flight. UI uses this to drive the dizzy loading state. */
   thinking: boolean;
+
+  /** Where we are in the post-cap end-of-survey flow. */
+  stage: SurveyStage;
+  /** Shaman's 4 candidate intention questions. Populated when shaman returns. */
+  intentions_offered: string[];
+  /** What the user picked (or wrote in). Populated by submitIntention(). */
+  chosen_intention: string | null;
 };
 
 // ─── Behavioural events (engine-internal, drive heat) ───
@@ -280,6 +307,10 @@ export type DetectiveOutput = {
   thread_updates: Array<{ thread_id: string; status: ActiveThread['status'] }>;
   /** null = no change. otherwise overwrites investigation.posture. */
   posture: 'warm' | 'careful' | 'direct' | null;
+  /** Optional one-question guess about what the user is here to ask
+   *  the oracle. Specific Should/Do form, ≤ 12 words. Appended to a
+   *  write-only stack; redundancy across turns is signal. */
+  intention_guess?: string;
   /** Private to engine logs — 2-3 sentences on what's now believed. */
   reasoning: string;
 };
@@ -300,8 +331,28 @@ export type InterrogatorOutput = {
   reasoning: string;
 };
 
+/** Shaman input — full record at survey close. The Shaman becomes the
+ *  user for a moment and asks what they'd bring to a living god. */
+export type ShamanInput = {
+  profile: SurveyProfile;
+  investigation: Investigation;     // includes the write-only intention_guesses stack
+  history: PickEvent[];             // all picks (openers + survey)
+};
+
+/** Shaman picks 4 specific intention questions in the user's voice. */
+export type ShamanOutput = {
+  /** Exactly 4 questions, in the user's vernacular. ≤ 12 words each. */
+  intentions: string[];
+  /** Private to engine logs — 2-3 sentences on how the four were chosen. */
+  reasoning: string;
+};
+
 export type CompilerInput = {
   state: EngineState;
+  /** The intention the user picked at the shaman screen. Becomes the
+   *  focal point the seer's reading orbits. May be one of
+   *  `state.intentions_offered` or a write-in. */
+  chosen_intention: string;
 };
 
 /**

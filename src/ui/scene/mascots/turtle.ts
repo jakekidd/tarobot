@@ -74,6 +74,18 @@ export function createTurtleMascot(): Mascot {
 
         group.add(root);
 
+        // DEBUG: red wireframe AABB so we can see exactly where he lives.
+        // Remove once positioning is sorted.
+        const boxHelper = new THREE.BoxHelper(root, 0xff0000);
+        group.add(boxHelper);
+
+        // DEBUG: a temp PointLight parented to the group so it follows
+        // the turtle through the rig scale. Bright, close-range; meant
+        // to be loud while we sort out the real lighting.
+        const fillLight = new THREE.PointLight(0xffffff, 4.0, 5, 1.0);
+        fillLight.position.set(0.6, 0.4, 1.2);  // above + in front
+        group.add(fillLight);
+
         // Wire up Swim Cycle at the slow timeScale.
         if (gltf.animations.length > 0) {
           mixer = new THREE.AnimationMixer(root);

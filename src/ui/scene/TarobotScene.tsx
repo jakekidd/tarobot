@@ -114,11 +114,15 @@ export function TarobotScene() {
     // every other mesh in the scene is MeshBasicMaterial and ignores
     // these. Placed in world coords (not parented to the scaled mascot
     // rig) so the lighting direction is stable across viewport sizes.
-    const ambient = new THREE.AmbientLight(0xc8b3ff, 0.45);
-    scene.add(ambient);
-    const keyLight = new THREE.DirectionalLight(0xffffff, 1.1);
-    keyLight.position.set(0, 500, 200);   // above + slightly in front
-    scene.add(keyLight);                    // target defaults to (0,0,0); shines down-and-forward
+    //
+    // Hemi gives a soft sky/ground ambient that touches every normal.
+    // Key sits in front of and above the camera plane, so faces that
+    // point AT the camera (where the turtle's shell-back ends up after
+    // the X-tilt) get lit, not just upward-facing faces.
+    scene.add(new THREE.HemisphereLight(0xffffff, 0x3a2d5a, 0.9));
+    const keyLight = new THREE.DirectionalLight(0xffffff, 1.6);
+    keyLight.position.set(0, 200, 800);   // mostly toward camera, slight overhead
+    scene.add(keyLight);                    // target defaults to (0,0,0)
 
     // Orthographic camera — world units == viewport pixels, center-origin.
     let viewportW = window.innerWidth;
