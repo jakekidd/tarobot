@@ -11,6 +11,7 @@
 
 import type { LLMAdapter } from '../survey/adapter';
 import { MonologueSchema } from './schemas';
+import { sanitizeMonologueText } from './sanitize';
 import {
   PER_CARD_PERSONA_SYSTEM,
   PER_CARD_PERSONA_TOOL,
@@ -29,6 +30,15 @@ import type {
   PerCardPersonaInput,
 } from './types';
 
+/** Apply the engine-layer text filter (em-dash → ellipsis, etc.) to every
+ *  monologue we receive from the persona, so even what the AI sees as
+ *  history is clean. */
+function sanitize(m: Monologue): Monologue {
+  const text = sanitizeMonologueText(m.text);
+  const prompt = m.prompt_to_user ? sanitizeMonologueText(m.prompt_to_user) : undefined;
+  return prompt ? { text, prompt_to_user: prompt } : { text };
+}
+
 export async function personaPerCard(
   adapter: LLMAdapter,
   input: PerCardPersonaInput,
@@ -45,7 +55,7 @@ export async function personaPerCard(
       'voice ONE beat as the seer. inhabit the Set; perform from it. do not paraphrase or recite its contents.',
   };
 
-  return adapter.invoke<Monologue>(
+  return sanitize(await adapter.invoke<Monologue>(
     {
       system: PER_CARD_PERSONA_SYSTEM,
       user: JSON.stringify(payload, null, 2),
@@ -54,7 +64,7 @@ export async function personaPerCard(
       max_tokens: 500,         // beats are 2-4 sentences; cap tighter
     },
     MonologueSchema,
-  );
+  ));
 }
 
 export async function personaIntro(
@@ -68,7 +78,7 @@ export async function personaIntro(
       'voice ONE short opening line as the seer. land them in the room. do not demonstrate insight yet.',
   };
 
-  return adapter.invoke<Monologue>(
+  return sanitize(await adapter.invoke<Monologue>(
     {
       system: INTRO_PERSONA_SYSTEM,
       user: JSON.stringify(payload, null, 2),
@@ -77,7 +87,7 @@ export async function personaIntro(
       max_tokens: 200,
     },
     MonologueSchema,
-  );
+  ));
 }
 
 export async function personaClosing(
@@ -97,7 +107,7 @@ export async function personaClosing(
     instruction: 'voice the outro. one or two sentences. drop the voice.',
   };
 
-  return adapter.invoke<Monologue>(
+  return sanitize(await adapter.invoke<Monologue>(
     {
       system: CLOSING_PERSONA_SYSTEM,
       user: JSON.stringify(payload, null, 2),
@@ -106,7 +116,7 @@ export async function personaClosing(
       max_tokens: 300,
     },
     MonologueSchema,
-  );
+  ));
 }
 
 export async function personaChat(
@@ -126,7 +136,7 @@ export async function personaChat(
     instruction: 'respond to the participant as the seer. short.',
   };
 
-  return adapter.invoke<Monologue>(
+  return sanitize(await adapter.invoke<Monologue>(
     {
       system: CHAT_PERSONA_SYSTEM,
       user: JSON.stringify(payload, null, 2),
@@ -135,5 +145,5 @@ export async function personaChat(
       max_tokens: 300,
     },
     MonologueSchema,
-  );
+  ));
 }

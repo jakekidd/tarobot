@@ -25,7 +25,7 @@
 //   done                → chat still active; close button surfaced
 //   error               → message + close
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { AnthropicAdapter, type CompilerOutput } from '../pipeline/survey';
 import {
   drawForSpread,
@@ -53,6 +53,7 @@ import { pickAt } from './scene/pickService';
 import { Transcript, type TranscriptItem } from './Transcript';
 import { useTypewriter } from './dialogue/useTypewriter';
 import { highlightNames, type Highlights } from './dialogue/highlightNames';
+import { parseEmphasis, type EmphasisRange } from './dialogue/parseEmphasis';
 import { setDizzy } from './scene/dizzyStore';
 import { setReaderMode } from './scene/readerModeStore';
 import { loadSettings } from '../storage';
@@ -482,12 +483,18 @@ function ChunkedLine({
   highlights: Highlights;
   onAdvance: () => void;
 }) {
-  const chunks = useMemo(() => chunkText(text, CHUNK_MAX_CHARS), [text]);
+  // Strip _underscore_ emphasis markers first; chunker + typewriter then
+  // operate on the cleaned text. Ranges in chunk-local coordinates.
+  const chunks = useMemo(() => {
+    const parsed = parseEmphasis(text);
+    return chunkWithRanges(parsed.text, parsed.ranges, CHUNK_MAX_CHARS);
+  }, [text]);
+
   const [idx, setIdx] = useState(0);
   const settings = useMemo(() => loadSettings(), []);
-  const current = chunks[idx] ?? '';
+  const current = chunks[idx] ?? { text: '', ranges: [] };
   const { displayed, done, skip } = useTypewriter(
-    current.toLowerCase(),
+    current.text.toLowerCase(),
     settings.charDelayMs,
   );
   const isLast = idx >= chunks.length - 1;
@@ -498,13 +505,7 @@ function ChunkedLine({
     else onAdvance();
   }
 
-  // Screen-wide click: parent increments advanceTick → we call tap with
-  // the LATEST state. Ref is updated in an effect (React 19 strict lint
-  // forbids ref assignment during render).
   const tapRef = useRef(tap);
-  // tap is a fresh closure each render — keep the ref pointing at the
-  // latest one. No deps array → fires every render (cheap; just a ref
-  // assignment).
   useEffect(() => { tapRef.current = tap; });
   const lastTickRef = useRef(advanceTick);
   useEffect(() => {
@@ -513,8 +514,6 @@ function ChunkedLine({
     tapRef.current();
   }, [advanceTick]);
 
-  const caret = !done ? '' : isLast ? ' ▸' : ' …';
-
   return (
     <div
       className={`reading__${kind} reading__dialogue-rigid`}
@@ -522,42 +521,114 @@ function ChunkedLine({
       role="button"
       tabIndex={0}
     >
-      <span>{highlightNames(displayed, highlights)}{done && <span aria-hidden>{caret}</span>}</span>
+      <span className="reading__dialogue-text">
+        {renderWithEmphasis(current.text, displayed, current.ranges, highlights)}
+      </span>
+      {done && (
+        <span className="reading__dialogue-caret" aria-hidden>▼</span>
+      )}
     </div>
   );
 }
 
-function chunkText(text: string, maxLen: number): string[] {
-  const trimmed = text.trim();
-  if (trimmed.length <= maxLen) return [trimmed];
-  // Split into sentences (keep terminator + trailing whitespace with each).
-  const sentences = trimmed.match(/[^.!?…]+[.!?…]+\s*|[^.!?…]+$/g) ?? [trimmed];
-  const out: string[] = [];
+type Chunk = { text: string; ranges: EmphasisRange[] };
+
+/** Chunk text into sentence-bounded pieces ≤ maxLen and translate any
+ *  emphasis ranges into chunk-local coordinates. */
+function chunkWithRanges(text: string, ranges: EmphasisRange[], maxLen: number): Chunk[] {
+  if (!text) return [];
+  // Tokenize sentences with their absolute start offsets.
+  const sentenceRegex = /[^.!?…]+[.!?…]+\s*|[^.!?…]+$/g;
+  const sentences: Array<{ text: string; start: number }> = [];
+  let m: RegExpExecArray | null;
+  while ((m = sentenceRegex.exec(text)) !== null) {
+    sentences.push({ text: m[0], start: m.index });
+  }
+  if (sentences.length === 0) sentences.push({ text, start: 0 });
+
+  type Slice = { text: string; absStart: number };
+  const slices: Slice[] = [];
   let buf = '';
+  let bufStart = sentences[0]?.start ?? 0;
   for (const s of sentences) {
-    if (buf.length === 0) {
-      buf = s;
-    } else if (buf.length + s.length <= maxLen) {
-      buf += s;
+    if (!buf) {
+      buf = s.text;
+      bufStart = s.start;
+    } else if (buf.length + s.text.length <= maxLen) {
+      buf += s.text;
     } else {
-      out.push(buf.trim());
-      buf = s;
+      slices.push({ text: buf, absStart: bufStart });
+      buf = s.text;
+      bufStart = s.start;
     }
   }
-  if (buf) out.push(buf.trim());
-  // If a single sentence is itself longer than maxLen, hard-split it.
-  const final: string[] = [];
-  for (const c of out) {
-    if (c.length <= maxLen) {
-      final.push(c);
-    } else {
-      for (let i = 0; i < c.length; i += maxLen) {
-        final.push(c.slice(i, i + maxLen));
-      }
-    }
-  }
-  return final;
+  if (buf) slices.push({ text: buf, absStart: bufStart });
+
+  return slices.map(({ text: sliceText, absStart }) => {
+    const sliceEnd = absStart + sliceText.length;
+    const localRanges = ranges
+      .filter((r) => r.start >= absStart && r.end <= sliceEnd)
+      .map((r) => ({ start: r.start - absStart, end: r.end - absStart }));
+    // Trim leading whitespace, shifting ranges to compensate.
+    const leading = sliceText.length - sliceText.trimStart().length;
+    const trimmed = sliceText.trim();
+    const adjusted = leading
+      ? localRanges
+          .map((r) => ({ start: r.start - leading, end: r.end - leading }))
+          .filter((r) => r.start >= 0 && r.end <= trimmed.length)
+      : localRanges;
+    return { text: trimmed, ranges: adjusted };
+  });
 }
+
+/** Lag (in chars typed past the range's end) before the underline animates in. */
+const EMPHASIS_LAG = 8;
+
+/** Render the typewriter's `displayed` prefix of `full`, applying
+ *  emphasis-underline spans over `ranges` and name highlights elsewhere.
+ *  An emphasis range's underline animates once `displayed.length` has
+ *  passed `range.end + EMPHASIS_LAG` — produces the "in hindsight"
+ *  marked-up-by-someone-reading-along feel. */
+function renderWithEmphasis(
+  full: string,
+  displayed: string,
+  ranges: EmphasisRange[],
+  highlights: Highlights,
+): React.ReactNode[] {
+  const out: React.ReactNode[] = [];
+  const len = displayed.length;
+  let cursor = 0;
+  let key = 0;
+  const sorted = [...ranges].sort((a, b) => a.start - b.start);
+  for (const r of sorted) {
+    if (r.start >= len) break;
+    // Plain text before this range
+    if (cursor < r.start) {
+      const seg = full.slice(cursor, Math.min(r.start, len));
+      out.push(<React.Fragment key={`p-${key++}`}>{highlightNames(seg, highlights)}</React.Fragment>);
+    }
+    // The emphasis span (clipped to displayed length)
+    const visibleEnd = Math.min(r.end, len);
+    const emText = full.slice(r.start, visibleEnd);
+    const underlineOn = len >= r.end + EMPHASIS_LAG;
+    out.push(
+      <span
+        key={`em-${key++}`}
+        className={`hl-em${underlineOn ? ' hl-em--on' : ''}`}
+      >
+        {highlightNames(emText, highlights)}
+      </span>,
+    );
+    cursor = r.end;
+  }
+  // Tail
+  if (cursor < len) {
+    const seg = full.slice(cursor, len);
+    out.push(<React.Fragment key={`t-${key++}`}>{highlightNames(seg, highlights)}</React.Fragment>);
+  }
+  return out;
+}
+
 
 // ─── Chat form (no log — log lives in Transcript) ───────
 
@@ -602,7 +673,7 @@ function ChatForm({
           className="reading__chat-input"
           type="text"
           value={draft}
-          onChange={(e) => setDraft(e.target.value)}
+          onChange={(e) => setDraft(e.target.value.toLowerCase())}
           disabled={!canSend}
           placeholder={
             !canSend

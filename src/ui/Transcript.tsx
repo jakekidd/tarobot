@@ -73,10 +73,12 @@ export function Transcript({ items, stallShown, highlights }: Props) {
             <em>nothing said yet.</em>
           </div>
         )}
-        {items.map((m) => (
+        {items.map((m) => {
+          const isLive = m.key.endsWith('-live');
+          return (
           <div
             key={m.key}
-            className={`transcript__line transcript__line--${m.speaker}`}
+            className={`transcript__line transcript__line--${m.speaker}${isLive ? ' transcript__line--live' : ''}`}
           >
             <span className="transcript__who">
               {m.speaker === 'user' ? 'you' : 'seer'}
@@ -86,7 +88,8 @@ export function Transcript({ items, stallShown, highlights }: Props) {
             </span>
             <span className="transcript__text">{highlightNames(m.text, highlights)}</span>
           </div>
-        ))}
+          );
+        })}
         {stallShown && (
           <div className="transcript__line transcript__line--seer transcript__line--stall">
             <span className="transcript__who">seer</span>

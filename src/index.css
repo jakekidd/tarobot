@@ -791,6 +791,59 @@ a:hover { text-decoration: underline; }
   display: flex;
   align-items: flex-start;
   cursor: pointer;
+  position: relative;
+}
+
+/* Dialogue text — frontend-only uppercase display. The stored text
+   in state.intro / state.revealed[].monologue.text remains as
+   delivered (mixed-case ok, lowercase as the seer prefers); only
+   the visual presentation is shouted. */
+.reading__dialogue-text {
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+/* Emphasis spans — persona marks phrases with _underscores_; the
+   parser strips them and the renderer wraps each phrase in this
+   class. The underline draws in left-to-right once the typewriter
+   has passed (range.end + LAG) chars, producing the "marked-up
+   in hindsight" feel. */
+.hl-em {
+  position: relative;
+  display: inline-block;
+}
+.hl-em::after {
+  content: '';
+  position: absolute;
+  left: 0; right: 0;
+  bottom: -0.08em;
+  height: 2px;
+  background: currentColor;
+  opacity: 0.85;
+  transform: scaleX(0);
+  transform-origin: left center;
+  transition: transform 0.55s cubic-bezier(0.4, 0.0, 0.2, 1);
+}
+.hl-em.hl-em--on::after {
+  transform: scaleX(1);
+}
+
+/* Down-arrow caret — bottom-center of dialogue box, long gentle
+   pulse (3/4 visible, 1/4 dim). Replaces the inline ▸ caret. */
+.reading__dialogue-caret {
+  position: absolute;
+  bottom: 0.15rem;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 1.05rem;
+  line-height: 1;
+  color: var(--fg);
+  pointer-events: none;
+  animation: caret-pulse 2.4s ease-in-out infinite;
+}
+@keyframes caret-pulse {
+  0%, 75%, 100% { opacity: 1; }
+  87%           { opacity: 0.22; }
 }
 
 /* TableAnchor — fills the right column. Its bbox is what the perspective
@@ -946,6 +999,14 @@ a:hover { text-decoration: underline; }
   color: var(--fg);
   word-break: break-word;
   text-align: left;
+  text-transform: uppercase;     /* match the dialogue display */
+  letter-spacing: 0.02em;
+}
+/* Live (in-flight) beat — indented so it visually reads as still being
+   delivered, not yet finalized. */
+.transcript__line--live {
+  padding-left: 1.2rem;
+  border-left: 2px solid var(--violet-line);
 }
 .transcript__line--stall .transcript__text {
   color: var(--fg-faint);

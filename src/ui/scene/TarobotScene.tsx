@@ -536,11 +536,10 @@ export function TarobotScene() {
       right:  [1.25, 0],
       bottom: [0, 1.05],
     };
-    // Lifted card — pushed back (z 4.4 → 5.2) so it doesn't fill the
-    // screen; dropped slightly (y 3.4 → 2.9) and tilted further back
-    // toward the camera (lifted Euler.x -0.08 → -0.22) so it reads as
-    // "held up at an angle for the viewer to see".
-    const LIFT_POS = new THREE.Vector3(0, 2.9, 5.2);
+    // Lifted card — pushed further back so it doesn't fill the frame
+    // when held. Tilted back toward camera so it reads as "held up at
+    // an angle for the viewer".
+    const LIFT_POS = new THREE.Vector3(0, 2.9, 5.9);
     const STAGE_QUAT: Record<CardStage, THREE.Quaternion> = {
       face_down: new THREE.Quaternion().setFromEuler(new THREE.Euler(Math.PI / 2, 0, 0)),
       face_up:   new THREE.Quaternion().setFromEuler(new THREE.Euler(-Math.PI / 2, 0, 0)),
