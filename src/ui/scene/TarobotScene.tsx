@@ -226,16 +226,19 @@ export function TarobotScene() {
         const model = gltf.scene;
         model.traverse((obj) => {
           if (obj instanceof THREE.Mesh) {
-            // Flat dark turquoise — the gltf's natural texture had
-            // bright gold accents (smile, outlines) that were too
-            // shiny and blocked dialogue readability. Drop the
-            // texture entirely; the cowl reads as a flat cool-tone
-            // silhouette in the brand turquoise.
+            // Keep the gltf's natural baseColor texture, but darken +
+            // make 60% opaque. The bloom pass has threshold 0.30, so
+            // the gold accents at native ~0.79 luminance blow out.
+            // 0x707070 color multiplier × 0.6 opacity puts effective
+            // luminance ≈ 0.21 — below threshold, no bloom blow-up.
+            const orig = obj.material as THREE.MeshStandardMaterial | undefined;
+            const origMap = orig?.map ?? null;
             const mat = new THREE.MeshBasicMaterial({
-              color: 0x0a3848,            // brand turquoise, darkened
+              map: origMap,
+              color: 0x707070,
               transparent: true,
+              opacity: 0.6,
               depthWrite: false,
-              opacity: 0.92,
             });
             cowlMaterials.push(mat);
             cowlGeometries.push(obj.geometry);
@@ -320,16 +323,11 @@ export function TarobotScene() {
       const rx = W * 0.46;
       const ry = H * 0.46;
 
-      // Eye orb — hard two-step: outer half violet, inner half white.
-      // Reads as "whites of the eyes" inside a violet iris ring, without
-      // the soft gradient halo that was washing the cowl behind it out.
+      // Eye orb — solid brand violet (the hard-step "whites of the
+      // eyes" pass looked off against the cowl behind it, per user).
       ctx.fillStyle = 'rgba(124, 58, 237, 1.0)';
       ctx.beginPath();
       ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.fillStyle = 'rgba(248, 240, 255, 1.0)';
-      ctx.beginPath();
-      ctx.ellipse(cx, cy, rx * 0.5, ry * 0.5, 0, 0, Math.PI * 2);
       ctx.fill();
 
       // Pupil — by mood
