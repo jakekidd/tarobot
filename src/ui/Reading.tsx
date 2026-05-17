@@ -317,6 +317,7 @@ export function Reading({ apiKey, brief, preferredIntro, onExit }: Props) {
           <div className="reading__chat-slot">
             <ChatForm state={state} onSend={(text) => void engine.submitChat(text)} />
           </div>
+          <CardHint visible={state.phase === 'awaiting_flip' || state.phase === 'done'} />
 
           <button
             type="button"
@@ -361,8 +362,6 @@ function CardSubtitle({
   visible: boolean;
 }) {
   const display = name ?? '';
-  // Split into letters so each gets its own animation phase. Spaces stay
-  // as non-animated gaps.
   const letters = display.toUpperCase().split('');
   return (
     <div
@@ -384,9 +383,18 @@ function CardSubtitle({
           ),
         )}
       </span>
-      <div className="card-subtitle__hint">
-        <em>tell me if i'm wrong.</em>
-      </div>
+    </div>
+  );
+}
+
+/** Hint phrase that sits BELOW the chat input — only visible while
+ *  the input is enabled (i.e., the seer is "listening" for a chat
+ *  reply). Lives in its own element so it doesn't have to track the
+ *  card-subtitle's positioning. */
+function CardHint({ visible }: { visible: boolean }) {
+  return (
+    <div className={`card-hint ${visible ? 'card-hint--on' : ''}`} aria-hidden>
+      <em>tell me if i'm wrong.</em>
     </div>
   );
 }

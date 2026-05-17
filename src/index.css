@@ -911,10 +911,11 @@ a:hover { text-decoration: underline; }
        Absolute on the right column. 3D-extruded floating letters. */
 .card-subtitle {
   position: absolute;
-  /* Sits BELOW the chat input (chat is at bottom:5.5rem). 1.2rem from
-     the canvas bottom; small caption nests under the card name. */
+  /* Sits ABOVE the chat input (chat is at bottom:5.5rem; chat row is
+     ~2.6rem tall; gap above it ≈ 0.6rem). Card name stays visible
+     between the table and the input. */
   top: auto;
-  bottom: 1.2rem;
+  bottom: 8.7rem;
   left: 0;
   right: 0;
   font-family: var(--font-speech);
@@ -954,8 +955,13 @@ a:hover { text-decoration: underline; }
   display: inline-block;
   width: 0.3em;
 }
-.card-subtitle__hint {
-  margin-top: 0.25rem;
+/* "tell me if i'm wrong." hint — independent of card-subtitle. Sits
+   BELOW the chat input and only fades in when chat is enabled. */
+.card-hint {
+  position: absolute;
+  bottom: 2.2rem;     /* just under the chat input row (chat at 5.5rem) */
+  left: 0;
+  right: 0;
   font-family: var(--font-speech);
   font-style: italic;
   font-size: 0.78rem;
@@ -964,8 +970,10 @@ a:hover { text-decoration: underline; }
   opacity: 0;
   transition: opacity 0.55s ease;
   text-align: center;
+  pointer-events: none;
+  z-index: 6;
 }
-.card-subtitle--on .card-subtitle__hint {
+.card-hint--on {
   opacity: 0.7;
 }
 @keyframes subtitle-float {
