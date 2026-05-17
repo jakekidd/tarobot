@@ -20,12 +20,12 @@ body.jade-mode .crt-overlay   { display: none !important; }
   z-index: 200;
   display: flex;
   flex-direction: column;
-  min-width: 1280px;                /* desktop only */
+  min-width: 720px;                 /* desktop only — split-screen-friendly */
   overflow: hidden;
 }
 
 .jade__too-small { display: none; }
-@media (max-width: 1279px) {
+@media (max-width: 719px) {
   .jade > * { display: none !important; }
   .jade__too-small {
     display: flex !important;

@@ -73,7 +73,7 @@ export function Jade({ onExit }: Props) {
       </main>
 
       <div className="jade__too-small">
-        <p>jade is desktop only. resize your window wider (≥1280px).</p>
+        <p>jade is desktop only. resize your window wider (≥720px).</p>
       </div>
     </div>
   );
