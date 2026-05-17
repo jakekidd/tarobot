@@ -48,7 +48,11 @@ const data = spriteData as SpriteData;
 const ZOOM_IN_DURATION_MS = 1100;
 const ZOOM_IN_START_SCALE = 0.12;
 
-const PARTICLE_COUNT = 130;
+// Bumped 130 → 280 so the cloak silhouette (pure-black-on-pure-black)
+// has enough surrounding starfield to read as a shape by occlusion.
+// Without enough stars covering the cloak's body area, the silhouette
+// disappears against the void.
+const PARTICLE_COUNT = 280;
 const PARTICLE_BURST_DURATION = 0.6;     // seconds; initial outward burst
 const PARTICLE_BASE_OMEGA = -0.0056;      // negative = clockwise; ~1/10 of prior pass (very slow drift)
 
@@ -63,7 +67,9 @@ const DIZZY_EYE_FRAME_MS = 80;            // ms per eye-spin frame
 //   2 up, 7 up-right, 5 right, 9 down-right, 3 down, 8 down-left, 4 left, 6 up-left
 const DIZZY_EYE_CYCLE = [2, 7, 5, 9, 3, 8, 4, 6];
 const PARTICLE_MIN_RADIUS = 0.55;         // in cat-widths
-const PARTICLE_MAX_RADIUS = 1.6;
+// Bumped 1.6 → 3.2 so the swirl extends down past the eyes over the
+// cloak body — gives stars to occlude where there were none before.
+const PARTICLE_MAX_RADIUS = 3.2;
 const PARTICLE_SIZE_PX = 1.5;             // ~1/4 the prior visual size
 const PARTICLE_BURST_VEL = 0.19;          // initial outward velocity (~1/8 of prior burst)
 const PARTICLE_BURST_VEL_JITTER = 0.19;
@@ -584,11 +590,11 @@ export function TarobotScene() {
       right:  [1.25, 0],
       bottom: [0, 1.05],
     };
-    // Lifted card — camera at z=7.4, +z toward viewer in three.js, so
-    // smaller z = further from camera. Continuing in the user's
-    // "yes more" direction: z 3.8 → 2.6 (now ~4.8 units in front of
-    // camera). Still tilted toward viewer to catch the warm key light.
-    const LIFT_POS = new THREE.Vector3(0, 1.4, 2.6);
+    // Lifted card position — calibrated from the debug reference card.
+    // User positioned the red wireframe at (0, 1.00, 1.00) and asked
+    // for the held card to move there. z=1.0 → ~6.4 units in front of
+    // the camera; y=1.0 puts the card slightly above the table center.
+    const LIFT_POS = new THREE.Vector3(0, 1.0, 1.0);
     const STAGE_QUAT: Record<CardStage, THREE.Quaternion> = {
       face_down: new THREE.Quaternion().setFromEuler(new THREE.Euler(Math.PI / 2, 0, 0)),
       face_up:   new THREE.Quaternion().setFromEuler(new THREE.Euler(-Math.PI / 2, 0, 0)),

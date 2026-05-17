@@ -773,10 +773,11 @@ a:hover { text-decoration: underline; }
   justify-content: center;
 }
 .reading__chat-slot {
-  /* Anchored higher — closer to the dialogue. Overlays the canvas/table
-     area, which is fine: per directive, chat can sit over the scene. */
+  /* Anchored low — overlays the canvas/table area, which is fine: per
+     directive, chat can sit over the scene. Was 9rem; dropped ~40px to
+     6.5rem at user request to clear more of the table view. */
   position: absolute;
-  bottom: 9rem;
+  bottom: 6.5rem;
   left: 50%;
   transform: translateX(-50%);
   width: min(64ch, calc(100% - 2rem));
@@ -785,9 +786,14 @@ a:hover { text-decoration: underline; }
 
 /* Rigid-size dialogue box. Long monologues chunk into "…" pages instead
    of growing the box. Anything that overflows clips so the table never
-   moves down. */
+   moves down. min-height + flex-shrink:0 are defensive — on first paint
+   (before content arrives, before font loads) the box would otherwise
+   compress to the typewriter's empty initial state, producing a visible
+   resize as text streamed in. */
 .reading__dialogue-rigid {
   height: 6.4rem;
+  min-height: 6.4rem;
+  flex-shrink: 0;
   overflow: visible;             /* was hidden — was clipping the bottom caret */
   display: flex;
   align-items: flex-start;
@@ -795,14 +801,13 @@ a:hover { text-decoration: underline; }
   position: relative;
 }
 
-/* Dialogue text — UPPERCASE only on the intro (it's short, ceremonial,
-   reads as a title card). Beats + outro stay as-delivered (lowercase),
-   so long monologues breathe at the seer's intended register and the
-   chunker's char-count cap actually matches the visual fit. */
-.reading__intro .reading__dialogue-text {
-  text-transform: uppercase;
-  letter-spacing: 0.02em;
-}
+/* Dialogue text — all lowercase as delivered by the persona. The user
+   name is uppercased in-line by highlightNames(), so it stands out
+   amid the lowercase prose. (Previously the intro was force-uppercased
+   as a "title card" effect — reverted because it broke the lowercase
+   witchy register and the chunker's char-count cap mis-fit when caps
+   widened the line.) */
+.reading__intro .reading__dialogue-text,
 .reading__beat .reading__dialogue-text,
 .reading__outro .reading__dialogue-text {
   text-transform: none;
@@ -899,8 +904,10 @@ a:hover { text-decoration: underline; }
        Absolute on the right column. 3D-extruded floating letters. */
 .card-subtitle {
   position: absolute;
-  /* sits just above the chat input — below the lifted card's lower edge */
-  top: 80%;
+  /* sits just above the chat input — below the lifted card's lower edge.
+     Was 80%; nudged up 16px per request to give the title more breathing
+     room above the chat input. */
+  top: calc(80% - 16px);
   left: 0;
   right: 0;
   font-family: var(--font-speech);
