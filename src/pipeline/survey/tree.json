@@ -1,16 +1,17 @@
 {
-  "v": "0.5.0",
+  "v": "0.6.0",
   "_doc": {
     "shape": "flat pool of questions, no graph. each node has a `topic` (one of `topics`) and lives in that topic group in the editor. `openers` (in order) run first; everything else is investigator-pickable.",
     "answer_tuple": "[answer_text] | [answer_text, comment]. comment is shown inline after the user picks that answer.",
     "substitution": "any {field} in question or comment text is replaced with profile.field at render time. supported: {name}, {sun_sign}, {birth_card}, {life_path}, {age_bracket}.",
     "fmt_values": "text | date | choice | binary | multi | matrix",
-    "interp": "per-answer interpretation hints for the observer agent. keyed as 'node_id.answer_text'. not used for branching."
+    "interp": "per-answer interpretation hints for the observer agent. keyed as 'node_id.answer_text'. not used for branching.",
+    "todo_text_followup": "some answers (e.g. three_am.someone) want a follow-up text entry to capture the specific noun. not yet schema-supported; planned as an `expand?: true` flag on the tuple or a sibling `followups` map. for now the answer stands alone."
   },
 
-  "topics": ["intake", "state", "relational", "self", "decisions", "projective", "meta"],
+  "topics": ["intake", "state", "relational", "self", "decisions", "projective", "shadow", "meta"],
 
-  "openers": ["name", "birthday", "birth_time", "has_question"],
+  "openers": ["name", "birthday", "has_question"],
 
   "nodes": {
     "name": {
@@ -20,19 +21,8 @@
     },
     "birthday": {
       "topic": "intake",
-      "q": "when were you born? the day, month, and year.",
+      "q": "when were you born? the day, month, and year. time and location optional.",
       "f": "date"
-    },
-    "birth_time": {
-      "topic": "intake",
-      "q": "do you know what time you were born? roughly is fine.",
-      "f": "choice",
-      "a": [
-        ["yes — morning"],
-        ["yes — afternoon or evening"],
-        ["yes — overnight"],
-        ["no idea"]
-      ]
     },
     "has_question": {
       "topic": "intake",
@@ -46,6 +36,38 @@
       ]
     },
 
+    "body_feel": {
+      "topic": "state",
+      "q": "where do you feel things, in your body?",
+      "f": "choice",
+      "a": [
+        ["chest"],
+        ["stomach"],
+        ["throat"],
+        ["nowhere lately", "the answer is the answer."]
+      ]
+    },
+    "live_here": {
+      "topic": "state",
+      "q": "does where you live feel right?",
+      "f": "choice",
+      "a": [
+        ["yes"],
+        ["for now"],
+        ["no, but i stay", "we'll come back to that."]
+      ]
+    },
+    "three_am": {
+      "topic": "state",
+      "q": "it's late. what are you thinking about right now?",
+      "f": "choice",
+      "a": [
+        ["someone"],
+        ["something i did"],
+        ["something i didn't do"],
+        ["nothing, i'm asleep", "lucky."]
+      ]
+    },
     "vibe_grid": {
       "topic": "state",
       "q": "where are you tonight, {name}?",
@@ -71,42 +93,9 @@
         ["something is finally good"]
       ]
     },
-    "weather_inside": {
-      "topic": "state",
-      "q": "pick the weather inside you.",
-      "f": "choice",
-      "a": [
-        ["clear"],
-        ["overcast"],
-        ["storming"],
-        ["unpredictable"]
-      ]
-    },
-    "three_am": {
-      "topic": "state",
-      "q": "it's 3am. what are you thinking about?",
-      "f": "choice",
-      "a": [
-        ["someone"],
-        ["something i did"],
-        ["something i didn't do"],
-        ["nothing, i'm asleep", "lucky."]
-      ]
-    },
-    "body_feel": {
-      "topic": "state",
-      "q": "where do you feel things, in your body?",
-      "f": "choice",
-      "a": [
-        ["chest"],
-        ["stomach"],
-        ["throat"],
-        ["nowhere lately", "the answer is the answer."]
-      ]
-    },
     "work_feeling": {
       "topic": "state",
-      "q": "what does work feel like, {name}?",
+      "q": "what does work feel like — your job, your practice, whatever you call it?",
       "f": "choice",
       "a": [
         ["meaningful"],
@@ -115,39 +104,7 @@
         ["undefined"]
       ]
     },
-    "live_here": {
-      "topic": "state",
-      "q": "does where you live feel right?",
-      "f": "choice",
-      "a": [
-        ["yes"],
-        ["for now"],
-        ["no, but i stay", "we'll come back to that."]
-      ]
-    },
 
-    "who_in_head": {
-      "topic": "relational",
-      "q": "who's in your head tonight?",
-      "f": "choice",
-      "a": [
-        ["someone i love"],
-        ["someone i'm avoiding"],
-        ["someone i've lost"],
-        ["no one"]
-      ]
-    },
-    "real_version": {
-      "topic": "relational",
-      "q": "how many people know the real version of you?",
-      "f": "choice",
-      "a": [
-        ["one"],
-        ["maybe two"],
-        ["none"],
-        ["more than that"]
-      ]
-    },
     "honesty_target": {
       "topic": "relational",
       "q": "who haven't you been honest with lately?",
@@ -170,6 +127,17 @@
         ["invisible"]
       ]
     },
+    "self_describe": {
+      "topic": "relational",
+      "q": "and how would you describe yourself?",
+      "f": "choice",
+      "a": [
+        ["someone who tries"],
+        ["someone who holds back"],
+        ["someone who adapts"],
+        ["someone who doesn't quite fit"]
+      ]
+    },
     "moment_to_share": {
       "topic": "relational",
       "q": "a moment from the last year you'd want a stranger to know.",
@@ -179,15 +147,6 @@
         ["something i regret"],
         ["something i can't explain"],
         ["i'd rather not say"]
-      ]
-    },
-    "someones_secret": {
-      "topic": "relational",
-      "q": "are you someone's secret?",
-      "f": "binary",
-      "a": [
-        ["yes"],
-        ["no"]
       ]
     },
     "parents_version": {
@@ -201,37 +160,38 @@
         ["unknown to them"]
       ]
     },
-
-    "easy_to_read": {
-      "topic": "self",
-      "q": "are you easy to read?",
+    "real_version": {
+      "topic": "relational",
+      "q": "how many people know the real version of you?",
+      "f": "choice",
+      "a": [
+        ["one"],
+        ["maybe two"],
+        ["none"],
+        ["more than that"]
+      ]
+    },
+    "someones_secret": {
+      "topic": "relational",
+      "q": "are you someone's secret?",
       "f": "binary",
       "a": [
         ["yes"],
-        ["no", "we'll see."]
+        ["no"]
       ]
     },
-    "free_will": {
-      "topic": "self",
-      "q": "do you believe in free will?",
+    "who_in_head": {
+      "topic": "relational",
+      "q": "who's in your head tonight?",
       "f": "choice",
       "a": [
-        ["yes"],
-        ["no"],
-        ["not sure"]
+        ["someone i love"],
+        ["someone i'm avoiding"],
+        ["someone i've lost"],
+        ["no one"]
       ]
     },
-    "fault_attribution": {
-      "topic": "self",
-      "q": "when things go wrong, first instinct?",
-      "f": "choice",
-      "a": [
-        ["my fault"],
-        ["someone else's"],
-        ["bad luck"],
-        ["i don't know"]
-      ]
-    },
+
     "decision_style": {
       "topic": "self",
       "q": "how do you make decisions?",
@@ -243,43 +203,15 @@
         ["avoid them"]
       ]
     },
-    "self_like": {
+    "fault_attribution": {
       "topic": "self",
-      "q": "do you like yourself?",
+      "q": "when things go wrong, first instinct?",
       "f": "choice",
       "a": [
-        ["yes"],
-        ["mostly"],
-        ["working on it"]
-      ]
-    },
-    "keep_score": {
-      "topic": "self",
-      "q": "do you keep score?",
-      "f": "binary",
-      "a": [
-        ["yes"],
-        ["no"]
-      ]
-    },
-    "what_protect": {
-      "topic": "self",
-      "q": "what do you protect?",
-      "f": "choice",
-      "a": [
-        ["yourself"],
-        ["someone else"],
-        ["a secret"],
-        ["an idea"]
-      ]
-    },
-    "same_person": {
-      "topic": "self",
-      "q": "same person you were a year ago?",
-      "f": "binary",
-      "a": [
-        ["yes"],
-        ["mostly no"]
+        ["my fault"],
+        ["someone else's"],
+        ["bad luck"],
+        ["i don't know"]
       ]
     },
     "honesty_grid": {
@@ -294,51 +226,73 @@
         ["performing + not okay"]
       ]
     },
-    "time_orientation": {
+    "keep_score": {
       "topic": "self",
-      "q": "where do you live, in time?",
+      "q": "do you keep score?",
       "f": "choice",
       "a": [
-        ["the past"],
-        ["the present"],
-        ["the future"],
-        ["i don't know"]
+        ["yes"],
+        ["no"],
+        ["depends what for"]
       ]
     },
-    "last_changed_mind": {
+    "change_mind": {
       "topic": "self",
       "q": "when did you last change your mind?",
       "f": "choice",
       "a": [
         ["recently"],
-        ["not in a while"],
-        ["can't remember"],
-        ["always changing"]
+        ["a while ago"],
+        ["i genuinely can't remember"],
+        ["i try not to"]
+      ]
+    },
+    "change_direction": {
+      "topic": "self",
+      "q": "what's different about you, compared to a year ago?",
+      "f": "choice",
+      "a": [
+        ["more certain"],
+        ["more uncertain"],
+        ["harder"],
+        ["softer"],
+        ["not much, honestly"]
+      ]
+    },
+    "like_yourself": {
+      "topic": "self",
+      "q": "do you like yourself?",
+      "f": "choice",
+      "a": [
+        ["mostly"],
+        ["depends who's asking"],
+        ["i'm working on it"],
+        ["not especially"]
+      ]
+    },
+    "live_in_time": {
+      "topic": "self",
+      "q": "where do you live, in time?",
+      "f": "choice",
+      "a": [
+        ["in the past"],
+        ["in the present"],
+        ["somewhere ahead"],
+        ["all at once, which is its own problem"]
+      ]
+    },
+    "what_protect": {
+      "topic": "self",
+      "q": "what do you protect?",
+      "f": "choice",
+      "a": [
+        ["my image"],
+        ["someone i love"],
+        ["my independence"],
+        ["i'm not sure anymore"]
       ]
     },
 
-    "putting_off": {
-      "topic": "decisions",
-      "q": "what have you been putting off?",
-      "f": "choice",
-      "a": [
-        ["a conversation"],
-        ["a decision"],
-        ["a task"],
-        ["i'm not"]
-      ]
-    },
-    "what_is_stuck": {
-      "topic": "decisions",
-      "q": "what's stuck — pick one.",
-      "f": "choice",
-      "a": [
-        ["a person"],
-        ["a project"],
-        ["myself"],
-        ["all of it", "at least you're not pretending."]
-      ]
-    },
     "crisis_response": {
       "topic": "decisions",
       "q": "something's wrong. you—",
@@ -348,6 +302,17 @@
         ["get loud"],
         ["go numb"],
         ["fix things"]
+      ]
+    },
+    "putting_off": {
+      "topic": "decisions",
+      "q": "what have you been putting off?",
+      "f": "choice",
+      "a": [
+        ["a conversation"],
+        ["a decision"],
+        ["a task"],
+        ["i'm not"]
       ]
     },
     "want_cards_to_say": {
@@ -362,6 +327,17 @@
       ]
     },
 
+    "alt_life": {
+      "topic": "projective",
+      "q": "if you weren't doing what you do, you'd be—",
+      "f": "choice",
+      "a": [
+        ["doing something specific"],
+        ["something different"],
+        ["not sure"],
+        ["anything else"]
+      ]
+    },
     "creature": {
       "topic": "projective",
       "q": "pick a creature. fast.",
@@ -370,7 +346,19 @@
         ["raven"],
         ["serpent", "of course."],
         ["wolf"],
-        ["cat", "flattering."]
+        ["cat", "flattering."],
+        ["moth"],
+        ["pigeon"],
+        ["rabbit"]
+      ]
+    },
+    "destination_map": {
+      "topic": "projective",
+      "q": "would you rather have a destination with no map, or a map with no destination?",
+      "f": "binary",
+      "a": [
+        ["destination, no map"],
+        ["map, no destination"]
       ]
     },
     "unknown_door": {
@@ -382,17 +370,6 @@
         ["ignore it"],
         ["come back later"],
         ["check who's watching"]
-      ]
-    },
-    "alt_life": {
-      "topic": "projective",
-      "q": "if you weren't doing what you do, you'd be—",
-      "f": "choice",
-      "a": [
-        ["doing something specific"],
-        ["something different"],
-        ["not sure"],
-        ["anything else"]
       ]
     },
     "would_rather_be": {
@@ -417,13 +394,60 @@
         ["i used to", "noted."]
       ]
     },
-    "destination_map": {
-      "topic": "projective",
-      "q": "would you rather have a destination with no map, or a map with no destination?",
-      "f": "binary",
+
+    "self_deception": {
+      "topic": "shadow",
+      "q": "what do you tell yourself that isn't quite true?",
+      "f": "choice",
       "a": [
-        ["destination, no map"],
-        ["map, no destination"]
+        ["that it's fine"],
+        ["that i don't mind"],
+        ["that i'll deal with it later"],
+        ["that they don't know"]
+      ]
+    },
+    "disappear": {
+      "topic": "shadow",
+      "q": "when you need to disappear, you—",
+      "f": "choice",
+      "a": [
+        ["get busy"],
+        ["go very quiet"],
+        ["find someone"],
+        ["i don't, really"]
+      ]
+    },
+    "anxiety_tell": {
+      "topic": "shadow",
+      "q": "when you're anxious, other people notice it in your—",
+      "f": "choice",
+      "a": [
+        ["face"],
+        ["hands"],
+        ["silence"],
+        ["they can't"]
+      ]
+    },
+    "pull_away": {
+      "topic": "shadow",
+      "q": "you pull away when—",
+      "f": "choice",
+      "a": [
+        ["things get too close"],
+        ["things get too hard"],
+        ["you've been hurt before", "haven't we all."],
+        ["you don't — you stay too long"]
+      ]
+    },
+    "contradiction": {
+      "topic": "shadow",
+      "q": "the thing you're most proud of and most ashamed of might be the same thing. what is it?",
+      "f": "choice",
+      "a": [
+        ["how much i care"],
+        ["how little i show it"],
+        ["what i've walked away from"],
+        ["what i keep going back to"]
       ]
     },
 
@@ -455,25 +479,18 @@
     "whats_true._meta": "0_checked=avoidance or genuinely nothing live. 1_checked=focused; follow the thread. 2-3=typical; combos matter. 4+=overwhelmed or undifferentiated.",
     "whats_true._combos": "stuck+unsaid=almost certainly a person. ending+starting=transition with grief and hope. too much+stuck=paralysis. finally good + anything negative=good thing fragile, other thing is real topic.",
 
-    "weather_inside.clear": "low turbulence. genuinely settled or suppressing.",
-    "weather_inside.overcast": "persistent weight. not crisis but not well.",
-    "weather_inside.storming": "active turbulence. more likely to break open.",
-    "weather_inside.unpredictable": "dysregulated or genuinely uncertain about own state.",
-
     "creature.raven": "observer, thinker, possibly isolated. attracted to meaning-making.",
     "creature.serpent": "self-aware, strategic, guarded. knows more than they let on.",
     "creature.wolf": "relational, pack-oriented or lone-wolf-romanticizing.",
     "creature.cat": "self-sufficient, curious, on their own terms. may resist being read.",
+    "creature.moth": "drawn to what could hurt them. attraction-to-danger pattern. romantic in a self-destructive register.",
+    "creature.pigeon": "self-effacing or ironically humble. comfortable in the unremarkable. possibly underselling.",
+    "creature.rabbit": "flight-prone, hyperaware, reads the room before acting. anxiety-adjacent.",
 
     "putting_off.a conversation": "relational stasis. specific person almost certainly exists.",
     "putting_off.a decision": "fork is live and unresolved. seer's primary material.",
     "putting_off.a task": "lowest signal unless paired with too much.",
     "putting_off.i'm not": "denial or genuine clarity. watch subsequent picks for contradiction.",
-
-    "what_is_stuck.a person": "relational stasis. specific cast member implied.",
-    "what_is_stuck.a project": "occupational stasis. fork: act vs abandon.",
-    "what_is_stuck.myself": "internal stasis — identity, direction, capacity. constructed-fork territory.",
-    "what_is_stuck.all of it": "general overwhelm. cast wider net.",
 
     "who_in_head.someone i love": "relational warmth active — anchor or anxiety source.",
     "who_in_head.someone i'm avoiding": "active conflict. strong candidate for unsaid thread.",
@@ -490,13 +507,6 @@
     "honesty_target.pretty much everyone": "performance mode or profound disconnection.",
     "honesty_target.no one": "either genuine or defensive. check against unsaid.",
 
-    "easy_to_read.yes": "either transparent or believes they are.",
-    "easy_to_read.no": "intentional opacity or genuine complexity.",
-
-    "free_will.yes": "agency-oriented — attributes outcomes to choice.",
-    "free_will.no": "fate-oriented — may feel less responsibility for outcomes.",
-    "free_will.not sure": "philosophically open or mid-transition.",
-
     "fault_attribution.my fault": "internal attribution — self-critical or self-aware.",
     "fault_attribution.someone else's": "external attribution — accurate or defensive.",
     "fault_attribution.bad luck": "luck-frame — disempowers but self-protects.",
@@ -507,12 +517,14 @@
     "decision_style.ask around": "consensus-seeker — possibly lacks internal anchor.",
     "decision_style.avoid them": "decision-avoidant — fork is probably why they're here.",
 
-    "self_like.yes": "confident self-regard or performed confidence.",
-    "self_like.mostly": "realistic — most common honest answer.",
-    "self_like.working on it": "active self-dissatisfaction or growth orientation.",
+    "like_yourself.mostly": "realistic — most common honest answer.",
+    "like_yourself.depends who's asking": "context-dependent self-regard. signals shaped identity.",
+    "like_yourself.i'm working on it": "active self-dissatisfaction or growth orientation.",
+    "like_yourself.not especially": "low self-regard openly admitted. high signal; handle gently.",
 
     "keep_score.yes": "grievance orientation. specific tallies exist.",
     "keep_score.no": "either generous or suppressing resentment.",
+    "keep_score.depends what for": "selective accounting — usually means yes for one specific domain (often relational or financial).",
 
     "crisis_response.go quiet": "internalizer — material unlikely to surface easily.",
     "crisis_response.get loud": "externalizer — reactive, possibly impulsive.",
@@ -529,10 +541,10 @@
     "unknown_door.come back later": "deferral as coping strategy.",
     "unknown_door.check who's watching": "audience-aware, self-conscious.",
 
-    "what_protect.yourself": "self-preservation primary.",
-    "what_protect.someone else": "caretaker orientation. strong cast candidate.",
-    "what_protect.a secret": "explicit acknowledgment of hidden info. high signal.",
-    "what_protect.an idea": "identity tied to belief or vision.",
+    "what_protect.my image": "social-self primary. reputation as the load-bearing thing.",
+    "what_protect.someone i love": "caretaker orientation. strong cast candidate.",
+    "what_protect.my independence": "autonomy as core value. relational entanglement reads as threat.",
+    "what_protect.i'm not sure anymore": "values in flux. identity-question candidate.",
 
     "want_cards_to_say.stay": "pull toward continuity — considering leaving.",
     "want_cards_to_say.go": "pull toward exit or change — held back by fear.",
@@ -544,8 +556,10 @@
     "how_seen.unpredictable": "either variable or romanticizes being unreadable.",
     "how_seen.invisible": "felt absence from others' attention.",
 
-    "same_person.yes": "stability — healthy continuity or stagnation.",
-    "same_person.mostly no": "active change.",
+    "self_describe.someone who tries": "effort-as-identity. may carry quiet exhaustion. cross with work_feeling.",
+    "self_describe.someone who holds back": "explicit self-aware containment. there is something specific being held.",
+    "self_describe.someone who adapts": "high self-monitor. shape changes by context — true self may be unclear even to them.",
+    "self_describe.someone who doesn't quite fit": "outsider self-concept. either chronic or current.",
 
     "someones_secret.yes": "hidden relationship or role.",
     "someones_secret.no": "straightforward.",
@@ -555,15 +569,21 @@
     "honesty_grid.performing + okay": "fronting wellness.",
     "honesty_grid.performing + not okay": "performing while suffering. the gap is the story.",
 
-    "time_orientation.the past": "retrospective anchor — grief, regret, nostalgia.",
-    "time_orientation.the present": "grounded or overwhelmed by now.",
-    "time_orientation.the future": "anticipatory — hope or anxiety.",
-    "time_orientation.i don't know": "dissociated or untethered.",
+    "live_in_time.in the past": "retrospective anchor — grief, regret, nostalgia.",
+    "live_in_time.in the present": "grounded or overwhelmed by now.",
+    "live_in_time.somewhere ahead": "anticipatory — hope or anxiety.",
+    "live_in_time.all at once, which is its own problem": "temporally diffuse. usually anxious or pattern-saturated.",
 
-    "last_changed_mind.recently": "active reconsideration.",
-    "last_changed_mind.not in a while": "settled or rigid.",
-    "last_changed_mind.can't remember": "settled or avoidant of uncertainty.",
-    "last_changed_mind.always changing": "unstable convictions or high adaptability.",
+    "change_mind.recently": "active reconsideration.",
+    "change_mind.a while ago": "settled or rigid.",
+    "change_mind.i genuinely can't remember": "settled or avoidant of uncertainty.",
+    "change_mind.i try not to": "explicit anti-revision stance. high signal — identity-rigid or value-driven.",
+
+    "change_direction.more certain": "consolidation phase. either grounded growth or premature foreclosure.",
+    "change_direction.more uncertain": "dissolution phase. open and possibly destabilized.",
+    "change_direction.harder": "edges sharpened. self-protective trajectory; may carry recent injury.",
+    "change_direction.softer": "edges loosened. either grown or worn down — check tone elsewhere.",
+    "change_direction.not much, honestly": "stable or stagnant. depends on age/context.",
 
     "tarot_familiarity.yes — i'm into it": "believer or invested. seer can be more reverent. they'll catch unforced theatrics.",
     "tarot_familiarity.once or twice": "neutral curiosity. open but not committed.",
@@ -580,17 +600,12 @@
     "has_question.not really": "user has nothing yet. survey works hard.",
     "has_question.not sure what to ask": "user has nothing yet. survey works hard. likely a fork they haven't articulated.",
 
-    "birth_time.yes — morning": "rising sign approximation: sunrise window. astrology-engaged.",
-    "birth_time.yes — afternoon or evening": "rising sign approximation: midday-to-dusk. astrology-engaged.",
-    "birth_time.yes — overnight": "rising sign approximation: nighttime. astrology-engaged.",
-    "birth_time.no idea": "rising sign null. not astrology-engaged — seer should weight astrological framing less.",
-
     "work_feeling.meaningful": "occupational alignment. not a fork candidate; anchor.",
     "work_feeling.fine": "neutral surface. probe for what's underneath.",
     "work_feeling.a slog": "occupational drag. strong candidate for the Choice fork.",
     "work_feeling.undefined": "work-role unclear or in flux. transitional.",
 
-    "alt_life.doing something specific": "alt-life is named. potent — what's stopping them.",
+    "alt_life.doing something specific": "alt-life is named. potent — what's stopping them. (note: text-followup not yet captured; surface as a thread for the seer to ask about live.)",
     "alt_life.something different": "vague dissatisfaction. exploratory.",
     "alt_life.not sure": "identity outside current role is undeveloped.",
     "alt_life.anything else": "explicit dissatisfaction with current work.",
@@ -598,7 +613,7 @@
     "body_feel.chest": "anxiety or grief — heart-area somatization.",
     "body_feel.stomach": "dread or hidden knowledge — gut-area somatization.",
     "body_feel.throat": "swallowed words. unsaid thread strongly indicated.",
-    "body_feel.nowhere lately": "dissociation, numbing, or actual ease. cross with weather_inside.",
+    "body_feel.nowhere lately": "dissociation, numbing, or actual ease. cross with anxiety_tell.",
 
     "parents_version.accurate": "rare; either genuinely close or hasn't changed much.",
     "parents_version.outdated": "growth that hasn't been transmitted home. common.",
@@ -620,6 +635,31 @@
     "you_make.i used to": "creative loss. specific kind of grief. probe what changed.",
 
     "destination_map.destination, no map": "outcome-driven; knows what they want, not how. faith over plan. often acts first, figures it out en route. fork tends to be 'which destination', not 'whether to go'.",
-    "destination_map.map, no destination": "process-driven; skill-rich without aim. existential drift. the 'good at things but lost' pattern. fork tends to be identity/meaning, not logistics. high risk of competence-as-avoidance."
+    "destination_map.map, no destination": "process-driven; skill-rich without aim. existential drift. the 'good at things but lost' pattern. fork tends to be identity/meaning, not logistics. high risk of competence-as-avoidance.",
+
+    "self_deception.that it's fine": "minimization. catastrophic equanimity. usually fronted; something is not fine.",
+    "self_deception.that i don't mind": "stated indifference about something they very much mind. probe.",
+    "self_deception.that i'll deal with it later": "active deferral. paired with putting_off this is a strong fork signal.",
+    "self_deception.that they don't know": "third-party-belief-management. usually wrong; the other person knows.",
+
+    "disappear.get busy": "task-flooding as avoidance. workaholic-adjacent. work_feeling probably 'fine' or 'a slog'.",
+    "disappear.go very quiet": "withdrawal as default. relational invisibility is the coping mode.",
+    "disappear.find someone": "co-regulation seeker. may use intimacy to avoid solitude with self.",
+    "disappear.i don't, really": "stays in the heat. either resilient or unable to retreat — check stress signs elsewhere.",
+
+    "anxiety_tell.face": "anxiety leaks through expression. probably can't mask it even when trying.",
+    "anxiety_tell.hands": "somatic externalizer — fidget, gesture. body knows before mind does.",
+    "anxiety_tell.silence": "anxiety drops the voice. introvert-coded or trauma-coded.",
+    "anxiety_tell.they can't": "high-masking. internal world unreadable from outside — either trained or fortified.",
+
+    "pull_away.things get too close": "intimacy-avoidant. closeness reads as threat.",
+    "pull_away.things get too hard": "difficulty-avoidant. resilience-protective or self-sparing.",
+    "pull_away.you've been hurt before": "history-driven withdrawal. trauma-aware self-concept.",
+    "pull_away.you don't — you stay too long": "anti-withdrawal. over-stays — possibly past damage threshold. enmeshment risk.",
+
+    "contradiction.how much i care": "caring-as-vulnerability. wants to be seen as caring but flinches at being known to care.",
+    "contradiction.how little i show it": "the showing-vs-feeling gap is the identity wound.",
+    "contradiction.what i've walked away from": "the leaving was right AND cost something irrecoverable. live grief.",
+    "contradiction.what i keep going back to": "self-aware repetition. they know it's not great. probably the fork."
   }
 }
