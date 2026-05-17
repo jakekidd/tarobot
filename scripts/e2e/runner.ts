@@ -67,7 +67,7 @@ export async function runSurvey(
       logger.error('bot.pickAnswer', err);
       // Fallback: pick the first option deterministically
       pick = {
-        chosen: question.format === 'multi' ? [question.options[0]!] : question.options[0]!,
+        chosen: question.options[0]!,
         latency_ms: 1500,
       };
     }

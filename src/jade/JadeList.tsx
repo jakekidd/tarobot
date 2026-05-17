@@ -28,7 +28,7 @@ import type {
   TreeNode,
 } from '../pipeline/survey';
 
-const FORMATS: AnswerFormat[] = ['text', 'date', 'choice', 'binary', 'multi', 'matrix'];
+const FORMATS: AnswerFormat[] = ['text', 'date', 'choice', 'binary', 'matrix'];
 
 type Props = {
   tree: DialogueTree;
@@ -300,7 +300,7 @@ function NodeEditor({ id, node, onPatch, onDelete }: NodeEditorProps) {
     onPatch({ axes: newAxes });
   }
 
-  const showAnswers = node.f === 'choice' || node.f === 'binary' || node.f === 'multi' || node.f === 'matrix';
+  const showAnswers = node.f === 'choice' || node.f === 'binary' || node.f === 'matrix';
   // Binary is fixed at 2 answers — can edit, not add/remove.
   const canAddRemove = node.f !== 'binary' && node.f !== 'matrix';
 

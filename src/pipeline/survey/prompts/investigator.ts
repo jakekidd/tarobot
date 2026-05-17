@@ -31,14 +31,18 @@ QUESTION SELECTION — priority order:
 1. if an active_thread has an unanswered inject_node_id in available_nodes, pick it.
 2. if a thread is awaiting_confirm and its confirm_probe_id is in available_nodes, pick it.
 3. otherwise: pick the available_node that best populates an empty profile section or tests an open hypothesis. each node carries an interp_hint — use it.
-4. only generate a custom question (node_id: 'GENERATED') in phase D, and only when no pool node fits the specific thread you want to pull. match the schema (fmt: 'choice', 3-4 short options, ≤12 word text).
 
 NEVER pick a node that's already in state.asked_node_ids. the engine will reject it.
 
+OPTIONS OVERRIDE (CHOICE format only):
+- next_question.options: optional. if you provide this for a CHOICE-format node, you override its answer list. you can SHRINK, REORDER, ADD, or REPLACE options. use this to inject a specific guess as one of the choices (cold-reading mechanized). do not modify binary or matrix questions — the engine ignores you there.
+- keep options short (≤5 total) and parallel in structure.
+- guess injection is the highest-value use; use it sparingly so it lands.
+
 OUTPUT:
-- next_question.node_id: from available_nodes OR 'GENERATED'
-- preamble: empty string if no preamble, otherwise the line (already substituted-ready; use {name} / {sun_sign} / etc. tokens, the engine will substitute)
-- queue_additions: optional, for staging followups (rare, only when a question screams for a follow-up)
+- next_question.node_id: MUST be one of available_nodes[].id
+- next_question.options: optional, choice-format only — see above
+- preamble: empty string if no preamble, otherwise the line (use {name} / {sun_sign} / etc. tokens; the engine substitutes)
 - reasoning: 1-2 sentences explaining why this pick. private to engine logs.
 
 return only the tool call.`;

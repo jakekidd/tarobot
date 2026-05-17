@@ -60,6 +60,7 @@ import { startFlyIn, endFlyIn, subscribeFlyIn } from './scene/flyInStore';
 import { loadSettings } from '../storage';
 import { publishDebug, clearDebug } from '../debug/debugBus';
 import { blip, chime } from './sound/sound';
+import { ChatInput } from './ChatInput';
 
 type Props = {
   apiKey: string;
@@ -742,7 +743,9 @@ function renderWithEmphasis(
 }
 
 
-// ─── Chat form (no log — log lives in Transcript) ───────
+// ─── Chat form ───────────────────────────────────────────
+// Thin shell over the shared <ChatInput/>. Translates reading-engine
+// state into the input's disabled flag + active-prompt hint.
 
 function ChatForm({
   state,
@@ -751,83 +754,16 @@ function ChatForm({
   state: ReadingState;
   onSend: (text: string) => void;
 }) {
-  const [draft, setDraft] = useState('');
-  const inputRef = useRef<HTMLInputElement>(null);
   const canSend = state.phase === 'awaiting_flip' || state.phase === 'done';
   const activePrompt = state.active_prompt_to_user;
-
-  useEffect(() => {
-    if (activePrompt && canSend) inputRef.current?.focus();
-  }, [activePrompt, canSend]);
-
-  function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    if (!canSend) return;
-    const text = draft.trim();
-    if (!text) return;
-    onSend(text);
-    setDraft('');
-  }
-
   return (
-    <div className="reading__chat">
-      {activePrompt && canSend && (
-        <div className="reading__chat-prompt" aria-live="polite">
-          <em>{activePrompt.toLowerCase()}</em>
-        </div>
-      )}
-      <form
-        className={`reading__chat-form ${canSend ? 'is-active' : 'is-listening'}`}
-        onSubmit={handleSubmit}
-      >
-        <input
-          ref={inputRef}
-          className="reading__chat-input"
-          type="text"
-          value={draft}
-          onChange={(e) => setDraft(e.target.value.toLowerCase())}
-          disabled={!canSend}
-          placeholder={
-            !canSend
-              ? 'listening…'
-              : activePrompt
-                ? '…'
-                : 'say something to the seer'
-          }
-          aria-label="chat with the seer"
-        />
-        <button
-          type="submit"
-          className="reading__chat-send"
-          disabled={!canSend || draft.trim().length === 0}
-          aria-label="send"
-        >
-          <SendArrow />
-        </button>
-      </form>
-    </div>
-  );
-}
-
-/** Runic up-arrow (Tiwaz-style) — the SEND glyph. */
-function SendArrow() {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      width="22"
-      height="22"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2.2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden
-    >
-      <line x1="12" y1="5" x2="12" y2="20" />
-      <line x1="12" y1="5" x2="6" y2="11" />
-      <line x1="12" y1="5" x2="18" y2="11" />
-      <line x1="9" y1="14" x2="15" y2="14" />
-    </svg>
+    <ChatInput
+      placeholder="say something to the seer"
+      disabled={!canSend}
+      hint={canSend && activePrompt ? activePrompt.toLowerCase() : undefined}
+      autoFocus={!!(canSend && activePrompt)}
+      onSend={onSend}
+    />
   );
 }
 

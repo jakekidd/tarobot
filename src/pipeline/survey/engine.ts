@@ -13,6 +13,7 @@ import { runObserver } from './agents/observer';
 import { runInvestigator } from './agents/investigator';
 import { runCompiler } from './agents/compiler';
 import { computeAstroProfile, parseBirthDate } from '../astrology';
+import { findReturningUser, seedFromReturning } from './returning';
 import {
   commentForAnswer,
   getNode,
@@ -48,8 +49,12 @@ export type EngineOpts = {
   };
 };
 
-const OPENER_FREE_AGENTS = new Set<string>(['name', 'birthday']);  // no agents fire after these
 const OPENER_NODE_IDS = new Set<string>(getOpeners());
+
+/** Number of pool questions randomly enqueued the moment the user
+ *  finishes the openers. Investigator adds one more per pick after
+ *  that, so the queue stays ahead of even a speed-running user. */
+const STARTER_SEED_COUNT = 6;
 
 export class SurveyEngine {
   private state: EngineState;
@@ -59,6 +64,11 @@ export class SurveyEngine {
   private compilerOutput: CompilerOutput | null = null;
   private compilerPromise: Promise<CompilerOutput> | null = null;
   private pendingObserverPromise: Promise<void> | null = null;
+  /** Count of investigator runs currently in flight. UI uses this with
+   *  the queue length to decide between "show next question" and
+   *  "wait for an investigator". */
+  private investigatorInFlight = 0;
+  private starterSeedFired = false;
 
   constructor(opts: EngineOpts) {
     this.opts = opts;
@@ -76,7 +86,19 @@ export class SurveyEngine {
     const head = this.state.queue[0];
     if (!head) return null;
     this.currentRenderedAt = Date.now();
-    return renderQuestion(head.node_id, this.state.profile, head.preamble);
+    return renderQuestion(
+      head.node_id,
+      this.state.profile,
+      head.preamble,
+      head.options_override,
+    );
+  }
+
+  /** True when the user has out-paced the investigator: queue empty but
+   *  an investigator run is in flight. UI uses this to show a spinner
+   *  rather than treating the survey as exhausted. */
+  isWaitingForInvestigator(): boolean {
+    return !this.state.closed && this.state.queue.length === 0 && this.investigatorInFlight > 0;
   }
 
   async submitAnswer(answer: string | string[]): Promise<void> {
@@ -126,60 +148,50 @@ export class SurveyEngine {
       queue: this.state.queue.slice(1),
     });
 
-    // 2. Populate profile if this was an opener
-    this.applyOpenerDataIfRelevant(head.node_id, answer);
+    // 2. Populate profile if this was an opener. May trigger returning-
+    //    user shortcut: name match → load seed + jump straight to
+    //    starter pool.
+    const returningHit = this.applyOpenerDataIfRelevant(head.node_id, answer);
 
-    // 3. Advance phase from turn count (no longer heat-driven).
+    // 3. Advance phase from turn count (kept for legacy debug/telemetry).
     this.setState({
       phase: derivePhase(this.state.phase, this.state.picks_log.length, false),
     });
 
-    // 4. For openers `name` and `birthday`, no agents fire. Just chain the
-    //    next opener in the ordered openers[] list.
-    if (OPENER_FREE_AGENTS.has(head.node_id)) {
-      this.enqueueNextOpener(head.node_id, /* preamble */ null);
-      this.emit();
-      return;
-    }
-
-    // 5. Determine the next question.
-    //    If we're still walking the openers chain, enqueue the next opener.
-    //    Otherwise fire the Investigator to pick from the pool.
     const inlineComment = typeof answer === 'string'
       ? commentForAnswer(node, answer)
       : null;
 
-    if (OPENER_NODE_IDS.has(head.node_id)) {
+    // 4. Routing rule:
+    //    - If we matched a returning user, jump straight to the
+    //      starter-seed pool (skip remaining openers).
+    //    - Else if we're still walking openers, enqueue the next opener.
+    //    - Else (post-openers): seed the starter pool once, then on every
+    //      pick fire a background investigator to top up the queue.
+    if (returningHit) {
+      this.clearOpenersFromQueue();
+      this.seedStarterPool();
+    } else if (OPENER_NODE_IDS.has(head.node_id)) {
       const enqueued = this.enqueueNextOpener(head.node_id, inlineComment);
-      if (enqueued) {
-        // Fire Observer async below; opener walked, no investigator needed.
-      } else {
-        // End of opener chain — hand off to investigator.
-        this.setState({ thinking: true });
-        this.emit();
-        try {
-          await this.fireInvestigator(inlineComment);
-        } finally {
-          this.setState({ thinking: false });
-        }
+      if (!enqueued) {
+        // End of opener chain — seed the starter pool.
+        this.seedStarterPool();
       }
     } else {
-      // Investigator is the user-blocking path — flip the dizzy/thinking flag
-      // so the UI can show a loading state while we wait.
-      this.setState({ thinking: true });
-      this.emit();
-      try {
-        await this.fireInvestigator(inlineComment);
-      } finally {
-        this.setState({ thinking: false });
-      }
+      // Post-openers: spawn an investigator in the BACKGROUND. It picks
+      // a node + maybe overrides options, appends one question to the
+      // queue, then resolves. Never blocks the user's next render.
+      this.spawnInvestigator(inlineComment);
     }
 
-    // 6. Fire Observer async — updates state when it resolves; doesn't block.
+    // 5. Fire Observer async — updates state when it resolves; doesn't block.
     this.pendingObserverPromise = this.fireObserver(pick).then(() => {
       this.pendingObserverPromise = null;
     });
 
+    // 6. Maintain `thinking` flag: true when the user has no question
+    //    rendered AND an agent run is in flight.
+    this.refreshThinking();
     this.emit();
   }
 
@@ -292,17 +304,39 @@ export class SurveyEngine {
     }
   }
 
-  private applyOpenerDataIfRelevant(node_id: string, answer: string | string[]): void {
+  /** Apply opener data to profile. Returns true if a RETURNING USER
+   *  was detected (name matched an existing profile); caller then jumps
+   *  straight to the starter pool. */
+  private applyOpenerDataIfRelevant(node_id: string, answer: string | string[]): boolean {
     const ans = typeof answer === 'string' ? answer : answer[0];
-    if (!ans) return;
+    if (!ans) return false;
 
     if (node_id === 'name') {
-      this.setState({ profile: { ...this.state.profile, name: ans.trim() } });
-      return;
+      const cleaned = ans.trim();
+      // Returning-user lookup: if the supplied name matches an existing
+      // profile (case-insensitive), load that profile + skip remaining
+      // openers. Otherwise treat as a new user.
+      const matches = findReturningUser(cleaned);
+      if (matches.length > 0) {
+        const top = matches[0]!;
+        const seed = seedFromReturning(top);
+        this.setState({
+          profile: {
+            ...this.state.profile,
+            ...seed,
+            name: cleaned,
+          },
+          is_returning_user: true,
+          prior_session_summary: top.display_summary,
+        });
+        return true;
+      }
+      this.setState({ profile: { ...this.state.profile, name: cleaned } });
+      return false;
     }
     if (node_id === 'birthday') {
       const parsed = parseBirthDate(ans);
-      if (!parsed) return;
+      if (!parsed) return false;
       const astro = computeAstroProfile(parsed);
       this.setState({
         profile: {
@@ -314,23 +348,74 @@ export class SurveyEngine {
           age_bracket: computeAgeBracket(parsed),
         },
       });
-      return;
+      return false;
     }
     if (node_id === 'birth_time') {
       this.setState({ profile: { ...this.state.profile, birth_time_bracket: mapBirthTime(ans) } });
-      return;
+      return false;
     }
     if (node_id === 'has_question') {
       this.setState({ profile: { ...this.state.profile, has_question_mode: mapHasQuestion(ans) } });
-      return;
+      return false;
+    }
+    return false;
+  }
+
+  /** Drop any remaining opener nodes from the front of the queue.
+   *  Called when we detect a returning user mid-opener-chain. */
+  private clearOpenersFromQueue(): void {
+    this.setState({
+      queue: this.state.queue.filter((q) => !OPENER_NODE_IDS.has(q.node_id)),
+    });
+  }
+
+  /** Pick STARTER_SEED_COUNT random pool nodes and append them to the
+   *  queue. Idempotent — only fires once per session. */
+  private seedStarterPool(): void {
+    if (this.starterSeedFired) return;
+    this.starterSeedFired = true;
+    const pool = getPoolNodeIds().filter((id) => !this.state.asked_node_ids.includes(id));
+    const shuffled = [...pool];
+    for (let i = shuffled.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [shuffled[i], shuffled[j]] = [shuffled[j]!, shuffled[i]!];
+    }
+    const picks = shuffled.slice(0, STARTER_SEED_COUNT);
+    for (const id of picks) {
+      this.enqueueDirect(id, null, null);
     }
   }
 
-  private enqueueDirect(node_id: string, promptedBy: string | null, preamble: string | null): void {
+  /** Investigator runs in the background. Result enqueues 1 question.
+   *  Multiple may be in flight simultaneously if the user runs faster
+   *  than the model — that's by design, queue stays ahead. */
+  private spawnInvestigator(inlineComment: string | null): void {
+    this.investigatorInFlight += 1;
+    this.refreshThinking();
+    void this.fireInvestigator(inlineComment).finally(() => {
+      this.investigatorInFlight -= 1;
+      this.refreshThinking();
+      this.emit();
+    });
+  }
+
+  /** `thinking` is the UI's "we have nothing to show, wait" hint. True
+   *  when an agent is in flight AND no question is currently rendered. */
+  private refreshThinking(): void {
+    const queueEmpty = this.state.queue.length === 0;
+    const anyInFlight = this.investigatorInFlight > 0 || this.pendingObserverPromise !== null;
+    const thinking = queueEmpty && anyInFlight;
+    if (thinking !== this.state.thinking) this.setState({ thinking });
+  }
+
+  private enqueueDirect(
+    node_id: string,
+    promptedBy: string | null,
+    preamble: string | null,
+    optionsOverride?: string[],
+  ): void {
     // Defensive dedupe — never enqueue a node that's already in the queue or
-    // already been asked. The engine's pick advance + tree.next chain + the
-    // Investigator output are three independent sources; this one check stops
-    // double-queueing from any of them.
+    // already been asked.
     if (this.state.asked_node_ids.includes(node_id)) return;
     if (this.state.queue.some((q) => q.node_id === node_id)) return;
     this.setState({
@@ -341,6 +426,7 @@ export class SurveyEngine {
           prompted_by: promptedBy,
           priority: 'normal',
           preamble: preamble ?? undefined,
+          options_override: optionsOverride,
         },
       ],
     });
@@ -379,14 +465,11 @@ export class SurveyEngine {
 
   private async fireInvestigator(inlineComment: string | null): Promise<void> {
     const available = this.buildAvailableNodes();
-    if (available.length === 0) {
-      // No more roots — the dialogue tree is exhausted. Close cleanly.
-      await this.finalize('queue_exhausted');
-      return;
-    }
+    if (available.length === 0) return;   // pool exhausted; user can still wrap up
 
     let chosenId: string | null = null;
     let preamble = '';
+    let optionsOverride: string[] | undefined;
 
     try {
       const out = await runInvestigator(this.opts.adapter, {
@@ -394,28 +477,27 @@ export class SurveyEngine {
         available_nodes: available,
       });
       const candidate = out.next_question.node_id;
-      const isAvailable = available.some((n) => n.id === candidate);
-      const notAsked = !this.state.asked_node_ids.includes(candidate);
-      if ((isAvailable || candidate === 'GENERATED') && notAsked) {
-        chosenId = candidate === 'GENERATED' ? available[0]!.id : candidate;  // generated-question handling is a v2 feature
+      const node = available.find((n) => n.id === candidate);
+      if (node && !this.state.asked_node_ids.includes(candidate)) {
+        chosenId = candidate;
         preamble = out.preamble;
+        // Options override only applies to choice questions; ignored
+        // for binary/matrix/text/date by renderQuestion.
+        if (out.next_question.options && out.next_question.options.length > 0 && node.format === 'choice') {
+          optionsOverride = out.next_question.options;
+        }
       }
     } catch {
       // fall through to deterministic fallback
     }
 
     if (!chosenId) {
-      chosenId = available[0]!.id;
+      chosenId = available[Math.floor(Math.random() * available.length)]!.id;
       preamble = '';
     }
 
-    // Phase A/E never get preambles
-    if (this.state.phase === 'A' || this.state.phase === 'E') preamble = '';
-
-    // Combine inline answer-comment + Investigator preamble. Inline first.
     const combined = [inlineComment, preamble].filter((s): s is string => Boolean(s && s.trim())).join(' ');
-
-    this.enqueueDirect(chosenId, null, combined.length > 0 ? combined : null);
+    this.enqueueDirect(chosenId, null, combined.length > 0 ? combined : null, optionsOverride);
   }
 
   private async fireObserver(pick: PickEvent): Promise<void> {

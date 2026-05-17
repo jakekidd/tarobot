@@ -119,17 +119,35 @@ export function validateTree(tree: DialogueTree): void {
  * Applies text substitution and flattens answer tuples to a plain options
  * list.
  */
+/** Binary always offers the same three options — locked here so neither
+ *  the tree author nor the investigator can drift them. */
+export const BINARY_OPTIONS = ['yes', 'no', 'sometimes'] as const;
+
 export function renderQuestion(
   node_id: string,
   profile: SurveyProfile,
   preambleRaw?: string,
+  /** Investigator-overridden options (only respected for `choice` format). */
+  overrideOptions?: string[],
 ): RenderedQuestion {
   const node = TREE.nodes[node_id];
   if (!node) {
     throw new Error(`tree: cannot render unknown node '${node_id}'`);
   }
   const text = substituteOrBlank(node.q, profile);
-  const options = extractOptionLabels(node);
+  // Format-locked options:
+  //   binary → ALWAYS [yes, no, sometimes]; investigator + node ignored.
+  //   choice → investigator override wins; otherwise node's `a` field.
+  //   matrix → node's `a` field; investigator override ignored.
+  //   text/date → no options.
+  let options: string[];
+  if (node.f === 'binary') {
+    options = [...BINARY_OPTIONS];
+  } else if (node.f === 'choice' && overrideOptions && overrideOptions.length > 0) {
+    options = overrideOptions;
+  } else {
+    options = extractOptionLabels(node);
+  }
   const preamble = preambleRaw ? (substituteOrNull(preambleRaw, profile) ?? undefined) : undefined;
 
   return {

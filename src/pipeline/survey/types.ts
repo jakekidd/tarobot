@@ -11,7 +11,10 @@ export const PHASE_ORDER: Phase[] = ['A', 'B', 'C', 'D', 'E'];
 
 // ─── Dialogue tree ──────────────────────────────────────
 
-export type AnswerFormat = 'text' | 'date' | 'choice' | 'binary' | 'multi' | 'matrix';
+// Question formats. `multi` was dropped — collapsed to `choice` (single
+// select). `binary` ALWAYS resolves to [yes, no, sometimes] regardless
+// of the node's `a` field; investigator can't alter binary options.
+export type AnswerFormat = 'text' | 'date' | 'choice' | 'binary' | 'matrix';
 
 /** [answer_text] | [answer_text, comment]. Comment is shown inline after pick. */
 export type AnswerTuple = [string] | [string, string];
@@ -148,6 +151,9 @@ export type QueueItem = {
   prompted_by: string | null;
   priority: 'normal' | 'high' | 'urgent';
   preamble?: string;
+  /** Investigator-supplied override for the `choice`-format options on
+   *  this question. Ignored for any other format. */
+  options_override?: string[];
 };
 
 export type ActiveThread = {
@@ -243,18 +249,15 @@ export type InvestigatorInput = {
 
 export type InvestigatorOutput = {
   next_question: {
-    node_id: string;              // must be in available_nodes OR 'GENERATED'
-    text?: string;                // only if node_id === 'GENERATED'
-    options?: string[];           // only if node_id === 'GENERATED'
-    fmt?: AnswerFormat;           // only if node_id === 'GENERATED'
-    prompted_by: string | null;
-  };
-  preamble: string;               // may be empty
-  queue_additions?: Array<{
+    /** must be an id from `available_nodes`. (GENERATED nodes deferred.) */
     node_id: string;
     prompted_by: string | null;
-    priority: 'normal' | 'high' | 'urgent';
-  }>;
+    /** When the basket node's format is `choice`, the investigator may
+     *  override or extend its options list. Ignored for binary / matrix
+     *  / text / date. */
+    options?: string[];
+  };
+  preamble: string;               // may be empty
   reasoning: string;
 };
 

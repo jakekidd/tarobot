@@ -11,7 +11,6 @@ import { Reader } from './reader/Reader';
 import { Dialogue } from './dialogue/Dialogue';
 import { MultipleChoice } from './choices/MultipleChoice';
 import { Matrix2x2Choice } from './choices/Matrix2x2Choice';
-import { MultiSelectChoice } from './choices/MultiSelectChoice';
 import { Spinner } from './Spinner';
 import { BirthdayForm } from './survey/BirthdayForm';
 import { NameForm } from './survey/NameForm';
@@ -21,6 +20,7 @@ import { setDizzy } from './scene/dizzyStore';
 import { listSessionNames, saveSession, type Session } from '../storage';
 import type { CompilerOutput } from '../pipeline/survey';
 import { publishDebug, clearDebug } from '../debug/debugBus';
+import { ChatInput } from './ChatInput';
 
 // "ready for the cards" button appears after this many answered questions.
 // Below this, the user has to keep going (so they don't bail at Q2).
@@ -155,14 +155,6 @@ export function Survey({ apiKey, session, onComplete }: Props) {
             />
           )}
 
-          {currentQuestion?.format === 'multi' && (
-            <MultiSelectChoice
-              key={currentQuestion.node_id}
-              options={currentQuestion.options}
-              onPick={(values) => void submitAnswer(values)}
-            />
-          )}
-
           {currentQuestion &&
             (currentQuestion.format === 'choice' || currentQuestion.format === 'binary') && (
             <MultipleChoice
@@ -173,10 +165,20 @@ export function Survey({ apiKey, session, onComplete }: Props) {
             />
           )}
 
-          {!currentQuestion && isCompiling && (
-            <div className="ui-frame__waiting"><Spinner label="preparing" /></div>
+          {!currentQuestion && (isCompiling || state.thinking) && (
+            <div className="ui-frame__waiting"><Spinner label={isCompiling ? 'preparing' : 'thinking'} /></div>
           )}
         </div>
+        {/* Always-on custom-answer input. Same component the reading uses
+            for chat; here it writes a custom string back to the current
+            question. Disabled during text/date openers + while compiling. */}
+        {!isCompiling && currentQuestion && currentQuestion.format !== 'text' && currentQuestion.format !== 'date' && (
+          <ChatInput
+            placeholder="or type your own answer"
+            disabled={false}
+            onSend={(text) => void submitAnswer(text)}
+          />
+        )}
       </div>
 
       <div className="survey__footer">

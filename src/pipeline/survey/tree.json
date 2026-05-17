@@ -61,7 +61,7 @@
     "whats_true": {
       "topic": "state",
       "q": "what's true right now?",
-      "f": "multi",
+      "f": "choice",
       "a": [
         ["something is stuck"],
         ["something is unsaid"],

@@ -15,7 +15,6 @@ const ThreadStatus = z.enum(['open', 'awaiting_confirm', 'confirmed', 'refuted']
 const HypothesisStatus = z.enum(['inferred', 'testing', 'confirmed', 'refuted']);
 const ContradictionSeverity = z.enum(['minor', 'notable', 'load_bearing']);
 const HookSource = z.enum(['pass', 'latency_outlier', 'admission', 'multi_select_pattern', 'inferred']);
-const AnswerFormat = z.enum(['text', 'date', 'choice', 'binary', 'multi', 'matrix']);
 const Engagement = z.enum(['high', 'normal', 'low']);
 
 const NoteToAppend = z.object({
@@ -97,17 +96,10 @@ export const ObserverOutputSchema = z.object({
 export const InvestigatorOutputSchema = z.object({
   next_question: z.object({
     node_id: z.string(),
-    text: z.string().optional(),
-    options: z.array(z.string()).optional(),
-    fmt: AnswerFormat.optional(),
     prompted_by: z.string().nullable(),
+    options: z.array(z.string()).optional(),
   }),
   preamble: z.string(),
-  queue_additions: z.array(z.object({
-    node_id: z.string(),
-    prompted_by: z.string().nullable(),
-    priority: z.enum(['normal', 'high', 'urgent']),
-  })).optional(),
   reasoning: z.string(),
 });
 
