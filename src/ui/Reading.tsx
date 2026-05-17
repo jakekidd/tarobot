@@ -47,6 +47,7 @@ import {
   type CardStage,
   type SlotName,
 } from './scene/cardSceneStore';
+import { pickAt } from './scene/pickService';
 import { Spinner } from './Spinner';
 import { Transcript, type TranscriptItem } from './Transcript';
 import { useTypewriter } from './dialogue/useTypewriter';
@@ -187,8 +188,18 @@ export function Reading({ apiKey, brief, preferredIntro, onExit }: Props) {
   function onScreenClick(e: React.MouseEvent<HTMLDivElement>) {
     if (transcriptOpen) return;
     const target = e.target as HTMLElement;
-    if (target.closest('input, button, .table-anchor, .reading__chat')) return;
-    // Only advance when in an advance-able phase
+    if (target.closest('input, button, .reading__chat')) return;
+    // Card pick takes precedence — raycast through the scene's picker. If
+    // it hit a face-down card, register the pick and bail (don't also
+    // advance dialogue).
+    if (pickable) {
+      const slot = pickAt(e.clientX, e.clientY);
+      if (slot) {
+        engine.pickSlot(slot);
+        return;
+      }
+    }
+    // Anywhere else: advance dialogue if we're in an advance-able phase.
     if (state.phase === 'intro' || state.phase === 'beat' || state.phase === 'outro') {
       setAdvanceTick((t) => t + 1);
     }
@@ -206,8 +217,9 @@ export function Reading({ apiKey, brief, preferredIntro, onExit }: Props) {
 
         <section className="reading__col-right">
           {/* TableAnchor fills the entire right column — its bbox IS the
-              scene rect. Everything else is an absolute overlay on top. */}
-          <TableAnchor pickable={pickable} onPick={(slot) => engine.pickSlot(slot)} />
+              scene rect. Everything else is an absolute overlay on top.
+              Click-to-pick lives in onScreenClick above. */}
+          <TableAnchor pickable={pickable} />
 
           <div className="reading__head">
             <ReaderAnchor size={130} />

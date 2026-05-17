@@ -1,21 +1,19 @@
-// Layout placeholder for the 3D table area. Owns no rendering — just
-// publishes its bounding rect (so TarobotScene's perspective camera can
-// scissor + viewport its render here) and forwards pointer events to the
-// scene's picker.
-//
-// Sits in the right column of the reading layout. Sized via CSS.
+// Layout placeholder for the 3D table area. Owns no rendering and no
+// click handling — its only job is to publish its bounding rect so
+// TarobotScene's perspective camera can scissor + viewport its render
+// here. Click-to-pick lives at the screen level in Reading.tsx so that
+// click-anywhere-to-advance and card-pick can coexist via a single
+// raycast at click time.
 
 import { useEffect, useRef } from 'react';
 import { setTableAnchor } from './tableAnchorStore';
 import { pickAt } from './pickService';
-import type { SlotName } from './cardSceneStore';
 
 type Props = {
   pickable: boolean;
-  onPick: (slot: SlotName) => void;
 };
 
-export function TableAnchor({ pickable, onPick }: Props) {
+export function TableAnchor({ pickable }: Props) {
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -46,8 +44,7 @@ export function TableAnchor({ pickable, onPick }: Props) {
     };
   }, []);
 
-  // Track cursor for the cards-hover cursor style. Card meshes own the
-  // visual feedback; this just sets cursor on the div.
+  // Cursor hint only — actual picking happens in Reading.tsx onScreenClick.
   function onPointerMove(e: React.PointerEvent<HTMLDivElement>) {
     if (!pickable) {
       (e.currentTarget as HTMLDivElement).style.cursor = 'default';
@@ -57,18 +54,11 @@ export function TableAnchor({ pickable, onPick }: Props) {
     (e.currentTarget as HTMLDivElement).style.cursor = slot ? 'pointer' : 'default';
   }
 
-  function onPointerDown(e: React.PointerEvent<HTMLDivElement>) {
-    if (!pickable) return;
-    const slot = pickAt(e.clientX, e.clientY);
-    if (slot) onPick(slot);
-  }
-
   return (
     <div
       ref={ref}
       className="table-anchor"
       onPointerMove={onPointerMove}
-      onPointerDown={onPointerDown}
       aria-label="tarot table"
     />
   );

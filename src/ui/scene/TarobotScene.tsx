@@ -360,13 +360,13 @@ export function TarobotScene() {
     // (menu / survey), the perspective render is skipped entirely.
 
     const perspScene = new THREE.Scene();
-    const perspCamera = new THREE.PerspectiveCamera(36, 1, 0.05, 80);
-    // Pulled back + lookAt raised so when the perspective scissor covers
-    // the entire right column (not just a 460px window), the cards land
-    // in the lower-middle of the canvas, leaving room above for the
-    // dialogue overlay and eyes anchor.
-    perspCamera.position.set(0, 2.6, 5.6);
-    perspCamera.lookAt(0, 0.7, 0);
+    const perspCamera = new THREE.PerspectiveCamera(34, 1, 0.05, 80);
+    // Camera pulled further back and slightly higher → the seated POV
+    // feels less neck-cranked. lookAt is just above the tabletop so the
+    // table reads as further away and the cards land in the upper-half
+    // of the canvas (more breathing room below for the chat input).
+    perspCamera.position.set(0, 3.2, 8.5);
+    perspCamera.lookAt(0, 0.4, 0);
 
     // ── Lighting ───────────────────────────────────────
     // Warm key from above (the "orb" that hovers over a real tarot table)

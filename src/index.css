@@ -775,7 +775,7 @@ a:hover { text-decoration: underline; }
 .reading__chat-slot {
   /* Bottom of the canvas, never moves. */
   position: absolute;
-  bottom: 0.8rem;
+  bottom: 2.4rem;
   left: 50%;
   transform: translateX(-50%);
   width: min(64ch, calc(100% - 2rem));
