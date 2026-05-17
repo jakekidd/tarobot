@@ -22,6 +22,7 @@ import { registerPicker, unregisterPicker } from './pickService';
 import { cardBackTexture, cardFaceTexture, disposeCardTextures } from '../cards/cardTexture';
 import { subscribeDebugVisible } from '../../debug/visibilityStorage';
 import { publishDebug, clearDebug } from '../../debug/debugBus';
+import { flip as playFlipSfx } from '../sound/sound';
 
 // Reverted from the voxel approach (it merged into a featureless silhouette —
 // the eye gaps disappeared into the surrounding side faces). Back to a flat
@@ -225,17 +226,16 @@ export function TarobotScene() {
         const model = gltf.scene;
         model.traverse((obj) => {
           if (obj instanceof THREE.Mesh) {
-            // Preserve the gltf's baseColor texture (the cowl's natural
-            // cloth color from the Sketchfab source) but flatten the
-            // material to MeshBasicMaterial so it doesn't need lights
-            // in the ortho scene.
-            const orig = obj.material as THREE.MeshStandardMaterial | undefined;
-            const origMap = orig?.map ?? null;
+            // Flat dark turquoise — the gltf's natural texture had
+            // bright gold accents (smile, outlines) that were too
+            // shiny and blocked dialogue readability. Drop the
+            // texture entirely; the cowl reads as a flat cool-tone
+            // silhouette in the brand turquoise.
             const mat = new THREE.MeshBasicMaterial({
-              map: origMap,
-              color: origMap ? 0xffffff : 0x4a4250,  // fallback grey
+              color: 0x0a3848,            // brand turquoise, darkened
               transparent: true,
               depthWrite: false,
+              opacity: 0.92,
             });
             cowlMaterials.push(mat);
             cowlGeometries.push(obj.geometry);
@@ -320,12 +320,16 @@ export function TarobotScene() {
       const rx = W * 0.46;
       const ry = H * 0.46;
 
-      // Eye orb — solid brand violet (was a radial gradient; user wants
-      // the eye to read as a flat painted disc against the cowl's
-      // hood-interior darkness, not as a glowing halo).
+      // Eye orb — hard two-step: outer half violet, inner half white.
+      // Reads as "whites of the eyes" inside a violet iris ring, without
+      // the soft gradient halo that was washing the cowl behind it out.
       ctx.fillStyle = 'rgba(124, 58, 237, 1.0)';
       ctx.beginPath();
       ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = 'rgba(248, 240, 255, 1.0)';
+      ctx.beginPath();
+      ctx.ellipse(cx, cy, rx * 0.5, ry * 0.5, 0, 0, Math.PI * 2);
       ctx.fill();
 
       // Pupil — by mood
@@ -1227,6 +1231,11 @@ export function TarobotScene() {
             }
             rig.tweenStart = now;
             rig.tweenDur = STAGE_MS[wanted];
+            // Whoosh on face-up reveal — single SFX per flip, fires
+            // the moment a stage transition into face_up begins.
+            if (wanted === 'face_up' && rig.stage !== 'face_up') {
+              playFlipSfx();
+            }
             rig.stage = wanted;
           }
           const u = Math.min(1, (now - rig.tweenStart) / rig.tweenDur);

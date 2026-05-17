@@ -58,6 +58,7 @@ import { setDizzy } from './scene/dizzyStore';
 import { setReaderMode } from './scene/readerModeStore';
 import { loadSettings } from '../storage';
 import { publishDebug, clearDebug } from '../debug/debugBus';
+import { blip, chime } from './sound/sound';
 
 type Props = {
   apiKey: string;
@@ -118,6 +119,18 @@ export function Reading({ apiKey, brief, preferredIntro, onExit }: Props) {
   }, [state.phase, engine]);
 
   useEffect(() => () => setDizzy(false), []);
+
+  // SFX: chime on intro arrival and outro arrival.
+  const lastChimePhaseRef = useRef<string>('');
+  useEffect(() => {
+    const p = state.phase;
+    if ((p === 'intro' || p === 'outro') && lastChimePhaseRef.current !== p) {
+      lastChimePhaseRef.current = p;
+      chime();
+    } else if (p !== 'intro' && p !== 'outro') {
+      lastChimePhaseRef.current = '';
+    }
+  }, [state.phase]);
 
   // Publish reading state for the debug overlay.
   useEffect(() => {
@@ -581,6 +594,7 @@ function ChunkRenderer({
   const { displayed, done, skip } = useTypewriter(
     chunk.text.toLowerCase(),
     settings.charDelayMs,
+    blip,
   );
   // Expose skip + report done to parent.
   // eslint-disable-next-line react-hooks/exhaustive-deps
