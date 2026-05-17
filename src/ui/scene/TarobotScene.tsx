@@ -110,6 +110,16 @@ export function TarobotScene() {
 
     const scene = new THREE.Scene();
 
+    // World-space lights — only the turtle mascot uses a lit material;
+    // every other mesh in the scene is MeshBasicMaterial and ignores
+    // these. Placed in world coords (not parented to the scaled mascot
+    // rig) so the lighting direction is stable across viewport sizes.
+    const ambient = new THREE.AmbientLight(0xc8b3ff, 0.45);
+    scene.add(ambient);
+    const keyLight = new THREE.DirectionalLight(0xffffff, 1.1);
+    keyLight.position.set(0, 500, 200);   // above + slightly in front
+    scene.add(keyLight);                    // target defaults to (0,0,0); shines down-and-forward
+
     // Orthographic camera — world units == viewport pixels, center-origin.
     let viewportW = window.innerWidth;
     let viewportH = window.innerHeight;

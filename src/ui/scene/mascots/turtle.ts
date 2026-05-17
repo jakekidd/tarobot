@@ -45,13 +45,13 @@ export function createTurtleMascot(): Mascot {
         root.position.sub(center);
         root.scale.setScalar(1 / maxDim);
 
-        // Violet wireframe — drop the photorealistic body texture
-        // entirely. Wireframe reads with shape definition even without
-        // lights (a solid unlit material is silhouette-only — too flat).
-        // Also: nicely echoes the "skeleton" framing.
-        const violet = new THREE.MeshBasicMaterial({
+        // Violet PBR — the scene adds an ambient + key light at world
+        // coords (see TarobotScene) so this shades properly. Texture is
+        // dropped (mobile-friendlier + matches the flat palette).
+        const violet = new THREE.MeshStandardMaterial({
           color: VIOLET,
-          wireframe: true,
+          roughness: 0.55,
+          metalness: 0.0,
         });
         disposables.push(violet);
         root.traverse((obj) => {
@@ -67,9 +67,10 @@ export function createTurtleMascot(): Mascot {
           }
         });
 
-        // Default orientation tweak — natural-pose turtle faces along
-        // its local axis; yaw 90° so the camera reads its profile.
-        root.rotation.set(0, Math.PI * 0.5, 0);
+        // Tilt 90° on X so the turtle faces the camera (otherwise the
+        // model is in swim-pose — looking sideways relative to the ortho
+        // camera's top-down view).
+        root.rotation.set(Math.PI * 0.5, 0, 0);
 
         group.add(root);
 
