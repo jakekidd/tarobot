@@ -486,8 +486,14 @@ export class SurveyEngine {
   }
 
   private async runPipeline(pick: PickEvent): Promise<void> {
-    // Snapshot context at fire-time. Each stage mutates a local copy.
-    let ctx: PipelineContext = {
+    // Sibling pipelines may be in flight from earlier user answers. To
+    // keep each agent looking at the FRESHEST data, we rebuild ctx
+    // from current engine state at every stage boundary — not just
+    // once at pipeline start. Writes merge based on current state too
+    // (last-write-wins by field), so two pipelines for two different
+    // user answers don't trample each other's outputs.
+
+    const baseCtx = (): PipelineContext => ({
       index: this.state.picks_log.length,
       question: pick.question_text,
       options_shown: pick.options_shown,
@@ -497,15 +503,15 @@ export class SurveyEngine {
       history: this.state.picks_log,
       queue: this.state.queue,
       basket: this.buildBasket(),
-    };
+    });
 
     // ── STAGE 1: Observer ────────────────────────────
     this.agentInFlight.observer += 1; this.publishInflight();
     try {
+      const ctx = baseCtx();
       const out: ObserverOutput = await runObserver(this.opts.adapter, ctx);
       const nextProfile = applyObserverOutput(this.state.profile, out);
       this.setState({ profile: nextProfile });
-      ctx = { ...ctx, profile: nextProfile };
       this.emit();
     } catch (e) {
       console.warn('[survey] observer failed', e);
@@ -516,10 +522,19 @@ export class SurveyEngine {
     // ── STAGE 2: Detective ───────────────────────────
     this.agentInFlight.detective += 1; this.publishInflight();
     try {
+      // Rebuild ctx — observer's output landed in state, and so may
+      // have a sibling pipeline's output. Detective sees the latest.
+      const ctx = baseCtx();
       const out: DetectiveOutput = await runDetective(this.opts.adapter, ctx);
-      const nextInvestigation = applyDetectiveOutput(this.state.investigation, out);
+      let nextInvestigation = applyDetectiveOutput(this.state.investigation, out);
+      // Quietly prune stale low-confidence leads. The detective never
+      // sees this — like a real detective forgetting the suspects she
+      // hasn't been actively chasing.
+      nextInvestigation = pruneStaleHypotheses(
+        nextInvestigation,
+        this.state.picks_log,
+      );
       this.setState({ investigation: nextInvestigation });
-      ctx = { ...ctx, investigation: nextInvestigation };
       this.emit();
     } catch (e) {
       console.warn('[survey] detective failed', e);
@@ -530,6 +545,10 @@ export class SurveyEngine {
     // ── STAGE 3: Interrogator ────────────────────────
     this.agentInFlight.interrogator += 1; this.publishInflight();
     try {
+      // Rebuild ctx again — detective's investigation update landed,
+      // basket may have shifted (sibling pipeline appended to queue),
+      // queue may have changed.
+      const ctx = baseCtx();
       const out: InterrogatorOutput = await runInterrogator(this.opts.adapter, ctx);
       this.applyInterrogatorOutput(out);
     } catch (e) {
@@ -691,4 +710,30 @@ function mergeHypotheses(existing: Hypothesis[], updates: Hypothesis[]): Hypothe
   const byId = new Map(existing.map((h) => [h.id, h]));
   for (const u of updates) byId.set(u.id, u);
   return Array.from(byId.values());
+}
+
+/** Engine-side pruning of stale low-confidence hypotheses. Runs after
+ *  each detective output. The detective herself never sees this — she
+ *  has finite working memory and the engine quietly forgets dead leads
+ *  for her, exactly like a real detective who stops chasing a suspect
+ *  she hasn't gotten a hit on in three rounds.
+ *
+ *  Rule: hypothesis is auto-refuted if
+ *    - status is 'inferred' or 'testing'
+ *    - confidence < 0.3
+ *    - none of its supporting_picks are in the last 3 user picks
+ */
+function pruneStaleHypotheses(inv: Investigation, picksLog: PickEvent[]): Investigation {
+  const STALE_WINDOW = 3;
+  const recent = new Set(picksLog.slice(-STALE_WINDOW).map((p) => p.node_id));
+  let changed = false;
+  const updated = inv.hypotheses.map((h) => {
+    if (h.status !== 'inferred' && h.status !== 'testing') return h;
+    if (h.confidence >= 0.3) return h;
+    const hasRecentSupport = h.supporting_picks.some((id) => recent.has(id));
+    if (hasRecentSupport) return h;
+    changed = true;
+    return { ...h, status: 'refuted' as const };
+  });
+  return changed ? { ...inv, hypotheses: updated } : inv;
 }

@@ -51,9 +51,10 @@ HYPOTHESES — your suspect board
 - ADD freely. mark a hypothesis 'testing' once you've explicitly steered
   a question to confirm/refute it (you don't control questions — the
   interrogator does — but you can leave that signal for it).
-- if a hypothesis sits at <0.3 confidence for 3+ turns of no new
-  support, mark it refuted via hypothesis_refutes (just the id).
-- if a turn DIRECTLY contradicts a hypothesis, mark it refuted now.
+- if a turn DIRECTLY contradicts a hypothesis, mark it refuted now via
+  hypothesis_refutes (just the id).
+- do NOT worry about pruning stale low-confidence leads — your working
+  memory is finite, the engine handles that quietly for you.
 
 CONTRADICTIONS
 - cross-pick tensions. flag with severity: minor | notable | load_bearing.
