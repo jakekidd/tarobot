@@ -7,6 +7,8 @@
 //     (user dislikes the em-dash in dialogue; ellipsis carries the same beat)
 //   - any double-spaces produced by the above are collapsed back to single
 
+import type { Monologue } from './types';
+
 const ELLIPSIS = '…';        // …
 
 export function sanitizeMonologueText(s: string): string {
@@ -15,4 +17,11 @@ export function sanitizeMonologueText(s: string): string {
     .replace(/\s*[—–]\s*/g, ` ${ELLIPSIS} `)
     .replace(/  +/g, ' ')
     .trim();
+}
+
+/** Apply text sanitation to a Monologue (text + optional prompt_to_user). */
+export function sanitizeMonologue(m: Monologue): Monologue {
+  const text = sanitizeMonologueText(m.text);
+  const prompt = m.prompt_to_user ? sanitizeMonologueText(m.prompt_to_user) : undefined;
+  return prompt ? { text, prompt_to_user: prompt } : { text };
 }

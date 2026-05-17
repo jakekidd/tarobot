@@ -523,9 +523,15 @@ function ChunkedLine({
     >
       <span className="reading__dialogue-text">
         {renderWithEmphasis(current.text, displayed, current.ranges, highlights)}
+        {!done && <span className="reading__cursor-spiral" aria-hidden />}
       </span>
       {done && (
-        <span className="reading__dialogue-caret" aria-hidden>▼</span>
+        <span className="reading__dialogue-caret" aria-hidden>
+          <svg viewBox="0 0 32 18">
+            {/* wide-based triangle, points down */}
+            <path d="M2 2 L30 2 L16 17 Z" />
+          </svg>
+        </span>
       )}
     </div>
   );

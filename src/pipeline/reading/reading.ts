@@ -45,6 +45,7 @@ import type {
   ReadingState,
   RevealedSlot,
 } from './types';
+import { sanitizeMonologue } from './sanitize';
 
 export type ReadingOpts = {
   adapter: LLMAdapter;
@@ -106,7 +107,9 @@ export class ReadingEngine {
 
     const preferred = this.state.inputs.preferred_intro;
     if (preferred) {
-      this.setState({ phase: 'intro', intro: preferred, awaiting_tier: null });
+      // Fixture-sourced intros bypass persona.ts's sanitize — apply here
+      // so em-dashes / en-dashes get the engine-layer ellipsis treatment.
+      this.setState({ phase: 'intro', intro: sanitizeMonologue(preferred), awaiting_tier: null });
       return;
     }
 

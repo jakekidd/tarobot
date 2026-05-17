@@ -828,22 +828,59 @@ a:hover { text-decoration: underline; }
   transform: scaleX(1);
 }
 
-/* Down-arrow caret — bottom-center of dialogue box, long gentle
-   pulse (3/4 visible, 1/4 dim). Replaces the inline ▸ caret. */
+/* Down-arrow caret — sits BELOW the dialogue box (out of the text),
+   wide-based triangle SVG. Long gentle pulse (3/4 visible, 1/4 dim). */
 .reading__dialogue-caret {
   position: absolute;
-  bottom: 0.15rem;
+  bottom: -1.4rem;
   left: 50%;
   transform: translateX(-50%);
-  font-size: 1.05rem;
-  line-height: 1;
+  width: 1.6rem;
+  height: 1rem;
   color: var(--fg);
   pointer-events: none;
   animation: caret-pulse 2.4s ease-in-out infinite;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.reading__dialogue-caret svg {
+  width: 100%;
+  height: 100%;
+  fill: currentColor;
 }
 @keyframes caret-pulse {
   0%, 75%, 100% { opacity: 1; }
   87%           { opacity: 0.22; }
+}
+
+/* Typing spiral — small glowy spinner that lives at the END of the
+   typed text while the typewriter is still typing. Vanishes once the
+   chunk is done. Same vibe as Claude chat's streaming dot, but wound
+   as a violet conic gradient. */
+.reading__cursor-spiral {
+  display: inline-block;
+  width: 0.68em;
+  height: 0.68em;
+  vertical-align: -0.05em;
+  margin-left: 0.18em;
+  border-radius: 50%;
+  background:
+    conic-gradient(
+      from 0deg,
+      transparent 0%,
+      rgba(124, 58, 237, 0.0) 14%,
+      rgba(124, 58, 237, 0.95) 55%,
+      rgba(248, 240, 255, 1.0) 88%,
+      transparent 100%
+    );
+  box-shadow: 0 0 8px rgba(124, 58, 237, 0.55);
+  animation: cursor-spin 1.05s linear infinite;
+  -webkit-mask: radial-gradient(circle, transparent 26%, #000 30%);
+          mask: radial-gradient(circle, transparent 26%, #000 30%);
+}
+@keyframes cursor-spin {
+  to { transform: rotate(360deg); }
 }
 
 /* TableAnchor — fills the right column. Its bbox is what the perspective
@@ -1110,13 +1147,29 @@ a:hover { text-decoration: underline; }
   font-size: 1rem;
   line-height: 1.6;
   color: var(--fg);
-  text-align: left;
+  text-align: justify;       /* edges touch left + right margins */
+  text-align-last: left;     /* don't justify the last line — looks weird */
+  hyphens: none;
   width: min(82ch, calc(100vw - 4rem));
   margin: 0 auto;
   min-height: 5.2rem;       /* room for ~3 lines without reflow */
-  padding: 0.4rem 1.1rem;
-  border-left: 3px double rgba(179, 136, 255, 0.55);
-  border-right: 3px double rgba(179, 136, 255, 0.55);
+  padding: 0.6rem 1.4rem;
+  /* Single soft violet rails — replaces the heavy double border. */
+  border-left: 1px solid rgba(179, 136, 255, 0.55);
+  border-right: 1px solid rgba(179, 136, 255, 0.55);
+  box-shadow:
+    inset 1px 0 0 rgba(179, 136, 255, 0.18),
+    inset -1px 0 0 rgba(179, 136, 255, 0.18);
+}
+/* Intro / outro use the same justified treatment when in the rigid box. */
+.reading__intro.reading__dialogue-rigid,
+.reading__outro.reading__dialogue-rigid {
+  text-align: justify;
+  text-align-last: left;
+  hyphens: none;
+  padding: 0.6rem 1.4rem;
+  border-left: 1px solid rgba(179, 136, 255, 0.55);
+  border-right: 1px solid rgba(179, 136, 255, 0.55);
 }
 .reading__outro {
   font-family: var(--font-speech);

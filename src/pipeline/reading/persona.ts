@@ -11,7 +11,7 @@
 
 import type { LLMAdapter } from '../survey/adapter';
 import { MonologueSchema } from './schemas';
-import { sanitizeMonologueText } from './sanitize';
+import { sanitizeMonologue as sanitize } from './sanitize';
 import {
   PER_CARD_PERSONA_SYSTEM,
   PER_CARD_PERSONA_TOOL,
@@ -30,14 +30,6 @@ import type {
   PerCardPersonaInput,
 } from './types';
 
-/** Apply the engine-layer text filter (em-dash → ellipsis, etc.) to every
- *  monologue we receive from the persona, so even what the AI sees as
- *  history is clean. */
-function sanitize(m: Monologue): Monologue {
-  const text = sanitizeMonologueText(m.text);
-  const prompt = m.prompt_to_user ? sanitizeMonologueText(m.prompt_to_user) : undefined;
-  return prompt ? { text, prompt_to_user: prompt } : { text };
-}
 
 export async function personaPerCard(
   adapter: LLMAdapter,
