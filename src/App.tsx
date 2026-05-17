@@ -1,4 +1,4 @@
-import { useState, useSyncExternalStore } from 'react';
+import { useEffect, useState, useSyncExternalStore } from 'react';
 import type { CompilerOutput } from './pipeline/survey';
 import { isUsingTreeOverride, subscribeToOverrideChanges } from './pipeline/survey';
 import {
@@ -18,6 +18,10 @@ import { buildMarisolDemoBrief, MARISOL_INTRO } from './pipeline/reading';
 import { Jade } from './jade/Jade';
 import { useSecretSequence } from './jade/useSecretSequence';
 import './jade/jade.css';
+import { Debug } from './debug/Debug';
+import { loadDebugVisible, saveDebugVisible } from './debug/visibilityStorage';
+import { publishDebug } from './debug/debugBus';
+import './debug/debug.css';
 
 type Phase =
   | { kind: 'key' }
@@ -41,6 +45,19 @@ export function App() {
     isUsingTreeOverride,
     isUsingTreeOverride,
   );
+
+  // Debug overlay toggle — persists between sessions.
+  const [debugVisible, setDebugVisible] = useState<boolean>(() => loadDebugVisible());
+  function toggleDebug() {
+    const next = !debugVisible;
+    saveDebugVisible(next);
+    setDebugVisible(next);
+  }
+
+  // Publish app-level phase so the debug overlay can show where the user is.
+  useEffect(() => {
+    publishDebug('app.phase', phase.kind);
+  }, [phase.kind]);
 
   function goMenu() {
     setPhase({ kind: 'menu' });
@@ -106,6 +123,14 @@ export function App() {
             >*</span>
           )}
           <span className="app__version">v0.0.2-{__APP_COMMIT__}</span>
+          <button
+            type="button"
+            className={`debug-chip ${debugVisible ? 'debug-chip--on' : ''}`}
+            onClick={toggleDebug}
+            title="toggle debug overlay"
+          >
+            debug
+          </button>
           {jadeUnlocked && phase.kind !== 'jade' && (
             <button
               type="button"
@@ -176,6 +201,8 @@ export function App() {
 
           {phase.kind === 'jade' && <Jade onExit={goMenu} />}
         </main>
+
+      <Debug visible={debugVisible} />
     </div>
   );
 }

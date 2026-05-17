@@ -56,6 +56,7 @@ import { highlightNames, type Highlights } from './dialogue/highlightNames';
 import { setDizzy } from './scene/dizzyStore';
 import { setReaderMode } from './scene/readerModeStore';
 import { loadSettings } from '../storage';
+import { publishDebug, clearDebug } from '../debug/debugBus';
 
 type Props = {
   apiKey: string;
@@ -116,6 +117,20 @@ export function Reading({ apiKey, brief, preferredIntro, onExit }: Props) {
   }, [state.phase, engine]);
 
   useEffect(() => () => setDizzy(false), []);
+
+  // Publish reading state for the debug overlay.
+  useEffect(() => {
+    publishDebug('reading.phase', state.phase);
+    publishDebug('reading.awaiting', state.awaiting_tier ?? null);
+    publishDebug('reading.revealed', `${state.revealed.length}/${drawn.cards.length}`);
+    publishDebug('reading.slot', state.current_slot ?? null);
+  }, [state.phase, state.awaiting_tier, state.revealed.length, state.current_slot, drawn.cards.length]);
+  useEffect(() => () => {
+    clearDebug('reading.phase');
+    clearDebug('reading.awaiting');
+    clearDebug('reading.revealed');
+    clearDebug('reading.slot');
+  }, []);
 
   // Per-slot stage map for the perspective layer.
   const stages = useMemo<Partial<Record<SlotName, CardStage>>>(() => {

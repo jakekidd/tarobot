@@ -20,6 +20,7 @@ import { downloadTranscript, persistLog } from './survey/transcript';
 import { setDizzy } from './scene/dizzyStore';
 import { listSessionNames, saveSession, type Session } from '../storage';
 import type { CompilerOutput } from '../pipeline/survey';
+import { publishDebug, clearDebug } from '../debug/debugBus';
 
 // "ready for the cards" button appears after this many answered questions.
 // Below this, the user has to keep going (so they don't bail at Q2).
@@ -79,6 +80,16 @@ export function Survey({ apiKey, session, onComplete }: Props) {
   }, [state.thinking]);
   useEffect(() => {
     return () => setDizzy(false);
+  }, []);
+
+  // Publish survey state for the debug overlay.
+  useEffect(() => {
+    publishDebug('survey.thinking', state.thinking);
+    publishDebug('survey.picks', state.picks_log.length);
+  }, [state.thinking, state.picks_log.length]);
+  useEffect(() => () => {
+    clearDebug('survey.thinking');
+    clearDebug('survey.picks');
   }, []);
 
   // ─── render ───────────────────────────────────────────

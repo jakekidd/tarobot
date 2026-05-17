@@ -1,0 +1,84 @@
+/* =====================================================================
+   debug overlay — telemetry panel pinned top-left of the main area.
+   Visible only when the DEBUG navbar chip is toggled on.
+   ===================================================================== */
+
+.debug {
+  position: fixed;
+  left: 0.75rem;
+  /* sits just below the navbar (which is ~2.4rem tall) */
+  top: 3rem;
+  z-index: 150;                  /* above CRT (10–13), below jade (200) */
+  background: rgba(5, 3, 12, 0.88);
+  border: 1px solid rgba(179, 136, 255, 0.45);
+  color: #e8e0ff;
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  letter-spacing: 0.04em;
+  padding: 0.4rem 0.55rem 0.5rem;
+  min-width: 230px;
+  pointer-events: none;          /* never blocks clicks */
+  backdrop-filter: blur(2px);
+  box-shadow: 0 0 14px rgba(179, 136, 255, 0.18);
+}
+
+.debug__head {
+  font-size: 0.7rem;
+  letter-spacing: 0.32em;
+  color: #b388ff;
+  text-shadow: 0 0 8px rgba(179, 136, 255, 0.45);
+  padding-bottom: 0.3rem;
+  margin-bottom: 0.35rem;
+  border-bottom: 1px dashed rgba(179, 136, 255, 0.25);
+}
+
+.debug__table {
+  border-collapse: collapse;
+  width: 100%;
+}
+
+.debug__k {
+  padding: 0.08rem 0.6rem 0.08rem 0;
+  color: #6b5a8a;
+  text-transform: lowercase;
+  letter-spacing: 0.14em;
+  font-size: 0.72rem;
+  white-space: nowrap;
+}
+.debug__v {
+  padding: 0.08rem 0 0.08rem 0;
+  color: #e8e0ff;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  max-width: 22ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.debug__v--ok    { color: #86efac; }
+.debug__v--warn  { color: #fbbf24; }
+.debug__v--bad   { color: #e2536e; }
+.debug__v--info  { color: #b388ff; }
+
+/* ─── DEBUG chip in the navbar ───────────────────────── */
+.debug-chip {
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  letter-spacing: 0.32em;
+  text-transform: lowercase;
+  background: transparent;
+  color: #6b5a8a;
+  border: 1px solid rgba(107, 90, 138, 0.45);
+  padding: 0.18rem 0.55rem;
+  cursor: pointer;
+  border-radius: 0;
+}
+.debug-chip:hover {
+  border-color: #b388ff;
+  color: #b388ff;
+}
+.debug-chip--on {
+  color: #b388ff;
+  border-color: #b388ff;
+  text-shadow: 0 0 8px rgba(179, 136, 255, 0.5);
+}

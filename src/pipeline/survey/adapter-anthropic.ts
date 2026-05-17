@@ -17,6 +17,15 @@ const MODEL_FOR: Record<ModelTier, string> = {
   deep:      'claude-opus-4-7',
 };
 
+// Module-level in-flight counter for the debug overlay. Increments before
+// the model call, decrements after (regardless of success/failure).
+let inFlightCount = 0;
+let lastTier: ModelTier | null = null;
+
+export function getInFlight(): { count: number; lastTier: ModelTier | null } {
+  return { count: inFlightCount, lastTier };
+}
+
 export type UsageCallback = (
   model: string,
   usage: { input_tokens: number; output_tokens: number },
@@ -38,21 +47,27 @@ export class AnthropicAdapter implements LLMAdapter {
       input_schema: spec.tool.input_schema as Anthropic.Tool['input_schema'],
     };
 
-    const firstCall = await this.callOnce(spec, tool);
-    const firstParsed = schema.safeParse(firstCall);
-    if (firstParsed.success) return firstParsed.data;
+    inFlightCount += 1;
+    lastTier = spec.model;
+    try {
+      const firstCall = await this.callOnce(spec, tool);
+      const firstParsed = schema.safeParse(firstCall);
+      if (firstParsed.success) return firstParsed.data;
 
-    // Retry once with an explicit "your last response was invalid" follow-up.
-    const retryUser = spec.user
-      + '\n\n[your previous response failed JSON-schema validation. respond ONLY with the tool call, exactly matching the schema.]';
-    const retryCall = await this.callOnce({ ...spec, user: retryUser }, tool);
-    const retryParsed = schema.safeParse(retryCall);
-    if (retryParsed.success) return retryParsed.data;
+      // Retry once with an explicit "your last response was invalid" follow-up.
+      const retryUser = spec.user
+        + '\n\n[your previous response failed JSON-schema validation. respond ONLY with the tool call, exactly matching the schema.]';
+      const retryCall = await this.callOnce({ ...spec, user: retryUser }, tool);
+      const retryParsed = schema.safeParse(retryCall);
+      if (retryParsed.success) return retryParsed.data;
 
-    throw new Error(
-      `adapter: tool '${spec.tool.name}' returned malformed JSON twice. issues: `
-      + JSON.stringify(retryParsed.error.issues),
-    );
+      throw new Error(
+        `adapter: tool '${spec.tool.name}' returned malformed JSON twice. issues: `
+        + JSON.stringify(retryParsed.error.issues),
+      );
+    } finally {
+      inFlightCount = Math.max(0, inFlightCount - 1);
+    }
   }
 
   private async callOnce(spec: InvocationSpec, tool: Anthropic.Tool): Promise<unknown> {
