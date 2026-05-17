@@ -121,9 +121,19 @@ export type SurveyProfile = {
   // Populated by the Observer
   sections: ProfileSections;
   cast: CastMember[];
+};
+
+/** The "Clue tools" — everything the Detective is actively reasoning
+ *  about. Lives separately from Profile (facts about the user) because
+ *  this is INFERENCE, not record. The Interrogator reads from here to
+ *  pick its next move. */
+export type Investigation = {
+  hypotheses: Hypothesis[];
+  choice_draft: Choice | null;
   contradictions: Contradiction[];
   hooks: Hook[];
-  recommended_posture: string | null;
+  active_threads: ActiveThread[];
+  posture: 'warm' | 'careful' | 'direct' | null;
 };
 
 // ─── Events ─────────────────────────────────────────────
@@ -131,8 +141,10 @@ export type SurveyProfile = {
 export type PickEvent = {
   node_id: string;
   question_text: string;       // post-substitution
-  answer: string | string[];   // string for choice/binary/matrix/text/date; array for multi
+  options_shown: string[];     // full set shown to user (includes interrogator overrides)
+  answer: string | string[];   // string for choice/binary/matrix/text/date
   answered_at: number;
+  latency_ms: number;
   prompted_by: string | null;  // thread_id or parent node_id if injected
 };
 
@@ -176,17 +188,14 @@ export type EngineState = {
   tree_version: string;
 
   profile: SurveyProfile;
+  investigation: Investigation;     // NEW — the Clue tools live here
   is_returning_user: boolean;
   prior_session_summary?: string;
-
-  choice_draft: Choice | null;
-  hypotheses: Hypothesis[];
 
   queue: QueueItem[];
   picks_log: PickEvent[];
   timing_log: TimingEvent[];
   asked_node_ids: string[];
-  active_threads: ActiveThread[];
 
   heat: number;                  // unused — kept for telemetry/future use
   heat_history: number[];        // unused
@@ -208,56 +217,86 @@ export type BehavioralSignals = {
   revisions: number;
 };
 
-// ─── Agent I/O ──────────────────────────────────────────
+// ─── Pipeline I/O ───────────────────────────────────────
+//
+// The three agents (Observer → Detective → Interrogator) all share the
+// same input shape: a PipelineContext. The engine mutates it as each
+// agent runs, so each subsequent agent sees the latest profile +
+// investigation.
 
-export type ObserverInput = {
-  state: EngineState;
-  latest_pick: PickEvent;
-  relevant_interp: Record<string, string>;
-};
-
-export type ObserverOutput = {
-  notes_to_append: Omit<Note, 'created_at'>[];
-  cast_updates: CastMember[];
-  contradictions_found: Contradiction[];
-  hooks_found: Hook[];
-
-  choice_update: Choice | null;
-  hypotheses_updates: Hypothesis[];
-
-  engagement_signal: 'high' | 'normal' | 'low';
-  phase_advance_signal: boolean;
-
-  thread_status_updates: Array<{ thread_id: string; status: ActiveThread['status'] }>;
-
-  ready_to_close: boolean;
-  recommended_posture_update?: string;
-};
-
-export type InvestigatorAvailableNode = {
+/** What the Interrogator picks from. */
+export type BasketItem = {
   id: string;
   text: string;
   format: AnswerFormat;
   topic: string;
-  interp_hint?: string;
+  default_options: string[];      // empty for text/date/matrix
 };
 
-export type InvestigatorInput = {
-  state: EngineState;
-  available_nodes: InvestigatorAvailableNode[];
+export type PipelineContext = {
+  /** 1-based turn number — counts post-opener picks only. */
+  index: number;
+  /** Text of the just-answered question (post-substitution). */
+  question: string;
+  /** Options actually shown to the user (post-interrogator override). */
+  options_shown: string[];
+  /** The user's pick. */
+  answer: string | string[];
+  /** Profile so far — mutated in-place by Observer before passing on. */
+  profile: SurveyProfile;
+  /** Investigation so far — mutated by Detective before passing to Interrogator. */
+  investigation: Investigation;
+  /** Full Q&A history, including this turn. Each entry has options_shown + answer. */
+  history: PickEvent[];
+  /** Questions currently queued AFTER this one (head=next to ask). */
+  queue: QueueItem[];
+  /** The basket of available unasked questions — what the Interrogator picks from. */
+  basket: BasketItem[];
 };
 
-export type InvestigatorOutput = {
+/** Observer outputs profile updates. Kept open-ended on purpose: the
+ *  Observer chooses what's worth filing, not the schema. */
+export type ObserverOutput = {
+  notes_to_append: Array<{
+    text: string;
+    section: keyof ProfileSections;
+    category: Note['category'];
+    confidence: 'low' | 'medium' | 'high';
+    source_picks: string[];        // node_ids
+  }>;
+  cast_updates: CastMember[];
+  /** Private to engine logs — 1-2 sentences on what was filed. */
+  reasoning: string;
+};
+
+/** Detective updates the Clue tools. Each field is OPTIONAL — only
+ *  emit changes. Lists are merged by id where applicable. */
+export type DetectiveOutput = {
+  hypothesis_updates: Hypothesis[];       // adds or replaces by id
+  hypothesis_refutes: string[];           // ids to mark refuted
+  choice_update: Choice | null;           // null = no change
+  contradictions_found: Contradiction[];
+  hooks_found: Hook[];
+  thread_updates: Array<{ thread_id: string; status: ActiveThread['status'] }>;
+  /** null = no change. otherwise overwrites investigation.posture. */
+  posture: 'warm' | 'careful' | 'direct' | null;
+  /** Private to engine logs — 2-3 sentences on what's now believed. */
+  reasoning: string;
+};
+
+/** Interrogator's only job: pick the next question + optional flavor. */
+export type InterrogatorOutput = {
   next_question: {
-    /** must be an id from `available_nodes`. (GENERATED nodes deferred.) */
+    /** MUST be an id from basket[]. */
     node_id: string;
-    prompted_by: string | null;
-    /** When the basket node's format is `choice`, the investigator may
-     *  override or extend its options list. Ignored for binary / matrix
-     *  / text / date. */
-    options?: string[];
+    /** Optional Clat-voice prefix (rendered above the question text).
+     *  Does NOT modify the question text itself. Empty = no preamble. */
+    preamble?: string;
+    /** Choice-format only. Replaces the default options (can shrink,
+     *  reorder, ADD, or substitute). Ignored for binary/matrix/text/date. */
+    options_override?: string[];
   };
-  preamble: string;               // may be empty
+  /** Private to engine logs — 1-2 sentences on why this pick. */
   reasoning: string;
 };
 

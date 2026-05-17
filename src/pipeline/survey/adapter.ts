@@ -6,10 +6,10 @@ import type { ZodType } from 'zod';
 import type {
   CompilerInput,
   CompilerOutput,
-  InvestigatorInput,
-  InvestigatorOutput,
-  ObserverInput,
+  DetectiveOutput,
+  InterrogatorOutput,
   ObserverOutput,
+  PipelineContext,
 } from './types';
 
 /** Abstract model tier — concrete adapters map to specific model IDs. */
@@ -46,7 +46,8 @@ export interface LLMAdapter {
  * agents/*.ts which builds an InvocationSpec and routes through invoke().
  */
 export type AgentRunners = {
-  runObserver(input: ObserverInput): Promise<ObserverOutput>;
-  runInvestigator(input: InvestigatorInput): Promise<InvestigatorOutput>;
+  runObserver(ctx: PipelineContext): Promise<ObserverOutput>;
+  runDetective(ctx: PipelineContext): Promise<DetectiveOutput>;
+  runInterrogator(ctx: PipelineContext): Promise<InterrogatorOutput>;
   runCompiler(input: CompilerInput): Promise<CompilerOutput>;
 };

@@ -2,39 +2,46 @@
 // EngineState; everything else (UI, tests, scripts) reads state and submits
 // answers. Agents fire through an LLMAdapter handed in at construction.
 //
-// Concurrency model: every non-opener pick fires Observer + Investigator in
-// parallel. submitAnswer awaits the Investigator (we need the next question
-// rendered) but Observer's promise resolves in the background and updates
-// state when it does. State updates are immutable; subscribers re-read on
-// each change via the subscribe() callback.
+// Concurrency model: every non-opener pick spawns a 3-agent SERIAL pipeline
+// in the background: Observer → Detective → Interrogator. Each agent gets
+// the latest mutated PipelineContext from the previous one. The pipeline
+// never blocks the user's main path — the queue is pre-seeded with 6
+// random starters so the user never waits for the next question unless
+// they sprint past the pipeline's wall-time (~3.5s).
+//
+// See docs/SURVEY_PIPELINE.md for design rationale.
 
 import type { LLMAdapter } from './adapter';
 import { runObserver } from './agents/observer';
-import { runInvestigator } from './agents/investigator';
+import { runDetective } from './agents/detective';
+import { runInterrogator } from './agents/interrogator';
 import { runCompiler } from './agents/compiler';
 import { computeAstroProfile, parseBirthDate } from '../astrology';
 import { findReturningUser, seedFromReturning } from './returning';
 import { publishDebug } from '../../debug/debugBus';
 import {
-  commentForAnswer,
   getNode,
   getOpeners,
   getPoolNodeIds,
-  relevantInterp,
   renderQuestion,
   TREE,
 } from './tree';
 import { derivePhase } from './phase';
 import type {
+  BasketItem,
   CastMember,
   CloseReason,
   CompilerOutput,
   EngineListener,
   EngineState,
   Hypothesis,
-  InvestigatorAvailableNode,
+  Investigation,
   Note,
+  ObserverOutput,
+  DetectiveOutput,
+  InterrogatorOutput,
   PickEvent,
+  PipelineContext,
   QueueItem,
   RenderedQuestion,
   SurveyProfile,
@@ -64,11 +71,12 @@ export class SurveyEngine {
   private currentRenderedAt = 0;
   private compilerOutput: CompilerOutput | null = null;
   private compilerPromise: Promise<CompilerOutput> | null = null;
-  private pendingObserverPromise: Promise<void> | null = null;
-  /** Count of investigator runs currently in flight. UI uses this with
-   *  the queue length to decide between "show next question" and
-   *  "wait for an investigator". */
-  private investigatorInFlight = 0;
+  /** Each pipeline run is a single Promise<void> covering Observer →
+   *  Detective → Interrogator, all serial. The UI watches the count to
+   *  show the spinner when queue is empty + a pipeline is running. */
+  private pipelinesInFlight = 0;
+  /** Per-agent in-flight counts. Published to debug bus per change. */
+  private agentInFlight = { observer: 0, detective: 0, interrogator: 0 };
   private starterSeedFired = false;
 
   constructor(opts: EngineOpts) {
@@ -95,11 +103,11 @@ export class SurveyEngine {
     );
   }
 
-  /** True when the user has out-paced the investigator: queue empty but
-   *  an investigator run is in flight. UI uses this to show a spinner
-   *  rather than treating the survey as exhausted. */
-  isWaitingForInvestigator(): boolean {
-    return !this.state.closed && this.state.queue.length === 0 && this.investigatorInFlight > 0;
+  /** True when the user has out-paced the pipeline: queue empty but a
+   *  pipeline run is in flight. UI uses this to show a spinner rather
+   *  than treating the survey as exhausted. */
+  isWaitingForPipeline(): boolean {
+    return !this.state.closed && this.state.queue.length === 0 && this.pipelinesInFlight > 0;
   }
 
   async submitAnswer(answer: string | string[]): Promise<void> {
@@ -113,13 +121,22 @@ export class SurveyEngine {
     const answeredAt = Date.now();
     const latencyMs = answeredAt - renderedAt;
 
-    // 1. Record pick
-    const renderedNow = renderQuestion(head.node_id, this.state.profile);
+    // Capture the question + options EXACTLY as the user saw them — so
+    // history reflects what was on screen, not what the basket says now.
+    const renderedNow = renderQuestion(
+      head.node_id,
+      this.state.profile,
+      head.preamble,
+      head.options_override,
+    );
+
     const pick: PickEvent = {
       node_id: head.node_id,
       question_text: renderedNow.text,
+      options_shown: renderedNow.options,
       answer,
       answered_at: answeredAt,
+      latency_ms: latencyMs,
       prompted_by: head.prompted_by,
     };
     const timing: TimingEvent = {
@@ -149,49 +166,34 @@ export class SurveyEngine {
       queue: this.state.queue.slice(1),
     });
 
-    // 2. Populate profile if this was an opener. May trigger returning-
-    //    user shortcut: name match → load seed + jump straight to
-    //    starter pool.
+    // Populate profile if this was an opener. May trigger returning-
+    // user shortcut: name match → load seed + jump straight to
+    // starter pool.
     const returningHit = this.applyOpenerDataIfRelevant(head.node_id, answer);
 
-    // 3. Advance phase from turn count (kept for legacy debug/telemetry).
     this.setState({
       phase: derivePhase(this.state.phase, this.state.picks_log.length, false),
     });
 
-    const inlineComment = typeof answer === 'string'
-      ? commentForAnswer(node, answer)
-      : null;
-
-    // 4. Routing rule:
-    //    - If we matched a returning user, jump straight to the
-    //      starter-seed pool (skip remaining openers).
-    //    - Else if we're still walking openers, enqueue the next opener.
-    //    - Else (post-openers): seed the starter pool once, then on every
-    //      pick fire a background investigator to top up the queue.
+    // Routing rule:
+    //   - returning-user match → skip openers, seed starter pool.
+    //   - mid-opener-chain → walk to next opener; NO pipeline (openers
+    //     don't trigger AI work — they're just data intake).
+    //   - end of openers → seed the starter pool. NO pipeline yet.
+    //   - post-opener answer → spawn the 3-agent pipeline.
     if (returningHit) {
       this.clearOpenersFromQueue();
       this.seedStarterPool();
     } else if (OPENER_NODE_IDS.has(head.node_id)) {
-      const enqueued = this.enqueueNextOpener(head.node_id, inlineComment);
+      const enqueued = this.enqueueNextOpener(head.node_id);
       if (!enqueued) {
-        // End of opener chain — seed the starter pool.
         this.seedStarterPool();
       }
     } else {
-      // Post-openers: spawn an investigator in the BACKGROUND. It picks
-      // a node + maybe overrides options, appends one question to the
-      // queue, then resolves. Never blocks the user's next render.
-      this.spawnInvestigator(inlineComment);
+      // Post-opener answer: spawn the serial pipeline.
+      this.spawnPipeline(pick);
     }
 
-    // 5. Fire Observer async — updates state when it resolves; doesn't block.
-    this.pendingObserverPromise = this.fireObserver(pick).then(() => {
-      this.pendingObserverPromise = null;
-    });
-
-    // 6. Maintain `thinking` flag: true when the user has no question
-    //    rendered AND an agent run is in flight.
     this.refreshThinking();
     this.emit();
   }
@@ -217,9 +219,14 @@ export class SurveyEngine {
     return this.compilerPromise;
   }
 
-  /** Await any in-flight Observer call. Useful for tests that need a quiet state. */
-  async waitForObserver(): Promise<void> {
-    if (this.pendingObserverPromise) await this.pendingObserverPromise;
+  /** Await all in-flight pipelines. Useful for tests that need a
+   *  quiet state. Returns when no observer/detective/interrogator is
+   *  running and no new run is queued. */
+  async waitForQuiescence(maxWaitMs = 30000): Promise<void> {
+    const start = Date.now();
+    while (this.pipelinesInFlight > 0 && Date.now() - start < maxWaitMs) {
+      await new Promise((r) => setTimeout(r, 25));
+    }
   }
 
   // ─── state mutation ──────────────────────────────────
@@ -255,17 +262,18 @@ export class SurveyEngine {
         self_model: [], decision_context: [], patterns: [],
       },
       cast: [],
+      ...(opts.returning?.profile_seed ?? {}),
+    };
+    const startInvestigation: Investigation = {
+      hypotheses: [],
+      choice_draft: null,
       contradictions: [],
       hooks: [],
-      recommended_posture: null,
-      ...(opts.returning?.profile_seed ?? {}),
+      active_threads: [],
+      posture: null,
     };
     const isReturning = !!opts.returning;
 
-    // Initial queue: ONLY the first unsatisfied opener. Each opener's `next`
-    // field enqueues the following one, so listing them all up front would
-    // duplicate (every opener would be queued twice — once at init, once
-    // by the previous opener's tree-next).
     const firstUnsatisfied = getOpeners().find(
       (id) => !this.isOpenerSatisfiedFor(id, startProfile),
     );
@@ -278,17 +286,15 @@ export class SurveyEngine {
       started_at: Date.now(),
       tree_version: TREE.v,
       profile: startProfile,
+      investigation: startInvestigation,
       is_returning_user: isReturning,
       prior_session_summary: opts.returning?.prior_session_summary,
-      choice_draft: null,
-      hypotheses: [],
       queue: openerQueue,
       picks_log: [],
       timing_log: [],
       asked_node_ids: [],
-      active_threads: [],
-      heat: 0,             // unused now — kept for telemetry only
-      heat_history: [],    // unused
+      heat: 0,
+      heat_history: [],
       phase: 'A',
       closed: false,
       thinking: false,
@@ -387,35 +393,19 @@ export class SurveyEngine {
     }
   }
 
-  /** Investigator runs in the background. Result enqueues 1 question.
-   *  Multiple may be in flight simultaneously if the user runs faster
-   *  than the model — that's by design, queue stays ahead. */
-  private spawnInvestigator(inlineComment: string | null): void {
-    this.investigatorInFlight += 1;
-    this.publishInflight();
-    this.refreshThinking();
-    void this.fireInvestigator(inlineComment).finally(() => {
-      this.investigatorInFlight -= 1;
-      this.publishInflight();
-      this.refreshThinking();
-      this.emit();
-    });
-  }
-
-  /** Push the in-flight investigator count to the debug bus. Lives on
-   *  the engine because the count isn't part of EngineState (it'd
-   *  cause noisy listener fires for an internal metric). The bus is
-   *  pure JS / no DOM, safe in Node too — debug consumers (Debug.tsx,
-   *  DebugQueue.tsx) only mount in the browser. */
+  /** Push per-agent + total pipeline counts to the debug bus. */
   private publishInflight(): void {
-    publishDebug('survey.inflight', this.investigatorInFlight);
+    publishDebug('survey.inflight', this.pipelinesInFlight);
+    publishDebug('survey.agent.observer', this.agentInFlight.observer);
+    publishDebug('survey.agent.detective', this.agentInFlight.detective);
+    publishDebug('survey.agent.interrogator', this.agentInFlight.interrogator);
   }
 
   /** `thinking` is the UI's "we have nothing to show, wait" hint. True
    *  when an agent is in flight AND no question is currently rendered. */
   private refreshThinking(): void {
     const queueEmpty = this.state.queue.length === 0;
-    const anyInFlight = this.investigatorInFlight > 0 || this.pendingObserverPromise !== null;
+    const anyInFlight = this.pipelinesInFlight > 0;
     const thinking = queueEmpty && anyInFlight;
     if (thinking !== this.state.thinking) this.setState({ thinking });
   }
@@ -444,26 +434,33 @@ export class SurveyEngine {
     });
   }
 
-  /**
-   * Walk the opener chain: given the just-answered opener, enqueue the
-   * next one in the openers[] order. Returns true if an opener was
-   * enqueued, false if the chain is done.
-   */
-  private enqueueNextOpener(prevOpenerId: string, preamble: string | null): boolean {
+  /** Walk the opener chain: given the just-answered opener, enqueue the
+   *  next one in the openers[] order. Returns true if an opener was
+   *  enqueued, false if the chain is done. No preamble — openers are
+   *  data intake, not AI-narrated. */
+  private enqueueNextOpener(prevOpenerId: string): boolean {
     const openers = getOpeners();
     const idx = openers.indexOf(prevOpenerId);
     if (idx < 0 || idx >= openers.length - 1) return false;
     const next = openers[idx + 1];
     if (!next || this.state.asked_node_ids.includes(next)) return false;
-    this.enqueueDirect(next, null, preamble);
+    this.enqueueDirect(next, null, null);
     return true;
   }
 
-  // ─── agent firing ────────────────────────────────────
+  // ─── pipeline ────────────────────────────────────────
+  //
+  // Per non-opener answer: spawn one background pipeline that runs
+  // Observer → Detective → Interrogator serially. Each agent gets a
+  // PipelineContext mutated in-place by the previous one. Every stage
+  // updates engine state the moment it finishes — the UI sees profile
+  // updates after observer, investigation updates after detective,
+  // queue grows after interrogator.
 
-  private buildAvailableNodes(): InvestigatorAvailableNode[] {
+  private buildBasket(): BasketItem[] {
     return getPoolNodeIds()
       .filter((id) => !this.state.asked_node_ids.includes(id))
+      .filter((id) => !this.state.queue.some((q) => q.node_id === id))
       .map((id) => {
         const n = getNode(id)!;
         return {
@@ -471,95 +468,105 @@ export class SurveyEngine {
           text: n.q,
           format: n.f,
           topic: n.topic,
+          default_options: n.a ? n.a.map((t) => t[0]) : [],
         };
       });
   }
 
-  private async fireInvestigator(inlineComment: string | null): Promise<void> {
-    const available = this.buildAvailableNodes();
-    if (available.length === 0) return;   // pool exhausted; user can still wrap up
-
-    let chosenId: string | null = null;
-    let preamble = '';
-    let optionsOverride: string[] | undefined;
-
-    try {
-      const out = await runInvestigator(this.opts.adapter, {
-        state: this.state,
-        available_nodes: available,
-      });
-      const candidate = out.next_question.node_id;
-      const node = available.find((n) => n.id === candidate);
-      if (node && !this.state.asked_node_ids.includes(candidate)) {
-        chosenId = candidate;
-        preamble = out.preamble;
-        // Options override only applies to choice questions; ignored
-        // for binary/matrix/text/date by renderQuestion.
-        if (out.next_question.options && out.next_question.options.length > 0 && node.format === 'choice') {
-          optionsOverride = out.next_question.options;
-        }
-      }
-    } catch {
-      // fall through to deterministic fallback
-    }
-
-    if (!chosenId) {
-      chosenId = available[Math.floor(Math.random() * available.length)]!.id;
-      preamble = '';
-    }
-
-    const combined = [inlineComment, preamble].filter((s): s is string => Boolean(s && s.trim())).join(' ');
-    this.enqueueDirect(chosenId, null, combined.length > 0 ? combined : null, optionsOverride);
+  private spawnPipeline(pick: PickEvent): void {
+    this.pipelinesInFlight += 1;
+    this.publishInflight();
+    this.refreshThinking();
+    void this.runPipeline(pick).finally(() => {
+      this.pipelinesInFlight -= 1;
+      this.publishInflight();
+      this.refreshThinking();
+      this.emit();
+    });
   }
 
-  private async fireObserver(pick: PickEvent): Promise<void> {
+  private async runPipeline(pick: PickEvent): Promise<void> {
+    // Snapshot context at fire-time. Each stage mutates a local copy.
+    let ctx: PipelineContext = {
+      index: this.state.picks_log.length,
+      question: pick.question_text,
+      options_shown: pick.options_shown,
+      answer: pick.answer,
+      profile: this.state.profile,
+      investigation: this.state.investigation,
+      history: this.state.picks_log,
+      queue: this.state.queue,
+      basket: this.buildBasket(),
+    };
+
+    // ── STAGE 1: Observer ────────────────────────────
+    this.agentInFlight.observer += 1; this.publishInflight();
     try {
-      const interp = relevantInterp(pick.node_id, pick.answer);
-      const out = await runObserver(this.opts.adapter, {
-        state: this.state,
-        latest_pick: pick,
-        relevant_interp: interp,
-      });
-
-      const now = Date.now();
-      const newNotes: Note[] = out.notes_to_append.map((n) => ({
-        ...n,
-        created_at: now,
-      }));
-
-      const sections = { ...this.state.profile.sections };
-      for (const note of newNotes) {
-        const section = routeNoteToSection(note);
-        sections[section] = [...sections[section], note];
-      }
-
-      // Thread updates
-      const threadMap = new Map(this.state.active_threads.map((t) => [t.thread_id, t]));
-      for (const upd of out.thread_status_updates) {
-        const t = threadMap.get(upd.thread_id);
-        if (t) threadMap.set(upd.thread_id, { ...t, status: upd.status });
-      }
-
-      this.setState({
-        profile: {
-          ...this.state.profile,
-          sections,
-          cast: mergeCast(this.state.profile.cast, out.cast_updates),
-          contradictions: [...this.state.profile.contradictions, ...out.contradictions_found],
-          hooks: [...this.state.profile.hooks, ...out.hooks_found],
-          recommended_posture:
-            out.recommended_posture_update ?? this.state.profile.recommended_posture,
-        },
-        choice_draft: out.choice_update ?? this.state.choice_draft,
-        hypotheses: mergeHypotheses(this.state.hypotheses, out.hypotheses_updates),
-        active_threads: Array.from(threadMap.values()),
-      });
-
+      const out: ObserverOutput = await runObserver(this.opts.adapter, ctx);
+      const nextProfile = applyObserverOutput(this.state.profile, out);
+      this.setState({ profile: nextProfile });
+      ctx = { ...ctx, profile: nextProfile };
       this.emit();
-      // No auto-close check — survey runs until user_exit or queue_exhausted.
-    } catch {
-      // Observer failure is non-fatal; engine continues with its current state.
+    } catch (e) {
+      console.warn('[survey] observer failed', e);
+    } finally {
+      this.agentInFlight.observer -= 1; this.publishInflight();
     }
+
+    // ── STAGE 2: Detective ───────────────────────────
+    this.agentInFlight.detective += 1; this.publishInflight();
+    try {
+      const out: DetectiveOutput = await runDetective(this.opts.adapter, ctx);
+      const nextInvestigation = applyDetectiveOutput(this.state.investigation, out);
+      this.setState({ investigation: nextInvestigation });
+      ctx = { ...ctx, investigation: nextInvestigation };
+      this.emit();
+    } catch (e) {
+      console.warn('[survey] detective failed', e);
+    } finally {
+      this.agentInFlight.detective -= 1; this.publishInflight();
+    }
+
+    // ── STAGE 3: Interrogator ────────────────────────
+    this.agentInFlight.interrogator += 1; this.publishInflight();
+    try {
+      const out: InterrogatorOutput = await runInterrogator(this.opts.adapter, ctx);
+      this.applyInterrogatorOutput(out);
+    } catch (e) {
+      console.warn('[survey] interrogator failed, falling back to random pool pick', e);
+      this.fallbackRandomPick();
+    } finally {
+      this.agentInFlight.interrogator -= 1; this.publishInflight();
+    }
+  }
+
+  private applyInterrogatorOutput(out: InterrogatorOutput): void {
+    const chosenId = out.next_question.node_id;
+    const node = getNode(chosenId);
+    const inBasket = node && !this.state.asked_node_ids.includes(chosenId)
+      && !this.state.queue.some((q) => q.node_id === chosenId);
+    if (!inBasket) {
+      this.fallbackRandomPick();
+      return;
+    }
+    const preamble = (out.next_question.preamble ?? '').trim();
+    const optionsOverride =
+      node.f === 'choice' && out.next_question.options_override && out.next_question.options_override.length > 0
+        ? out.next_question.options_override
+        : undefined;
+    this.enqueueDirect(
+      chosenId,
+      null,
+      preamble.length > 0 ? preamble : null,
+      optionsOverride,
+    );
+  }
+
+  private fallbackRandomPick(): void {
+    const basket = this.buildBasket();
+    if (basket.length === 0) return;
+    const pick = basket[Math.floor(Math.random() * basket.length)]!;
+    this.enqueueDirect(pick.id, null, null);
   }
 
   // ─── close ────────────────────────────────────────────
@@ -625,17 +632,53 @@ function mapHasQuestion(ans: string): 'specific' | 'general' | 'not_really' | 'n
   return 'not_sure';
 }
 
-function routeNoteToSection(note: Note): keyof SurveyProfile['sections'] {
-  // Keyword heuristic. Iterate via bot harness once we have real Observer output.
-  const t = note.text.toLowerCase();
-  if (note.category === 'gossip_flag') return 'relational';
-  if (note.category === 'confirmed_thread') return 'patterns';
-  if (/\b(work|career|job|occupation)\b/.test(t)) return 'state';
-  if (/\b(partner|friend|family|mom|dad|relationship)\b/.test(t)) return 'relational';
-  if (/\b(self|identity|version|who am)\b/.test(t)) return 'self_model';
-  if (/\b(choice|decision|fork|avoid|stuck)\b/.test(t)) return 'decision_context';
-  if (/\b(pattern|always|never|tend|habit)\b/.test(t)) return 'patterns';
-  return 'state';
+/** Merge observer output into profile — append notes by section,
+ *  upsert cast by label. */
+function applyObserverOutput(profile: SurveyProfile, out: ObserverOutput): SurveyProfile {
+  const now = Date.now();
+  const sections = { ...profile.sections };
+  for (const n of out.notes_to_append) {
+    const note: Note = {
+      text: n.text,
+      category: n.category,
+      source_picks: n.source_picks,
+      confidence: n.confidence,
+      created_at: now,
+    };
+    sections[n.section] = [...sections[n.section], note];
+  }
+  return {
+    ...profile,
+    sections,
+    cast: mergeCast(profile.cast, out.cast_updates),
+  };
+}
+
+/** Apply detective output to investigation — upsert hypotheses, mark
+ *  refuted by id, append contradictions/hooks, replace choice draft
+ *  when emitted, update thread statuses + posture. */
+function applyDetectiveOutput(inv: Investigation, out: DetectiveOutput): Investigation {
+  let hypotheses = mergeHypotheses(inv.hypotheses, out.hypothesis_updates);
+  if (out.hypothesis_refutes.length > 0) {
+    const refuted = new Set(out.hypothesis_refutes);
+    hypotheses = hypotheses.map((h) =>
+      refuted.has(h.id) ? { ...h, status: 'refuted' as const } : h,
+    );
+  }
+  const threadMap = new Map(inv.active_threads.map((t) => [t.thread_id, t]));
+  for (const u of out.thread_updates) {
+    const existing = threadMap.get(u.thread_id);
+    if (existing) threadMap.set(u.thread_id, { ...existing, status: u.status });
+  }
+  return {
+    ...inv,
+    hypotheses,
+    choice_draft: out.choice_update ?? inv.choice_draft,
+    contradictions: [...inv.contradictions, ...out.contradictions_found],
+    hooks: [...inv.hooks, ...out.hooks_found],
+    active_threads: Array.from(threadMap.values()),
+    posture: out.posture ?? inv.posture,
+  };
 }
 
 function mergeCast(existing: CastMember[], updates: CastMember[]): CastMember[] {

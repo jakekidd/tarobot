@@ -27,15 +27,15 @@ export function assembleProfile(state: EngineState, briefSummary: string): Profi
       came_with: undefined,        // not asked in v0.4.0 openers
       notes: collectIdentityNotes(state),
     },
-    candidates: mapCandidates(state.choice_draft),
+    candidates: mapCandidates(state.investigation.choice_draft),
     cast: state.profile.cast.map(mapCast),
-    threads: state.active_threads.map(mapThread),
-    hunches: state.hypotheses.map(mapHunch),
+    threads: state.investigation.active_threads.map(mapThread),
+    hunches: state.investigation.hypotheses.map(mapHunch),
     margin: buildMargin(state),
     cognition_log: buildCognitionLog(state),
-    highlights: state.profile.hooks.map((h, idx) => mapHighlight(h, idx)),
+    highlights: state.investigation.hooks.map((h, idx) => mapHighlight(h, idx)),
     brief: briefSummary,
-    ready_to_close: (state.choice_draft?.confidence ?? 'low') !== 'low',
+    ready_to_close: (state.investigation.choice_draft?.confidence ?? 'low') !== 'low',
     version: 1,
   };
 }
@@ -148,23 +148,21 @@ function buildMargin(state: EngineState): string {
 }
 
 function buildCognitionLog(state: EngineState): string {
-  // Analyst's private journal. Heavier than `margin` — include the choice
-  // reasoning, contradictions, recommended posture, close reason.
   const parts: string[] = [];
-  if (state.choice_draft) {
-    parts.push(`Choice (${state.choice_draft.confidence}, ${state.choice_draft.is_stated ? 'stated' : 'constructed'}): ${state.choice_draft.fork}`);
+  const inv = state.investigation;
+  if (inv.choice_draft) {
+    parts.push(`Choice (${inv.choice_draft.confidence}, ${inv.choice_draft.is_stated ? 'stated' : 'constructed'}): ${inv.choice_draft.fork}`);
   }
-  if (state.profile.contradictions.length > 0) {
+  if (inv.contradictions.length > 0) {
     parts.push('Contradictions:');
-    for (const c of state.profile.contradictions) {
+    for (const c of inv.contradictions) {
       parts.push(`  - [${c.severity}] ${c.description}`);
     }
   }
-  if (state.profile.recommended_posture) {
-    parts.push(`Posture: ${state.profile.recommended_posture}`);
+  if (inv.posture) {
+    parts.push(`Posture: ${inv.posture}`);
   }
   parts.push(`Closed on ${state.close_reason} at Q${state.picks_log.length}.`);
-  parts.push(`Final heat: ${state.heat.toFixed(2)}.`);
   return truncate(parts.join('\n'), 1900);
 }
 

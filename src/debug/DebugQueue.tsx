@@ -25,7 +25,10 @@ export function DebugQueue({ visible }: Props) {
   // node-id lists; the engine publishes them on each state change.
   const queue = parseList(snapshot.get('survey.queue'));
   const asked = parseList(snapshot.get('survey.asked'));
-  const inflightInvestigator = Number(snapshot.get('survey.inflight') ?? 0);
+  const inflightPipelines = Number(snapshot.get('survey.inflight') ?? 0);
+  const obs = Number(snapshot.get('survey.agent.observer') ?? 0);
+  const det = Number(snapshot.get('survey.agent.detective') ?? 0);
+  const intr = Number(snapshot.get('survey.agent.interrogator') ?? 0);
   const thinking = snapshot.get('survey.thinking') === true || snapshot.get('survey.thinking') === 'true';
   const total = Number(snapshot.get('survey.picks') ?? 0);
   const queueDepth = queue.length;
@@ -37,7 +40,10 @@ export function DebugQueue({ visible }: Props) {
         <tbody>
           <tr><td>asked</td><td>{total}</td></tr>
           <tr><td>queued</td><td>{queueDepth}</td></tr>
-          <tr><td>inflight inv</td><td className={inflightInvestigator > 0 ? 'on' : ''}>{inflightInvestigator}</td></tr>
+          <tr><td>pipelines</td><td className={inflightPipelines > 0 ? 'on' : ''}>{inflightPipelines}</td></tr>
+          <tr><td>observer</td><td className={obs > 0 ? 'on' : ''}>{obs}</td></tr>
+          <tr><td>detective</td><td className={det > 0 ? 'on' : ''}>{det}</td></tr>
+          <tr><td>interrogator</td><td className={intr > 0 ? 'on' : ''}>{intr}</td></tr>
           <tr><td>thinking</td><td className={thinking ? 'on' : ''}>{thinking ? 'yes' : 'no'}</td></tr>
         </tbody>
       </table>

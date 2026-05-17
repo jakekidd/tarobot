@@ -1,6 +1,7 @@
-// Runtime schemas for agent I/O. Every Observer / Investigator / Compiler
-// response is validated through these at the adapter boundary. Malformed
-// model output throws a typed error; the engine catches and falls back.
+// Runtime schemas for agent I/O. Every Observer / Detective /
+// Interrogator / Compiler response is validated through these at the
+// adapter boundary. Malformed model output throws a typed error; the
+// engine catches and falls back.
 
 import { z } from 'zod';
 
@@ -15,14 +16,10 @@ const ThreadStatus = z.enum(['open', 'awaiting_confirm', 'confirmed', 'refuted']
 const HypothesisStatus = z.enum(['inferred', 'testing', 'confirmed', 'refuted']);
 const ContradictionSeverity = z.enum(['minor', 'notable', 'load_bearing']);
 const HookSource = z.enum(['pass', 'latency_outlier', 'admission', 'multi_select_pattern', 'inferred']);
-const Engagement = z.enum(['high', 'normal', 'low']);
-
-const NoteToAppend = z.object({
-  text: z.string(),
-  category: NoteCategory,
-  source_picks: z.array(z.string()),
-  confidence: Confidence,
-});
+const Posture = z.enum(['warm', 'careful', 'direct']);
+const ProfileSectionKey = z.enum([
+  'identity', 'state', 'relational', 'self_model', 'decision_context', 'patterns',
+]);
 
 const CastMember = z.object({
   label: z.string(),
@@ -31,7 +28,7 @@ const CastMember = z.object({
   confidence: Confidence,
 });
 
-const Choice = z.object({
+const ChoiceShape = z.object({
   fork: z.string(),
   fork_a: z.object({
     label: z.string(),
@@ -75,31 +72,41 @@ const Hook = z.object({
 // ─── Observer ───────────────────────────────────────────
 
 export const ObserverOutputSchema = z.object({
-  notes_to_append: z.array(NoteToAppend),
+  notes_to_append: z.array(z.object({
+    text: z.string(),
+    section: ProfileSectionKey,
+    category: NoteCategory,
+    confidence: Confidence,
+    source_picks: z.array(z.string()),
+  })),
   cast_updates: z.array(CastMember),
+  reasoning: z.string(),
+});
+
+// ─── Detective ──────────────────────────────────────────
+
+export const DetectiveOutputSchema = z.object({
+  hypothesis_updates: z.array(Hypothesis),
+  hypothesis_refutes: z.array(z.string()),
+  choice_update: ChoiceShape.nullable(),
   contradictions_found: z.array(Contradiction),
   hooks_found: z.array(Hook),
-  choice_update: Choice.nullable(),
-  hypotheses_updates: z.array(Hypothesis),
-  engagement_signal: Engagement,
-  phase_advance_signal: z.boolean(),
-  thread_status_updates: z.array(z.object({
+  thread_updates: z.array(z.object({
     thread_id: z.string(),
     status: ThreadStatus,
   })),
-  ready_to_close: z.boolean(),
-  recommended_posture_update: z.string().optional(),
+  posture: Posture.nullable(),
+  reasoning: z.string(),
 });
 
-// ─── Investigator ───────────────────────────────────────
+// ─── Interrogator ───────────────────────────────────────
 
-export const InvestigatorOutputSchema = z.object({
+export const InterrogatorOutputSchema = z.object({
   next_question: z.object({
     node_id: z.string(),
-    prompted_by: z.string().nullable(),
-    options: z.array(z.string()).optional(),
+    preamble: z.string().optional(),
+    options_override: z.array(z.string()).optional(),
   }),
-  preamble: z.string(),
   reasoning: z.string(),
 });
 

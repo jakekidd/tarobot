@@ -51,7 +51,7 @@ export async function runSurvey(
     if (!question) {
       // No question available — wait briefly for any in-flight Observer to land
       // (rare). If still nothing, break.
-      await engine.waitForObserver();
+      await engine.waitForQuiescence();
       if (!engine.getCurrentQuestion()) break;
       continue;
     }
@@ -86,15 +86,15 @@ export async function runSurvey(
       logger.phaseHeader(lastPhase, engine.getState().heat);
     }
 
-    // Observer status — wait for its async resolution then snapshot
-    await engine.waitForObserver();
+    // Pipeline status — wait for the full Observer→Detective→Interrogator chain.
+    await engine.waitForQuiescence();
     const state = engine.getState();
     const noteCount = countNotes(state);
     if (noteCount !== lastObservedNotesCount) {
       lastObservedNotesCount = noteCount;
       logger.observerUpdate(
         noteCount,
-        state.choice_draft?.confidence ?? null,
+        state.investigation.choice_draft?.confidence ?? null,
         state.heat,
       );
     }

@@ -20,6 +20,7 @@ import {
 } from './cardSceneStore';
 import { registerPicker, unregisterPicker } from './pickService';
 import { cardBackTexture, cardFaceTexture, disposeCardTextures } from '../cards/cardTexture';
+import { createSeerTurtle } from './layers/seerTurtle';
 import { subscribeDebugVisible } from '../../debug/visibilityStorage';
 import { publishDebug, clearDebug } from '../../debug/debugBus';
 import { flip as playFlipSfx } from '../sound/sound';
@@ -397,9 +398,25 @@ export function TarobotScene() {
 
     const particleGroup = new THREE.Group();
 
+    // ── Seer turtle (loggerhead skeleton, violet, slow-floating swim) ──
+    // Replaces the abstract eyes-mode geometry. Lives in the same anchor
+    // rig as Clat; only one is visible at a time based on readerMode.
+    // Async-loaded — group starts invisible until the gltf resolves.
+    const seerTurtle = createSeerTurtle();
+    // Lighting: the existing scene is ortho with no lights, so the turtle's
+    // MeshStandardMaterial would render black. Add a couple of soft lights
+    // local to the position rig so the turtle reads dimensional but doesn't
+    // affect anything else (everything else uses MeshBasicMaterial).
+    const turtleKeyLight = new THREE.DirectionalLight(0xffffff, 1.4);
+    turtleKeyLight.position.set(0.6, 1.2, 1.4);
+    seerTurtle.group.add(turtleKeyLight);
+    const turtleAmbient = new THREE.AmbientLight(0xc8b3ff, 0.55);
+    seerTurtle.group.add(turtleAmbient);
+
     const positionGroup = new THREE.Group();
     positionGroup.add(catGroup);
     positionGroup.add(eyesGroup);
+    positionGroup.add(seerTurtle.group);
     positionGroup.add(particleGroup);
     scene.add(positionGroup);
 
@@ -1034,8 +1051,14 @@ export function TarobotScene() {
       const wantVisible = anchor !== null;
       positionGroup.visible = wantVisible;
       // Reader mode: show one face at the anchor; never both.
-      catGroup.visible = readerMode === 'cat';
+      // CAT is currently commented out — turtle takes the cat-mode slot.
+      // catGroup.visible = readerMode === 'cat';
+      catGroup.visible = false;
+      seerTurtle.group.visible = readerMode === 'cat';
       eyesGroup.visible = readerMode === 'eyes';
+
+      // Advance the turtle's animation mixer (Swim Cycle at 0.01× — floating).
+      seerTurtle.update(dt);
 
       // ── Clat explosion chunks: integrate motion + fade ──
       for (let ci = clatChunks.length - 1; ci >= 0; ci--) {
