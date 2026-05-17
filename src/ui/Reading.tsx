@@ -38,7 +38,9 @@ import {
   readingInputsFromCompiler,
   type Monologue,
   type ReadingState,
-  pickStall,
+  pickFiller,
+  FILLER_MIN_MS,
+  FILLER_MAX_MS,
 } from '../pipeline/reading';
 import { ReaderAnchor } from './scene/ReaderAnchor';
 import { TableAnchor } from './scene/TableAnchor';
@@ -48,7 +50,6 @@ import {
   type SlotName,
 } from './scene/cardSceneStore';
 import { pickAt } from './scene/pickService';
-import { Spinner } from './Spinner';
 import { Transcript, type TranscriptItem } from './Transcript';
 import { useTypewriter } from './dialogue/useTypewriter';
 import { setDizzy } from './scene/dizzyStore';
@@ -307,7 +308,7 @@ type StageProps = { state: ReadingState; engine: ReadingEngine; advanceTick: num
 
 function ReadingStage({ state, engine, advanceTick }: StageProps) {
   if (state.phase === 'idle' || state.phase === 'thinking') {
-    return <StallLine tier="persona" label="opening the reading" />;
+    return <FillerLine tier="persona" />;
   }
   if (state.phase === 'error') {
     return <div className="reading__error">{state.error ?? 'something went wrong.'}</div>;
@@ -331,7 +332,7 @@ function ReadingStage({ state, engine, advanceTick }: StageProps) {
     );
   }
   if (state.phase === 'flipping' || state.phase === 'beat_pending') {
-    return <StallLine tier={state.awaiting_tier ?? 'persona'} label="" />;
+    return <FillerLine tier={state.awaiting_tier ?? 'persona'} />;
   }
   if (state.phase === 'beat') {
     const monologue = engine.getCurrentMonologue();
@@ -347,7 +348,7 @@ function ReadingStage({ state, engine, advanceTick }: StageProps) {
     );
   }
   if (state.phase === 'closing_thinking') {
-    return <StallLine tier={state.awaiting_tier ?? 'cognition'} label="closing" />;
+    return <FillerLine tier={state.awaiting_tier ?? 'cognition'} />;
   }
   if (state.phase === 'outro' && state.outro) {
     return (
@@ -366,13 +367,36 @@ function ReadingStage({ state, engine, advanceTick }: StageProps) {
   return null;
 }
 
-// ─── Stall line ──────────────────────────────────────────
+// ─── Filler line ─────────────────────────────────────────
+// Replaces the old spinner+catchphrase. While we're waiting on a
+// blocking LLM call, the seer chains short filler phrases ("hmm…",
+// "i see…", "patience…") that rotate every ~1.5–3s. Reads as
+// thoughtfulness; disguises the latency.
 
-function StallLine({ tier, label }: { tier: 'cognition' | 'persona'; label: string }) {
-  const phrase = useMemo(() => pickStall(tier), [tier]);
+function FillerLine({ tier }: { tier: 'cognition' | 'persona' }) {
+  const [text, setText] = useState(() => pickFiller());
+
+  useEffect(() => {
+    let cancelled = false;
+    let timer: number | null = null;
+    function schedule() {
+      const delay = FILLER_MIN_MS + Math.random() * (FILLER_MAX_MS - FILLER_MIN_MS);
+      timer = window.setTimeout(() => {
+        if (cancelled) return;
+        setText((prev) => pickFiller(prev));
+        schedule();
+      }, delay);
+    }
+    schedule();
+    return () => {
+      cancelled = true;
+      if (timer !== null) window.clearTimeout(timer);
+    };
+  }, []);
+
   return (
-    <div className={`reading__stall reading__stall--${tier}`}>
-      <Spinner label={label || phrase} />
+    <div className={`reading__filler reading__filler--${tier}`} aria-live="polite">
+      {text}
     </div>
   );
 }

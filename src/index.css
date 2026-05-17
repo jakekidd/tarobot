@@ -1089,19 +1089,26 @@ a:hover { text-decoration: underline; }
   min-height: 1.6rem;
 }
 
-/* ─── Stall (latency catchphrase) ───────────────────── */
-.reading__stall {
+/* ─── Filler (rotating "hmm…" / "i see…" while LLM thinks) ─── */
+.reading__filler {
   text-align: center;
   font-family: var(--font-speech);
   font-style: italic;
-  font-size: 0.95rem;
-  min-height: 2rem;
+  font-size: 1.4rem;
+  letter-spacing: 0.04em;
+  min-height: 6.4rem;
   display: flex;
   justify-content: center;
-  align-items: center;
+  align-items: flex-start;
+  padding-top: 1.5rem;
+  animation: filler-pulse 1.8s ease-in-out infinite;
 }
-.reading__stall--cognition { color: rgba(179, 136, 255, 0.85); }
-.reading__stall--persona   { color: var(--fg-dim); }
+.reading__filler--cognition { color: rgba(179, 136, 255, 0.9); }
+.reading__filler--persona   { color: var(--fg-dim); }
+@keyframes filler-pulse {
+  0%, 100% { opacity: 0.65; }
+  50%      { opacity: 1; }
+}
 
 /* ─── Chat panel ─────────────────────────────────────── */
 .reading__chat {

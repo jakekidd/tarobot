@@ -178,19 +178,122 @@ export function TarobotScene() {
     let lastFrameIdx = -1;
 
     // ─── Eyes (alternative face — the seer) ──────────────
-    // Two glowing spheres parented to a single group so they share head
-    // motion. Sized in world units relative to anchor.width (just like
-    // Clat). Bloom on the composer makes them read as light sources.
+    // Two flat planes textured by a per-eye canvas. Each canvas is
+    // repainted every frame: a soft glowing halo + a pupil that takes
+    // one of several "moods" (calm dot, thinking spiral, …). Bloom on
+    // the composer makes them read as light sources.
+    //
+    // Wider apart and slightly elliptical (wider than tall) — closer to
+    // real eyes than the previous two perfect spheres.
     const eyesGroup = new THREE.Group();
-    const eyeGeom = new THREE.SphereGeometry(0.075, 28, 18);
-    const eyeMat = new THREE.MeshBasicMaterial({ color: 0xc9a5ff });
-    const leftEye = new THREE.Mesh(eyeGeom, eyeMat);
-    const rightEye = new THREE.Mesh(eyeGeom, eyeMat.clone());
-    leftEye.position.set(-0.16, 0.02, 0);
-    rightEye.position.set(0.16, 0.02, 0);
-    eyesGroup.add(leftEye);
-    eyesGroup.add(rightEye);
+    const EYE_W = 0.30;
+    const EYE_H = 0.22;
+    const EYE_SEP = 0.50;
+    const eyeGeom = new THREE.PlaneGeometry(EYE_W, EYE_H);
+
+    function makeEye(): {
+      mesh: THREE.Mesh;
+      mat: THREE.MeshBasicMaterial;
+      canvas: HTMLCanvasElement;
+      ctx: CanvasRenderingContext2D;
+      tex: THREE.CanvasTexture;
+    } {
+      const canvas = document.createElement('canvas');
+      canvas.width = 256;
+      canvas.height = 188;          // matches EYE_W/EYE_H aspect (~0.73)
+      const ctx = canvas.getContext('2d')!;
+      const tex = new THREE.CanvasTexture(canvas);
+      tex.colorSpace = THREE.SRGBColorSpace;
+      tex.minFilter = THREE.LinearFilter;
+      tex.magFilter = THREE.LinearFilter;
+      tex.generateMipmaps = false;
+      const mat = new THREE.MeshBasicMaterial({
+        map: tex,
+        transparent: true,
+        depthWrite: false,
+      });
+      const mesh = new THREE.Mesh(eyeGeom, mat);
+      return { mesh, mat, canvas, ctx, tex };
+    }
+
+    const leftEye = makeEye();
+    const rightEye = makeEye();
+    leftEye.mesh.position.set(-EYE_SEP / 2, 0.02, 0);
+    rightEye.mesh.position.set(EYE_SEP / 2, 0.02, 0);
+    eyesGroup.add(leftEye.mesh);
+    eyesGroup.add(rightEye.mesh);
     eyesGroup.visible = false;
+
+    /** Paint one eye onto its canvas for the current frame. */
+    function paintEye(
+      ctx: CanvasRenderingContext2D,
+      timeSec: number,
+      mood: 'calm' | 'thinking',
+      jitter: number,                  // 0..1 per-eye phase offset
+    ) {
+      const W = ctx.canvas.width;
+      const H = ctx.canvas.height;
+      ctx.clearRect(0, 0, W, H);
+      const cx = W / 2;
+      const cy = H / 2;
+      const rx = W * 0.46;
+      const ry = H * 0.46;
+
+      // Outer halo — soft radial gradient ellipse, almost the whole eye
+      const halo = ctx.createRadialGradient(cx, cy, ry * 0.08, cx, cy, rx);
+      halo.addColorStop(0.00, 'rgba(248, 240, 255, 1.0)');
+      halo.addColorStop(0.35, 'rgba(201, 165, 255, 0.95)');
+      halo.addColorStop(0.75, 'rgba(124, 58, 237, 0.45)');
+      halo.addColorStop(1.00, 'rgba(80, 30, 160, 0.0)');
+      ctx.fillStyle = halo;
+      ctx.beginPath();
+      ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Pupil — by mood
+      if (mood === 'thinking') {
+        // Animated spiral. Rotates slowly; gentle radial scale pulse.
+        const spiralR = Math.min(rx, ry) * 0.55;
+        const rot = timeSec * 1.6 + jitter * Math.PI * 2;
+        ctx.save();
+        ctx.translate(cx, cy);
+        ctx.rotate(rot);
+
+        // Dark fill behind the spiral so it pops
+        ctx.fillStyle = 'rgba(12, 4, 28, 0.85)';
+        ctx.beginPath();
+        ctx.arc(0, 0, spiralR * 0.95, 0, Math.PI * 2);
+        ctx.fill();
+
+        // The spiral itself — ink-on-dark
+        ctx.strokeStyle = 'rgba(228, 210, 255, 0.95)';
+        ctx.lineWidth = 2.6;
+        ctx.lineCap = 'round';
+        ctx.beginPath();
+        const turns = 3.2;
+        const steps = 220;
+        for (let i = 0; i <= steps; i++) {
+          const u = i / steps;
+          const theta = u * turns * Math.PI * 2;
+          const r = u * spiralR;
+          const x = Math.cos(theta) * r;
+          const y = Math.sin(theta) * r;
+          if (i === 0) ctx.moveTo(x, y);
+          else ctx.lineTo(x, y);
+        }
+        ctx.stroke();
+        ctx.restore();
+      } else {
+        // Calm — single dark pupil dot, slowly drifting
+        const pupilR = Math.min(rx, ry) * 0.28;
+        const driftX = Math.sin(timeSec * 0.6 + jitter * 6.28) * rx * 0.06;
+        const driftY = Math.cos(timeSec * 0.4 + jitter * 6.28) * ry * 0.05;
+        ctx.fillStyle = 'rgba(12, 4, 28, 0.95)';
+        ctx.beginPath();
+        ctx.ellipse(cx + driftX, cy + driftY, pupilR, pupilR, 0, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
 
     const particleGroup = new THREE.Group();
 
@@ -653,7 +756,7 @@ export function TarobotScene() {
       catGroup.visible = readerMode === 'cat';
       eyesGroup.visible = readerMode === 'eyes';
 
-      // ── Eyes blink (independent of Clat's sprite blink) ─────
+      // ── Eyes: blink + per-frame canvas paint with current mood ───
       if (eyesGroup.visible) {
         if (eyesBlink.nextAt === 0) {
           eyesBlink.nextAt = now + 1800 + Math.random() * 3800;
@@ -668,12 +771,18 @@ export function TarobotScene() {
         let sy = 1;
         if (eyesBlink.blinking) {
           const u = 1 - (eyesBlink.endsAt - now) / 130;
-          // triangle 1 → 0 → 1 over the blink
           sy = u < 0.5 ? 1 - u * 2 : (u - 0.5) * 2;
           sy = Math.max(0.05, sy);
         }
-        leftEye.scale.y = sy;
-        rightEye.scale.y = sy;
+        leftEye.mesh.scale.y = sy;
+        rightEye.mesh.scale.y = sy;
+
+        // Mood: dizzy (any tier awaiting) → thinking spiral; else calm.
+        const mood: 'calm' | 'thinking' = dizzy ? 'thinking' : 'calm';
+        paintEye(leftEye.ctx, t, mood, 0.0);
+        paintEye(rightEye.ctx, t, mood, 0.37);
+        leftEye.tex.needsUpdate = true;
+        rightEye.tex.needsUpdate = true;
       }
 
       const elapsedSinceMount = now - start;
@@ -1043,8 +1152,10 @@ export function TarobotScene() {
       catMat.dispose();
       tex.dispose();
       eyeGeom.dispose();
-      eyeMat.dispose();
-      (rightEye.material as THREE.MeshBasicMaterial).dispose();
+      leftEye.mat.dispose();
+      rightEye.mat.dispose();
+      leftEye.tex.dispose();
+      rightEye.tex.dispose();
       // Perspective layer
       for (const rig of cardRigs) {
         rig.frontMat.dispose();

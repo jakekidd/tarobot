@@ -32,3 +32,4 @@ export { readingInputsFromCompiler } from './types';
 export { buildMarisolDemoBrief, MARISOL_INTRO } from './fixtures';
 export { pickStall } from './stalls';
 export type { StallTier } from './stalls';
+export { FILLERS, pickFiller, FILLER_MIN_MS, FILLER_MAX_MS } from './fillers';
