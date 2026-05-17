@@ -464,15 +464,11 @@ export function TarobotScene() {
 
     const perspScene = new THREE.Scene();
     const perspCamera = new THREE.PerspectiveCamera(34, 1, 0.05, 80);
-    // Seated, table scooted toward the viewer:
-    //  - camera closer in z (8.4 → 6.5) so the table reads larger
-    //  - lookAt raised ABOVE the tabletop (y = 1.1) so the table sits
-    //    in the LOWER portion of the canvas, not the upper.
-    //    (Pushing lookAt.y negative was the wrong direction — that puts
-    //    the lookAt below the table, and the table ends up above the
-    //    horizon line, i.e. higher on screen.)
-    perspCamera.position.set(0, 4.6, 6.5);
-    perspCamera.lookAt(0, 1.1, 0);
+    // Seated POV — lookAt sits above the tabletop so the table reads
+    // in the lower portion of the canvas. Small pull-back from the
+    // previous "too close" pass.
+    perspCamera.position.set(0, 4.6, 7.4);
+    perspCamera.lookAt(0, 1.0, 0);
 
     // ── Lighting ───────────────────────────────────────
     // Warm key from above (the "orb" that hovers over a real tarot table)
@@ -540,11 +536,10 @@ export function TarobotScene() {
       right:  [1.25, 0],
       bottom: [0, 1.05],
     };
-    // Lifted card sits between viewer and table, facing camera. Higher
-    // Z (closer to camera) so it doesn't clip the cards on the table on
-    // the way up; the quaternion slerp arcs it through "upright" while
-    // position lerps in.
-    const LIFT_POS = new THREE.Vector3(0, 1.8, 3.4);
+    // Lifted card sits between viewer and table, facing camera. Raised
+    // significantly higher in world Y so it projects to just-under-center
+    // on screen instead of bottom-clipping into the chat input.
+    const LIFT_POS = new THREE.Vector3(0, 3.4, 4.4);
     const STAGE_QUAT: Record<CardStage, THREE.Quaternion> = {
       face_down: new THREE.Quaternion().setFromEuler(new THREE.Euler(Math.PI / 2, 0, 0)),
       face_up:   new THREE.Quaternion().setFromEuler(new THREE.Euler(-Math.PI / 2, 0, 0)),

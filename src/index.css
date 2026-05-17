@@ -807,8 +807,8 @@ a:hover { text-decoration: underline; }
        Absolute on the right column. 3D-extruded floating letters. */
 .card-subtitle {
   position: absolute;
-  /* table moved lower in frame → title sits between table and chat */
-  top: 88%;
+  /* sits just below the lifted card (under-center) */
+  top: 66%;
   left: 0;
   right: 0;
   font-family: var(--font-speech);
