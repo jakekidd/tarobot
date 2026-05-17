@@ -814,24 +814,22 @@ a:hover { text-decoration: underline; }
    class. The underline draws in left-to-right once the typewriter
    has passed (range.end + LAG) chars, producing the "marked-up
    in hindsight" feel. */
+/* Underline via background-image gradient. Pseudo-element `::after`
+   with `position: absolute` was unreliable for inline italic text:
+   the containing box of an inline element doesn't include the italic
+   side-bearings, so the underline would start a glyph in from the
+   left. Background-image with `background-size: X% 2px` respects the
+   actual inline box per-line-fragment and animates left-to-right. */
 .hl-em {
-  position: relative;
   display: inline;
+  background-image: linear-gradient(currentColor, currentColor);
+  background-repeat: no-repeat;
+  background-position: left 92%;
+  background-size: 0 2px;
+  transition: background-size 0.55s cubic-bezier(0.4, 0.0, 0.2, 1);
 }
-.hl-em::after {
-  content: '';
-  position: absolute;
-  left: 0; right: 0;
-  bottom: -0.08em;
-  height: 2px;
-  background: currentColor;
-  opacity: 0.85;
-  transform: scaleX(0);
-  transform-origin: left center;
-  transition: transform 0.55s cubic-bezier(0.4, 0.0, 0.2, 1);
-}
-.hl-em.hl-em--on::after {
-  transform: scaleX(1);
+.hl-em.hl-em--on {
+  background-size: 100% 2px;
 }
 
 /* Down-arrow caret — sits BELOW the dialogue box (out of the text),

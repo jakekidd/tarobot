@@ -33,12 +33,18 @@ export function parseEmphasis(raw: string): ParsedEmphasis {
     out.push(pre);
     cursor += pre.length;
 
-    // The matched span (without the underscores)
+    // The matched span (without the underscores). Persona occasionally
+    // writes "_ answered_" with leading/trailing whitespace inside the
+    // markers; those spaces should render as plain text (they're not part
+    // of the emphasized word). Otherwise the underline visually starts
+    // under the space, skipping the first letter.
     const phrase = m[1] ?? '';
-    const start = cursor;
+    const lead = phrase.length - phrase.trimStart().length;
+    const trail = phrase.length - phrase.trimEnd().length;
+    const start = cursor + lead;
     out.push(phrase);
     cursor += phrase.length;
-    ranges.push({ start, end: cursor });
+    ranges.push({ start, end: cursor - trail });
 
     lastIdx = m.index + m[0].length;
   }

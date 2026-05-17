@@ -20,6 +20,8 @@ import {
 } from './cardSceneStore';
 import { registerPicker, unregisterPicker } from './pickService';
 import { cardBackTexture, cardFaceTexture, disposeCardTextures } from '../cards/cardTexture';
+import { subscribeDebugVisible } from '../../debug/visibilityStorage';
+import { publishDebug, clearDebug } from '../../debug/debugBus';
 
 // Reverted from the voxel approach (it merged into a featureless silhouette —
 // the eye gaps disappeared into the surrounding side faces). Back to a flat
@@ -208,6 +210,24 @@ export function TarobotScene() {
     const cloakMesh = new THREE.Mesh(cloakGeom, cloakMat);
     cloakMesh.position.set(0, -1.85, -0.04);
     eyesGroup.add(cloakMesh);
+
+    // ── DEBUG: red wireframe rectangle outlining the cloak plane ──
+    // Toggled by the debug chip in the navbar. Shows the bounding box
+    // so we can judge whether the cloak plane is sized + positioned
+    // correctly relative to the eyes.
+    const seerOutlineGeom = new THREE.EdgesGeometry(cloakGeom);
+    const seerOutlineMat = new THREE.LineBasicMaterial({
+      color: 0xff0000,
+      depthTest: false,
+      depthWrite: false,
+      transparent: true,
+    });
+    const seerOutline = new THREE.LineSegments(seerOutlineGeom, seerOutlineMat);
+    seerOutline.position.copy(cloakMesh.position);
+    seerOutline.position.z += 0.02;
+    seerOutline.renderOrder = 999;
+    seerOutline.visible = false;
+    eyesGroup.add(seerOutline);
 
     function makeEye(): {
       mesh: THREE.Mesh;
@@ -579,6 +599,60 @@ export function TarobotScene() {
     };
 
     const cardGeom = new THREE.PlaneGeometry(CARD_W, CARD_H);
+
+    // ── DEBUG: red wireframe reference card ──────────
+    // A movable wireframe outline (CARD_W × CARD_H × CARD_THICK) the
+    // user can position with arrow keys to pin down the *exact* xyz
+    // they want a real card to occupy. Starts at LIFT_POS so the
+    // first nudge is relative to where the lifted card currently sits.
+    const refCardGeom = new THREE.BoxGeometry(CARD_W, CARD_H, CARD_THICK);
+    const refCardEdges = new THREE.EdgesGeometry(refCardGeom);
+    const refCardMat = new THREE.LineBasicMaterial({
+      color: 0xff0000,
+      depthTest: false,
+      depthWrite: false,
+      transparent: true,
+    });
+    const refCard = new THREE.LineSegments(refCardEdges, refCardMat);
+    refCard.position.copy(LIFT_POS);
+    refCard.quaternion.copy(STAGE_QUAT.lifted);
+    refCard.renderOrder = 999;
+    refCard.visible = false;
+    perspScene.add(refCard);
+
+    // Arrow keys move the reference card. Up/Down → world y (toward
+    // the warm key light overhead or down toward the table). Left/Right
+    // → world z (camera at +z, so Right = +z toward viewer, Left = -z
+    // away from viewer). Step size in world units per keypress; hold
+    // Shift for a finer step.
+    function onKeyDown(e: KeyboardEvent) {
+      if (!refCard.visible) return;
+      if (e.target instanceof HTMLElement) {
+        const tag = e.target.tagName;
+        if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+      }
+      const step = e.shiftKey ? 0.05 : 0.2;
+      let handled = true;
+      switch (e.key) {
+        case 'ArrowUp':    refCard.position.y += step; break;
+        case 'ArrowDown':  refCard.position.y -= step; break;
+        case 'ArrowRight': refCard.position.z += step; break;
+        case 'ArrowLeft':  refCard.position.z -= step; break;
+        default: handled = false;
+      }
+      if (handled) e.preventDefault();
+    }
+    window.addEventListener('keydown', onKeyDown);
+
+    // Debug visibility wiring — toggle both overlays at once.
+    const unsubscribeDebug = subscribeDebugVisible((on) => {
+      seerOutline.visible = on;
+      refCard.visible = on;
+      if (!on) {
+        clearDebug('card.lift');
+        clearDebug('card.ref');
+      }
+    });
 
     type CardRig = {
       slot: SlotName;
@@ -1129,6 +1203,16 @@ export function TarobotScene() {
         tableGroup.position.y = Math.sin(t * 0.35) * 0.005;
       }
 
+      // ── DEBUG: publish lifted card + reference card xyz ──
+      // When no card is currently in the 'lifted' stage, fall back to the
+      // LIFT_POS target — gives the user a stable reference even between
+      // flips so they can compare against the movable ref card.
+      if (refCard.visible) {
+        const lifted = cardRigs.find((r) => r.stage === 'lifted');
+        publishDebug('card.lift', fmtXYZ(lifted ? lifted.group.position : LIFT_POS));
+        publishDebug('card.ref', fmtXYZ(refCard.position));
+      }
+
       composer.render();
 
       // ── Perspective overlay (table + cards) — second-pass render ─
@@ -1179,6 +1263,10 @@ export function TarobotScene() {
       unsubscribeDizzy();
       unsubscribeReaderMode();
       unsubscribeCardScene();
+      unsubscribeDebug();
+      window.removeEventListener('keydown', onKeyDown);
+      clearDebug('card.lift');
+      clearDebug('card.ref');
       unregisterPicker(pickAt);
       for (const orb of orbs) {
         orbGroup.remove(orb.mesh);
@@ -1197,6 +1285,11 @@ export function TarobotScene() {
       cloakGeom.dispose();
       cloakMat.dispose();
       cloakTex.dispose();
+      seerOutlineGeom.dispose();
+      seerOutlineMat.dispose();
+      refCardGeom.dispose();
+      refCardEdges.dispose();
+      refCardMat.dispose();
       // Perspective layer
       for (const rig of cardRigs) {
         rig.frontMat.dispose();
@@ -1238,6 +1331,10 @@ export function TarobotScene() {
  */
 function clamp(v: number, lo: number, hi: number): number {
   return v < lo ? lo : v > hi ? hi : v;
+}
+
+function fmtXYZ(v: THREE.Vector3): string {
+  return `${v.x.toFixed(2)},${v.y.toFixed(2)},${v.z.toFixed(2)}`;
 }
 
 function lookFrameForDirection(dx: number, dy: number): number {
