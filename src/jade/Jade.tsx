@@ -1,14 +1,22 @@
-// Jade — the secret survey editor. Designer's sandbox. Straight-up list
-// of every dialogue node, expand to edit inline. Autosaves to
-// localStorage on every change AND pushes the change live to the survey
-// engine, so the next survey run uses the local copy.
+// Jade — the secret survey/persona editor. Tiny internal page router:
 //
-// Lives entirely under src/jade/. Imports only from pipeline/survey/
-// (for types + the bundled default tree + setActiveTree).
+//   home    → JadeHome (greeting + docs + EDITORS buttons)
+//   survey  → JadeList  (the actual tree editor)
+//   persona → JadePersona (placeholder)
+//
+// Topbar:
+//   - on home   → brand "jade · home" left  · only EXIT right
+//   - on survey → "← back" left              · EXPORT · RESET · EXIT right
+//   - on persona → "← back" left             · EXIT right
+//
+// All tree state lives at this level so it persists across page navigations.
+// Saves to localStorage AND pushes live to the survey engine on every change.
 
 import { useCallback, useEffect, useState } from 'react';
 import type { DialogueTree } from '../pipeline/survey';
+import { JadeHome } from './JadeHome';
 import { JadeList } from './JadeList';
+import { JadePersona } from './JadePersona';
 import {
   downloadJadeTree,
   loadJadeTree,
@@ -20,22 +28,21 @@ type Props = {
   onExit: () => void;
 };
 
+type Page = 'home' | 'survey' | 'persona';
+
 export function Jade({ onExit }: Props) {
+  const [page, setPage] = useState<Page>('home');
   const [tree, setTreeState] = useState<DialogueTree>(() => loadJadeTree());
 
-  // Wrapper that takes an updater function and auto-persists.
   const setTree = useCallback((updater: (prev: DialogueTree) => DialogueTree) => {
     setTreeState(updater);
   }, []);
 
-  // Every tree change: save to localStorage AND push live to the survey
-  // engine. saveJadeTree() handles both.
   useEffect(() => {
     saveJadeTree(tree);
   }, [tree]);
 
-  // While Jade is mounted, hide the main app's TarobotScene + CRT overlay
-  // (jade.css does this via body.jade-mode).
+  // While Jade is mounted, hide the main app's TarobotScene + CRT overlay.
   useEffect(() => {
     document.body.classList.add('jade-mode');
     return () => { document.body.classList.remove('jade-mode'); };
@@ -55,21 +62,45 @@ export function Jade({ onExit }: Props) {
     <div className="jade">
       <header className="jade__topbar">
         <div className="jade__brand">
-          <span className="jade__brand-name">jade</span>
-          <span className="jade__brand-sub">survey editor</span>
+          {page === 'home' ? (
+            <>
+              <span className="jade__brand-name">jade</span>
+              <span className="jade__brand-sub">home</span>
+            </>
+          ) : (
+            <button
+              type="button"
+              className="jade__back"
+              onClick={() => setPage('home')}
+              aria-label="back to jade home"
+            >
+              ← BACK
+            </button>
+          )}
         </div>
         <div className="jade__actions">
-          <span className="jade__saved" title="autosaved to localStorage on every change">
-            autosaved
-          </span>
-          <button className="jade__btn" onClick={handleExport}>EXPORT</button>
-          <button className="jade__btn jade__btn--quiet" onClick={handleReset}>RESET</button>
+          {page === 'survey' && (
+            <>
+              <span className="jade__saved" title="autosaved to localStorage on every change">
+                autosaved
+              </span>
+              <button className="jade__btn" onClick={handleExport}>EXPORT</button>
+              <button className="jade__btn jade__btn--quiet" onClick={handleReset}>RESET</button>
+            </>
+          )}
           <button className="jade__btn jade__btn--quiet" onClick={onExit}>EXIT</button>
         </div>
       </header>
 
       <main className="jade__main">
-        <JadeList tree={tree} setTree={setTree} />
+        {page === 'home' && (
+          <JadeHome
+            onOpenSurvey={() => setPage('survey')}
+            onOpenPersona={() => setPage('persona')}
+          />
+        )}
+        {page === 'survey' && <JadeList tree={tree} setTree={setTree} />}
+        {page === 'persona' && <JadePersona />}
       </main>
 
       <div className="jade__too-small">
