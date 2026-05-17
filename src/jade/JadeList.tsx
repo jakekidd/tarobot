@@ -1,13 +1,24 @@
-// The Jade editor — a single-column list of every dialogue node. Click
-// a row to expand it inline; the expanded form is the full editor
-// (question text, format, dark flag, default next, answers, axes when
-// matrix). Toolbar across the top: search, "+ new node", scope toggles.
+// The Jade editor — single-column list of every dialogue node, grouped
+// by topic. Click a row to expand it inline; the expanded form is the
+// full editor.
 //
-// Sort order:
-//   1. openers (in their stored order — that order matters in the engine)
-//   2. roots, alphabetical by id
-//   3. followups, alphabetical by id
-// Search filters everything across all three buckets.
+// Layout:
+//   - top toolbar: search
+//   - OPENERS section (the four intake questions in order)
+//   - one section per topic (in topics[] order), each ending with a
+//     "+ NEW QUESTION" button that creates a blank node in that topic
+//
+// Things that are not in the row anymore (by design):
+//   - node id    — internal, designer doesn't need it on screen
+//   - role/root  — implied by which section a row sits in
+//   - dark       — concept retired; pass will be appended to every option
+//                  in the future, so the flag is no longer meaningful
+//
+// Switching a node's format also reshapes its answer list:
+//   - text/date  → no answers
+//   - binary     → trim to first 2 (or pad)
+//   - matrix     → exactly 4 (plus axes)
+//   - choice/multi → keep current count
 
 import { useCallback, useMemo, useState } from 'react';
 import type {
@@ -24,15 +35,23 @@ type Props = {
   setTree: (updater: (prev: DialogueTree) => DialogueTree) => void;
 };
 
-type Kind = 'opener' | 'root' | 'followup';
+type Group = {
+  /** Either an opener-marker or a topic id. */
+  kind: 'openers' | 'topic';
+  label: string;
+  topicId?: string;
+  nodeIds: string[];
+};
 
 export function JadeList({ tree, setTree }: Props) {
   const [filter, setFilter] = useState('');
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
 
-  const rows = useMemo(() => {
-    return buildRows(tree, filter);
-  }, [tree, filter]);
+  const groups = useMemo<Group[]>(() => buildGroups(tree, filter), [tree, filter]);
+  const totalShown = useMemo(
+    () => groups.reduce((n, g) => n + g.nodeIds.length, 0),
+    [groups],
+  );
 
   const toggle = useCallback((id: string) => {
     setExpanded((prev) => {
@@ -47,62 +66,48 @@ export function JadeList({ tree, setTree }: Props) {
     setTree((prev) => {
       const node = prev.nodes[id];
       if (!node) return prev;
-      return { ...prev, nodes: { ...prev.nodes, [id]: { ...node, ...patch } } };
+      // If the format changed, reshape `a` to match.
+      let nextNode = { ...node, ...patch };
+      if (patch.f && patch.f !== node.f) {
+        nextNode = reshapeForFormat(nextNode, patch.f);
+      }
+      return { ...prev, nodes: { ...prev.nodes, [id]: nextNode } };
     });
   }
 
-  function addNewNode(): void {
-    const id = promptForNewId(tree);
-    if (!id) return;
-    const fresh: TreeNode = { q: 'new question?', f: 'choice', a: [['answer one'], ['answer two']] };
-    setTree((prev) => ({ ...prev, nodes: { ...prev.nodes, [id]: fresh } }));
-    setExpanded((prev) => new Set(prev).add(id));
+  function addNewNode(topic: string, isOpener: boolean): void {
+    const id = nextAutoId(tree, isOpener ? 'opener' : topic);
+    const fresh: TreeNode = {
+      topic,
+      q: 'new question?',
+      f: 'choice',
+      a: [['option one'], ['option two']],
+    };
+    setTree((prev) => {
+      const next: DialogueTree = {
+        ...prev,
+        nodes: { ...prev.nodes, [id]: fresh },
+      };
+      if (isOpener) next.openers = [...prev.openers, id];
+      return next;
+    });
+    setExpanded((prev) => {
+      const s = new Set(prev);
+      s.add(id);
+      return s;
+    });
   }
 
   function deleteNode(id: string): void {
-    if (!confirm(`delete node '${id}'? this cannot be undone (but you can RESET to bundled defaults).`)) return;
+    if (!confirm(`delete this question? this cannot be undone (but RESET will pull the bundled defaults back).`)) return;
     setTree((prev) => {
       const nextNodes = { ...prev.nodes };
       delete nextNodes[id];
-      // Strip from roots/openers + scrub `next`/answer-overrides pointing at it.
-      const nextRoots = prev.roots.filter((r) => r !== id);
-      const nextOpeners = prev.openers.filter((o) => o !== id);
-      for (const [otherId, otherNode] of Object.entries(nextNodes)) {
-        let changed = false;
-        let node = otherNode;
-        if (node.next === id) { node = { ...node, next: undefined }; changed = true; }
-        if (node.a) {
-          const newA = node.a.map((t): AnswerTuple => (t[2] === id ? (t[1] ? [t[0], t[1]] : [t[0]]) : t));
-          if (newA.some((t, i) => t !== node.a![i])) {
-            node = { ...node, a: newA };
-            changed = true;
-          }
-        }
-        if (changed) nextNodes[otherId] = node;
-      }
-      return { ...prev, nodes: nextNodes, roots: nextRoots, openers: nextOpeners };
-    });
-  }
-
-  function toggleOpener(id: string, included: boolean): void {
-    setTree((prev) => {
-      const set = new Set(prev.openers);
-      if (included) set.add(id); else set.delete(id);
-      // Preserve stored ordering when removing; append when adding.
-      const next = included
-        ? Array.from(new Set([...prev.openers, id]))
-        : prev.openers.filter((o) => o !== id);
-      void set;
-      return { ...prev, openers: next };
-    });
-  }
-
-  function toggleRoot(id: string, included: boolean): void {
-    setTree((prev) => {
-      const next = included
-        ? Array.from(new Set([...prev.roots, id]))
-        : prev.roots.filter((r) => r !== id);
-      return { ...prev, roots: next };
+      return {
+        ...prev,
+        nodes: nextNodes,
+        openers: prev.openers.filter((o) => o !== id),
+      };
     });
   }
 
@@ -112,148 +117,169 @@ export function JadeList({ tree, setTree }: Props) {
         <input
           type="search"
           className="jade-list__search"
-          placeholder="search by id or question…"
+          placeholder="search by question text or answer…"
           value={filter}
           onChange={(e) => setFilter(e.target.value)}
         />
-        <button type="button" className="jade-list__add" onClick={addNewNode}>
-          + NEW NODE
-        </button>
         <span className="jade-list__count">
-          {rows.length} of {Object.keys(tree.nodes).length} nodes
+          {totalShown} of {Object.keys(tree.nodes).length} questions
         </span>
       </div>
 
       <div className="jade-list__rows">
-        {rows.length === 0 && (
-          <div className="jade-list__empty"><em>no nodes match.</em></div>
-        )}
-        {rows.map(({ id, node, kind }) => {
-          const isOpen = expanded.has(id);
-          return (
-            <div
-              key={id}
-              className={`jade-row jade-row--${kind} ${isOpen ? 'jade-row--open' : ''}`}
-            >
-              <button
-                type="button"
-                className="jade-row__head"
-                onClick={() => toggle(id)}
-              >
-                <span className={`jade-row__kind jade-row__kind--${kind}`}>{kind}</span>
-                <span className="jade-row__id">{id}</span>
-                <span className={`jade-row__fmt jade-row__fmt--${node.f}`}>{node.f}</span>
-                {node.is_dark && <span className="jade-row__dark">dark</span>}
-                <span className="jade-row__q">{node.q || <em>(empty)</em>}</span>
-                <span className="jade-row__chev" aria-hidden>{isOpen ? '▾' : '▸'}</span>
-              </button>
+        {groups.map((group) => (
+          <section key={group.kind === 'openers' ? '__openers' : group.topicId!} className="jade-group">
+            <header className={`jade-group__head jade-group__head--${group.kind === 'openers' ? 'openers' : 'topic'}`}>
+              <span className="jade-group__name">{group.label}</span>
+              <span className="jade-group__count">{group.nodeIds.length}</span>
+            </header>
 
-              {isOpen && (
-                <div className="jade-row__body">
-                  <NodeEditor
-                    id={id}
-                    node={node}
-                    tree={tree}
-                    onPatch={(patch) => patchNode(id, patch)}
-                    onDelete={() => deleteNode(id)}
-                    isOpener={tree.openers.includes(id)}
-                    isRoot={tree.roots.includes(id)}
-                    onToggleOpener={(v) => toggleOpener(id, v)}
-                    onToggleRoot={(v) => toggleRoot(id, v)}
-                  />
+            {group.nodeIds.length === 0 && (
+              <div className="jade-group__empty">
+                <em>no questions in this topic yet.</em>
+              </div>
+            )}
+
+            {group.nodeIds.map((id) => {
+              const node = tree.nodes[id];
+              if (!node) return null;
+              const isOpen = expanded.has(id);
+              return (
+                <div
+                  key={id}
+                  className={`jade-row jade-row--${group.kind === 'openers' ? 'opener' : 'topic'} ${isOpen ? 'jade-row--open' : ''}`}
+                >
+                  <button type="button" className="jade-row__head" onClick={() => toggle(id)}>
+                    <span className={`jade-row__fmt jade-row__fmt--${node.f}`}>{node.f}</span>
+                    <span className="jade-row__q">{node.q || <em>(empty)</em>}</span>
+                    <span className="jade-row__chev" aria-hidden>{isOpen ? '▾' : '▸'}</span>
+                  </button>
+
+                  {isOpen && (
+                    <div className="jade-row__body">
+                      <NodeEditor
+                        id={id}
+                        node={node}
+                        onPatch={(p) => patchNode(id, p)}
+                        onDelete={() => deleteNode(id)}
+                      />
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
-          );
-        })}
+              );
+            })}
+
+            <button
+              type="button"
+              className="jade-group__add"
+              onClick={() => addNewNode(group.topicId ?? 'intake', group.kind === 'openers')}
+            >
+              + NEW QUESTION
+            </button>
+          </section>
+        ))}
       </div>
     </div>
   );
 }
 
-// ─── Row builder ───────────────────────────────────────────
+// ─── group builder ─────────────────────────────────────────
 
-function buildRows(tree: DialogueTree, filterRaw: string): { id: string; node: TreeNode; kind: Kind }[] {
+function buildGroups(tree: DialogueTree, filterRaw: string): Group[] {
   const filter = filterRaw.trim().toLowerCase();
-  const openersSet = new Set(tree.openers);
-  const rootsSet = new Set(tree.roots);
-
-  const kindOf = (id: string): Kind => {
-    if (openersSet.has(id)) return 'opener';
-    if (rootsSet.has(id)) return 'root';
-    return 'followup';
+  const matches = (id: string): boolean => {
+    if (!filter) return true;
+    const node = tree.nodes[id];
+    if (!node) return false;
+    if (node.q.toLowerCase().includes(filter)) return true;
+    return (node.a ?? []).some((t) => (t[0] ?? '').toLowerCase().includes(filter));
   };
 
-  const allIds = Object.keys(tree.nodes);
+  const out: Group[] = [];
 
-  // Sort: openers first (in stored order), then roots alpha, then followups alpha.
-  const openerIds = tree.openers.filter((id) => tree.nodes[id]);
-  const otherIds = allIds.filter((id) => !openersSet.has(id));
-  const rootIds = otherIds.filter((id) => rootsSet.has(id)).sort();
-  const followupIds = otherIds.filter((id) => !rootsSet.has(id)).sort();
-  const sorted = [...openerIds, ...rootIds, ...followupIds];
+  // Openers — first, in stored order.
+  const openersFiltered = tree.openers.filter((id) => tree.nodes[id] && matches(id));
+  out.push({ kind: 'openers', label: 'openers', nodeIds: openersFiltered });
 
-  const rows: { id: string; node: TreeNode; kind: Kind }[] = [];
-  for (const id of sorted) {
-    const node = tree.nodes[id];
-    if (!node) continue;
-    if (filter) {
-      const idMatch = id.toLowerCase().includes(filter);
-      const qMatch = node.q.toLowerCase().includes(filter);
-      const answerMatch = (node.a ?? []).some((t) => (t[0] ?? '').toLowerCase().includes(filter));
-      if (!idMatch && !qMatch && !answerMatch) continue;
-    }
-    rows.push({ id, node, kind: kindOf(id) });
+  // Topics — always show every topic, even empty (so the designer can add
+  // there). Skip nodes that are in openers[] — they belong to the openers
+  // section regardless of their `topic`.
+  const openerSet = new Set(tree.openers);
+  for (const topicId of tree.topics) {
+    const ids = Object.keys(tree.nodes)
+      .filter((id) => !openerSet.has(id))
+      .filter((id) => tree.nodes[id]?.topic === topicId)
+      .filter((id) => matches(id))
+      .sort();
+    out.push({ kind: 'topic', topicId, label: topicId, nodeIds: ids });
   }
-  return rows;
+
+  return out;
 }
 
-function promptForNewId(tree: DialogueTree): string | null {
-  const raw = prompt('node id (snake_case, lowercase letters/numbers/underscores):');
-  if (!raw) return null;
-  const id = raw.trim().toLowerCase();
-  if (!/^[a-z][a-z0-9_]*$/.test(id)) {
-    alert('invalid id. use snake_case starting with a letter.');
-    return null;
+// ─── shaping answers when format changes ──────────────────
+
+function reshapeForFormat(node: TreeNode, fmt: AnswerFormat): TreeNode {
+  const current = node.a ?? [];
+  const blank = (text = ''): AnswerTuple => [text];
+
+  if (fmt === 'text' || fmt === 'date') {
+    const out: TreeNode = { ...node, f: fmt };
+    delete out.a;
+    delete out.axes;
+    return out;
   }
-  if (tree.nodes[id]) {
-    alert(`'${id}' already exists.`);
-    return null;
+  if (fmt === 'binary') {
+    const trimmed = current.slice(0, 2);
+    while (trimmed.length < 2) trimmed.push(blank(trimmed.length === 0 ? 'yes' : 'no'));
+    const out: TreeNode = { ...node, f: fmt, a: trimmed };
+    delete out.axes;
+    return out;
   }
-  return id;
+  if (fmt === 'matrix') {
+    const trimmed = current.slice(0, 4);
+    while (trimmed.length < 4) trimmed.push(blank(`option ${trimmed.length + 1}`));
+    return {
+      ...node,
+      f: fmt,
+      a: trimmed,
+      axes: node.axes ?? [['', ''], ['', '']],
+    };
+  }
+  // choice or multi — keep existing answers (or seed two)
+  const out: TreeNode = { ...node, f: fmt };
+  if (out.a === undefined || out.a.length === 0) {
+    out.a = [blank('option one'), blank('option two')];
+  }
+  delete out.axes;
+  return out;
 }
 
-// ─── Per-node editor body (inline in the expanded row) ────
+// ─── auto-id for new nodes ────────────────────────────────
+
+function nextAutoId(tree: DialogueTree, prefix: string): string {
+  const base = `new_${prefix.replace(/[^a-z0-9]/g, '_')}`;
+  let i = 1;
+  while (tree.nodes[`${base}_${i}`]) i++;
+  return `${base}_${i}`;
+}
+
+// ─── per-node editor body ─────────────────────────────────
 
 type NodeEditorProps = {
   id: string;
   node: TreeNode;
-  tree: DialogueTree;
   onPatch: (patch: Partial<TreeNode>) => void;
   onDelete: () => void;
-  isOpener: boolean;
-  isRoot: boolean;
-  onToggleOpener: (v: boolean) => void;
-  onToggleRoot: (v: boolean) => void;
 };
 
-function NodeEditor({
-  id, node, tree, onPatch, onDelete,
-  isOpener, isRoot, onToggleOpener, onToggleRoot,
-}: NodeEditorProps) {
-  const allNodeIds = useMemo(() => Object.keys(tree.nodes).sort(), [tree]);
-
-  function patchAnswer(index: number, patch: Partial<{ text: string; comment: string; next: string }>): void {
+function NodeEditor({ id, node, onPatch, onDelete }: NodeEditorProps) {
+  function patchAnswer(index: number, patch: Partial<{ text: string; comment: string }>): void {
     const current = node.a ?? [];
     const tuple = current[index] ?? ([''] as AnswerTuple);
     const text = patch.text !== undefined ? patch.text : tuple[0];
     const comment = patch.comment !== undefined ? patch.comment : (tuple[1] ?? '');
-    const next = patch.next !== undefined ? patch.next : (tuple[2] ?? '');
-    const newTuple: AnswerTuple = next
-      ? [text, comment, next]
-      : comment
-        ? [text, comment]
-        : [text];
+    const newTuple: AnswerTuple = comment ? [text, comment] : [text];
     const newA = [...current];
     newA[index] = newTuple;
     onPatch({ a: newA });
@@ -275,10 +301,15 @@ function NodeEditor({
   }
 
   const showAnswers = node.f === 'choice' || node.f === 'binary' || node.f === 'multi' || node.f === 'matrix';
+  // Binary is fixed at 2 answers — can edit, not add/remove.
+  const canAddRemove = node.f !== 'binary' && node.f !== 'matrix';
 
   return (
     <div className="jade-edit">
       <div className="jade-edit__grid">
+        <label className="jade-edit__label">topic</label>
+        <span className="jade-edit__topic">{node.topic}</span>
+
         <label className="jade-edit__label">question</label>
         <textarea
           className="jade-edit__textarea"
@@ -295,39 +326,15 @@ function NodeEditor({
         >
           {FORMATS.map((f) => <option key={f} value={f}>{f}</option>)}
         </select>
-
-        <label className="jade-edit__label">role</label>
-        <div className="jade-edit__roles">
-          <label className="jade-edit__check">
-            <input type="checkbox" checked={isOpener} onChange={(e) => onToggleOpener(e.target.checked)} />
-            <span>opener</span>
-          </label>
-          <label className="jade-edit__check">
-            <input type="checkbox" checked={isRoot} onChange={(e) => onToggleRoot(e.target.checked)} />
-            <span>root (investigator-pickable)</span>
-          </label>
-          <label className="jade-edit__check">
-            <input type="checkbox" checked={node.is_dark ?? false} onChange={(e) => onPatch({ is_dark: e.target.checked || undefined })} />
-            <span>dark (append "pass")</span>
-          </label>
-        </div>
-
-        <label className="jade-edit__label">default next</label>
-        <select
-          className="jade-edit__select"
-          value={node.next ?? ''}
-          onChange={(e) => onPatch({ next: e.target.value || undefined })}
-        >
-          <option value="">— none (return to root pool)</option>
-          {allNodeIds.map((nid) => <option key={nid} value={nid}>{nid}</option>)}
-        </select>
       </div>
 
       {showAnswers && (
         <div className="jade-edit__section">
           <div className="jade-edit__section-head">
             <span className="jade-edit__label">answers</span>
-            <button type="button" className="jade-edit__small" onClick={addAnswer}>+ add</button>
+            {canAddRemove && (
+              <button type="button" className="jade-edit__small" onClick={addAnswer}>+ add</button>
+            )}
           </div>
           <div className="jade-edit__answers">
             {(node.a ?? []).map((tuple, i) => (
@@ -346,21 +353,16 @@ function NodeEditor({
                   value={tuple[1] ?? ''}
                   onChange={(e) => patchAnswer(i, { comment: e.target.value })}
                 />
-                <select
-                  className="jade-edit__answer-next"
-                  value={tuple[2] ?? ''}
-                  onChange={(e) => patchAnswer(i, { next: e.target.value })}
-                  title="answer-specific next override"
-                >
-                  <option value="">— use default</option>
-                  {allNodeIds.map((nid) => <option key={nid} value={nid}>→ {nid}</option>)}
-                </select>
-                <button
-                  type="button"
-                  className="jade-edit__remove"
-                  onClick={() => removeAnswer(i)}
-                  aria-label="remove answer"
-                >×</button>
+                {canAddRemove ? (
+                  <button
+                    type="button"
+                    className="jade-edit__remove"
+                    onClick={() => removeAnswer(i)}
+                    aria-label="remove answer"
+                  >×</button>
+                ) : (
+                  <span className="jade-edit__remove jade-edit__remove--locked" aria-hidden />
+                )}
               </div>
             ))}
           </div>
@@ -382,7 +384,7 @@ function NodeEditor({
       <div className="jade-edit__danger">
         <span className="jade-edit__id-readout">id: <code>{id}</code></span>
         <button type="button" className="jade-edit__delete" onClick={onDelete}>
-          delete node
+          delete question
         </button>
       </div>
     </div>

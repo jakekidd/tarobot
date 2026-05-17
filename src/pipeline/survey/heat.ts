@@ -14,8 +14,6 @@ export const STARTING_HEAT_RETURNING = 0.45;
 
 // Deltas — kept conservative. Tuned against bot runs later.
 const D = {
-  PASS_ON_DARK: 0.03,
-  ENGAGED_DARK_ANSWER: 0.06,
   LATENCY_OUTLIER_LONG: 0.02,    // > 2× rolling median (engaged hesitation)
   LATENCY_OUTLIER_SHORT: -0.02,  // < 0.3× rolling median (reflexive)
   MULTI_SELECT_BREADTH_HIGH: 0.03,  // ≥ 3 boxes checked
@@ -41,10 +39,6 @@ export function updateHeatFromBehavior(
   signals: BehavioralSignals,
 ): number {
   let delta = 0;
-
-  if (signals.is_dark_question) {
-    delta += signals.is_pass ? D.PASS_ON_DARK : D.ENGAGED_DARK_ANSWER;
-  }
 
   if (signals.rolling_median_ms > 0) {
     const ratio = signals.latency_ms / signals.rolling_median_ms;

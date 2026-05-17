@@ -87,23 +87,14 @@ function shallowEqualTree(a: DialogueTree, b: DialogueTree): boolean {
 
 /**
  * Structural validation:
- *   • every `next` references a node that exists
- *   • every answer tuple's `[2]` next override references a real node
- *   • every root in `roots[]` exists in `nodes`
  *   • every opener in `openers[]` exists in `nodes`
- *   • every `interp` key matches a real `node.answer` pair (warns, doesn't throw —
- *     keys may reference `pass` or `_meta` keys that aren't in the answer list)
+ *   • every node has a `topic` that appears in `topics[]`
  *
  * Throws with a clear message on failure. Designed for dev-time loud failure.
  */
 export function validateTree(tree: DialogueTree): void {
   const nodeIds = new Set(Object.keys(tree.nodes));
-
-  for (const root of tree.roots) {
-    if (!nodeIds.has(root)) {
-      throw new Error(`tree: roots[] contains '${root}' but no such node exists`);
-    }
-  }
+  const topicIds = new Set(tree.topics);
 
   for (const opener of tree.openers) {
     if (!nodeIds.has(opener)) {
@@ -112,16 +103,11 @@ export function validateTree(tree: DialogueTree): void {
   }
 
   for (const [id, node] of Object.entries(tree.nodes)) {
-    if (node.next && !nodeIds.has(node.next)) {
-      throw new Error(`tree: node '${id}'.next = '${node.next}' references missing node`);
+    if (!node.topic) {
+      throw new Error(`tree: node '${id}' is missing a topic`);
     }
-    if (node.a) {
-      for (const tuple of node.a) {
-        const override = tuple[2];
-        if (override && !nodeIds.has(override)) {
-          throw new Error(`tree: node '${id}' answer '${tuple[0]}' overrides to '${override}', which doesn't exist`);
-        }
-      }
+    if (!topicIds.has(node.topic)) {
+      throw new Error(`tree: node '${id}'.topic = '${node.topic}' is not in topics[]`);
     }
   }
 }
@@ -130,8 +116,8 @@ export function validateTree(tree: DialogueTree): void {
 
 /**
  * Build the UI-ready question shape from a node id + the current profile.
- * Applies text substitution, expands dark questions with a trailing 'pass'
- * option, and flattens answer tuples to a plain options list.
+ * Applies text substitution and flattens answer tuples to a plain options
+ * list.
  */
 export function renderQuestion(
   node_id: string,
@@ -143,8 +129,7 @@ export function renderQuestion(
     throw new Error(`tree: cannot render unknown node '${node_id}'`);
   }
   const text = substituteOrBlank(node.q, profile);
-  const baseOptions = extractOptionLabels(node);
-  const options = node.is_dark ? [...baseOptions, 'pass'] : baseOptions;
+  const options = extractOptionLabels(node);
   const preamble = preambleRaw ? (substituteOrNull(preambleRaw, profile) ?? undefined) : undefined;
 
   return {
@@ -153,7 +138,6 @@ export function renderQuestion(
     format: node.f,
     options,
     axes: node.axes,
-    is_dark: node.is_dark === true,
     preamble: preamble && preamble.length > 0 ? preamble : undefined,
   };
 }
@@ -173,23 +157,6 @@ export function commentForAnswer(node: TreeNode, answer: string): string | null 
   const match = node.a.find((t) => t[0] === answer);
   if (!match) return null;
   return match[1] && match[1].length > 0 ? match[1] : null;
-}
-
-/**
- * Resolve the next node id after answering. Priority:
- *   1. The picked answer's tuple override (`tuple[2]`)
- *   2. The node's default `next`
- *   3. null  (= "end of path, pop back to root selection")
- *
- * For multi-select answers (where `answer` is string[]), the override is
- * never consulted — multi-select questions always fall back to default `next`.
- */
-export function resolveNextNode(node: TreeNode, answer: string | string[]): string | null {
-  if (typeof answer === 'string' && node.a) {
-    const match = node.a.find((t) => t[0] === answer);
-    if (match && match[2]) return match[2];
-  }
-  return node.next ?? null;
 }
 
 /** The relevant `interp` entries for a given pick — keyed and meta variants. */
@@ -218,8 +185,18 @@ export function getNode(node_id: string): TreeNode | null {
   return TREE.nodes[node_id] ?? null;
 }
 
-export function getRoots(): string[] {
-  return TREE.roots.slice();
+/** Every node id that's NOT in openers — these make up the investigator's pool. */
+export function getPoolNodeIds(): string[] {
+  const openerSet = new Set(TREE.openers);
+  return Object.keys(TREE.nodes).filter((id) => !openerSet.has(id));
+}
+
+export function getTopics(): string[] {
+  return TREE.topics.slice();
+}
+
+export function getNodesByTopic(topic: string): string[] {
+  return Object.keys(TREE.nodes).filter((id) => TREE.nodes[id]?.topic === topic);
 }
 
 export function getOpeners(): string[] {

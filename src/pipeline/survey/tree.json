@@ -1,67 +1,30 @@
 {
-  "v": "0.4.0",
+  "v": "0.5.0",
   "_doc": {
-    "format": "directed graph. nodes are questions. answers are edges to next nodes (or null/omitted to pop back to root selection). a node's `next` is the default next for all answers unless an answer specifies its own.",
-    "answer_tuple": "[answer_text] | [answer_text, comment] | [answer_text, comment, next_node_id]. comment is injected before the next question. empty string for no comment.",
-    "substitution": "any {field} in a question or comment is replaced with profile.field at render time. supported: {name}, {sun_sign}, {birth_card}, {life_path}, {age_bracket}.",
+    "shape": "flat pool of questions, no graph. each node has a `topic` (one of `topics`) and lives in that topic group in the editor. `openers` (in order) run first; everything else is investigator-pickable.",
+    "answer_tuple": "[answer_text] | [answer_text, comment]. comment is shown inline after the user picks that answer.",
+    "substitution": "any {field} in question or comment text is replaced with profile.field at render time. supported: {name}, {sun_sign}, {birth_card}, {life_path}, {age_bracket}.",
     "fmt_values": "text | date | choice | binary | multi | matrix",
-    "is_dark": "if true, engine appends ['pass', ''] to answers at runtime",
-    "interp": "per-answer interpretation hints for the observer agent. keyed as 'node_id.answer_text'. not used for branching.",
-    "phase_eligible": "if set, an array of phases (A/B/C/D) where this node is eligible. omitted = eligible everywhere. used to gate dark or specific questions."
+    "interp": "per-answer interpretation hints for the observer agent. keyed as 'node_id.answer_text'. not used for branching."
   },
+
+  "topics": ["intake", "state", "relational", "self", "decisions", "projective", "meta"],
 
   "openers": ["name", "birthday", "birth_time", "has_question"],
 
-  "roots": [
-    "vibe_grid",
-    "whats_true",
-    "weather_inside",
-    "creature",
-    "putting_off",
-    "who_in_head",
-    "easy_to_read",
-    "free_will",
-    "decision_style",
-    "how_seen",
-    "same_person",
-    "crisis_response",
-    "three_am",
-    "unknown_door",
-    "what_protect",
-    "time_orientation",
-    "last_changed_mind",
-    "tarot_familiarity",
-    "moment_to_share",
-    "honesty_grid",
-    "fault_attribution",
-    "want_cards_to_say",
-    "real_version",
-    "honesty_target",
-    "self_like",
-    "keep_score",
-    "someones_secret",
-    "work_feeling",
-    "alt_life",
-    "body_feel",
-    "parents_version",
-    "live_here",
-    "would_rather_be",
-    "you_make",
-    "destination_map"
-  ],
-
   "nodes": {
     "name": {
+      "topic": "intake",
       "q": "what should i call you?",
-      "f": "text",
-      "next": "birthday"
+      "f": "text"
     },
     "birthday": {
+      "topic": "intake",
       "q": "when were you born? the day, month, and year.",
-      "f": "date",
-      "next": "birth_time"
+      "f": "date"
     },
     "birth_time": {
+      "topic": "intake",
       "q": "do you know what time you were born? roughly is fine.",
       "f": "choice",
       "a": [
@@ -69,10 +32,10 @@
         ["yes — afternoon or evening"],
         ["yes — overnight"],
         ["no idea"]
-      ],
-      "next": "has_question"
+      ]
     },
     "has_question": {
+      "topic": "intake",
       "q": "do you already have a question for the cards?",
       "f": "choice",
       "a": [
@@ -84,6 +47,7 @@
     },
 
     "vibe_grid": {
+      "topic": "state",
       "q": "where are you tonight, {name}?",
       "f": "matrix",
       "axes": [["calm", "chaotic"], ["in head", "with people"]],
@@ -95,6 +59,7 @@
       ]
     },
     "whats_true": {
+      "topic": "state",
       "q": "what's true right now?",
       "f": "multi",
       "a": [
@@ -107,6 +72,7 @@
       ]
     },
     "weather_inside": {
+      "topic": "state",
       "q": "pick the weather inside you.",
       "f": "choice",
       "a": [
@@ -116,37 +82,52 @@
         ["unpredictable"]
       ]
     },
-    "creature": {
-      "q": "pick a creature. fast.",
+    "three_am": {
+      "topic": "state",
+      "q": "it's 3am. what are you thinking about?",
       "f": "choice",
       "a": [
-        ["raven"],
-        ["serpent", "of course."],
-        ["wolf"],
-        ["cat", "flattering."]
+        ["someone"],
+        ["something i did"],
+        ["something i didn't do"],
+        ["nothing, i'm asleep", "lucky."]
       ]
     },
-    "putting_off": {
-      "q": "what have you been putting off?",
+    "body_feel": {
+      "topic": "state",
+      "q": "where do you feel things, in your body?",
       "f": "choice",
       "a": [
-        ["a conversation"],
-        ["a decision", "", "what_is_stuck"],
-        ["a task"],
-        ["i'm not"]
+        ["chest"],
+        ["stomach"],
+        ["throat"],
+        ["nowhere lately", "the answer is the answer."]
       ]
     },
-    "what_is_stuck": {
-      "q": "what's stuck — pick one.",
+    "work_feeling": {
+      "topic": "state",
+      "q": "what does work feel like, {name}?",
       "f": "choice",
       "a": [
-        ["a person"],
-        ["a project"],
-        ["myself"],
-        ["all of it", "at least you're not pretending."]
+        ["meaningful"],
+        ["fine"],
+        ["a slog"],
+        ["undefined"]
       ]
     },
+    "live_here": {
+      "topic": "state",
+      "q": "does where you live feel right?",
+      "f": "choice",
+      "a": [
+        ["yes"],
+        ["for now"],
+        ["no, but i stay", "we'll come back to that."]
+      ]
+    },
+
     "who_in_head": {
+      "topic": "relational",
       "q": "who's in your head tonight?",
       "f": "choice",
       "a": [
@@ -157,6 +138,7 @@
       ]
     },
     "real_version": {
+      "topic": "relational",
       "q": "how many people know the real version of you?",
       "f": "choice",
       "a": [
@@ -167,9 +149,9 @@
       ]
     },
     "honesty_target": {
+      "topic": "relational",
       "q": "who haven't you been honest with lately?",
       "f": "choice",
-      "is_dark": true,
       "a": [
         ["myself"],
         ["someone close"],
@@ -177,7 +159,51 @@
         ["no one"]
       ]
     },
+    "how_seen": {
+      "topic": "relational",
+      "q": "how do most people see you?",
+      "f": "choice",
+      "a": [
+        ["reliable"],
+        ["difficult"],
+        ["unpredictable"],
+        ["invisible"]
+      ]
+    },
+    "moment_to_share": {
+      "topic": "relational",
+      "q": "a moment from the last year you'd want a stranger to know.",
+      "f": "choice",
+      "a": [
+        ["something i'm proud of"],
+        ["something i regret"],
+        ["something i can't explain"],
+        ["i'd rather not say"]
+      ]
+    },
+    "someones_secret": {
+      "topic": "relational",
+      "q": "are you someone's secret?",
+      "f": "binary",
+      "a": [
+        ["yes"],
+        ["no"]
+      ]
+    },
+    "parents_version": {
+      "topic": "relational",
+      "q": "the version of you your parents know is—",
+      "f": "choice",
+      "a": [
+        ["accurate"],
+        ["outdated"],
+        ["curated"],
+        ["unknown to them"]
+      ]
+    },
+
     "easy_to_read": {
+      "topic": "self",
       "q": "are you easy to read?",
       "f": "binary",
       "a": [
@@ -186,6 +212,7 @@
       ]
     },
     "free_will": {
+      "topic": "self",
       "q": "do you believe in free will?",
       "f": "choice",
       "a": [
@@ -195,6 +222,7 @@
       ]
     },
     "fault_attribution": {
+      "topic": "self",
       "q": "when things go wrong, first instinct?",
       "f": "choice",
       "a": [
@@ -205,6 +233,7 @@
       ]
     },
     "decision_style": {
+      "topic": "self",
       "q": "how do you make decisions?",
       "f": "choice",
       "a": [
@@ -215,9 +244,9 @@
       ]
     },
     "self_like": {
+      "topic": "self",
       "q": "do you like yourself?",
       "f": "choice",
-      "is_dark": true,
       "a": [
         ["yes"],
         ["mostly"],
@@ -225,6 +254,7 @@
       ]
     },
     "keep_score": {
+      "topic": "self",
       "q": "do you keep score?",
       "f": "binary",
       "a": [
@@ -232,37 +262,8 @@
         ["no"]
       ]
     },
-    "crisis_response": {
-      "q": "something's wrong. you—",
-      "f": "choice",
-      "a": [
-        ["go quiet"],
-        ["get loud"],
-        ["go numb"],
-        ["fix things"]
-      ]
-    },
-    "three_am": {
-      "q": "it's 3am. what are you thinking about?",
-      "f": "choice",
-      "a": [
-        ["someone"],
-        ["something i did"],
-        ["something i didn't do"],
-        ["nothing, i'm asleep", "lucky."]
-      ]
-    },
-    "unknown_door": {
-      "q": "you find a door you've never seen. you—",
-      "f": "choice",
-      "a": [
-        ["open it"],
-        ["ignore it"],
-        ["come back later"],
-        ["check who's watching"]
-      ]
-    },
     "what_protect": {
+      "topic": "self",
       "q": "what do you protect?",
       "f": "choice",
       "a": [
@@ -272,27 +273,8 @@
         ["an idea"]
       ]
     },
-    "want_cards_to_say": {
-      "q": "what do you want the cards to say?",
-      "f": "choice",
-      "a": [
-        ["stay"],
-        ["go"],
-        ["wait"],
-        ["you were right"]
-      ]
-    },
-    "how_seen": {
-      "q": "how do most people see you?",
-      "f": "choice",
-      "a": [
-        ["reliable"],
-        ["difficult"],
-        ["unpredictable"],
-        ["invisible"]
-      ]
-    },
     "same_person": {
+      "topic": "self",
       "q": "same person you were a year ago?",
       "f": "binary",
       "a": [
@@ -300,16 +282,8 @@
         ["mostly no"]
       ]
     },
-    "someones_secret": {
-      "q": "are you someone's secret?",
-      "f": "binary",
-      "is_dark": true,
-      "a": [
-        ["yes"],
-        ["no"]
-      ]
-    },
     "honesty_grid": {
+      "topic": "self",
       "q": "how are you, actually?",
       "f": "matrix",
       "axes": [["honest", "performing"], ["okay", "not okay"]],
@@ -321,6 +295,7 @@
       ]
     },
     "time_orientation": {
+      "topic": "self",
       "q": "where do you live, in time?",
       "f": "choice",
       "a": [
@@ -331,6 +306,7 @@
       ]
     },
     "last_changed_mind": {
+      "topic": "self",
       "q": "when did you last change your mind?",
       "f": "choice",
       "a": [
@@ -340,39 +316,76 @@
         ["always changing"]
       ]
     },
-    "tarot_familiarity": {
-      "q": "have you done this before?",
+
+    "putting_off": {
+      "topic": "decisions",
+      "q": "what have you been putting off?",
       "f": "choice",
       "a": [
-        ["yes — i'm into it"],
-        ["once or twice"],
-        ["not really"],
-        ["i don't believe in it", "and yet."]
+        ["a conversation"],
+        ["a decision"],
+        ["a task"],
+        ["i'm not"]
       ]
     },
-    "moment_to_share": {
-      "q": "a moment from the last year you'd want a stranger to know.",
+    "what_is_stuck": {
+      "topic": "decisions",
+      "q": "what's stuck — pick one.",
       "f": "choice",
-      "is_dark": true,
       "a": [
-        ["something i'm proud of"],
-        ["something i regret"],
-        ["something i can't explain"],
-        ["i'd rather not say"]
+        ["a person"],
+        ["a project"],
+        ["myself"],
+        ["all of it", "at least you're not pretending."]
+      ]
+    },
+    "crisis_response": {
+      "topic": "decisions",
+      "q": "something's wrong. you—",
+      "f": "choice",
+      "a": [
+        ["go quiet"],
+        ["get loud"],
+        ["go numb"],
+        ["fix things"]
+      ]
+    },
+    "want_cards_to_say": {
+      "topic": "decisions",
+      "q": "what do you want the cards to say?",
+      "f": "choice",
+      "a": [
+        ["stay"],
+        ["go"],
+        ["wait"],
+        ["you were right"]
       ]
     },
 
-    "work_feeling": {
-      "q": "what does work feel like, {name}?",
+    "creature": {
+      "topic": "projective",
+      "q": "pick a creature. fast.",
       "f": "choice",
       "a": [
-        ["meaningful"],
-        ["fine"],
-        ["a slog"],
-        ["undefined"]
+        ["raven"],
+        ["serpent", "of course."],
+        ["wolf"],
+        ["cat", "flattering."]
+      ]
+    },
+    "unknown_door": {
+      "topic": "projective",
+      "q": "you find a door you've never seen. you—",
+      "f": "choice",
+      "a": [
+        ["open it"],
+        ["ignore it"],
+        ["come back later"],
+        ["check who's watching"]
       ]
     },
     "alt_life": {
+      "topic": "projective",
       "q": "if you weren't doing what you do, you'd be—",
       "f": "choice",
       "a": [
@@ -382,37 +395,8 @@
         ["anything else"]
       ]
     },
-    "body_feel": {
-      "q": "where do you feel things, in your body?",
-      "f": "choice",
-      "a": [
-        ["chest"],
-        ["stomach"],
-        ["throat"],
-        ["nowhere lately", "the answer is the answer."]
-      ]
-    },
-    "parents_version": {
-      "q": "the version of you your parents know is—",
-      "f": "choice",
-      "is_dark": true,
-      "a": [
-        ["accurate"],
-        ["outdated"],
-        ["curated"],
-        ["unknown to them"]
-      ]
-    },
-    "live_here": {
-      "q": "does where you live feel right?",
-      "f": "choice",
-      "a": [
-        ["yes"],
-        ["for now"],
-        ["no, but i stay", "we'll come back to that."]
-      ]
-    },
     "would_rather_be": {
+      "topic": "projective",
       "q": "is there somewhere else you'd rather be right now?",
       "f": "choice",
       "a": [
@@ -423,6 +407,7 @@
       ]
     },
     "you_make": {
+      "topic": "projective",
       "q": "is there something you make?",
       "f": "choice",
       "a": [
@@ -433,11 +418,24 @@
       ]
     },
     "destination_map": {
+      "topic": "projective",
       "q": "would you rather have a destination with no map, or a map with no destination?",
       "f": "binary",
       "a": [
         ["destination, no map"],
         ["map, no destination"]
+      ]
+    },
+
+    "tarot_familiarity": {
+      "topic": "meta",
+      "q": "have you done this before?",
+      "f": "choice",
+      "a": [
+        ["yes — i'm into it"],
+        ["once or twice"],
+        ["not really"],
+        ["i don't believe in it", "and yet."]
       ]
     }
   },
@@ -448,7 +446,7 @@
     "vibe_grid.chaotic + in head": "spiraling alone. high internal activity, low external anchor. most likely to have live material.",
     "vibe_grid.chaotic + with people": "externally destabilized. probe cast.",
 
-    "whats_true.something is stuck": "stasis present. inject what_is_stuck if not already queued.",
+    "whats_true.something is stuck": "stasis present.",
     "whats_true.something is unsaid": "communication withheld. cross with relational picks.",
     "whats_true.something is ending": "active transition. loss or relief or both.",
     "whats_true.something is starting": "new thing live. may be hope or anxiety.",
@@ -491,7 +489,6 @@
     "honesty_target.someone close": "specific dishonesty. likely same person as postponed conversation.",
     "honesty_target.pretty much everyone": "performance mode or profound disconnection.",
     "honesty_target.no one": "either genuine or defensive. check against unsaid.",
-    "honesty_target.pass": "the question landed somewhere real. high-signal pass.",
 
     "easy_to_read.yes": "either transparent or believes they are.",
     "easy_to_read.no": "intentional opacity or genuine complexity.",
@@ -513,7 +510,6 @@
     "self_like.yes": "confident self-regard or performed confidence.",
     "self_like.mostly": "realistic — most common honest answer.",
     "self_like.working on it": "active self-dissatisfaction or growth orientation.",
-    "self_like.pass": "high signal pass.",
 
     "keep_score.yes": "grievance orientation. specific tallies exist.",
     "keep_score.no": "either generous or suppressing resentment.",
@@ -553,7 +549,6 @@
 
     "someones_secret.yes": "hidden relationship or role.",
     "someones_secret.no": "straightforward.",
-    "someones_secret.pass": "the question was accurate. high confidence yes suppressed.",
 
     "honesty_grid.honest + okay": "genuinely well.",
     "honesty_grid.honest + not okay": "self-aware and struggling. most open to seer's work.",
@@ -578,8 +573,7 @@
     "moment_to_share.something i'm proud of": "positive self-narrative active. note what they share.",
     "moment_to_share.something i regret": "live regret. specific.",
     "moment_to_share.something i can't explain": "interesting. either mystical-inclined or genuinely confused.",
-    "moment_to_share.i'd rather not say": "the question landed. note as pass.",
-    "moment_to_share.pass": "see above.",
+    "moment_to_share.i'd rather not say": "the question landed. note as decline.",
 
     "has_question.yes — specific": "user is bringing the fork. survey can stay light; collect texture only.",
     "has_question.yes — general": "user has a topic. survey probes the topic.",
@@ -610,7 +604,6 @@
     "parents_version.outdated": "growth that hasn't been transmitted home. common.",
     "parents_version.curated": "deliberate management of parental view. there's something specific being hidden.",
     "parents_version.unknown to them": "significant divergence between presented self and origin. cast: parents.",
-    "parents_version.pass": "the parental angle is live and they don't want to touch it.",
 
     "live_here.yes": "geographic alignment. anchor.",
     "live_here.for now": "transitional or tentative. soft displacement.",

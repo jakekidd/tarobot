@@ -20,8 +20,7 @@ OUTPUT:
 
 constraints:
 - chosen must match an existing option EXACTLY (one of the strings in the options list). for multi-select, all entries must match.
-- if it's a dark question (you'll see is_dark: true), AND the archetype.would_answer_dark_questions is false, you should pick 'pass'.
-- otherwise answer authentically to who this person is.
+- answer authentically to who this person is.
 
 return only the tool call.`;
 
@@ -68,7 +67,6 @@ export async function pickAnswer(
       text: question.text,
       format: question.format,
       options: question.options,
-      is_dark: question.is_dark,
       axes: question.axes,
     },
   };

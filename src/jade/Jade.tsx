@@ -46,7 +46,7 @@ export function Jade({ onExit }: Props) {
   }
 
   function handleReset(): void {
-    if (!confirm('reset to the bundled tree.json? all your local edits will be lost.')) return;
+    if (!confirm('are you sure? all your local edits will be wiped and the bundled survey will come back.')) return;
     const fresh = resetJadeTree();
     setTreeState(fresh);
   }

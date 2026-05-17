@@ -136,21 +136,6 @@ body.jade-mode .crt-overlay   { display: none !important; }
   border-color: #b388ff;
   box-shadow: 0 0 10px rgba(179, 136, 255, 0.18);
 }
-.jade-list__add {
-  font-family: inherit;
-  font-size: 0.78rem;
-  letter-spacing: 0.22em;
-  background: transparent;
-  color: #b388ff;
-  border: 1px solid #2a1f4a;
-  padding: 0.45rem 0.8rem;
-  cursor: pointer;
-  border-radius: 0;
-}
-.jade-list__add:hover {
-  border-color: #b388ff;
-  background: rgba(179, 136, 255, 0.06);
-}
 .jade-list__count {
   font-size: 0.78rem;
   letter-spacing: 0.18em;
@@ -172,33 +157,92 @@ body.jade-mode .crt-overlay   { display: none !important; }
   font-size: 0.95rem;
 }
 
+/* ─── topic group ─────────────────────────────────────── */
+.jade-group {
+  margin: 0 1.4rem 1.4rem;
+  padding-bottom: 0.3rem;
+}
+.jade-group__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  padding: 0.5rem 0.1rem 0.5rem;
+  margin-bottom: 0.4rem;
+  border-bottom: 1px solid #2a1f4a;
+}
+.jade-group__head--openers {
+  border-bottom-color: #b388ff;
+}
+.jade-group__name {
+  font-family: var(--font-mono);
+  font-size: 0.9rem;
+  letter-spacing: 0.32em;
+  text-transform: uppercase;
+  color: #b388ff;
+  text-shadow: 0 0 8px rgba(179, 136, 255, 0.35);
+}
+.jade-group__head--topic .jade-group__name {
+  color: #8a7aac;
+  text-shadow: none;
+}
+.jade-group__count {
+  font-size: 0.7rem;
+  letter-spacing: 0.2em;
+  color: #564a78;
+  text-transform: lowercase;
+}
+.jade-group__empty {
+  padding: 0.6rem 0.9rem;
+  color: #4a3f63;
+  font-size: 0.88rem;
+}
+.jade-group__add {
+  display: block;
+  width: 100%;
+  font-family: inherit;
+  font-size: 0.74rem;
+  letter-spacing: 0.32em;
+  text-transform: uppercase;
+  background: transparent;
+  color: #6b5a8a;
+  border: 1px dashed #2a1f4a;
+  padding: 0.5rem 0.9rem;
+  cursor: pointer;
+  border-radius: 0;
+  margin-top: 0.35rem;
+  text-align: center;
+}
+.jade-group__add:hover {
+  color: #b388ff;
+  border-color: #b388ff;
+  background: rgba(179, 136, 255, 0.04);
+}
+
 /* ─── individual row ──────────────────────────────────── */
 .jade-row {
-  margin: 0 1.4rem 0.35rem;
   background: #0a0717;
   border: 1px solid #1a112e;
   border-left-width: 4px;
   border-radius: 0;
   overflow: hidden;
+  margin-bottom: 0.35rem;
 }
-.jade-row--opener   { border-left-color: #b388ff; }
-.jade-row--root     { border-left-color: #7c3aed; }
-.jade-row--followup { border-left-color: #3a2d5a; }
+.jade-row--opener { border-left-color: #b388ff; }
+.jade-row--topic  { border-left-color: #3a2d5a; }
 .jade-row--open {
   background: #0d0a1c;
   border-color: #2a1f4a;
 }
-.jade-row--open.jade-row--opener   { border-left-color: #b388ff; }
-.jade-row--open.jade-row--root     { border-left-color: #7c3aed; }
-.jade-row--open.jade-row--followup { border-left-color: #564a78; }
+.jade-row--open.jade-row--opener { border-left-color: #b388ff; }
+.jade-row--open.jade-row--topic  { border-left-color: #7c3aed; }
 
 .jade-row__head {
   display: grid;
-  grid-template-columns: 80px 220px 70px 50px 1fr 24px;
-  gap: 0.7rem;
+  grid-template-columns: 70px 1fr 24px;
+  gap: 0.9rem;
   align-items: center;
   width: 100%;
-  padding: 0.6rem 0.9rem;
+  padding: 0.55rem 0.9rem;
   background: transparent;
   border: 0;
   cursor: pointer;
@@ -208,25 +252,6 @@ body.jade-mode .crt-overlay   { display: none !important; }
   font-size: 0.9rem;
 }
 .jade-row__head:hover { background: rgba(179, 136, 255, 0.04); }
-
-.jade-row__kind {
-  font-size: 0.66rem;
-  letter-spacing: 0.22em;
-  text-transform: uppercase;
-  padding: 0.18rem 0.5rem;
-  text-align: center;
-  border: 1px solid;
-}
-.jade-row__kind--opener   { color: #b388ff; border-color: #b388ff; }
-.jade-row__kind--root     { color: #7c3aed; border-color: #7c3aed; }
-.jade-row__kind--followup { color: #564a78; border-color: #2a1f4a; }
-
-.jade-row__id {
-  font-family: var(--font-mono);
-  color: #b388ff;
-  font-size: 0.92rem;
-  letter-spacing: 0.04em;
-  overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -246,15 +271,6 @@ body.jade-mode .crt-overlay   { display: none !important; }
 .jade-row__fmt--binary { color: #fbbf24; }
 .jade-row__fmt--multi  { color: #86efac; }
 .jade-row__fmt--matrix { color: #f472b6; }
-
-.jade-row__dark {
-  font-size: 0.66rem;
-  letter-spacing: 0.22em;
-  text-transform: uppercase;
-  color: #e2536e;
-  padding: 0.12rem 0.3rem;
-  border: 1px solid rgba(226, 83, 110, 0.3);
-}
 
 .jade-row__q {
   font-family: 'IM Fell English', 'Cormorant Garamond', serif;
@@ -296,7 +312,6 @@ body.jade-mode .crt-overlay   { display: none !important; }
 .jade-edit__select,
 .jade-edit__answer-text,
 .jade-edit__answer-comment,
-.jade-edit__answer-next,
 .jade-edit__axis {
   background: #15102a;
   color: #e8e0ff;
@@ -319,24 +334,22 @@ body.jade-mode .crt-overlay   { display: none !important; }
 .jade-edit__select:focus,
 .jade-edit__answer-text:focus,
 .jade-edit__answer-comment:focus,
-.jade-edit__answer-next:focus,
 .jade-edit__axis:focus {
   border-color: #b388ff;
   box-shadow: 0 0 10px rgba(179, 136, 255, 0.18);
 }
 
-.jade-edit__roles {
-  display: flex;
-  flex-direction: column;
-  gap: 0.35rem;
-}
-.jade-edit__check {
-  display: flex;
-  align-items: center;
-  gap: 0.55rem;
-  font-size: 0.92rem;
-  color: #d4c7ff;
-  cursor: pointer;
+/* TOPIC display (read-only chip in the expanded editor) */
+.jade-edit__topic {
+  display: inline-block;
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: #b388ff;
+  padding: 0.18rem 0.55rem;
+  border: 1px solid rgba(179, 136, 255, 0.35);
+  width: fit-content;
 }
 
 .jade-edit__section {
@@ -365,7 +378,7 @@ body.jade-mode .crt-overlay   { display: none !important; }
 .jade-edit__answers { display: flex; flex-direction: column; gap: 0.35rem; }
 .jade-edit__answer {
   display: grid;
-  grid-template-columns: 1.2fr 1.2fr 1.4fr 28px;
+  grid-template-columns: 1fr 1.4fr 28px;
   gap: 0.3rem;
 }
 .jade-edit__remove {
@@ -381,6 +394,14 @@ body.jade-mode .crt-overlay   { display: none !important; }
 .jade-edit__remove:hover {
   color: #e2536e;
   border-color: #e2536e;
+}
+.jade-edit__remove--locked {
+  cursor: default;
+  border-color: transparent;
+}
+.jade-edit__remove--locked:hover {
+  color: #6b5a8a;
+  border-color: transparent;
 }
 
 .jade-edit__axes {

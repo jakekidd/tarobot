@@ -28,7 +28,6 @@ export type SurveyQuestion = {
     | 'identity' | 'life-state' | 'relational'
     | 'register' | 'projective' | 'stance' | 'time';
   depth: 'warm' | 'medium' | 'edge';
-  is_dark: boolean;
   tags: string[];
   interpretation: Record<string, string>;
 };

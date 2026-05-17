@@ -28,7 +28,7 @@ function loadStoredTree(): DialogueTree | null {
     const raw = localStorage.getItem(TREE_KEY);
     if (!raw) return null;
     const parsed = JSON.parse(raw) as DialogueTree;
-    if (!parsed?.nodes || !parsed.roots) return null;
+    if (!parsed?.nodes || !parsed.openers || !parsed.topics) return null;
     return parsed;
   } catch {
     return null;

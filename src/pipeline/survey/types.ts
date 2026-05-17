@@ -13,34 +13,35 @@ export const PHASE_ORDER: Phase[] = ['A', 'B', 'C', 'D', 'E'];
 
 export type AnswerFormat = 'text' | 'date' | 'choice' | 'binary' | 'multi' | 'matrix';
 
-/** [answer_text] | [answer_text, comment] | [answer_text, comment, next_node_id]. */
-export type AnswerTuple = [string] | [string, string] | [string, string, string];
+/** [answer_text] | [answer_text, comment]. Comment is shown inline after pick. */
+export type AnswerTuple = [string] | [string, string];
 
 export type TreeNode = {
+  /** Which topic group this node belongs to. Must be one of `tree.topics`. */
+  topic: string;
   q: string;
   f: AnswerFormat;
   a?: AnswerTuple[];
   axes?: [[string, string], [string, string]];
-  is_dark?: boolean;
-  next?: string;
 };
 
 export type DialogueTree = {
   v: string;
+  /** Ordered list of topic ids the editor groups nodes by. */
+  topics: string[];
+  /** Openers (in order) — always run first; not investigator-picked. */
   openers: string[];
-  roots: string[];
   nodes: Record<string, TreeNode>;
   interp: Record<string, string>;
 };
 
-/** Question rendered for the UI: post-substitution, with options resolved + pass appended for dark. */
+/** Question rendered for the UI: post-substitution, options flattened. */
 export type RenderedQuestion = {
   node_id: string;
   text: string;
   format: AnswerFormat;
   options: string[];
   axes?: [[string, string], [string, string]];
-  is_dark: boolean;
   preamble?: string;
 };
 
@@ -196,7 +197,6 @@ export type BehavioralSignals = {
   latency_ms: number;            // for this pick
   rolling_median_ms: number;     // engine's running median over recent picks
   is_pass: boolean;
-  is_dark_question: boolean;
   is_multi_select: boolean;
   multi_select_count?: number;
   revisions: number;
@@ -232,7 +232,7 @@ export type InvestigatorAvailableNode = {
   id: string;
   text: string;
   format: AnswerFormat;
-  is_dark: boolean;
+  topic: string;
   interp_hint?: string;
 };
 

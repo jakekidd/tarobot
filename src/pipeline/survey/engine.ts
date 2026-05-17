@@ -17,10 +17,9 @@ import {
   commentForAnswer,
   getNode,
   getOpeners,
-  getRoots,
+  getPoolNodeIds,
   relevantInterp,
   renderQuestion,
-  resolveNextNode,
   TREE,
 } from './tree';
 import { derivePhase } from './phase';
@@ -135,24 +134,35 @@ export class SurveyEngine {
       phase: derivePhase(this.state.phase, this.state.picks_log.length, false),
     });
 
-    // 4. For openers `name` and `birthday`, no agents fire. Just enqueue next.
+    // 4. For openers `name` and `birthday`, no agents fire. Just chain the
+    //    next opener in the ordered openers[] list.
     if (OPENER_FREE_AGENTS.has(head.node_id)) {
-      this.enqueueTreeNext(head.node_id, answer, /* preamble */ null);
+      this.enqueueNextOpener(head.node_id, /* preamble */ null);
       this.emit();
       return;
     }
 
     // 5. Determine the next question.
-    //    If the tree dictates a next (via answer-override or node.next), use it
-    //    + the inline answer-comment as preamble. Otherwise fire the
-    //    Investigator to pick a new root + preamble.
+    //    If we're still walking the openers chain, enqueue the next opener.
+    //    Otherwise fire the Investigator to pick from the pool.
     const inlineComment = typeof answer === 'string'
       ? commentForAnswer(node, answer)
       : null;
-    const treeNext = resolveNextNode(node, answer);
 
-    if (treeNext && !this.state.asked_node_ids.includes(treeNext)) {
-      this.enqueueDirect(treeNext, /* prompted_by */ null, inlineComment);
+    if (OPENER_NODE_IDS.has(head.node_id)) {
+      const enqueued = this.enqueueNextOpener(head.node_id, inlineComment);
+      if (enqueued) {
+        // Fire Observer async below; opener walked, no investigator needed.
+      } else {
+        // End of opener chain — hand off to investigator.
+        this.setState({ thinking: true });
+        this.emit();
+        try {
+          await this.fireInvestigator(inlineComment);
+        } finally {
+          this.setState({ thinking: false });
+        }
+      }
     } else {
       // Investigator is the user-blocking path — flip the dizzy/thinking flag
       // so the UI can show a loading state while we wait.
@@ -336,27 +346,33 @@ export class SurveyEngine {
     });
   }
 
-  private enqueueTreeNext(prevNodeId: string, answer: string | string[], preamble: string | null): void {
-    const node = getNode(prevNodeId);
-    if (!node) return;
-    const next = resolveNextNode(node, answer);
-    if (!next || this.state.asked_node_ids.includes(next)) return;
+  /**
+   * Walk the opener chain: given the just-answered opener, enqueue the
+   * next one in the openers[] order. Returns true if an opener was
+   * enqueued, false if the chain is done.
+   */
+  private enqueueNextOpener(prevOpenerId: string, preamble: string | null): boolean {
+    const openers = getOpeners();
+    const idx = openers.indexOf(prevOpenerId);
+    if (idx < 0 || idx >= openers.length - 1) return false;
+    const next = openers[idx + 1];
+    if (!next || this.state.asked_node_ids.includes(next)) return false;
     this.enqueueDirect(next, null, preamble);
+    return true;
   }
 
   // ─── agent firing ────────────────────────────────────
 
   private buildAvailableNodes(): InvestigatorAvailableNode[] {
-    return getRoots()
+    return getPoolNodeIds()
       .filter((id) => !this.state.asked_node_ids.includes(id))
-      .filter((id) => !OPENER_NODE_IDS.has(id))
       .map((id) => {
         const n = getNode(id)!;
         return {
           id,
           text: n.q,
           format: n.f,
-          is_dark: n.is_dark === true,
+          topic: n.topic,
         };
       });
   }
