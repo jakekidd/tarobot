@@ -777,7 +777,7 @@ a:hover { text-decoration: underline; }
      directive, chat can sit over the scene. Was 9rem; dropped ~40px to
      6.5rem at user request to clear more of the table view. */
   position: absolute;
-  bottom: 6.5rem;
+  bottom: 5.5rem;     /* 6.5rem → 5.5rem (~16px down) */
   left: 50%;
   transform: translateX(-50%);
   width: min(64ch, calc(100% - 2rem));
@@ -1050,7 +1050,9 @@ a:hover { text-decoration: underline; }
   color: var(--fg);
   word-break: break-word;
   text-align: left;
-  text-transform: uppercase;     /* match the dialogue display */
+  /* dialogue is lowercase as-delivered; transcript matches. The user
+     name is uppercased per-token by highlightNames. */
+  text-transform: none;
   letter-spacing: 0.02em;
 }
 /* Live (in-flight) beat — indented so it visually reads as still being

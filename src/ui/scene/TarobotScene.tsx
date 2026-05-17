@@ -54,7 +54,10 @@ const ZOOM_IN_START_SCALE = 0.12;
 // disappears against the void.
 const PARTICLE_COUNT = 280;
 const PARTICLE_BURST_DURATION = 0.6;     // seconds; initial outward burst
-const PARTICLE_BASE_OMEGA = -0.0056;      // negative = clockwise; ~1/10 of prior pass (very slow drift)
+// -0.012 ≈ 2× prior baseline. Particles already get a 10× boost via
+// dizzyMultiplier when awaiting_tier is set (Reading.tsx wires it in),
+// so the "accelerate while waiting" behavior comes free on top.
+const PARTICLE_BASE_OMEGA = -0.012;
 
 // "Dizzy" state — fires while a blocking LLM call is in flight. Eyes cycle
 // through the 8 look-directions for a spin effect; dust ramps to ~10× the
@@ -207,7 +210,9 @@ export function TarobotScene() {
     // want (eyes appear floating inside the hood opening).
     const cowlGroup = new THREE.Group();
     cowlGroup.scale.setScalar(4.0);
-    cowlGroup.position.set(0, -0.4, 0);
+    // z=-1.2 pushes the cowl BEHIND the eyes (at z=0) so the eyes
+    // float in front of the hood opening rather than being obscured.
+    cowlGroup.position.set(0, -0.4, -1.2);
     eyesGroup.add(cowlGroup);
 
     const cowlMaterials: THREE.Material[] = [];
@@ -219,8 +224,11 @@ export function TarobotScene() {
         const model = gltf.scene;
         model.traverse((obj) => {
           if (obj instanceof THREE.Mesh) {
+            // Dark grey-purple — visible against the void so the cowl
+            // actually reads as a hooded figure, not just invisible
+            // stars-occlusion. (Was pure black; user couldn't see it.)
             const mat = new THREE.MeshBasicMaterial({
-              color: 0x000000,
+              color: 0x2a2438,
               transparent: true,
               depthWrite: false,
             });
