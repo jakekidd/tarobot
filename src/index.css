@@ -794,13 +794,18 @@ a:hover { text-decoration: underline; }
   position: relative;
 }
 
-/* Dialogue text — frontend-only uppercase display. The stored text
-   in state.intro / state.revealed[].monologue.text remains as
-   delivered (mixed-case ok, lowercase as the seer prefers); only
-   the visual presentation is shouted. */
-.reading__dialogue-text {
+/* Dialogue text — UPPERCASE only on the intro (it's short, ceremonial,
+   reads as a title card). Beats + outro stay as-delivered (lowercase),
+   so long monologues breathe at the seer's intended register and the
+   chunker's char-count cap actually matches the visual fit. */
+.reading__intro .reading__dialogue-text {
   text-transform: uppercase;
   letter-spacing: 0.02em;
+}
+.reading__beat .reading__dialogue-text,
+.reading__outro .reading__dialogue-text {
+  text-transform: none;
+  letter-spacing: 0;
 }
 
 /* Emphasis spans — persona marks phrases with _underscores_; the

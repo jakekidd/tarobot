@@ -7,12 +7,31 @@ export type TypewriterState = {
 };
 
 /**
- * Emit `text` one character at a time with extra pauses on punctuation.
+ * Emit `text` one character at a time with speech-shaped cadence.
  *
- * Pauses (relative to base charDelayMs):
- *   .  ?  !   → +220-470 ms
- *   —          → +160-300 ms
- *   ,  ;  :    → +90-200 ms
+ * The naturalistic feel comes from layering five things on top of a
+ * constant base char-delay:
+ *
+ *   1. Per-char class delay
+ *        ellipsis (… ...)  → long thoughtful pause   (+700-1100 ms)
+ *        sentence end .?!  → big pause                (+260-520 ms)
+ *        em-/en-dash —–    → mid pause                (+180-320 ms)
+ *        comma / colon ,;: → small pause              (+95-200 ms)
+ *        word boundary ' ' → micro pause              (+18-44 ms)
+ *   2. Multi-char run for "…" or "..." treated as a SINGLE ellipsis
+ *      pause (charged on the last char of the run) instead of three
+ *      sentence-end pauses stacked.
+ *   3. Phrase-breath: after ~9-13 words of unbroken prose, an extra
+ *      ~70-160 ms breath pause regardless of punctuation. (No real
+ *      speaker can run a whole line without inhaling.)
+ *   4. Per-char random jitter: ±25% of base delay so the rhythm
+ *      doesn't read as a metronome.
+ *   5. Slight base-delay slowdown after a sentence end (≈1.08×) for
+ *      the next ~8 chars — picking the next thought up takes a beat.
+ *
+ * No speech-to-text. No phoneme duration. This is rule-based cadence,
+ * and it lands surprisingly close to a real reader's rhythm for the
+ * cost of a few regexes.
  *
  * Consumers should remount via `key` to retype a new line.
  */
@@ -39,6 +58,8 @@ export function useTypewriter(
     }
     let stopped = false;
     let timeoutId = 0;
+    let wordsSinceBreath = 0;
+    let postSentenceCarry = 0;          // chars remaining of slowdown window
 
     const tick = () => {
       if (stopped) return;
@@ -54,11 +75,49 @@ export function useTypewriter(
         return;
       }
 
-      // Variable delay based on the char we just emitted.
-      let delay = charDelayMs;
-      if (/[.?!]/.test(ch))            delay += 220 + Math.random() * 250;
-      else if (/[—–]/.test(ch))        delay += 160 + Math.random() * 140;
-      else if (/[,;:]/.test(ch))       delay += 90  + Math.random() * 110;
+      // Base delay + post-sentence slowdown window
+      const postSlow = postSentenceCarry > 0 ? 1.08 : 1.0;
+      if (postSentenceCarry > 0) postSentenceCarry -= 1;
+      let delay = charDelayMs * postSlow;
+
+      // Per-char jitter (±25%) — keeps rhythm out of metronome territory
+      delay *= 0.75 + Math.random() * 0.50;
+
+      // Char-class pauses
+      const peekPrev = text[indexRef.current - 2] ?? '';
+      const peekPrev2 = text[indexRef.current - 3] ?? '';
+      const next1 = text[indexRef.current] ?? '';
+
+      // Ellipsis handling — collapse runs. Charge a single long pause on
+      // the trailing char of "..." or after "…" itself.
+      const isEllipsisChar = ch === '…';
+      const isThirdDotOfRun = ch === '.' && peekPrev === '.' && peekPrev2 === '.';
+      const isMidDotOfRun = ch === '.' && (next1 === '.' || peekPrev === '.');
+
+      if (isEllipsisChar || isThirdDotOfRun) {
+        delay += 700 + Math.random() * 400;
+        postSentenceCarry = 8;
+        wordsSinceBreath = 0;
+      } else if (isMidDotOfRun) {
+        // Don't stack sentence-end pauses on every dot of "..."
+        delay += 8;
+      } else if (/[.?!]/.test(ch)) {
+        delay += 260 + Math.random() * 260;
+        postSentenceCarry = 8;
+        wordsSinceBreath = 0;
+      } else if (/[—–]/.test(ch)) {
+        delay += 180 + Math.random() * 140;
+      } else if (/[,;:]/.test(ch)) {
+        delay += 95 + Math.random() * 105;
+      } else if (ch === ' ') {
+        delay += 18 + Math.random() * 26;
+        wordsSinceBreath += 1;
+        // Phrase-breath every ~9-13 words
+        if (wordsSinceBreath >= 9 + Math.random() * 4) {
+          delay += 70 + Math.random() * 90;
+          wordsSinceBreath = 0;
+        }
+      }
 
       timeoutId = window.setTimeout(tick, delay);
     };

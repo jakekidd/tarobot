@@ -178,18 +178,35 @@ export function TarobotScene() {
     let lastFrameIdx = -1;
 
     // ─── Eyes (alternative face — the seer) ──────────────
-    // Two flat planes textured by a per-eye canvas. Each canvas is
-    // repainted every frame: a soft glowing halo + a pupil that takes
-    // one of several "moods" (calm dot, thinking spiral, …). Bloom on
-    // the composer makes them read as light sources.
-    //
-    // Wider apart and slightly elliptical (wider than tall) — closer to
-    // real eyes than the previous two perfect spheres.
+    // Two flat planes textured by a per-eye canvas, plus a dark
+    // cloak/hood silhouette plane behind them. The hood is what gives
+    // the seer a shape beyond two floating spheres.
     const eyesGroup = new THREE.Group();
-    const EYE_W = 0.30;
-    const EYE_H = 0.22;
-    const EYE_SEP = 0.50;
+    const EYE_W = 0.36;
+    const EYE_H = 0.27;
+    const EYE_SEP = 0.62;
     const eyeGeom = new THREE.PlaneGeometry(EYE_W, EYE_H);
+
+    // ── Cloak silhouette plane (sits behind the eyes) ──
+    const cloakCanvas = document.createElement('canvas');
+    cloakCanvas.width = 320;
+    cloakCanvas.height = 380;
+    const cloakCtx = cloakCanvas.getContext('2d')!;
+    paintCloak(cloakCtx);
+    const cloakTex = new THREE.CanvasTexture(cloakCanvas);
+    cloakTex.colorSpace = THREE.SRGBColorSpace;
+    cloakTex.minFilter = THREE.LinearFilter;
+    cloakTex.magFilter = THREE.LinearFilter;
+    cloakTex.generateMipmaps = false;
+    const cloakMat = new THREE.MeshBasicMaterial({
+      map: cloakTex,
+      transparent: true,
+      depthWrite: false,
+    });
+    const cloakGeom = new THREE.PlaneGeometry(1.25, 1.48);
+    const cloakMesh = new THREE.Mesh(cloakGeom, cloakMat);
+    cloakMesh.position.set(0, -0.05, -0.04);   // slightly behind, a bit lower
+    eyesGroup.add(cloakMesh);
 
     function makeEye(): {
       mesh: THREE.Mesh;
@@ -284,10 +301,19 @@ export function TarobotScene() {
         ctx.stroke();
         ctx.restore();
       } else {
-        // Calm — single dark pupil dot, slowly drifting
-        const pupilR = Math.min(rx, ry) * 0.28;
-        const driftX = Math.sin(timeSec * 0.6 + jitter * 6.28) * rx * 0.06;
-        const driftY = Math.cos(timeSec * 0.4 + jitter * 6.28) * ry * 0.05;
+        // Calm — larger dark pupil with generous wander room. Two
+        // independent low-freq sines on each axis = naturalistic drift.
+        const pupilR = Math.min(rx, ry) * 0.38;
+        const wanderX = rx * 0.22;
+        const wanderY = ry * 0.18;
+        const driftX = (
+          Math.sin(timeSec * 0.31 + jitter * 6.28) * 0.65 +
+          Math.sin(timeSec * 0.83 + jitter * 3.14) * 0.35
+        ) * wanderX;
+        const driftY = (
+          Math.cos(timeSec * 0.27 + jitter * 6.28) * 0.65 +
+          Math.cos(timeSec * 0.71 + jitter * 1.57) * 0.35
+        ) * wanderY;
         ctx.fillStyle = 'rgba(12, 4, 28, 0.95)';
         ctx.beginPath();
         ctx.ellipse(cx + driftX, cy + driftY, pupilR, pupilR, 0, 0, Math.PI * 2);
@@ -313,6 +339,7 @@ export function TarobotScene() {
       blinking: false,
       nextAt: 0,
       endsAt: 0,
+      durMs: 200,
     };
 
     // ─── Particles ────────────────────────────────────────
@@ -536,14 +563,15 @@ export function TarobotScene() {
       right:  [1.25, 0],
       bottom: [0, 1.05],
     };
-    // Lifted card — pushed further back so it doesn't fill the frame
-    // when held. Tilted back toward camera so it reads as "held up at
-    // an angle for the viewer".
-    const LIFT_POS = new THREE.Vector3(0, 2.9, 5.9);
+    // Lifted card — held just above the table, tilted back significantly
+    // toward camera so the whole face catches the warm key light. NOT
+    // close-to-chest; the viewer sees the whole card from a slight
+    // angle, like the seer is presenting it to them.
+    const LIFT_POS = new THREE.Vector3(0, 1.7, 6.2);
     const STAGE_QUAT: Record<CardStage, THREE.Quaternion> = {
       face_down: new THREE.Quaternion().setFromEuler(new THREE.Euler(Math.PI / 2, 0, 0)),
       face_up:   new THREE.Quaternion().setFromEuler(new THREE.Euler(-Math.PI / 2, 0, 0)),
-      lifted:    new THREE.Quaternion().setFromEuler(new THREE.Euler(-0.22, 0, 0)),
+      lifted:    new THREE.Quaternion().setFromEuler(new THREE.Euler(-0.42, 0, 0)),
     };
     const STAGE_MS: Record<CardStage, number> = {
       face_down: 700, face_up: 700, lifted: 950,   // lift gets longer to read the arc
@@ -760,19 +788,26 @@ export function TarobotScene() {
 
       // ── Eyes: blink + per-frame canvas paint with current mood ───
       if (eyesGroup.visible) {
+        // Blink less often, with random fast/slow duration.
+        //   fast blink (~60% of the time):   180 ± 80 ms
+        //   slow blink (~40% of the time):   420 ± 140 ms
+        //   interval between blinks: 3500–8500 ms
         if (eyesBlink.nextAt === 0) {
-          eyesBlink.nextAt = now + 1800 + Math.random() * 3800;
+          eyesBlink.nextAt = now + 3500 + Math.random() * 5000;
         }
         if (!eyesBlink.blinking && now >= eyesBlink.nextAt) {
           eyesBlink.blinking = true;
-          eyesBlink.endsAt = now + 130 + Math.random() * 60;
+          const slow = Math.random() < 0.40;
+          const dur = slow ? 420 + Math.random() * 140 : 180 + Math.random() * 80;
+          eyesBlink.endsAt = now + dur;
+          eyesBlink.durMs = dur;
         } else if (eyesBlink.blinking && now >= eyesBlink.endsAt) {
           eyesBlink.blinking = false;
-          eyesBlink.nextAt = now + 1800 + Math.random() * 3800;
+          eyesBlink.nextAt = now + 3500 + Math.random() * 5000;
         }
         let sy = 1;
         if (eyesBlink.blinking) {
-          const u = 1 - (eyesBlink.endsAt - now) / 130;
+          const u = 1 - (eyesBlink.endsAt - now) / eyesBlink.durMs;
           sy = u < 0.5 ? 1 - u * 2 : (u - 0.5) * 2;
           sy = Math.max(0.05, sy);
         }
@@ -1158,6 +1193,9 @@ export function TarobotScene() {
       rightEye.mat.dispose();
       leftEye.tex.dispose();
       rightEye.tex.dispose();
+      cloakGeom.dispose();
+      cloakMat.dispose();
+      cloakTex.dispose();
       // Perspective layer
       for (const rig of cardRigs) {
         rig.frontMat.dispose();
@@ -1221,4 +1259,38 @@ function makeSquareParticleTexture(): THREE.CanvasTexture {
   tex.minFilter = THREE.NearestFilter;
   tex.magFilter = THREE.NearestFilter;
   return tex;
+}
+
+/** Paint a soft hood / cloak silhouette behind the eyes — peaked top,
+ *  rounded shoulders, fades out downward. Dark fill so the eyes still
+ *  read as the bright element; subtle violet inner outline. */
+function paintCloak(ctx: CanvasRenderingContext2D): void {
+  const W = ctx.canvas.width;
+  const H = ctx.canvas.height;
+  ctx.clearRect(0, 0, W, H);
+
+  // Hood silhouette path — peaked top center, curves out to wide
+  // shoulders, drops off the bottom (cloak extends out of frame).
+  const path = new Path2D();
+  path.moveTo(W * 0.50, H * 0.05);                                  // peak top
+  path.bezierCurveTo(W * 0.88, H * 0.10, W * 0.97, H * 0.55, W * 0.96, H * 0.92);  // right shoulder
+  path.lineTo(W * 0.96, H);
+  path.lineTo(W * 0.04, H);
+  path.lineTo(W * 0.04, H * 0.92);
+  path.bezierCurveTo(W * 0.03, H * 0.55, W * 0.12, H * 0.10, W * 0.50, H * 0.05); // left shoulder back to peak
+  path.closePath();
+
+  // Dark fill — alpha fades out toward the edges via a radial gradient
+  // mask. Use composite: draw solid dark, then mask the edges to alpha 0.
+  const grad = ctx.createRadialGradient(W / 2, H * 0.5, W * 0.10, W / 2, H * 0.55, W * 0.55);
+  grad.addColorStop(0.00, 'rgba(6, 3, 14, 0.92)');
+  grad.addColorStop(0.55, 'rgba(8, 4, 18, 0.78)');
+  grad.addColorStop(1.00, 'rgba(8, 4, 18, 0.0)');
+  ctx.fillStyle = grad;
+  ctx.fill(path);
+
+  // Subtle violet outline near the edges of the hood
+  ctx.strokeStyle = 'rgba(124, 58, 237, 0.32)';
+  ctx.lineWidth = 1.4;
+  ctx.stroke(path);
 }
