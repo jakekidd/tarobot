@@ -14,6 +14,9 @@ import { Survey as SurveyScreen } from './ui/Survey';
 import { Reading } from './ui/Reading';
 import { TarobotScene } from './ui/scene/TarobotScene';
 import { buildMarisolDemoBrief, MARISOL_INTRO } from './pipeline/reading';
+import { Jade } from './jade/Jade';
+import { useSecretSequence } from './jade/useSecretSequence';
+import './jade/jade.css';
 
 type Phase =
   | { kind: 'key' }
@@ -21,13 +24,15 @@ type Phase =
   | { kind: 'resume' }
   | { kind: 'settings' }
   | { kind: 'survey'; session: Session }
-  | { kind: 'reading'; session: Session; brief: CompilerOutput; preferredIntro?: typeof MARISOL_INTRO };
+  | { kind: 'reading'; session: Session; brief: CompilerOutput; preferredIntro?: typeof MARISOL_INTRO }
+  | { kind: 'jade' };
 
 export function App() {
   const [apiKey, setApiKey] = useState<string | null>(() => loadApiKey());
   const [phase, setPhase] = useState<Phase>(() =>
     loadApiKey() ? { kind: 'menu' } : { kind: 'key' },
   );
+  const { unlocked: jadeUnlocked } = useSecretSequence();
 
   function goMenu() {
     setPhase({ kind: 'menu' });
@@ -86,9 +91,19 @@ export function App() {
         <div className="app__brand-block">
           <span className="app__brand">tarobot</span>
           <span className="app__version">v0.0.2-{__APP_COMMIT__}</span>
+          {jadeUnlocked && phase.kind !== 'jade' && (
+            <button
+              type="button"
+              className="jade-unlock-chip"
+              onClick={() => setPhase({ kind: 'jade' })}
+              title="open jade — survey tree editor"
+            >
+              jade
+            </button>
+          )}
         </div>
         <div className="app__topbar-actions">
-          {phase.kind !== 'menu' && phase.kind !== 'key' && (
+          {phase.kind !== 'menu' && phase.kind !== 'key' && phase.kind !== 'jade' && (
             <button className="btn btn--quiet" onClick={goMenu}>
               exit
             </button>
@@ -143,6 +158,8 @@ export function App() {
               onExit={goMenu}
             />
           )}
+
+          {phase.kind === 'jade' && <Jade onExit={goMenu} />}
         </main>
     </div>
   );

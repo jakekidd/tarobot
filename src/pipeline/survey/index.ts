@@ -43,4 +43,5 @@ export type {
   SurveyProfile,
   TimingEvent,
   TreeNode,
+  AnswerTuple,
 } from './types';
