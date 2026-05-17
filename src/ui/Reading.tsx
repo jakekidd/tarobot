@@ -483,26 +483,28 @@ function ChunkedLine({
   highlights: Highlights;
   onAdvance: () => void;
 }) {
-  // Strip _underscore_ emphasis markers first; chunker + typewriter then
-  // operate on the cleaned text. Ranges in chunk-local coordinates.
   const chunks = useMemo(() => {
     const parsed = parseEmphasis(text);
     return chunkWithRanges(parsed.text, parsed.ranges, CHUNK_MAX_CHARS);
   }, [text]);
 
   const [idx, setIdx] = useState(0);
-  const settings = useMemo(() => loadSettings(), []);
-  const current = chunks[idx] ?? { text: '', ranges: [] };
-  const { displayed, done, skip } = useTypewriter(
-    current.text.toLowerCase(),
-    settings.charDelayMs,
-  );
+  const [chunkDone, setChunkDone] = useState(false);
+  // skip() is exposed by the typewriter through a ref the child writes to.
+  const skipRef = useRef<(() => void) | null>(null);
+
+  // No reset-on-text-change effect needed: the parent (ReadingStage) keys
+  // each <ChunkedLine> by phase + slot + revealed.length, so a new beat
+  // remounts this component entirely.
+
   const isLast = idx >= chunks.length - 1;
 
   function tap() {
-    if (!done) skip();
-    else if (!isLast) setIdx(idx + 1);
-    else onAdvance();
+    if (!chunkDone) skipRef.current?.();
+    else if (!isLast) {
+      setChunkDone(false);
+      setIdx((i) => i + 1);
+    } else onAdvance();
   }
 
   const tapRef = useRef(tap);
@@ -514,6 +516,8 @@ function ChunkedLine({
     tapRef.current();
   }, [advanceTick]);
 
+  const current = chunks[idx] ?? { text: '', ranges: [] };
+
   return (
     <div
       className={`reading__${kind} reading__dialogue-rigid`}
@@ -521,19 +525,62 @@ function ChunkedLine({
       role="button"
       tabIndex={0}
     >
-      <span className="reading__dialogue-text">
-        {renderWithEmphasis(current.text, displayed, current.ranges, highlights)}
-        {!done && <span className="reading__cursor-spiral" aria-hidden />}
-      </span>
-      {done && (
+      {/* Keyed: each chunk gets a fresh ChunkRenderer + fresh useTypewriter.
+          Without the remount, useTypewriter's internal index never resets
+          and the next chunk slams in fully-typed. */}
+      <ChunkRenderer
+        key={`${kind}-${idx}-${chunks.length}`}
+        chunk={current}
+        highlights={highlights}
+        skipRef={skipRef}
+        onDone={() => setChunkDone(true)}
+      />
+      {chunkDone && (
         <span className="reading__dialogue-caret" aria-hidden>
           <svg viewBox="0 0 32 18">
-            {/* wide-based triangle, points down */}
             <path d="M2 2 L30 2 L16 17 Z" />
           </svg>
         </span>
       )}
     </div>
+  );
+}
+
+/** Renders ONE chunk with its own typewriter instance. Remounted (via
+ *  `key` on the call site) whenever the chunk changes, so the typewriter
+ *  state truly resets. */
+function ChunkRenderer({
+  chunk,
+  highlights,
+  skipRef,
+  onDone,
+}: {
+  chunk: Chunk;
+  highlights: Highlights;
+  skipRef: React.MutableRefObject<(() => void) | null>;
+  onDone: () => void;
+}) {
+  const settings = useMemo(() => loadSettings(), []);
+  const { displayed, done, skip } = useTypewriter(
+    chunk.text.toLowerCase(),
+    settings.charDelayMs,
+  );
+  // Expose skip + report done to parent.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { skipRef.current = skip; }, [skip]);
+  const reportedRef = useRef(false);
+  useEffect(() => {
+    if (done && !reportedRef.current) {
+      reportedRef.current = true;
+      onDone();
+    }
+  }, [done, onDone]);
+
+  return (
+    <span className="reading__dialogue-text">
+      {renderWithEmphasis(chunk.text, displayed, chunk.ranges, highlights)}
+      {!done && <span className="reading__cursor-spiral" aria-hidden />}
+    </span>
   );
 }
 
@@ -590,11 +637,13 @@ function chunkWithRanges(text: string, ranges: EmphasisRange[], maxLen: number):
 /** Lag (in chars typed past the range's end) before the underline animates in. */
 const EMPHASIS_LAG = 8;
 
-/** Render the typewriter's `displayed` prefix of `full`, applying
- *  emphasis-underline spans over `ranges` and name highlights elsewhere.
- *  An emphasis range's underline animates once `displayed.length` has
- *  passed `range.end + EMPHASIS_LAG` — produces the "in hindsight"
- *  marked-up-by-someone-reading-along feel. */
+/** Render the typewriter's `displayed` prefix of `full`. Emphasis spans
+ *  are only emitted once the WHOLE phrase has been typed — until then,
+ *  the chars in the range render as plain text. (Earlier behavior of
+ *  rendering a partial `<span class="hl-em">` would let the inline-block
+ *  span wrap unexpectedly, splitting words like "sharpened" → "s\nharpened".)
+ *  Once the phrase completes, the underline animates in after a small
+ *  `EMPHASIS_LAG` so it reads as "marked up in hindsight". */
 function renderWithEmphasis(
   full: string,
   displayed: string,
@@ -613,9 +662,16 @@ function renderWithEmphasis(
       const seg = full.slice(cursor, Math.min(r.start, len));
       out.push(<React.Fragment key={`p-${key++}`}>{highlightNames(seg, highlights)}</React.Fragment>);
     }
-    // The emphasis span (clipped to displayed length)
-    const visibleEnd = Math.min(r.end, len);
-    const emText = full.slice(r.start, visibleEnd);
+    if (r.end > len) {
+      // Phrase NOT fully typed — render the partial chars as plain text.
+      // No span yet → no inline-block wrap surprise.
+      const partial = full.slice(r.start, len);
+      out.push(<React.Fragment key={`pt-${key++}`}>{highlightNames(partial, highlights)}</React.Fragment>);
+      cursor = len;
+      break;          // displayed has run out
+    }
+    // Whole phrase typed — render the emphasis span atomically.
+    const emText = full.slice(r.start, r.end);
     const underlineOn = len >= r.end + EMPHASIS_LAG;
     out.push(
       <span

@@ -773,9 +773,10 @@ a:hover { text-decoration: underline; }
   justify-content: center;
 }
 .reading__chat-slot {
-  /* Bottom of the canvas, never moves. */
+  /* Anchored higher — closer to the dialogue. Overlays the canvas/table
+     area, which is fine: per directive, chat can sit over the scene. */
   position: absolute;
-  bottom: 2.4rem;
+  bottom: 9rem;
   left: 50%;
   transform: translateX(-50%);
   width: min(64ch, calc(100% - 2rem));
@@ -815,7 +816,7 @@ a:hover { text-decoration: underline; }
    in hindsight" feel. */
 .hl-em {
   position: relative;
-  display: inline-block;
+  display: inline;
 }
 .hl-em::after {
   content: '';
@@ -859,30 +860,28 @@ a:hover { text-decoration: underline; }
   87%           { opacity: 0.22; }
 }
 
-/* Typing spiral — small glowy spinner that lives at the END of the
-   typed text while the typewriter is still typing. Vanishes once the
-   chunk is done. Same vibe as Claude chat's streaming dot, but wound
-   as a violet conic gradient. */
+/* Typing spiral — tiny red glowy spinner at the typewriter's last
+   char. Vanishes when the chunk completes. */
 .reading__cursor-spiral {
   display: inline-block;
-  width: 0.68em;
-  height: 0.68em;
-  vertical-align: -0.05em;
-  margin-left: 0.18em;
+  width: 0.34em;
+  height: 0.34em;
+  vertical-align: 0.18em;
+  margin-left: 0.16em;
   border-radius: 50%;
   background:
     conic-gradient(
       from 0deg,
       transparent 0%,
-      rgba(124, 58, 237, 0.0) 14%,
-      rgba(124, 58, 237, 0.95) 55%,
-      rgba(248, 240, 255, 1.0) 88%,
+      rgba(226, 83, 110, 0.0) 14%,
+      rgba(226, 83, 110, 0.95) 55%,
+      rgba(255, 220, 226, 1.0) 88%,
       transparent 100%
     );
-  box-shadow: 0 0 8px rgba(124, 58, 237, 0.55);
-  animation: cursor-spin 1.05s linear infinite;
-  -webkit-mask: radial-gradient(circle, transparent 26%, #000 30%);
-          mask: radial-gradient(circle, transparent 26%, #000 30%);
+  box-shadow: 0 0 5px rgba(226, 83, 110, 0.65);
+  animation: cursor-spin 0.95s linear infinite;
+  -webkit-mask: radial-gradient(circle, transparent 24%, #000 30%);
+          mask: radial-gradient(circle, transparent 24%, #000 30%);
 }
 @keyframes cursor-spin {
   to { transform: rotate(360deg); }

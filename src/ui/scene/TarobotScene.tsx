@@ -203,12 +203,12 @@ export function TarobotScene() {
       transparent: true,
       depthWrite: false,
     });
-    // Wider + much taller; pulled DOWN so the bottom of the cloak hangs
-    // well below the eyes (extending into the area where the dialogue
-    // box overlays). Pure-void black at center.
+    // Raised slightly so the hood sits closer to the eyes; cloak still
+    // extends well off the bottom of the canvas to cover the dialogue
+    // overlay area.
     const cloakGeom = new THREE.PlaneGeometry(3.6, 5.4);
     const cloakMesh = new THREE.Mesh(cloakGeom, cloakMat);
-    cloakMesh.position.set(0, -2.1, -0.04);
+    cloakMesh.position.set(0, -1.85, -0.04);
     eyesGroup.add(cloakMesh);
 
     function makeEye(): {
@@ -566,13 +566,11 @@ export function TarobotScene() {
       right:  [1.25, 0],
       bottom: [0, 1.05],
     };
-    // Lifted card — camera is at z=7.4. World +z is TOWARD the viewer,
-    // so larger z = closer to camera. z=6.2 last time was 1.2 units in
-    // front of the camera — way too close, card filled the frame.
-    // Pulling much further back (z=3.8) puts the card ~3.6 units in
-    // front of the camera. Tilted significantly toward viewer so the
-    // whole face catches the warm key light.
-    const LIFT_POS = new THREE.Vector3(0, 1.5, 3.8);
+    // Lifted card — camera at z=7.4, +z toward viewer in three.js, so
+    // smaller z = further from camera. Continuing in the user's
+    // "yes more" direction: z 3.8 → 2.6 (now ~4.8 units in front of
+    // camera). Still tilted toward viewer to catch the warm key light.
+    const LIFT_POS = new THREE.Vector3(0, 1.4, 2.6);
     const STAGE_QUAT: Record<CardStage, THREE.Quaternion> = {
       face_down: new THREE.Quaternion().setFromEuler(new THREE.Euler(Math.PI / 2, 0, 0)),
       face_up:   new THREE.Quaternion().setFromEuler(new THREE.Euler(-Math.PI / 2, 0, 0)),
@@ -1312,13 +1310,7 @@ function paintCloak(ctx: CanvasRenderingContext2D): void {
   );
   path.closePath();
 
-  // Pure void black fill. The cloak literally blots out the starfield.
+  // Pure void black fill — no rim. The cloak is a hole in the starfield.
   ctx.fillStyle = '#000000';
   ctx.fill(path);
-
-  // Subtle violet rim near the silhouette edge so it doesn't read as a
-  // pure CSS rectangle — just enough to suggest fabric folds.
-  ctx.strokeStyle = 'rgba(124, 58, 237, 0.28)';
-  ctx.lineWidth = 1.4;
-  ctx.stroke(path);
 }
