@@ -263,14 +263,9 @@ export function Reading({ apiKey, brief, preferredIntro, onExit }: Props) {
   return (
     <div className="screen screen--reading" onClick={onScreenClick}>
       <div className="reading__cols">
-        <aside className="reading__col-left">
-          <Transcript
-            items={transcriptItems}
-            stallShown={state.phase === 'chat_pending'}
-            highlights={highlights}
-          />
-        </aside>
-
+        {/* Transcript is a shelf — closed by default, opened via the
+            TRANSCRIPT button (renders as the fullpage overlay below).
+            The right column owns the full viewport when closed. */}
         <section className="reading__col-right">
           {/* TableAnchor fills the entire right column — its bbox IS the
               scene rect. Everything else is an absolute overlay on top.
@@ -359,6 +354,9 @@ function CardSubtitle({
           ),
         )}
       </span>
+      <div className="card-subtitle__hint">
+        <em>tell me if i'm wrong.</em>
+      </div>
     </div>
   );
 }

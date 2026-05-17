@@ -713,7 +713,9 @@ a:hover { text-decoration: underline; }
 }
 .reading__cols {
   display: grid;
-  grid-template-columns: 320px minmax(0, 1fr);
+  /* Default: transcript shelf collapsed. Right column owns the whole
+     viewport width so all centered overlays land on the true center. */
+  grid-template-columns: 1fr;
   width: 100%;
   /* Explicit viewport-based height — height:100% wasn't resolving up the
      flex chain (.app min-height:100vh isn't strictly definite). 3rem ≈
@@ -722,11 +724,11 @@ a:hover { text-decoration: underline; }
   align-items: stretch;
 }
 .reading__col-left {
-  border-right: 1px solid var(--violet-line);
-  padding: 0.6rem 0.8rem 0.6rem 1rem;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
+  /* Transcript is reached via the TRANSCRIPT button (opens the fullpage
+     overlay). The inline left column isn't rendered in the default
+     layout anymore. Keep these rules defensively in case the column is
+     ever re-added. */
+  display: none;
 }
 /* Right column = scene container. TableAnchor fills it (its bbox is the
    perspective scissor); all UI is absolute overlay on top. Zero padding
@@ -909,10 +911,10 @@ a:hover { text-decoration: underline; }
        Absolute on the right column. 3D-extruded floating letters. */
 .card-subtitle {
   position: absolute;
-  /* sits just above the chat input — below the lifted card's lower edge.
-     Was 80%; nudged up 16px per request to give the title more breathing
-     room above the chat input. */
-  top: calc(80% - 16px);
+  /* Sits BELOW the chat input (chat is at bottom:5.5rem). 1.2rem from
+     the canvas bottom; small caption nests under the card name. */
+  top: auto;
+  bottom: 1.2rem;
   left: 0;
   right: 0;
   font-family: var(--font-speech);
@@ -951,6 +953,20 @@ a:hover { text-decoration: underline; }
 .card-subtitle__space {
   display: inline-block;
   width: 0.3em;
+}
+.card-subtitle__hint {
+  margin-top: 0.25rem;
+  font-family: var(--font-speech);
+  font-style: italic;
+  font-size: 0.78rem;
+  color: var(--fg-faint);
+  letter-spacing: 0.05em;
+  opacity: 0;
+  transition: opacity 0.55s ease;
+  text-align: center;
+}
+.card-subtitle--on .card-subtitle__hint {
+  opacity: 0.7;
 }
 @keyframes subtitle-float {
   0%, 100% {
@@ -1065,22 +1081,28 @@ a:hover { text-decoration: underline; }
   color: var(--fg-faint);
 }
 
-/* ─── Mobile transcript: hidden by default on small screens; opened
-       as a full-page overlay via the TRANSCRIPT button under chat. ── */
+/* ─── Transcript shelf button: opens the fullpage transcript overlay.
+       Now visible on BOTH desktop and mobile (transcript is a shelf,
+       default closed; clicking opens the overlay). Anchored top-right
+       so it doesn't collide with the centered scene. ── */
 .reading__transcript-open {
-  display: none;
-  background: transparent;
+  position: absolute;
+  top: 0.8rem;
+  right: 1rem;
+  z-index: 8;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  background: rgba(10, 4, 24, 0.72);
   border: 1px solid var(--violet-line);
   color: var(--fg-dim);
-  padding: 0.35rem 1rem;
+  padding: 0.4rem 0.9rem;
   font-family: var(--font-mono);
-  font-size: 0.72rem;
+  font-size: 0.7rem;
   letter-spacing: 0.22em;
   text-transform: uppercase;
-  margin-top: 0.4rem;
   cursor: pointer;
-  width: auto;
-  align-self: center;
+  backdrop-filter: blur(4px);
 }
 .reading__transcript-open:hover {
   color: var(--fg);
@@ -1124,13 +1146,9 @@ a:hover { text-decoration: underline; }
 }
 
 @media (max-width: 760px) {
-  /* Collapse the transcript column; the right column gets full width. */
-  .reading__cols {
-    grid-template-columns: 1fr;
-  }
-  .reading__col-left {
-    display: none;
-  }
+  /* Mobile-specific tuning. Transcript column is hidden on all
+     viewports now (the shelf opens via the TRANSCRIPT button), so we
+     only adjust scene/head sizing here. */
   .reading__col-right {
     padding: 0.6rem 0.5rem 0.4rem;
   }
@@ -1142,9 +1160,6 @@ a:hover { text-decoration: underline; }
   .reading__head {
     width: 110px;
     height: 110px;
-  }
-  .reading__transcript-open {
-    display: inline-block;
   }
 }
 .reading__intro {
