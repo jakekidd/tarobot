@@ -1724,6 +1724,14 @@ a:hover { text-decoration: underline; }
      override that was letting the survey layout reflow per question. */
 }
 
+/* Survey's custom-answer chat row. Sits BELOW the fixed-height ui-frame
+   (not inside it) so the choices grid keeps its full 23rem and the
+   chat row doesn't compete for that height. */
+.survey__chat-slot {
+  width: min(64ch, calc(100vw - 4rem));
+  margin: 0.8rem auto 0;
+}
+
 /* legacy classes — preserved for the conversation-history details */
 
 .interview__history {

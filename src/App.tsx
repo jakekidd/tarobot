@@ -19,6 +19,7 @@ import { Jade } from './jade/Jade';
 import { useSecretSequence } from './jade/useSecretSequence';
 import './jade/jade.css';
 import { Debug } from './debug/Debug';
+import { DebugQueue } from './debug/DebugQueue';
 import { loadDebugVisible, saveDebugVisible } from './debug/visibilityStorage';
 import { publishDebug } from './debug/debugBus';
 import './debug/debug.css';
@@ -203,6 +204,7 @@ export function App() {
         </main>
 
       <Debug visible={debugVisible} />
+      <DebugQueue visible={debugVisible && phase.kind === 'survey'} />
     </div>
   );
 }

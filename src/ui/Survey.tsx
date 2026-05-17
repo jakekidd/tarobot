@@ -82,14 +82,19 @@ export function Survey({ apiKey, session, onComplete }: Props) {
     return () => setDizzy(false);
   }, []);
 
-  // Publish survey state for the debug overlay.
+  // Publish survey state for the debug overlay + the queue panel.
   useEffect(() => {
     publishDebug('survey.thinking', state.thinking);
     publishDebug('survey.picks', state.picks_log.length);
-  }, [state.thinking, state.picks_log.length]);
+    publishDebug('survey.queue', state.queue.map((q) => q.node_id).join(','));
+    publishDebug('survey.asked', state.asked_node_ids.join(','));
+  }, [state.thinking, state.picks_log.length, state.queue, state.asked_node_ids]);
   useEffect(() => () => {
     clearDebug('survey.thinking');
     clearDebug('survey.picks');
+    clearDebug('survey.queue');
+    clearDebug('survey.asked');
+    clearDebug('survey.inflight');
   }, []);
 
   // ─── render ───────────────────────────────────────────
@@ -169,17 +174,20 @@ export function Survey({ apiKey, session, onComplete }: Props) {
             <div className="ui-frame__waiting"><Spinner label={isCompiling ? 'preparing' : 'thinking'} /></div>
           )}
         </div>
-        {/* Always-on custom-answer input. Same component the reading uses
-            for chat; here it writes a custom string back to the current
-            question. Disabled during text/date openers + while compiling. */}
-        {!isCompiling && currentQuestion && currentQuestion.format !== 'text' && currentQuestion.format !== 'date' && (
+      </div>
+
+      {/* Always-on custom-answer input. Lives OUTSIDE the fixed-height
+          ui-frame so it can't compress the choice grid. Disabled during
+          text/date openers + while compiling. */}
+      {!isCompiling && currentQuestion && currentQuestion.format !== 'text' && currentQuestion.format !== 'date' && (
+        <div className="survey__chat-slot">
           <ChatInput
             placeholder="or type your own answer"
             disabled={false}
             onSend={(text) => void submitAnswer(text)}
           />
-        )}
-      </div>
+        </div>
+      )}
 
       <div className="survey__footer">
         {showReady && (

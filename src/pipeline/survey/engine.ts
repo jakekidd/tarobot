@@ -14,6 +14,7 @@ import { runInvestigator } from './agents/investigator';
 import { runCompiler } from './agents/compiler';
 import { computeAstroProfile, parseBirthDate } from '../astrology';
 import { findReturningUser, seedFromReturning } from './returning';
+import { publishDebug } from '../../debug/debugBus';
 import {
   commentForAnswer,
   getNode,
@@ -391,12 +392,23 @@ export class SurveyEngine {
    *  than the model — that's by design, queue stays ahead. */
   private spawnInvestigator(inlineComment: string | null): void {
     this.investigatorInFlight += 1;
+    this.publishInflight();
     this.refreshThinking();
     void this.fireInvestigator(inlineComment).finally(() => {
       this.investigatorInFlight -= 1;
+      this.publishInflight();
       this.refreshThinking();
       this.emit();
     });
+  }
+
+  /** Push the in-flight investigator count to the debug bus. Lives on
+   *  the engine because the count isn't part of EngineState (it'd
+   *  cause noisy listener fires for an internal metric). The bus is
+   *  pure JS / no DOM, safe in Node too — debug consumers (Debug.tsx,
+   *  DebugQueue.tsx) only mount in the browser. */
+  private publishInflight(): void {
+    publishDebug('survey.inflight', this.investigatorInFlight);
   }
 
   /** `thinking` is the UI's "we have nothing to show, wait" hint. True

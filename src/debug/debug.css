@@ -82,3 +82,100 @@
   border-color: #b388ff;
   text-shadow: 0 0 8px rgba(179, 136, 255, 0.5);
 }
+
+/* =====================================================================
+   debug-queue — survey-only column showing the basket queue + asked
+   nodes + in-flight investigator count. Sits BELOW the main debug
+   overlay so both are visible at once.
+   ===================================================================== */
+
+.debug-queue {
+  position: fixed;
+  left: 0.75rem;
+  top: 27rem;             /* below the main Debug panel */
+  z-index: 150;
+  background: rgba(5, 3, 12, 0.88);
+  border: 1px solid rgba(179, 136, 255, 0.45);
+  color: #e8e0ff;
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.04em;
+  padding: 0.4rem 0.55rem 0.5rem;
+  min-width: 230px;
+  max-width: 260px;
+  max-height: calc(100vh - 30rem);
+  overflow-y: auto;
+  pointer-events: auto;       /* scrollable list */
+  backdrop-filter: blur(2px);
+  box-shadow: 0 0 14px rgba(179, 136, 255, 0.18);
+}
+
+.debug-queue__head {
+  font-size: 0.7rem;
+  letter-spacing: 0.32em;
+  color: #b388ff;
+  text-shadow: 0 0 8px rgba(179, 136, 255, 0.45);
+  padding-bottom: 0.3rem;
+  margin-bottom: 0.35rem;
+  border-bottom: 1px dashed rgba(179, 136, 255, 0.25);
+}
+
+.debug-queue__meta {
+  border-collapse: collapse;
+  width: 100%;
+  margin-bottom: 0.45rem;
+}
+.debug-queue__meta td:first-child {
+  color: #6b5a8a;
+  text-transform: lowercase;
+  letter-spacing: 0.14em;
+  padding: 0.06rem 0.4rem 0.06rem 0;
+}
+.debug-queue__meta td:last-child {
+  color: #e8e0ff;
+  text-align: right;
+  font-weight: 600;
+}
+.debug-queue__meta td.on {
+  color: #b388ff;
+}
+
+.debug-queue__section + .debug-queue__section {
+  margin-top: 0.45rem;
+  border-top: 1px dashed rgba(179, 136, 255, 0.18);
+  padding-top: 0.35rem;
+}
+
+.debug-queue__label {
+  color: #6b5a8a;
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  font-size: 0.62rem;
+  margin-bottom: 0.18rem;
+}
+
+.debug-queue__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.debug-queue__list li {
+  padding: 0.06rem 0;
+  color: #cfc4f0;
+  font-size: 0.7rem;
+}
+.debug-queue__list--asked li {
+  color: #6b5a8a;
+}
+.debug-queue__head-item {
+  color: #b388ff !important;
+  font-weight: 600;
+}
+.debug-queue__empty {
+  color: #50456a !important;
+  font-style: italic;
+}
+.debug-queue__more {
+  color: #50456a !important;
+  font-style: italic;
+}
