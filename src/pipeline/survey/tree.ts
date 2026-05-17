@@ -15,13 +15,75 @@ import type {
 } from './types';
 import { substituteOrBlank, substituteOrNull } from './substitution';
 
-const RAW_TREE = treeData as unknown as DialogueTree;
+const BUNDLED_TREE = treeData as unknown as DialogueTree;
 
-/** The loaded tree. Validated at module load; throws on structural issues. */
-export const TREE: DialogueTree = (() => {
-  validateTree(RAW_TREE);
-  return RAW_TREE;
+// The active tree. Defaults to the bundled tree.json (validated at module
+// load — loud failure if the bundled defaults are broken). Can be swapped
+// at runtime via setActiveTree() — used by the Jade editor so the live
+// survey picks up the user's local edits without a rebuild.
+//
+// `let` not `const`: ES module live bindings mean importers of `TREE`
+// transparently see the new value after a swap. The pipeline-portability
+// rule still holds — this module never imports from outside `pipeline/`.
+export let TREE: DialogueTree = (() => {
+  validateTree(BUNDLED_TREE);
+  return BUNDLED_TREE;
 })();
+
+let usingOverride = false;
+const overrideListeners = new Set<() => void>();
+
+/** Subscribe to override-state changes. Returns an unsubscribe fn. */
+export function subscribeToOverrideChanges(listener: () => void): () => void {
+  overrideListeners.add(listener);
+  return () => { overrideListeners.delete(listener); };
+}
+
+/**
+ * Swap the active tree at runtime. Validates the candidate first; on
+ * failure logs a warning and leaves TREE untouched so a malformed edit
+ * in the editor can never break the live survey.
+ *
+ * Pass `null` (or omit `tree`) to restore the bundled defaults.
+ */
+export function setActiveTree(tree: DialogueTree | null): void {
+  const before = usingOverride;
+  if (!tree) {
+    TREE = BUNDLED_TREE;
+    usingOverride = false;
+  } else {
+    try {
+      validateTree(tree);
+    } catch (err) {
+      console.warn('[tree] setActiveTree rejected — validation failed:', err);
+      return;
+    }
+    TREE = tree;
+    usingOverride = !shallowEqualTree(tree, BUNDLED_TREE);
+  }
+  if (before !== usingOverride) {
+    for (const fn of overrideListeners) {
+      try { fn(); } catch { /* swallow */ }
+    }
+  }
+}
+
+/** True iff the active tree is something other than the bundled defaults. */
+export function isUsingTreeOverride(): boolean {
+  return usingOverride;
+}
+
+/** The bundled tree.json contents — never mutated; safe to use as a baseline. */
+export function getBundledTree(): DialogueTree {
+  return BUNDLED_TREE;
+}
+
+function shallowEqualTree(a: DialogueTree, b: DialogueTree): boolean {
+  // Cheap version-based check first.
+  if (a.v !== b.v) return false;
+  // Fall back to a structural compare on the parts that matter.
+  return JSON.stringify(a) === JSON.stringify(b);
+}
 
 /**
  * Structural validation:

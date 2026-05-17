@@ -10,7 +10,18 @@ export type { LLMAdapter, ModelTier, ToolDef, InvocationSpec, AgentRunners } fro
 export { findReturningUser, seedFromReturning } from './returning';
 export type { ReturningMatch } from './returning';
 
-export { TREE, validateTree, renderQuestion, getNode, getRoots, getOpeners } from './tree';
+export {
+  TREE,
+  validateTree,
+  renderQuestion,
+  getNode,
+  getRoots,
+  getOpeners,
+  setActiveTree,
+  isUsingTreeOverride,
+  getBundledTree,
+  subscribeToOverrideChanges,
+} from './tree';
 
 export { shouldClose } from './close';
 export { derivePhase, phaseFromTurns } from './phase';
