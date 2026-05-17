@@ -464,11 +464,15 @@ export function TarobotScene() {
 
     const perspScene = new THREE.Scene();
     const perspCamera = new THREE.PerspectiveCamera(34, 1, 0.05, 80);
-    // Even taller seated POV — table drops further into the lower
-    // third so the dialogue overlay has plenty of room above without
-    // colliding with the lifted card.
-    perspCamera.position.set(0, 5.4, 8.4);
-    perspCamera.lookAt(0, -0.85, 0);
+    // Seated, table scooted toward the viewer:
+    //  - camera closer in z (8.4 → 6.5) so the table reads larger
+    //  - lookAt raised ABOVE the tabletop (y = 1.1) so the table sits
+    //    in the LOWER portion of the canvas, not the upper.
+    //    (Pushing lookAt.y negative was the wrong direction — that puts
+    //    the lookAt below the table, and the table ends up above the
+    //    horizon line, i.e. higher on screen.)
+    perspCamera.position.set(0, 4.6, 6.5);
+    perspCamera.lookAt(0, 1.1, 0);
 
     // ── Lighting ───────────────────────────────────────
     // Warm key from above (the "orb" that hovers over a real tarot table)

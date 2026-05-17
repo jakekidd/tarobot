@@ -807,8 +807,8 @@ a:hover { text-decoration: underline; }
        Absolute on the right column. 3D-extruded floating letters. */
 .card-subtitle {
   position: absolute;
-  /* table moved lower in frame → title moves with it */
-  top: 82%;
+  /* table moved lower in frame → title sits between table and chat */
+  top: 88%;
   left: 0;
   right: 0;
   font-family: var(--font-speech);
@@ -922,12 +922,19 @@ a:hover { text-decoration: underline; }
   gap: 0.15rem;
   font-size: 0.82rem;
   line-height: 1.45;
+  text-align: left;
 }
 .transcript__who {
-  color: var(--violet);
   text-transform: uppercase;
   letter-spacing: 0.18em;
   font-size: 0.66rem;
+  text-align: left;
+}
+.transcript__line--user .transcript__who {
+  color: var(--color-violet);        /* brand purple — matches input border */
+}
+.transcript__line--seer .transcript__who {
+  color: #22d3ee;                    /* turquoise — matches card border */
 }
 .transcript__label {
   color: var(--fg-faint);
@@ -935,12 +942,10 @@ a:hover { text-decoration: underline; }
   text-transform: none;
   letter-spacing: 0.04em;
 }
-.transcript__line--seer .transcript__who {
-  color: var(--fg-dim);
-}
 .transcript__text {
   color: var(--fg);
   word-break: break-word;
+  text-align: left;
 }
 .transcript__line--stall .transcript__text {
   color: var(--fg-faint);

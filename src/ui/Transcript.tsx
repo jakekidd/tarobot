@@ -37,7 +37,7 @@ export function Transcript({ items, stallShown }: Props) {
   async function copy() {
     const text = items
       .map((m) => {
-        const who = m.speaker === 'user' ? 'you' : (m.label ? `the seer (${m.label})` : 'the seer');
+        const who = m.speaker === 'user' ? 'you' : (m.label ? `seer · ${m.label}` : 'seer');
         return `${who}: ${m.text}`;
       })
       .join('\n\n');
@@ -76,7 +76,7 @@ export function Transcript({ items, stallShown }: Props) {
             className={`transcript__line transcript__line--${m.speaker}`}
           >
             <span className="transcript__who">
-              {m.speaker === 'user' ? 'you' : 'the seer'}
+              {m.speaker === 'user' ? 'you' : 'seer'}
               {m.label && (
                 <span className="transcript__label"> · {m.label}</span>
               )}
@@ -86,7 +86,7 @@ export function Transcript({ items, stallShown }: Props) {
         ))}
         {stallShown && (
           <div className="transcript__line transcript__line--seer transcript__line--stall">
-            <span className="transcript__who">the seer</span>
+            <span className="transcript__who">seer</span>
             <span className="transcript__text">
               <em>{stallPhrase}</em>
             </span>

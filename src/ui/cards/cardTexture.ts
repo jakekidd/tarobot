@@ -5,15 +5,19 @@
 
 import * as THREE from 'three';
 import type { Card } from '../../pipeline';
-import { glyphFor, labelFor, numeralFor } from './glyphs';
+import { glyphFor, numeralFor } from './glyphs';
 
 const TEX_W = 512;
 const TEX_H = 768;
 
-const BG = '#04141a';        // very dark teal
-const BORDER = '#22d3ee';    // turquoise — was violet
-const INK = '#cffafe';       // pale cyan ink
-const GLYPH = '#67e8f9';     // bright turquoise accent
+// Inverted color scheme: dark outer frame, pale inner panel, dark
+// numerals + dark emoji silhouette. Reads like a real printed tarot
+// card — cyan-on-cyan, but the values flip between frame and panel.
+const FRAME = '#04141a';     // very dark teal — outer + ink color
+const BORDER = '#22d3ee';    // turquoise frame line
+const PANEL = '#e6fdff';     // near-white pale cyan — the card's "paper"
+const INK = '#0e2a33';       // very dark teal — numerals + silhouette
+const GLYPH = '#67e8f9';     // bright turquoise — back-of-card accent only
 
 const faceCache = new Map<number, THREE.CanvasTexture>();
 let backTexture: THREE.CanvasTexture | null = null;
@@ -56,45 +60,50 @@ export function cardBackTexture(): THREE.CanvasTexture {
 }
 
 function paintFace(ctx: CanvasRenderingContext2D, card: Card): void {
-  ctx.fillStyle = BG;
+  // Outer dark frame
+  ctx.fillStyle = FRAME;
   ctx.fillRect(0, 0, TEX_W, TEX_H);
 
-  // Outer border
+  // Outer border line
   ctx.strokeStyle = BORDER;
   ctx.lineWidth = 6;
   roundRect(ctx, 18, 18, TEX_W - 36, TEX_H - 36, 16);
   ctx.stroke();
 
-  // Inner border for that classic tarot frame
-  ctx.strokeStyle = BORDER;
-  ctx.globalAlpha = 0.55;
-  ctx.lineWidth = 2;
-  roundRect(ctx, 44, 44, TEX_W - 88, TEX_H - 88, 10);
-  ctx.stroke();
-  ctx.globalAlpha = 1;
+  // Pale inner panel — the card's "paper". Filled, not just outlined.
+  const panelX = 44;
+  const panelY = 44;
+  const panelW = TEX_W - 88;
+  const panelH = TEX_H - 88;
+  ctx.fillStyle = PANEL;
+  roundRect(ctx, panelX, panelY, panelW, panelH, 10);
+  ctx.fill();
 
-  // Numeral, top-left
+  // Inner border line — turquoise, on the pale panel
+  ctx.strokeStyle = BORDER;
+  ctx.lineWidth = 2;
+  roundRect(ctx, panelX, panelY, panelW, panelH, 10);
+  ctx.stroke();
+
+  // Numerals — Cinzel display serif, dark ink on the pale panel.
   ctx.fillStyle = INK;
-  ctx.font = '300 64px "Times New Roman", serif';
+  ctx.font = '800 78px "Cinzel", "IM Fell English", serif';
   ctx.textBaseline = 'top';
   ctx.textAlign = 'left';
-  ctx.fillText(numeralFor(card), 70, 70);
+  ctx.fillText(numeralFor(card), 76, 76);
 
   // Mirrored numeral, bottom-right (rotated 180°)
   ctx.save();
-  ctx.translate(TEX_W - 70, TEX_H - 70);
+  ctx.translate(TEX_W - 76, TEX_H - 76);
   ctx.rotate(Math.PI);
   ctx.textAlign = 'left';
   ctx.textBaseline = 'top';
   ctx.fillText(numeralFor(card), 0, 0);
   ctx.restore();
 
-  // Big centre emoji — CRT-wash via offscreen canvas:
-  //  1. Draw the emoji in grayscale + boosted brightness/contrast
-  //  2. source-in fills turquoise ONLY where the silhouette exists
-  //  3. drawImage that silhouette onto the card
-  // (We need the offscreen because source-in/atop on the main ctx would
-  // tint the card's borders and numerals too.)
+  // Big centre emoji — CRT-wash silhouette in DARK ink so it pops on
+  // the pale panel. Offscreen-then-source-in tinting avoids painting
+  // over the panel/borders.
   const off = document.createElement('canvas');
   off.width = TEX_W;
   off.height = TEX_H;
@@ -104,23 +113,16 @@ function paintFace(ctx: CanvasRenderingContext2D, card: Card): void {
   offCtx.textAlign = 'center';
   offCtx.textBaseline = 'middle';
   offCtx.fillText(glyphFor(card), TEX_W / 2, TEX_H / 2 - 10);
-  // Tint turquoise on the silhouette
   offCtx.filter = 'none';
   offCtx.globalCompositeOperation = 'source-in';
-  offCtx.fillStyle = '#9ff0fb';                 // bright cyan tint
+  offCtx.fillStyle = INK;
   offCtx.fillRect(0, 0, TEX_W, TEX_H);
   ctx.drawImage(off, 0, 0);
-
-  // Label, bottom centre
-  ctx.fillStyle = INK;
-  ctx.font = '300 italic 36px "Times New Roman", serif';
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'bottom';
-  ctx.fillText(labelFor(card), TEX_W / 2, TEX_H - 88);
+  // (label intentionally omitted — card name lives in the subtitle below the table)
 }
 
 function paintBack(ctx: CanvasRenderingContext2D): void {
-  ctx.fillStyle = BG;
+  ctx.fillStyle = FRAME;
   ctx.fillRect(0, 0, TEX_W, TEX_H);
 
   // Outer border
