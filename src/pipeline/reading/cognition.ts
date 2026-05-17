@@ -2,7 +2,7 @@
 // routes through adapter.invoke(). No SDK calls live in here.
 
 import type { LLMAdapter } from '../survey/adapter';
-import { ClinicalIntentSchema, ClosingIntentSchema } from './schemas';
+import { SetSchema, ClosingIntentSchema } from './schemas';
 import {
   PER_CARD_COGNITION_SYSTEM,
   PER_CARD_COGNITION_TOOL,
@@ -10,7 +10,7 @@ import {
   CLOSING_COGNITION_TOOL,
 } from './prompts/cognition';
 import type {
-  ClinicalIntent,
+  Set,
   ClosingCognitionInput,
   ClosingIntent,
   PerCardCognitionInput,
@@ -19,7 +19,7 @@ import type {
 export async function cognitionPerCard(
   adapter: LLMAdapter,
   input: PerCardCognitionInput,
-): Promise<ClinicalIntent> {
+): Promise<Set> {
   const payload = {
     identity: input.profile.identity,
     choice:
@@ -40,18 +40,18 @@ export async function cognitionPerCard(
     revealed_history: input.revealed_history,
     chat_history: input.chat_history,
     instruction:
-      'emit ONE ClinicalIntent for this_slot, voiced for flip_round. you do not know the other face-down cards.',
+      'prepare ONE Set for this_slot — given circumstances the seer will inhabit when this card flips. you do not know the other face-down cards.',
   };
 
-  return adapter.invoke<ClinicalIntent>(
+  return adapter.invoke<Set>(
     {
       system: PER_CARD_COGNITION_SYSTEM,
       user: JSON.stringify(payload, null, 2),
       tool: PER_CARD_COGNITION_TOOL,
       model: 'cognition',
-      max_tokens: 1200,
+      max_tokens: 700,        // Set is shorter than the old clinical doc
     },
-    ClinicalIntentSchema,
+    SetSchema,
   );
 }
 
@@ -72,7 +72,7 @@ export async function cognitionClosing(
     revealed: input.revealed.map((r) => ({
       position_id: r.position_id,
       card_id: r.card_id,
-      clinical: r.clinical,
+      set: r.set,
       beat_text: r.monologue.text,
     })),
     chat_history: input.chat_history,

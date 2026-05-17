@@ -51,7 +51,7 @@ export function readingInputsFromCompiler(
   };
 }
 
-// ─── Per-card cognition (the clinical layer) ───────────────────
+// ─── Per-card cognition (prepares the Set the seer inhabits) ────
 
 /** Narrative-arc role for a flip. Borrowed from Dramatron's scene labels.
  *  Mapped from flip ORDER (not slot identity), so the same slot might be
@@ -59,22 +59,40 @@ export function readingInputsFromCompiler(
  *  the user chose to flip it. */
 export type NarrativeRole = 'opening' | 'rising' | 'turning' | 'closing';
 
-export type ClinicalIntent = {
-  position_id: string;             // which slot this clinical is for
+/** A Set — Stanislavski "given circumstances" for the performer.
+ *  Not content. Not a script. Interior state to inhabit. The persona
+ *  walks into the set when the card flips and performs from it; words
+ *  emerge from the prepared mind rather than translation. */
+export type Set = {
+  position_id: string;             // which slot this set is for
   card_id: number;                 // the card face at that slot
   flip_round: number;              // 1..4 — when in the reading this happens
   narrative_role: NarrativeRole;
-  /** What THIS card permits about THIS user's RELATIONSHIP to THE fork.
-   *  1-2 sentences. Internal — persona will voice it, never quote it. */
-  angle: string;
-  /** 2-3 specific things to surface about the user, under-specified on
-   *  purpose. The persona uses these as material; she doesn't recite. */
-  noticings: string[];
-  /** ONE mirror-shaped lens, not an outcome prediction. */
-  structural_prediction: string;
-  /** Pacing, tone, things to leave unsaid, callback opportunities. */
-  director_notes: string;
+
+  /** What just clicked — the specific resonance between THIS card and
+   *  THIS person; the small "ah" the reader has at the moment of the
+   *  flip. 1-2 sentences. The seed of the beat. */
+  click: string;
+  /** The thread in the profile this card has surfaced; what the reader
+   *  is now watching for in the participant. 1 sentence. */
+  attending: string;
+  /** Beat motivation — confront, comfort, warn, illuminate, agitate,
+   *  settle. Single verb-phrase. NOT a takeaway. */
+  intent: string;
+  /** Specific facts and hunches from the profile this card licenses
+   *  the seer to use. The seer chooses which to surface and which to
+   *  hold back — under-specifying is itself a craft move. 0-5 items. */
+  knows: string[];
+  /** What is genuinely uncertain. May be voiced AS uncertainty — that
+   *  is far eerier than false confidence. 0-1 sentences. */
+  uncertainty: string;
+  /** One line connecting this beat back to THE choice. The specific
+   *  angle this card illuminates the user-at-the-fork from. */
+  through_line: string;
 };
+
+/** @deprecated Use Set. Kept transiently for any consumer still importing. */
+export type ClinicalIntent = Set;
 
 // ─── Persona output (the voiced layer) ─────────────────────────
 
@@ -123,7 +141,7 @@ export type ChatMessage = {
 export type RevealedSlot = {
   position_id: string;
   card_id: number;
-  clinical: ClinicalIntent;
+  set: Set;
   monologue: Monologue;
 };
 
@@ -182,7 +200,7 @@ export type PerCardCognitionInput = {
 export type PerCardPersonaInput = {
   profile: Profile;
   prose_brief: string;
-  clinical: ClinicalIntent;
+  set: Set;
   /** The card face being voiced. */
   card: { name: string; keywords: string[]; upright_meaning: string };
   /** Slot role (e.g. "what surrounds the choice"). */

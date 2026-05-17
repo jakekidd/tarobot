@@ -1,9 +1,13 @@
 // Persona-tier call wrappers. Each function builds an InvocationSpec and
 // routes through adapter.invoke(). The voiced layer.
 //
-// All four are 'deep' tier today because voice quality is load-bearing
-// and we're on Anthropic. When local OSS LLM swap lands, these are the
-// call sites to repoint at the local adapter.
+// Tier choices, deliberate:
+//   - personaPerCard:  deep   — beat voice is load-bearing
+//   - personaIntro:    deep   — first impression, sets the room
+//   - personaClosing:  deep   — the line they carry home
+//   - personaChat:     cognition — quick, conversational, lower stakes;
+//                                  cuts ~50% off chat-reply latency.
+// When local OSS LLM swap lands, these are the call sites to repoint.
 
 import type { LLMAdapter } from '../survey/adapter';
 import { MonologueSchema } from './schemas';
@@ -32,12 +36,13 @@ export async function personaPerCard(
   const payload = {
     identity: input.profile.identity,
     prose_brief: input.prose_brief,
-    clinical: input.clinical,
+    set: input.set,
     card: input.card,
     slot_label: input.slot_label,
     revealed_history: input.revealed_history,
     chat_history: input.chat_history,
-    instruction: 'voice ONE beat as the seer, from the clinical intent.',
+    instruction:
+      'voice ONE beat as the seer. inhabit the Set; perform from it. do not paraphrase or recite its contents.',
   };
 
   return adapter.invoke<Monologue>(
@@ -46,7 +51,7 @@ export async function personaPerCard(
       user: JSON.stringify(payload, null, 2),
       tool: PER_CARD_PERSONA_TOOL,
       model: 'deep',
-      max_tokens: 600,
+      max_tokens: 500,         // beats are 2-4 sentences; cap tighter
     },
     MonologueSchema,
   );
@@ -126,8 +131,8 @@ export async function personaChat(
       system: CHAT_PERSONA_SYSTEM,
       user: JSON.stringify(payload, null, 2),
       tool: CHAT_PERSONA_TOOL,
-      model: 'deep',
-      max_tokens: 400,
+      model: 'cognition',      // chat replies don't need the full deep tier
+      max_tokens: 300,
     },
     MonologueSchema,
   );

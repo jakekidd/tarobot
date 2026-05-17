@@ -17,7 +17,8 @@ export {
 export type {
   ChatMessage,
   ChatSpeaker,
-  ClinicalIntent,
+  Set,
+  ClinicalIntent,         // deprecated alias of Set
   ClosingIntent,
   Monologue,
   NarrativeRole,

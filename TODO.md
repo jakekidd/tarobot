@@ -3,6 +3,196 @@
 Living list of stuff worth doing but not in the current iteration. Roughly
 ordered by leverage / hand-feel, not by urgency.
 
+## How to use this file (for Claudes)
+
+This is the scratchpad for **deferred work**. When a user request scopes
+out something that should land later, write it here with enough context
+that a future agent (or you, in a fresh conversation) can pick it up cold
+and execute without re-deriving the design.
+
+**Conventions:**
+- Group under a level-2 section by area (`survey`, `reading`,
+  `scene / UI`, `eval / iteration`, `infrastructure`).
+- Title each item with a short `### imperative phrase`.
+- Body should answer: *what changed in the system to motivate this*,
+  *what to build*, and *what to watch out for*. Implementation sketch
+  is nice but not required.
+- Don't delete — strike-through (`~~text~~`) when shipped or mark
+  `**DONE in <commit-sha-prefix>**`.
+- This file is for *deferred work*, not for *triaging the current
+  session*. Real-time scope-tracking belongs in the task list, not here.
+
+**This is not CLAUDE.md.** CLAUDE.md is durable orientation (load-bearing
+principles, architecture, conventions). TODO.md is concrete unfinished
+work. If something is becoming a convention, move it to CLAUDE.md and
+delete from here.
+
+## just-deferred (most recent first)
+
+### underline emphasis — markup-driven, animated-in-hindsight
+User wants the seer's monologues to underline key phrases with an
+animated `clip-path` reveal that lags slightly behind the typewriter —
+as if someone reading along is marking up the text. Four moving parts:
+
+1. **Persona prompt update.** Teach the persona to mark spans with a
+   syntax like `_phrase_` (single underscores around the words to
+   emphasize). Explicit instruction: emphasize *phrases that carry
+   weight*, NOT proper nouns or card names (those have their own
+   highlight). Maybe 1-3 spans per beat.
+2. **Parser.** New helper that strips the markup chars and returns
+   `{ text: string, ranges: Array<{ start: number; end: number }> }`.
+   Live in `src/ui/dialogue/parseEmphasis.ts`.
+3. **Rendering.** ChunkedLine currently renders `displayed` (the
+   typed-so-far). It needs to walk the ranges and wrap any range whose
+   `end` is ≤ `displayed.length - LAG_CHARS` in an animated `<span>`.
+   The lag (LAG_CHARS ~ 10) is what produces the "in hindsight" feel.
+4. **CSS.** Keyframe `@keyframes underline-wipe { from { clip-path:
+   inset(0 100% 0 0); } to { clip-path: inset(0 0 0 0); } }` applied
+   to a `::after` border-bottom on the emphasis span. ~0.4s duration.
+
+Watch out: card-name highlights from `highlightNames` already wrap
+spans inside the text — the emphasis parser needs to operate on the
+RAW text before highlightNames runs, OR be span-aware. Simpler is to
+parse emphasis first and have highlightNames be the inner pass.
+
+### lifted-card hover physics + tap-spin
+User sketched: hovering over the lifted card with the cursor produces
+spring repulsion (like Clat in survey), tethered to LIFT_POS. Clicks
+add angular velocity (rotation.z); spin decays slowly; "tetherball" feel
+— rapid clicks compound up to a cap.
+
+Current blocker: the picker (`pickAt` in TarobotScene) filters to
+`face_down` stage. Need a separate raycast against the lifted card with
+its own `onPointerMove` (distance test → spring force) + `onPointerDown`
+(angular impulse based on `(clickX - cardCenterX)` direction).
+
+State on the rig: `offsetPos: Vector3`, `offsetVel: Vector3`,
+`spinVel: number`. Each frame: `springAccel = -k * offset; offset +=
+vel * dt; vel *= damping`. Spin: `rotation.z += spinVel * dt;
+spinVel *= 0.985`.
+
+### pixel-art SVG card symbols (78 assets)
+Emoji on cards is acceptable interim but doesn't fit the CRT / dark
+turquoise aesthetic. Replace with 26 unique inline-`<rect>` pixel-art
+SVGs:
+- 22 majors (one per card)
+- 4 suits (cups, wands, swords, pentacles — minor cards share their
+  suit's symbol)
+
+Constraints: 24×24 pixel grid, single accent color (the card's BORDER),
+no anti-aliasing, no PNG fallback. Replace the emoji-to-canvas-texture
+pass in `cardTexture.ts` with an inline SVG-to-canvas blob load.
+
+Style ref: user's "blob silhouette" sketch + the Inscryption pixel-art
+look. Each SVG should be instantly recognizable at 32px tall.
+
+## eval / iteration (the apparatus)
+
+### replay rig
+The single highest-leverage investment per the long apparatus convo.
+Library of fixed mock-user transcripts + one-command runner that takes
+(config, transcript) → (full pipeline output, intermediate state).
+Cached intermediate states so unchanged components don't re-burn tokens.
+Side-by-side diff view across configs.
+
+15-20 archetypes covering the space, including adversaries: shitposter,
+drunk, cynic, silent one, group-of-friends, person mid-crisis. Marisol
+in `fixtures.ts` is one fixture — needs 14-19 more.
+
+Without this, every change is vibes-based; with it, 30 experiments
+before breakfast.
+
+### failure-mode catalog
+Build a named anti-rubric list. Known suspects so far:
+- therapy-speak ("I understand you're going through a hard time...")
+- advice-shaped reading (telling the user what to do)
+- fortune-cookie generality
+- interrogator (>1 on-the-nose question per turn)
+- generic horoscope (could apply to anyone)
+- breaks character to be helpful
+- "I'm an AI" tell
+- names the card as if reading from a glossary
+- pacing failures (stall, dump, infodump)
+- self-recitation (persona quoting the Set's contents back rather
+  than performing from them — the rename-to-Set conversation's
+  load-bearing concern)
+
+Each failure mode becomes a tiny LLM-as-judge prompt (different model
+from the one that produced the output): "does this contain failure
+mode X? yes/no + 1-sentence justification". Run all of these against
+every replay-rig output; pipeline change = numeric delta.
+
+### ground-truth evaluator
+Per the synthetic-eval convo: synthetic users have a rich uncompressed
+backstory hidden from the pipeline + a thin compressed profile the
+pipeline reads. Evaluator scores readings against the hidden backstory
+on inference-quality axes (touched real fork / ground-truth-supported /
+ground-truth-contradicted / generic-to-specific calibration).
+Different model from the pipeline. Pairs with the failure catalog as
+the negative bench.
+
+### slate playtests (later — needs real users)
+Two months out from real-user contact. Lock 3-5 candidate full configs
+before running anyone through them. Each playtest = one config in
+rotation. Record everything: full pipeline state, timing, intermediate
+cognition, audio if available. Half the value is post-hoc forensics.
+
+## architectural debt (deferred refactors)
+
+### TarobotScene split into layers/
+`src/ui/scene/TarobotScene.tsx` is ~1200 lines, one useEffect, ~10
+concerns braided together (renderer, composer, ortho cam, perspective
+cam, Clat sprite + mouse react + blink, eyes mesh + canvas paint,
+particles, orbs, table GLB, 4 card rigs + tweens + picker, scissored
+2nd render). Target:
+
+```
+scene/TarobotScene.tsx       ← orchestrator only (renderer, composer, RAF)
+scene/layers/clat.ts         ← { create(scene), update(dt, t), dispose() }
+scene/layers/eyes.ts
+scene/layers/particles.ts
+scene/layers/orbs.ts
+scene/layers/table.ts
+scene/layers/cards.ts
+```
+
+Drops orchestrator to ~150 lines. Each layer ~100-200. Cleanup
+becomes per-layer instead of tracing the whole file.
+
+### Reading.tsx stages → engine
+Reading.tsx still derives the per-slot `stages` map (`face_down /
+face_up / lifted`) from `state.phase + state.revealed + state.current_slot`
+and pushes it to `cardSceneStore`. Move that derivation into the engine
+as a first-class `state.stages: Record<SlotName, CardStage>` field. UI
+subscribes to one source of truth instead of recomputing.
+
+### Reader.tsx wrapper is vestigial
+`src/ui/reader/Reader.tsx` is now just `<ReaderAnchor size={size} />`
+with two dead props (`isSpeaking`, `mood`) "for API parity." Delete
+Reader.tsx, route Menu + Survey to ReaderAnchor directly, drop the dead
+props. ~10min.
+
+### scene/ barrel + bus-pattern doc
+7 store/service modules in `scene/` (anchor, tableAnchor, dizzy, impact,
+readerMode, cardScene, pickService) — all deep-imported. Add
+`scene/index.ts` barrel exporting the public surface + a 5-line comment
+at the top explaining the bus pattern.
+
+### engine error tagged union
+`ReadingState.error?: string` allows setting `error` without
+`phase: 'error'`. Combined, they become inconsistent state with no
+visible symptom (UI only renders the error string under `phase ===
+'error'`). Move to a tagged union: error only ever exists alongside
+`phase: 'error'`.
+
+### perspective bloom (render-strategy two-pass)
+Currently composer + bloom only runs on the ortho scene; perspective
+renders directly to canvas via scissor after `composer.render()`. Bloom
+doesn't apply to the table / cards. Fine for now (emoji silhouettes
+aren't bright enough to need bloom), but anyone adding a glowing card
+or table accent will be confused. Proper fix: dual EffectComposer +
+final composite pass. Not urgent until a glowy card element ships.
+
 ## survey
 
 ### question prefix extraction

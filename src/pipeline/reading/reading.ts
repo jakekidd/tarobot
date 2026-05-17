@@ -36,7 +36,7 @@ import {
 } from './persona';
 import type {
   ChatMessage,
-  ClinicalIntent,
+  Set,
   Monologue,
   NarrativeRole,
   ReadingInputs,
@@ -51,7 +51,7 @@ export type ReadingOpts = {
   inputs: ReadingInputs;
 };
 
-type SlotResult = { clinical: ClinicalIntent; monologue: Monologue };
+type SlotResult = { set: Set; monologue: Monologue };
 
 const ROUND_TO_ROLE: Record<number, NarrativeRole> = {
   1: 'opening',
@@ -204,7 +204,7 @@ export class ReadingEngine {
     const revealed: RevealedSlot = {
       position_id: slot,
       card_id: drawn.card.id,
-      clinical: result.clinical,
+      set: result.set,
       monologue: result.monologue,
     };
     const nextRevealed = [...this.state.revealed, revealed];
@@ -344,7 +344,7 @@ export class ReadingEngine {
       if (this.slotPromises.has(key)) continue;
 
       const slotPromise: Promise<SlotResult> = (async () => {
-        const clinical = await cognitionPerCard(this.adapter, {
+        const rawSet = await cognitionPerCard(this.adapter, {
           profile: this.state.inputs.profile,
           prose_brief: this.state.inputs.prose_brief,
           spread_id: this.state.inputs.drawn.spread.id,
@@ -363,13 +363,14 @@ export class ReadingEngine {
           revealed_history,
           chat_history: chat_snapshot,
         });
-        // Ensure cognition's declared role matches the round.
-        const normalized: ClinicalIntent = { ...clinical, narrative_role: role, flip_round: round };
+        // Belt-and-suspenders: normalize narrative_role + flip_round in
+        // case cognition's emission drifted from what the engine knows.
+        const set: Set = { ...rawSet, narrative_role: role, flip_round: round };
 
         const monologue = await personaPerCard(this.adapter, {
           profile: this.state.inputs.profile,
           prose_brief: this.state.inputs.prose_brief,
-          clinical: normalized,
+          set,
           card: {
             name: dc.card.name,
             keywords: dc.card.keywords,
@@ -380,7 +381,7 @@ export class ReadingEngine {
           chat_history: chat_snapshot,
         });
 
-        const result: SlotResult = { clinical: normalized, monologue };
+        const result: SlotResult = { set, monologue };
         this.slotResults.set(key, result);
         return result;
       })();

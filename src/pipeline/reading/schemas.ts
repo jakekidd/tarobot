@@ -4,16 +4,24 @@ import { z } from 'zod';
 
 const NarrativeRole = z.enum(['opening', 'rising', 'turning', 'closing']);
 
-export const ClinicalIntentSchema = z.object({
+/** A Set — Stanislavski "given circumstances" the seer inhabits.
+ *  Interior state, not content. The persona does not paraphrase this. */
+export const SetSchema = z.object({
   position_id: z.string(),
   card_id: z.number().int().min(0),
   flip_round: z.number().int().min(1).max(4),
   narrative_role: NarrativeRole,
-  angle: z.string(),
-  noticings: z.array(z.string()).min(1).max(4),
-  structural_prediction: z.string(),
-  director_notes: z.string(),
+
+  click: z.string(),
+  attending: z.string(),
+  intent: z.string(),
+  knows: z.array(z.string()).min(0).max(5),
+  uncertainty: z.string(),
+  through_line: z.string(),
 });
+
+/** @deprecated Use SetSchema. */
+export const ClinicalIntentSchema = SetSchema;
 
 export const MonologueSchema = z.object({
   text: z.string(),
