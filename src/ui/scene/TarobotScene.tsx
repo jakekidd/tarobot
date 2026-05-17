@@ -20,7 +20,8 @@ import {
 } from './cardSceneStore';
 import { registerPicker, unregisterPicker } from './pickService';
 import { cardBackTexture, cardFaceTexture, disposeCardTextures } from '../cards/cardTexture';
-import { createSeerTurtle } from './layers/seerTurtle';
+import { createTurtleMascot } from './mascots/turtle';
+import type { Mascot } from './mascots/types';
 import { subscribeDebugVisible } from '../../debug/visibilityStorage';
 import { publishDebug, clearDebug } from '../../debug/debugBus';
 import { flip as playFlipSfx } from '../sound/sound';
@@ -398,25 +399,17 @@ export function TarobotScene() {
 
     const particleGroup = new THREE.Group();
 
-    // ── Seer turtle (loggerhead skeleton, violet, slow-floating swim) ──
-    // Replaces the abstract eyes-mode geometry. Lives in the same anchor
-    // rig as Clat; only one is visible at a time based on readerMode.
-    // Async-loaded — group starts invisible until the gltf resolves.
-    const seerTurtle = createSeerTurtle();
-    // Lighting: the existing scene is ortho with no lights, so the turtle's
-    // MeshStandardMaterial would render black. Add a couple of soft lights
-    // local to the position rig so the turtle reads dimensional but doesn't
-    // affect anything else (everything else uses MeshBasicMaterial).
-    const turtleKeyLight = new THREE.DirectionalLight(0xffffff, 1.4);
-    turtleKeyLight.position.set(0.6, 1.2, 1.4);
-    seerTurtle.group.add(turtleKeyLight);
-    const turtleAmbient = new THREE.AmbientLight(0xc8b3ff, 0.55);
-    seerTurtle.group.add(turtleAmbient);
+    // ── Mascot (the survey-side figure) ───────────────────
+    // Currently: turtle. Swappable with any other Mascot impl — the
+    // scene only depends on the Mascot interface (./mascots/types.ts).
+    // Clat the cat's code below is gated off but preserved for
+    // eventual extraction into mascots/clat.ts.
+    const mascot: Mascot = createTurtleMascot();
 
     const positionGroup = new THREE.Group();
     positionGroup.add(catGroup);
     positionGroup.add(eyesGroup);
-    positionGroup.add(seerTurtle.group);
+    positionGroup.add(mascot.group);
     positionGroup.add(particleGroup);
     scene.add(positionGroup);
 
@@ -1051,14 +1044,13 @@ export function TarobotScene() {
       const wantVisible = anchor !== null;
       positionGroup.visible = wantVisible;
       // Reader mode: show one face at the anchor; never both.
-      // CAT is currently commented out — turtle takes the cat-mode slot.
+      // CAT is currently commented out — the Mascot takes the cat-mode
+      // slot. Clat will be ported into a Mascot impl later; for now its
+      // sprite code below still runs (cheap) but the group stays hidden.
       // catGroup.visible = readerMode === 'cat';
       catGroup.visible = false;
-      seerTurtle.group.visible = readerMode === 'cat';
+      mascot.group.visible = readerMode === 'cat';
       eyesGroup.visible = readerMode === 'eyes';
-
-      // Advance the turtle's animation mixer (Swim Cycle at 0.01× — floating).
-      seerTurtle.update(dt);
 
       // ── Clat explosion chunks: integrate motion + fade ──
       for (let ci = clatChunks.length - 1; ci >= 0; ci--) {
@@ -1176,6 +1168,14 @@ export function TarobotScene() {
         hoverDwellSec = Math.max(0, hoverDwellSec - dt * 0.6);
       }
       const vibrating = now < vibrateUntilMs;
+
+      // Mascot tick — uniform per-frame context. Turtle ignores most
+      // fields; future mascots (or Clat once ported) consult them.
+      mascot.update({
+        dt, t,
+        mouse: { dx: mouseDx, dy: mouseDy, close: mouseClose, intensity: hoverIntensity },
+        dizzy,
+      });
 
       // ── Independent blink algorithm (idle only) ──
       // 90% fast blink (~80-140ms), 10% slow blink (~200-310ms). Random interval
@@ -1568,6 +1568,7 @@ export function TarobotScene() {
       clearDebug('card.lift');
       clearDebug('card.ref');
       unregisterPicker(pickAt);
+      mascot.dispose();
       for (const orb of orbs) {
         orbGroup.remove(orb.mesh);
         orb.mat.dispose();
