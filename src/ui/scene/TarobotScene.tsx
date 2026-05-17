@@ -203,9 +203,12 @@ export function TarobotScene() {
       transparent: true,
       depthWrite: false,
     });
-    const cloakGeom = new THREE.PlaneGeometry(1.25, 1.48);
+    // Wider + much taller; pulled DOWN so the bottom of the cloak hangs
+    // well below the eyes (extending into the area where the dialogue
+    // box overlays). Pure-void black at center.
+    const cloakGeom = new THREE.PlaneGeometry(3.6, 5.4);
     const cloakMesh = new THREE.Mesh(cloakGeom, cloakMat);
-    cloakMesh.position.set(0, -0.05, -0.04);   // slightly behind, a bit lower
+    cloakMesh.position.set(0, -2.1, -0.04);
     eyesGroup.add(cloakMesh);
 
     function makeEye(): {
@@ -563,11 +566,13 @@ export function TarobotScene() {
       right:  [1.25, 0],
       bottom: [0, 1.05],
     };
-    // Lifted card — held just above the table, tilted back significantly
-    // toward camera so the whole face catches the warm key light. NOT
-    // close-to-chest; the viewer sees the whole card from a slight
-    // angle, like the seer is presenting it to them.
-    const LIFT_POS = new THREE.Vector3(0, 1.7, 6.2);
+    // Lifted card — camera is at z=7.4. World +z is TOWARD the viewer,
+    // so larger z = closer to camera. z=6.2 last time was 1.2 units in
+    // front of the camera — way too close, card filled the frame.
+    // Pulling much further back (z=3.8) puts the card ~3.6 units in
+    // front of the camera. Tilted significantly toward viewer so the
+    // whole face catches the warm key light.
+    const LIFT_POS = new THREE.Vector3(0, 1.5, 3.8);
     const STAGE_QUAT: Record<CardStage, THREE.Quaternion> = {
       face_down: new THREE.Quaternion().setFromEuler(new THREE.Euler(Math.PI / 2, 0, 0)),
       face_up:   new THREE.Quaternion().setFromEuler(new THREE.Euler(-Math.PI / 2, 0, 0)),
@@ -1261,36 +1266,59 @@ function makeSquareParticleTexture(): THREE.CanvasTexture {
   return tex;
 }
 
-/** Paint a soft hood / cloak silhouette behind the eyes — peaked top,
- *  rounded shoulders, fades out downward. Dark fill so the eyes still
- *  read as the bright element; subtle violet inner outline. */
+/** Paint a robed / cloaked silhouette behind the eyes. The shape is a
+ *  peaked hood at the top of the canvas that flares OUT into wide
+ *  shoulders as it descends, then continues straight down off the
+ *  bottom of the canvas. Pure void-black fill — the cloak is a hole in
+ *  the starfield, not a tinted shape. */
 function paintCloak(ctx: CanvasRenderingContext2D): void {
   const W = ctx.canvas.width;
   const H = ctx.canvas.height;
   ctx.clearRect(0, 0, W, H);
 
-  // Hood silhouette path — peaked top center, curves out to wide
-  // shoulders, drops off the bottom (cloak extends out of frame).
+  // Cloak silhouette — narrow hood up top, flares wide as it falls,
+  // continues off the bottom edge.
   const path = new Path2D();
-  path.moveTo(W * 0.50, H * 0.05);                                  // peak top
-  path.bezierCurveTo(W * 0.88, H * 0.10, W * 0.97, H * 0.55, W * 0.96, H * 0.92);  // right shoulder
-  path.lineTo(W * 0.96, H);
-  path.lineTo(W * 0.04, H);
-  path.lineTo(W * 0.04, H * 0.92);
-  path.bezierCurveTo(W * 0.03, H * 0.55, W * 0.12, H * 0.10, W * 0.50, H * 0.05); // left shoulder back to peak
+  // Peak (top of hood) — narrow
+  path.moveTo(W * 0.50, H * 0.04);
+  // Right side of hood, curving down
+  path.bezierCurveTo(
+    W * 0.66, H * 0.06,
+    W * 0.78, H * 0.16,
+    W * 0.82, H * 0.30,
+  );
+  // Right shoulder — flares OUT as it descends
+  path.bezierCurveTo(
+    W * 0.95, H * 0.42,
+    W * 1.05, H * 0.62,
+    W * 1.05, H * 0.92,
+  );
+  // Bottom right corner (off-canvas)
+  path.lineTo(W * 1.05, H * 1.05);
+  // Bottom left corner (off-canvas)
+  path.lineTo(W * -0.05, H * 1.05);
+  // Left shoulder flaring back up
+  path.lineTo(W * -0.05, H * 0.92);
+  path.bezierCurveTo(
+    W * -0.05, H * 0.62,
+    W * 0.05, H * 0.42,
+    W * 0.18, H * 0.30,
+  );
+  // Left side of hood back to peak
+  path.bezierCurveTo(
+    W * 0.22, H * 0.16,
+    W * 0.34, H * 0.06,
+    W * 0.50, H * 0.04,
+  );
   path.closePath();
 
-  // Dark fill — alpha fades out toward the edges via a radial gradient
-  // mask. Use composite: draw solid dark, then mask the edges to alpha 0.
-  const grad = ctx.createRadialGradient(W / 2, H * 0.5, W * 0.10, W / 2, H * 0.55, W * 0.55);
-  grad.addColorStop(0.00, 'rgba(6, 3, 14, 0.92)');
-  grad.addColorStop(0.55, 'rgba(8, 4, 18, 0.78)');
-  grad.addColorStop(1.00, 'rgba(8, 4, 18, 0.0)');
-  ctx.fillStyle = grad;
+  // Pure void black fill. The cloak literally blots out the starfield.
+  ctx.fillStyle = '#000000';
   ctx.fill(path);
 
-  // Subtle violet outline near the edges of the hood
-  ctx.strokeStyle = 'rgba(124, 58, 237, 0.32)';
+  // Subtle violet rim near the silhouette edge so it doesn't read as a
+  // pure CSS rectangle — just enough to suggest fabric folds.
+  ctx.strokeStyle = 'rgba(124, 58, 237, 0.28)';
   ctx.lineWidth = 1.4;
   ctx.stroke(path);
 }

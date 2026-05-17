@@ -9,12 +9,16 @@
 
 import type { Monologue } from './types';
 
-const ELLIPSIS = '…';        // …
+const SPACED_ELLIPSIS = '. . .';
 
 export function sanitizeMonologueText(s: string): string {
   if (!s) return s;
   return s
-    .replace(/\s*[—–]\s*/g, ` ${ELLIPSIS} `)
+    // em-/en-dash → spaced ellipsis (visual + cadence)
+    .replace(/\s*[—–]\s*/g, ` ${SPACED_ELLIPSIS} `)
+    // single ellipsis char OR three-or-more periods → spaced ellipsis
+    .replace(/…/g, SPACED_ELLIPSIS)
+    .replace(/\.{3,}/g, SPACED_ELLIPSIS)
     .replace(/  +/g, ' ')
     .trim();
 }

@@ -787,7 +787,7 @@ a:hover { text-decoration: underline; }
    moves down. */
 .reading__dialogue-rigid {
   height: 6.4rem;
-  overflow: hidden;
+  overflow: visible;             /* was hidden — was clipping the bottom caret */
   display: flex;
   align-items: flex-start;
   cursor: pointer;
@@ -1152,25 +1152,22 @@ a:hover { text-decoration: underline; }
   font-size: 1rem;
   line-height: 1.6;
   color: var(--fg);
-  text-align: justify;       /* edges touch left + right margins */
-  text-align-last: left;     /* don't justify the last line — looks weird */
+  text-align: left;
   hyphens: none;
   width: min(82ch, calc(100vw - 4rem));
   margin: 0 auto;
   min-height: 5.2rem;       /* room for ~3 lines without reflow */
   padding: 0.6rem 1.4rem;
-  /* Single soft violet rails — replaces the heavy double border. */
   border-left: 1px solid rgba(179, 136, 255, 0.55);
   border-right: 1px solid rgba(179, 136, 255, 0.55);
   box-shadow:
     inset 1px 0 0 rgba(179, 136, 255, 0.18),
     inset -1px 0 0 rgba(179, 136, 255, 0.18);
 }
-/* Intro / outro use the same justified treatment when in the rigid box. */
+/* Intro / outro use the same rails when in the rigid box. */
 .reading__intro.reading__dialogue-rigid,
 .reading__outro.reading__dialogue-rigid {
-  text-align: justify;
-  text-align-last: left;
+  text-align: left;
   hyphens: none;
   padding: 0.6rem 1.4rem;
   border-left: 1px solid rgba(179, 136, 255, 0.55);

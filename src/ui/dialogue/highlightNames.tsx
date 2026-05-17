@@ -41,7 +41,7 @@ export function highlightNames(text: string, h: Highlights): ReactNode[] {
     const isUser = lowerUser !== null && matched.toLowerCase() === lowerUser;
     out.push(
       <span key={`hl-${idx++}`} className={isUser ? 'hl hl-name' : 'hl hl-card'}>
-        {matched}
+        {isUser ? matched.toUpperCase() : matched}
       </span>,
     );
     last = m.index + matched.length;

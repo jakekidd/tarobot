@@ -88,13 +88,32 @@ export function useTypewriter(
       const peekPrev2 = text[indexRef.current - 3] ?? '';
       const next1 = text[indexRef.current] ?? '';
 
-      // Ellipsis handling — collapse runs. Charge a single long pause on
-      // the trailing char of "..." or after "…" itself.
+      // Ellipsis handling — sanitize converts every ellipsis form to
+      // SPACED ". . ." so the dots type one at a time with the right
+      // rhythm. We need to detect this pattern so each dot doesn't
+      // trigger a full sentence-end pause.
+      //
+      // Patterns inside ". . .":
+      //   first  . — char='.', next1=' ', nextNext='.'
+      //   middle . — char='.', peekPrev2='.', peekPrev=' '
+      //   last   . — char='.', peekPrev2='.', peekPrev=' ', next1≠'.'
+      const nextNext = text[indexRef.current + 1] ?? '';
+      const isFirstSpacedDot = ch === '.' && next1 === ' ' && nextNext === '.';
+      const isMidSpacedDot = ch === '.' && peekPrev === ' ' && peekPrev2 === '.' && nextNext === '.';
+      const isLastSpacedDot = ch === '.' && peekPrev === ' ' && peekPrev2 === '.' && nextNext !== '.';
       const isEllipsisChar = ch === '…';
       const isThirdDotOfRun = ch === '.' && peekPrev === '.' && peekPrev2 === '.';
       const isMidDotOfRun = ch === '.' && (next1 === '.' || peekPrev === '.');
 
-      if (isEllipsisChar || isThirdDotOfRun) {
+      if (isLastSpacedDot) {
+        // Final dot of ". . ." — full thoughtful pause + reset state
+        delay += 600 + Math.random() * 350;
+        postSentenceCarry = 8;
+        wordsSinceBreath = 0;
+      } else if (isFirstSpacedDot || isMidSpacedDot) {
+        // Mid-ellipsis dot — moderate pause, NOT a sentence-end
+        delay += 180 + Math.random() * 140;
+      } else if (isEllipsisChar || isThirdDotOfRun) {
         delay += 700 + Math.random() * 400;
         postSentenceCarry = 8;
         wordsSinceBreath = 0;
