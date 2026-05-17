@@ -271,6 +271,7 @@ export class SurveyEngine {
       hooks: [],
       active_threads: [],
       posture: null,
+      intention_guesses: [],
     };
     const isReturning = !!opts.returning;
 
@@ -298,6 +299,9 @@ export class SurveyEngine {
       phase: 'A',
       closed: false,
       thinking: false,
+      stage: 'questions',
+      intentions_offered: [],
+      chosen_intention: null,
     };
   }
 
@@ -645,7 +649,14 @@ export class SurveyEngine {
     this.emit();
 
     if (!this.compilerPromise) {
-      this.compilerPromise = runCompiler(this.opts.adapter, { state: this.state })
+      this.compilerPromise = runCompiler(this.opts.adapter, {
+        state: this.state,
+        // Fallback path: close fired without the user picking an intention
+        // (e.g. cap hit + queue empty before shaman stage ran). Pass the
+        // state-stored value if any, else empty string — compiler tolerates
+        // an empty intention (the brief just reads as un-anchored).
+        chosen_intention: this.state.chosen_intention ?? '',
+      })
         .then((out) => {
           this.compilerOutput = out;
           this.setState({ thinking: false });
