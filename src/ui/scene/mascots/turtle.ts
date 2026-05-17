@@ -19,16 +19,10 @@ export function createTurtleMascot(): Mascot {
   const group = new THREE.Group();
   group.visible = false;
 
-  // The turtle needs lighting — MeshStandardMaterial renders black
-  // without it. Add lights as children of the group so they follow it
-  // through the rig's scale transforms and don't affect anything else
-  // in the scene (everything else here uses MeshBasicMaterial).
-  const keyLight = new THREE.DirectionalLight(0xffffff, 1.4);
-  keyLight.position.set(0.6, 1.2, 1.4);
-  group.add(keyLight);
-  const ambient = new THREE.AmbientLight(0xc8b3ff, 0.55);
-  group.add(ambient);
-
+  // Unlit material — the rest of the scene uses MeshBasicMaterial and has
+  // no lights, so a PBR material was rendering black. Flat violet reads
+  // as a clear silhouette against the dark void and matches the CRT
+  // aesthetic. Mobile-cheap too (no lighting math per pixel).
   let mixer: THREE.AnimationMixer | null = null;
   const disposables: Array<{ dispose: () => void }> = [];
 
@@ -51,12 +45,13 @@ export function createTurtleMascot(): Mascot {
         root.position.sub(center);
         root.scale.setScalar(1 / maxDim);
 
-        // Flat violet — drop the photorealistic body texture entirely.
-        // One material for every mesh keeps the silhouette uniform.
-        const violet = new THREE.MeshStandardMaterial({
+        // Violet wireframe — drop the photorealistic body texture
+        // entirely. Wireframe reads with shape definition even without
+        // lights (a solid unlit material is silhouette-only — too flat).
+        // Also: nicely echoes the "skeleton" framing.
+        const violet = new THREE.MeshBasicMaterial({
           color: VIOLET,
-          roughness: 0.55,
-          metalness: 0.0,
+          wireframe: true,
         });
         disposables.push(violet);
         root.traverse((obj) => {
@@ -89,6 +84,7 @@ export function createTurtleMascot(): Mascot {
         }
 
         group.visible = true;
+        console.info('[turtleMascot] loaded; bbox max-dim =', maxDim.toFixed(2));
         resolve();
       },
       undefined,
