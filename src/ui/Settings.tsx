@@ -7,6 +7,7 @@ import {
   saveSettings,
 } from '../storage';
 import { setVolume } from './sound/sound';
+import { MASCOT_IDS, type MascotId } from './scene/mascots';
 
 type Props = {
   onBack: () => void;
@@ -53,6 +54,28 @@ export function Settings({ onBack }: Props) {
             );
           })}
         </div>
+      </section>
+
+      <section className="settings__section">
+        <h3 className="settings__heading">mascot</h3>
+        <p className="settings__hint">
+          the figure that hosts the survey + idles in the menu. takes
+          effect on next page reload.
+        </p>
+        <label className="settings__row">
+          <select
+            value={settings.mascotId}
+            onChange={(e) => update({ mascotId: e.target.value as MascotId })}
+            className="settings__select"
+          >
+            {MASCOT_IDS.map((id) => (
+              <option key={id} value={id}>{id}</option>
+            ))}
+          </select>
+          <span>
+            (tip: <code>?mascot={'<id>'}</code> overrides this for the current load)
+          </span>
+        </label>
       </section>
 
       <section className="settings__section">

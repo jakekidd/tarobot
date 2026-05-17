@@ -2161,6 +2161,21 @@ a:hover { text-decoration: underline; }
   cursor: pointer;
 }
 .settings__row input[type="range"] { flex: 1; max-width: 320px; }
+.settings__select {
+  background: #15102a;
+  color: var(--fg);
+  border: 1px solid var(--line);
+  padding: 0.4rem 0.7rem;
+  font-family: inherit;
+  font-size: 0.95rem;
+  border-radius: 0;
+  outline: none;
+  text-transform: lowercase;
+}
+.settings__select:focus {
+  border-color: var(--violet);
+  box-shadow: 0 0 10px rgba(179, 136, 255, 0.18);
+}
 
 .settings__personas {
   display: grid;
