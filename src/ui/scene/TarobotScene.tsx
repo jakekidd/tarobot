@@ -195,42 +195,66 @@ export function TarobotScene() {
     const EYE_SEP = 0.62;
     const eyeGeom = new THREE.PlaneGeometry(EYE_W, EYE_H);
 
-    // ── Cloak silhouette plane (sits behind the eyes) ──
-    // Hooded-robe reference image alpha-keyed to pure-black-on-transparent.
-    // Pre-cropped to a 1347×1221 silhouette (aspect 1.103). The figure
-    // reads against the starfield by occluding stars where it covers them.
-    const cloakTex = new THREE.TextureLoader().load('/cloak.png');
-    cloakTex.colorSpace = THREE.SRGBColorSpace;
-    cloakTex.minFilter = THREE.LinearFilter;
-    cloakTex.magFilter = THREE.LinearFilter;
-    cloakTex.generateMipmaps = false;
-    const cloakMat = new THREE.MeshBasicMaterial({
-      map: cloakTex,
-      transparent: true,
-      depthWrite: false,
-    });
-    // Aspect-preserving: H=5.4, W=H*1.103=5.96. Hood opening sits ~17%
-    // from the top of the image; with plane center y=-1.85 the hood
-    // lands on the eyes at local y≈0.
-    const cloakGeom = new THREE.PlaneGeometry(5.96, 5.4);
-    const cloakMesh = new THREE.Mesh(cloakGeom, cloakMat);
-    cloakMesh.position.set(0, -1.85, -0.04);
-    eyesGroup.add(cloakMesh);
+    // ── Cowl (3D mesh, sits behind the eyes) ───────────────
+    // Real hooded-cowl GLTF (Sketchfab "Accessory_Hood Cowl 001" by
+    // collinsweeney, CC-BY-4.0 — credit in /public/cowl/license.txt).
+    // Textures stripped (see /tmp/strip_textures.py); we override the
+    // material to pure-black silhouette so the cowl reads as a hole in
+    // the starfield rather than a tinted shape.
+    //
+    // Sketchfab's typical orientation puts hood-opening on +z, so an
+    // ortho camera looking down -z sees into the hood — exactly what we
+    // want (eyes appear floating inside the hood opening).
+    const cowlGroup = new THREE.Group();
+    cowlGroup.scale.setScalar(4.0);
+    cowlGroup.position.set(0, -0.4, 0);
+    eyesGroup.add(cowlGroup);
 
-    // ── DEBUG: red wireframe rectangle outlining the cloak plane ──
-    // Toggled by the debug chip in the navbar. Shows the bounding box
-    // so we can judge whether the cloak plane is sized + positioned
-    // correctly relative to the eyes.
-    const seerOutlineGeom = new THREE.EdgesGeometry(cloakGeom);
+    const cowlMaterials: THREE.Material[] = [];
+    const cowlGeometries: THREE.BufferGeometry[] = [];
+    const gltfLoader = new GLTFLoader();
+    gltfLoader.load(
+      '/cowl/scene.gltf',
+      (gltf) => {
+        const model = gltf.scene;
+        model.traverse((obj) => {
+          if (obj instanceof THREE.Mesh) {
+            const mat = new THREE.MeshBasicMaterial({
+              color: 0x000000,
+              transparent: true,
+              depthWrite: false,
+            });
+            cowlMaterials.push(mat);
+            cowlGeometries.push(obj.geometry);
+            obj.material = mat;
+          }
+        });
+        // Center the model around its own bbox so cowlGroup's position
+        // controls the cowl's center, not the model's arbitrary origin.
+        const box = new THREE.Box3().setFromObject(model);
+        const center = box.getCenter(new THREE.Vector3());
+        model.position.sub(center);
+        cowlGroup.add(model);
+      },
+      undefined,
+      (err) => {
+        console.error('[tarobot] failed to load cowl gltf', err);
+      },
+    );
+
+    // ── DEBUG: red wireframe box around the cowl group ──
+    // Bounds the cowlGroup at its current scale; helps judge alignment.
+    const seerOutlineGeom = new THREE.BoxGeometry(1.0, 1.0, 0.6);
+    const seerOutlineEdges = new THREE.EdgesGeometry(seerOutlineGeom);
     const seerOutlineMat = new THREE.LineBasicMaterial({
       color: 0xff0000,
       depthTest: false,
       depthWrite: false,
       transparent: true,
     });
-    const seerOutline = new THREE.LineSegments(seerOutlineGeom, seerOutlineMat);
-    seerOutline.position.copy(cloakMesh.position);
-    seerOutline.position.z += 0.02;
+    const seerOutline = new THREE.LineSegments(seerOutlineEdges, seerOutlineMat);
+    seerOutline.position.copy(cowlGroup.position);
+    seerOutline.scale.copy(cowlGroup.scale);
     seerOutline.renderOrder = 999;
     seerOutline.visible = false;
     eyesGroup.add(seerOutline);
@@ -1288,10 +1312,10 @@ export function TarobotScene() {
       rightEye.mat.dispose();
       leftEye.tex.dispose();
       rightEye.tex.dispose();
-      cloakGeom.dispose();
-      cloakMat.dispose();
-      cloakTex.dispose();
+      for (const m of cowlMaterials) m.dispose();
+      for (const g of cowlGeometries) g.dispose();
       seerOutlineGeom.dispose();
+      seerOutlineEdges.dispose();
       seerOutlineMat.dispose();
       refCardGeom.dispose();
       refCardEdges.dispose();

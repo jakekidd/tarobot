@@ -793,12 +793,15 @@ a:hover { text-decoration: underline; }
 .reading__dialogue-rigid {
   height: 6.4rem;
   min-height: 6.4rem;
-  flex-shrink: 0;
+  width: 100%;                   /* fill the stage-slot; respects its max-width */
   overflow: visible;             /* was hidden — was clipping the bottom caret */
   display: flex;
   align-items: flex-start;
   cursor: pointer;
   position: relative;
+  /* NOTE: do not set flex-shrink:0 — it locks horizontal sizing too,
+     which made the text flow on one infinite line. min-height alone
+     is enough to prevent vertical compression on first paint. */
 }
 
 /* Dialogue text — all lowercase as delivered by the persona. The user
@@ -870,7 +873,9 @@ a:hover { text-decoration: underline; }
   width: 0.34em;
   height: 0.34em;
   vertical-align: 0.18em;
-  margin-left: 0.16em;
+  /* Sits well AHEAD of the last typed char so it visually leads the
+     typewriter — the next character types in just behind the spiral. */
+  margin-left: 0.6em;
   border-radius: 50%;
   background:
     conic-gradient(
@@ -1211,6 +1216,25 @@ a:hover { text-decoration: underline; }
   text-align: center;
   letter-spacing: 0.02em;
   min-height: 1.6rem;
+}
+
+/* "pick a card." — absolute prompt sitting ~140px below the dialogue
+   stage-slot so it floats just above the table without overlapping
+   the dialogue (which now displays the most recent seer chat reply
+   during awaiting_flip). */
+.reading__pickcue {
+  position: absolute;
+  top: calc(9.5rem + 140px);
+  left: 50%;
+  transform: translateX(-50%);
+  font-family: var(--font-speech);
+  font-style: italic;
+  font-size: 1.05rem;
+  color: var(--fg-dim);
+  letter-spacing: 0.02em;
+  pointer-events: none;
+  z-index: 6;
+  text-shadow: 0 0 12px rgba(179, 136, 255, 0.4);
 }
 
 /* ─── Filler (rotating "hmm…" / "i see…" while LLM thinks) ─── */

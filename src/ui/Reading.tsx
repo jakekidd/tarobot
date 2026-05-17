@@ -283,6 +283,11 @@ export function Reading({ apiKey, brief, preferredIntro, onExit }: Props) {
           <div className="reading__stage-slot">
             <ReadingStage state={state} engine={engine} advanceTick={advanceTick} highlights={highlights} />
           </div>
+          {state.phase === 'awaiting_flip' && (
+            <div className="reading__pickcue" aria-hidden>
+              <em>pick a card.</em>
+            </div>
+          )}
           <CardSubtitle name={activeCardName} visible={subtitleVisible} />
           <div className="reading__chat-slot">
             <ChatForm state={state} onSend={(text) => void engine.submitChat(text)} />
@@ -387,11 +392,25 @@ function ReadingStage({ state, engine, advanceTick, highlights }: StageProps) {
     );
   }
   if (state.phase === 'awaiting_flip') {
-    return (
-      <div className="reading__cue">
-        <em>pick a card.</em>
-      </div>
-    );
+    // While waiting for a card flip, the dialogue area shows the
+    // most recent SEER chat reply (if any) so the user can read what
+    // the seer just said. The "pick a card." cue is rendered separately,
+    // lower on the screen, so it doesn't block the dialogue.
+    const lastSeerReply = [...state.chat].reverse().find((m) => m.speaker === 'seer');
+    if (lastSeerReply) {
+      return (
+        <ChunkedLine
+          key={`chat-reply-${state.chat.length}`}
+          kind="beat"
+          text={lastSeerReply.text}
+          advanceTick={advanceTick}
+          highlights={highlights}
+          onAdvance={() => { /* no-op — chat replies don't advance phase */ }}
+        />
+      );
+    }
+    // No chat history yet → empty rigid box maintains layout.
+    return <div className="reading__beat reading__dialogue-rigid" />;
   }
   if (state.phase === 'flipping' || state.phase === 'beat_pending') {
     return <FillerLine tier={state.awaiting_tier ?? 'persona'} />;
@@ -521,7 +540,7 @@ function ChunkedLine({
   return (
     <div
       className={`reading__${kind} reading__dialogue-rigid`}
-      onClick={tap}
+      onClick={(e) => { e.stopPropagation(); tap(); }}
       role="button"
       tabIndex={0}
     >

@@ -24,6 +24,14 @@ type Props = {
   highlights: Highlights;
 };
 
+/** Strip persona's `_emphasis_` markers and lowercase everything for
+ *  the transcript view. (Dialogue uses the markers to drive the
+ *  animated underline — transcript is plain text, so the underscores
+ *  are noise.) The highlighter handles the user name uppercase. */
+function cleanForTranscript(s: string): string {
+  return s.replace(/_/g, '').toLowerCase();
+}
+
 export function Transcript({ items, stallShown, highlights }: Props) {
   const scrollRef = useRef<HTMLDivElement>(null);
   // New stall phrase each time the stall transitions on.
@@ -41,7 +49,7 @@ export function Transcript({ items, stallShown, highlights }: Props) {
     const text = items
       .map((m) => {
         const who = m.speaker === 'user' ? 'you' : (m.label ? `seer · ${m.label}` : 'seer');
-        return `${who}: ${m.text}`;
+        return `${who}: ${cleanForTranscript(m.text)}`;
       })
       .join('\n\n');
     try {
@@ -86,7 +94,7 @@ export function Transcript({ items, stallShown, highlights }: Props) {
                 <span className="transcript__label"> · {m.label}</span>
               )}
             </span>
-            <span className="transcript__text">{highlightNames(m.text, highlights)}</span>
+            <span className="transcript__text">{highlightNames(cleanForTranscript(m.text), highlights)}</span>
           </div>
           );
         })}
