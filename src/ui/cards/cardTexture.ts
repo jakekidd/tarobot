@@ -10,10 +10,10 @@ import { glyphFor, labelFor, numeralFor } from './glyphs';
 const TEX_W = 512;
 const TEX_H = 768;
 
-const BG = '#0f0820';
-const BORDER = '#7c3aed';
-const INK = '#d6c9ff';
-const GLYPH = '#b388ff';
+const BG = '#04141a';        // very dark teal
+const BORDER = '#22d3ee';    // turquoise — was violet
+const INK = '#cffafe';       // pale cyan ink
+const GLYPH = '#67e8f9';     // bright turquoise accent
 
 const faceCache = new Map<number, THREE.CanvasTexture>();
 let backTexture: THREE.CanvasTexture | null = null;

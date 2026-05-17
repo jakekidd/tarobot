@@ -464,12 +464,11 @@ export function TarobotScene() {
 
     const perspScene = new THREE.Scene();
     const perspCamera = new THREE.PerspectiveCamera(34, 1, 0.05, 80);
-    // Camera pulled further back and slightly higher → the seated POV
-    // feels less neck-cranked. lookAt is just above the tabletop so the
-    // table reads as further away and the cards land in the upper-half
-    // of the canvas (more breathing room below for the chat input).
-    perspCamera.position.set(0, 3.2, 8.5);
-    perspCamera.lookAt(0, 0.4, 0);
+    // Seated POV of a tall person — camera raised, lookAt lowered so
+    // the table sits in the lower portion of the canvas. The lifted
+    // card lands roughly in the middle, with the title text just below.
+    perspCamera.position.set(0, 4.4, 8.4);
+    perspCamera.lookAt(0, -0.25, 0);
 
     // ── Lighting ───────────────────────────────────────
     // Warm key from above (the "orb" that hovers over a real tarot table)
@@ -537,14 +536,18 @@ export function TarobotScene() {
       right:  [1.25, 0],
       bottom: [0, 1.05],
     };
-    const LIFT_POS = new THREE.Vector3(0, 1.55, 2.05);
+    // Lifted card sits between viewer and table, facing camera. Higher
+    // Z (closer to camera) so it doesn't clip the cards on the table on
+    // the way up; the quaternion slerp arcs it through "upright" while
+    // position lerps in.
+    const LIFT_POS = new THREE.Vector3(0, 1.8, 3.4);
     const STAGE_QUAT: Record<CardStage, THREE.Quaternion> = {
       face_down: new THREE.Quaternion().setFromEuler(new THREE.Euler(Math.PI / 2, 0, 0)),
       face_up:   new THREE.Quaternion().setFromEuler(new THREE.Euler(-Math.PI / 2, 0, 0)),
       lifted:    new THREE.Quaternion().setFromEuler(new THREE.Euler(-0.08, 0, 0)),
     };
     const STAGE_MS: Record<CardStage, number> = {
-      face_down: 600, face_up: 900, lifted: 700,
+      face_down: 700, face_up: 700, lifted: 950,   // lift gets longer to read the arc
     };
 
     const cardGeom = new THREE.PlaneGeometry(CARD_W, CARD_H);

@@ -803,13 +803,12 @@ a:hover { text-decoration: underline; }
   z-index: 1;
 }
 
-/* ─── Card subtitle — sits ON the table, just below the lifted card.
+/* ─── Card subtitle — sits ON the table, below the lifted card.
        Absolute on the right column. 3D-extruded floating letters. */
 .card-subtitle {
   position: absolute;
-  /* roughly where the lifted card's lower-middle projects to —
-     close enough that the title reads as resting on the table */
-  top: 56%;
+  /* table moved lower in frame → title moves with it */
+  top: 70%;
   left: 0;
   right: 0;
   font-family: var(--font-speech);
@@ -829,20 +828,20 @@ a:hover { text-decoration: underline; }
 .card-subtitle__inner {
   display: inline-block;
   transform-style: preserve-3d;
-  color: #e8d9ff;
+  color: #cffafe;             /* pale cyan — matches the card border */
 }
 .card-subtitle__letter {
   display: inline-block;
   transform-origin: center 70%;
   text-shadow:
-    0 1px 0 #5c2db8,
-    0 2px 0 #4a219a,
-    0 3px 0 #3a187b,
-    0 4px 0 #2c105d,
-    0 5px 0 #1f0843,
+    0 1px 0 #155e75,          /* turquoise extrusion stack */
+    0 2px 0 #0e7490,
+    0 3px 0 #0e7490,
+    0 4px 0 #155e75,
+    0 5px 0 #164e63,
     0 6px 8px rgba(0, 0, 0, 0.7),
-    0 0 14px rgba(179, 136, 255, 0.95),
-    0 0 28px rgba(124, 58, 237, 0.55);
+    0 0 14px rgba(34, 211, 238, 0.95),
+    0 0 28px rgba(6, 182, 212, 0.55);
   animation: subtitle-float 2.6s ease-in-out infinite;
 }
 .card-subtitle__space {

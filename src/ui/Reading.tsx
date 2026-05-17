@@ -123,8 +123,17 @@ export function Reading({ apiKey, brief, preferredIntro, onExit }: Props) {
     }
     if (state.current_slot) {
       const slot = state.current_slot as SlotName;
-      if (state.phase === 'flipping') m[slot] = 'face_up';
-      else if (state.phase === 'beat_pending' || state.phase === 'beat') m[slot] = 'lifted';
+      // Unified flip-and-lift: the card goes face_down → lifted in ONE
+      // tween (quaternion slerp arcs through "card upright facing camera"
+      // while position lerps from table to in-front-of-face). No
+      // intermediate face_up-flat-on-table → no clip through the table.
+      if (
+        state.phase === 'flipping' ||
+        state.phase === 'beat_pending' ||
+        state.phase === 'beat'
+      ) {
+        m[slot] = 'lifted';
+      }
     }
     return m;
   }, [state.revealed, state.phase, state.current_slot]);
