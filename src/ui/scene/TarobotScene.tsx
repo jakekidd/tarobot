@@ -536,14 +536,15 @@ export function TarobotScene() {
       right:  [1.25, 0],
       bottom: [0, 1.05],
     };
-    // Lifted card sits between viewer and table, facing camera. Raised
-    // significantly higher in world Y so it projects to just-under-center
-    // on screen instead of bottom-clipping into the chat input.
-    const LIFT_POS = new THREE.Vector3(0, 3.4, 4.4);
+    // Lifted card — pushed back (z 4.4 → 5.2) so it doesn't fill the
+    // screen; dropped slightly (y 3.4 → 2.9) and tilted further back
+    // toward the camera (lifted Euler.x -0.08 → -0.22) so it reads as
+    // "held up at an angle for the viewer to see".
+    const LIFT_POS = new THREE.Vector3(0, 2.9, 5.2);
     const STAGE_QUAT: Record<CardStage, THREE.Quaternion> = {
       face_down: new THREE.Quaternion().setFromEuler(new THREE.Euler(Math.PI / 2, 0, 0)),
       face_up:   new THREE.Quaternion().setFromEuler(new THREE.Euler(-Math.PI / 2, 0, 0)),
-      lifted:    new THREE.Quaternion().setFromEuler(new THREE.Euler(-0.08, 0, 0)),
+      lifted:    new THREE.Quaternion().setFromEuler(new THREE.Euler(-0.22, 0, 0)),
     };
     const STAGE_MS: Record<CardStage, number> = {
       face_down: 700, face_up: 700, lifted: 950,   // lift gets longer to read the arc

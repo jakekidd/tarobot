@@ -6,6 +6,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { pickStall } from '../pipeline/reading';
+import { highlightNames, type Highlights } from './dialogue/highlightNames';
 
 export type TranscriptItem = {
   speaker: 'user' | 'seer';
@@ -19,9 +20,11 @@ type Props = {
   items: TranscriptItem[];
   /** True while a chat reply is being computed — show a brief stall row. */
   stallShown: boolean;
+  /** Names to color-emphasize inside message text. */
+  highlights: Highlights;
 };
 
-export function Transcript({ items, stallShown }: Props) {
+export function Transcript({ items, stallShown, highlights }: Props) {
   const scrollRef = useRef<HTMLDivElement>(null);
   // New stall phrase each time the stall transitions on.
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -81,7 +84,7 @@ export function Transcript({ items, stallShown }: Props) {
                 <span className="transcript__label"> · {m.label}</span>
               )}
             </span>
-            <span className="transcript__text">{m.text}</span>
+            <span className="transcript__text">{highlightNames(m.text, highlights)}</span>
           </div>
         ))}
         {stallShown && (

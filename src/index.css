@@ -807,8 +807,8 @@ a:hover { text-decoration: underline; }
        Absolute on the right column. 3D-extruded floating letters. */
 .card-subtitle {
   position: absolute;
-  /* sits just below the lifted card (under-center) */
-  top: 66%;
+  /* sits just above the chat input — below the lifted card's lower edge */
+  top: 80%;
   left: 0;
   right: 0;
   font-family: var(--font-speech);
@@ -1170,34 +1170,80 @@ a:hover { text-decoration: underline; }
 .reading__chat-input {
   flex: 1;
   background: rgba(10, 4, 24, 0.92);
-  border: 1.5px solid var(--violet-line-strong);
+  border: 1.5px solid var(--color-gray);     /* default: grey (listening) */
   color: var(--fg);
-  padding: 0.55rem 1.1rem;     /* shorter row; font size preserved */
+  padding: 0.55rem 1.1rem;
   font-family: var(--font-mono);
   font-size: 1.05rem;
   outline: none;
   box-shadow: 0 0 18px rgba(0, 0, 0, 0.55);
+  transition: border-color 0.18s ease, box-shadow 0.18s ease;
+}
+.reading__chat-form.is-active .reading__chat-input {
+  border-color: var(--color-violet);          /* active: brand purple */
 }
 .reading__chat-input:focus {
-  border-color: var(--violet);
+  border-color: var(--color-violet);
   box-shadow:
-    0 0 14px rgba(179, 136, 255, 0.4),
-    0 0 26px rgba(124, 58, 237, 0.18);
+    0 0 14px rgba(124, 58, 237, 0.45),
+    0 0 26px rgba(124, 58, 237, 0.22);
 }
 .reading__chat-input::placeholder {
   color: var(--fg-faint);
   font-style: italic;
 }
+.reading__chat-input:disabled {
+  border-color: var(--color-gray);
+  color: var(--fg-faint);
+}
 .reading__chat-send {
-  letter-spacing: 0.22em;
-  font-size: 0.92rem;
-  padding: 0.55rem 1.4rem;     /* matches input height */
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.6rem;
+  height: 2.6rem;
   background: rgba(10, 4, 24, 0.92);
+  border: 1.5px solid var(--color-gray);
+  color: var(--fg);
+  cursor: pointer;
+  transition: border-color 0.18s ease, color 0.18s ease, box-shadow 0.18s ease;
   box-shadow: 0 0 18px rgba(0, 0, 0, 0.55);
+  flex-shrink: 0;
+}
+.reading__chat-form.is-active .reading__chat-send {
+  border-color: var(--color-violet);
+}
+.reading__chat-send:not(:disabled):hover {
+  border-color: var(--color-violet);
+  color: var(--color-violet);
+  box-shadow: 0 0 16px rgba(124, 58, 237, 0.45);
 }
 .reading__chat-send:disabled {
-  opacity: 0.4;
+  opacity: 0.35;
   cursor: not-allowed;
+  color: var(--color-gray);
+}
+
+/* Dialogue textbox mirrors the chat-input's "active" purple while the
+   user can chat (focus highlight propagates). */
+.reading__chat-form.is-active ~ /* deliberate sibling combinator — */
+  .reading__dialogue-rigid,
+.reading__col-right:has(.reading__chat-input:focus) .reading__dialogue-rigid {
+  border-color: var(--color-violet);
+  box-shadow: 0 0 22px rgba(124, 58, 237, 0.18);
+  transition: border-color 0.18s ease, box-shadow 0.18s ease;
+}
+
+/* ─── Name highlights (card name + user name in dialogue / transcript) */
+.hl-card,
+.hl-name {
+  color: var(--color-violet);
+  font-style: italic;
+  font-weight: 500;
+}
+.transcript__text .hl-card,
+.transcript__text .hl-name {
+  font-style: normal;
 }
 
 /* Footer row beneath the question — holds "ready for the cards" + (post-close) download buttons. */

@@ -52,6 +52,7 @@ import {
 import { pickAt } from './scene/pickService';
 import { Transcript, type TranscriptItem } from './Transcript';
 import { useTypewriter } from './dialogue/useTypewriter';
+import { highlightNames, type Highlights } from './dialogue/highlightNames';
 import { setDizzy } from './scene/dizzyStore';
 import { setReaderMode } from './scene/readerModeStore';
 import { loadSettings } from '../storage';
@@ -165,6 +166,13 @@ export function Reading({ apiKey, brief, preferredIntro, onExit }: Props) {
   const subtitleVisible =
     state.phase === 'beat_pending' || state.phase === 'beat';
 
+  // Names to highlight in seer dialogue + transcript. The user's name
+  // and any drawn card's name read in brand violet.
+  const highlights = useMemo<Highlights>(() => ({
+    userName: brief.profile?.identity?.name ?? null,
+    cardNames: drawn.cards.map((c) => c.card.name),
+  }), [brief.profile?.identity?.name, drawn]);
+
   // Unified transcript: seer's intro + each beat (with card name label) +
   // user/seer chat exchanges + outro (once delivered). The IN-PROGRESS
   // beat (during beat / beat_pending) is also pushed so the transcript
@@ -243,6 +251,7 @@ export function Reading({ apiKey, brief, preferredIntro, onExit }: Props) {
           <Transcript
             items={transcriptItems}
             stallShown={state.phase === 'chat_pending'}
+            highlights={highlights}
           />
         </aside>
 
@@ -256,7 +265,7 @@ export function Reading({ apiKey, brief, preferredIntro, onExit }: Props) {
             <ReaderAnchor size={130} />
           </div>
           <div className="reading__stage-slot">
-            <ReadingStage state={state} engine={engine} advanceTick={advanceTick} />
+            <ReadingStage state={state} engine={engine} advanceTick={advanceTick} highlights={highlights} />
           </div>
           <CardSubtitle name={activeCardName} visible={subtitleVisible} />
           <div className="reading__chat-slot">
@@ -287,6 +296,7 @@ export function Reading({ apiKey, brief, preferredIntro, onExit }: Props) {
             <Transcript
               items={transcriptItems}
               stallShown={state.phase === 'chat_pending'}
+              highlights={highlights}
             />
           </div>
         </div>
@@ -334,9 +344,14 @@ function CardSubtitle({
 
 // ─── Stage (intro / beat / outro / stall) ────────────────
 
-type StageProps = { state: ReadingState; engine: ReadingEngine; advanceTick: number };
+type StageProps = {
+  state: ReadingState;
+  engine: ReadingEngine;
+  advanceTick: number;
+  highlights: Highlights;
+};
 
-function ReadingStage({ state, engine, advanceTick }: StageProps) {
+function ReadingStage({ state, engine, advanceTick, highlights }: StageProps) {
   if (state.phase === 'idle' || state.phase === 'thinking') {
     return <FillerLine tier="persona" />;
   }
@@ -350,6 +365,7 @@ function ReadingStage({ state, engine, advanceTick }: StageProps) {
         kind="intro"
         text={state.intro.text}
         advanceTick={advanceTick}
+        highlights={highlights}
         onAdvance={() => engine.advanceFromIntro()}
       />
     );
@@ -373,6 +389,7 @@ function ReadingStage({ state, engine, advanceTick }: StageProps) {
         kind="beat"
         text={monologue.text}
         advanceTick={advanceTick}
+        highlights={highlights}
         onAdvance={() => engine.advanceFromBeat()}
       />
     );
@@ -387,6 +404,7 @@ function ReadingStage({ state, engine, advanceTick }: StageProps) {
         kind="outro"
         text={state.outro.text}
         advanceTick={advanceTick}
+        highlights={highlights}
         onAdvance={() => engine.advanceFromOutro()}
       />
     );
@@ -440,11 +458,13 @@ function ChunkedLine({
   kind,
   text,
   advanceTick,
+  highlights,
   onAdvance,
 }: {
   kind: 'intro' | 'beat' | 'outro';
   text: string;
   advanceTick: number;
+  highlights: Highlights;
   onAdvance: () => void;
 }) {
   const chunks = useMemo(() => chunkText(text, CHUNK_MAX_CHARS), [text]);
@@ -487,7 +507,7 @@ function ChunkedLine({
       role="button"
       tabIndex={0}
     >
-      <span>{displayed}{done && <span aria-hidden>{caret}</span>}</span>
+      <span>{highlightNames(displayed, highlights)}{done && <span aria-hidden>{caret}</span>}</span>
     </div>
   );
 }
@@ -558,7 +578,10 @@ function ChatForm({
           <em>{activePrompt.toLowerCase()}</em>
         </div>
       )}
-      <form className="reading__chat-form" onSubmit={handleSubmit}>
+      <form
+        className={`reading__chat-form ${canSend ? 'is-active' : 'is-listening'}`}
+        onSubmit={handleSubmit}
+      >
         <input
           ref={inputRef}
           className="reading__chat-input"
@@ -568,22 +591,45 @@ function ChatForm({
           disabled={!canSend}
           placeholder={
             !canSend
-              ? 'wait for the seer to finish...'
+              ? 'listening…'
               : activePrompt
-                ? '...'
+                ? '…'
                 : 'say something to the seer'
           }
           aria-label="chat with the seer"
         />
         <button
           type="submit"
-          className="btn btn--ghost reading__chat-send"
+          className="reading__chat-send"
           disabled={!canSend || draft.trim().length === 0}
+          aria-label="send"
         >
-          SEND
+          <SendArrow />
         </button>
       </form>
     </div>
+  );
+}
+
+/** Runic up-arrow (Tiwaz-style) — the SEND glyph. */
+function SendArrow() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      width="22"
+      height="22"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+    >
+      <line x1="12" y1="5" x2="12" y2="20" />
+      <line x1="12" y1="5" x2="6" y2="11" />
+      <line x1="12" y1="5" x2="18" y2="11" />
+      <line x1="9" y1="14" x2="15" y2="14" />
+    </svg>
   );
 }
 
