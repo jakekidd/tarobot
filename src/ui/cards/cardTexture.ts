@@ -89,11 +89,27 @@ function paintFace(ctx: CanvasRenderingContext2D, card: Card): void {
   ctx.fillText(numeralFor(card), 0, 0);
   ctx.restore();
 
-  // Big centre emoji
-  ctx.font = '260px "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", "Twemoji Mozilla", sans-serif';
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.fillText(glyphFor(card), TEX_W / 2, TEX_H / 2 - 10);
+  // Big centre emoji — CRT-wash via offscreen canvas:
+  //  1. Draw the emoji in grayscale + boosted brightness/contrast
+  //  2. source-in fills turquoise ONLY where the silhouette exists
+  //  3. drawImage that silhouette onto the card
+  // (We need the offscreen because source-in/atop on the main ctx would
+  // tint the card's borders and numerals too.)
+  const off = document.createElement('canvas');
+  off.width = TEX_W;
+  off.height = TEX_H;
+  const offCtx = off.getContext('2d')!;
+  offCtx.filter = 'grayscale(1) brightness(1.55) contrast(1.7)';
+  offCtx.font = '260px "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", "Twemoji Mozilla", sans-serif';
+  offCtx.textAlign = 'center';
+  offCtx.textBaseline = 'middle';
+  offCtx.fillText(glyphFor(card), TEX_W / 2, TEX_H / 2 - 10);
+  // Tint turquoise on the silhouette
+  offCtx.filter = 'none';
+  offCtx.globalCompositeOperation = 'source-in';
+  offCtx.fillStyle = '#9ff0fb';                 // bright cyan tint
+  offCtx.fillRect(0, 0, TEX_W, TEX_H);
+  ctx.drawImage(off, 0, 0);
 
   // Label, bottom centre
   ctx.fillStyle = INK;

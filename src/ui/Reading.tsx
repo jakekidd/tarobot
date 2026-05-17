@@ -64,9 +64,10 @@ type Props = {
 };
 
 const FLIP_ANIM_MS = 950;
-// Soft cap per dialogue chunk (chars). The rigid box holds ~four lines
-// of monologue text; this picks the sentence boundary nearest the cap.
-const CHUNK_MAX_CHARS = 260;
+// Soft cap per dialogue chunk (chars). The rigid box holds ~three lines
+// of monologue text at the wider width below; sentence-boundary split
+// picks the nearest break under this cap.
+const CHUNK_MAX_CHARS = 200;
 
 export function Reading({ apiKey, brief, preferredIntro, onExit }: Props) {
   const drawn: DrawnCards = useMemo(
@@ -165,7 +166,10 @@ export function Reading({ apiKey, brief, preferredIntro, onExit }: Props) {
     state.phase === 'beat_pending' || state.phase === 'beat';
 
   // Unified transcript: seer's intro + each beat (with card name label) +
-  // user/seer chat exchanges + outro (once delivered).
+  // user/seer chat exchanges + outro (once delivered). The IN-PROGRESS
+  // beat (during beat / beat_pending) is also pushed so the transcript
+  // updates the moment a beat is being delivered, not after the user
+  // taps past it.
   const transcriptItems = useMemo<TranscriptItem[]>(() => {
     const items: TranscriptItem[] = [];
     if (state.intro?.text) {
@@ -180,6 +184,23 @@ export function Reading({ apiKey, brief, preferredIntro, onExit }: Props) {
         key: `beat-${r.position_id}`,
       });
     }
+    // In-progress beat (not yet in state.revealed)
+    if (
+      state.current_slot &&
+      (state.phase === 'beat' || state.phase === 'beat_pending') &&
+      !state.revealed.some((r) => r.position_id === state.current_slot)
+    ) {
+      const monologue = engine.getCurrentMonologue();
+      if (monologue) {
+        const card = drawn.cards.find((c) => c.position.id === state.current_slot)?.card;
+        items.push({
+          speaker: 'seer',
+          text: monologue.text,
+          ...(card ? { label: card.name } : {}),
+          key: `beat-${state.current_slot}-live`,
+        });
+      }
+    }
     state.chat.forEach((m, i) => {
       items.push({ speaker: m.speaker, text: m.text, key: `chat-${i}` });
     });
@@ -187,7 +208,7 @@ export function Reading({ apiKey, brief, preferredIntro, onExit }: Props) {
       items.push({ speaker: 'seer', text: state.outro.text, key: 'outro' });
     }
     return items;
-  }, [state.intro, state.revealed, state.chat, state.outro, state.phase, drawn]);
+  }, [state.intro, state.revealed, state.chat, state.outro, state.phase, state.current_slot, drawn, engine]);
 
   // Screen-wide click-to-advance. ChunkedLine watches advanceTick and
   // calls its tap() when it bumps. Clicks on interactive zones (input,

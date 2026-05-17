@@ -181,7 +181,7 @@ a:hover { text-decoration: underline; }
   background: linear-gradient(
     to bottom,
     transparent 50%,
-    rgba(0, 0, 0, 0.32) 50%
+    rgba(0, 0, 0, 0.46) 50%
   );
   background-size: 100% 3px;
   z-index: 12;
@@ -191,8 +191,8 @@ a:hover { text-decoration: underline; }
 .crt__vignette {
   background: radial-gradient(
     ellipse at center,
-    transparent 50%,
-    rgba(0, 0, 0, 0.55) 100%
+    transparent 45%,
+    rgba(0, 0, 0, 0.72) 100%
   );
   z-index: 10;
 }
@@ -766,7 +766,7 @@ a:hover { text-decoration: underline; }
   top: 9.5rem;       /* under the eyes */
   left: 50%;
   transform: translateX(-50%);
-  width: min(64ch, calc(100% - 3rem));
+  width: min(82ch, calc(100% - 3rem));   /* wider dialogue area */
   z-index: 4;
   display: flex;
   align-items: flex-start;
@@ -808,7 +808,7 @@ a:hover { text-decoration: underline; }
 .card-subtitle {
   position: absolute;
   /* table moved lower in frame → title moves with it */
-  top: 70%;
+  top: 82%;
   left: 0;
   right: 0;
   font-family: var(--font-speech);
@@ -1045,7 +1045,7 @@ a:hover { text-decoration: underline; }
   line-height: 1.6;
   color: var(--fg);
   text-align: left;
-  width: min(64ch, calc(100vw - 4rem));
+  width: min(82ch, calc(100vw - 4rem));
   margin: 0 auto;
   min-height: 5.2rem;       /* room for ~3 lines without reflow */
   padding: 0.4rem 1.1rem;
