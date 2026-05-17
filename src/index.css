@@ -1332,9 +1332,12 @@ a:hover { text-decoration: underline; }
   box-shadow: 0 0 16px rgba(124, 58, 237, 0.45);
 }
 .reading__chat-send:disabled {
-  opacity: 0.35;
+  /* Match the disabled input exactly — same border, same faint glyph
+     color, same background. The previous 0.35 opacity made the button
+     look ghostly next to the input. */
+  border-color: var(--color-gray);
+  color: var(--fg-faint);
   cursor: not-allowed;
-  color: var(--color-gray);
 }
 
 /* Dialogue textbox mirrors the chat-input's "active" purple while the
