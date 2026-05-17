@@ -75,6 +75,16 @@ THREADS
   thread confirmed via thread_updates. if a probe refuted a thread,
   mark refuted.
 
+INTENTION_GUESS (optional, per-turn):
+- a single specific question this person might bring to the oracle,
+  in their voice. Should/Do/Will/Is form. ≤ 12 words.
+- examples: "Should I leave him?" / "Do I take the job?" / "Will she
+  come back?" / "Is it me or is it the city?"
+- emit only when you have a real read on it. don't fish.
+- you won't see your own past guesses — the engine collects them in a
+  stack for the shaman to consult later. duplicates are fine; the
+  same question coming up multiple times signals it's pressing.
+
 CONSTRAINTS:
 - never invent a fact the user didn't supply. infer is fine; fabricate
   is not. inferences should cite their supporting picks.

@@ -15,6 +15,7 @@ import type { LLMAdapter } from './adapter';
 import { runObserver } from './agents/observer';
 import { runDetective } from './agents/detective';
 import { runInterrogator } from './agents/interrogator';
+import { runShaman } from './agents/shaman';
 import { runCompiler } from './agents/compiler';
 import { computeAstroProfile, parseBirthDate } from '../astrology';
 import { findReturningUser, seedFromReturning } from './returning';
@@ -30,7 +31,6 @@ import { derivePhase } from './phase';
 import type {
   BasketItem,
   CastMember,
-  CloseReason,
   CompilerOutput,
   EngineListener,
   EngineState,
@@ -55,14 +55,16 @@ export type EngineOpts = {
     profile_seed: Partial<SurveyProfile>;
     prior_session_summary?: string;
   };
+  /** How many post-opener questions the survey runs. Default 20.
+   *  After this many answers, no more interrogator runs fire, and the
+   *  next user submit triggers the shaman step. */
+  question_cap?: number;
 };
 
 const OPENER_NODE_IDS = new Set<string>(getOpeners());
 
-/** Number of pool questions randomly enqueued the moment the user
- *  finishes the openers. Investigator adds one more per pick after
- *  that, so the queue stays ahead of even a speed-running user. */
 const STARTER_SEED_COUNT = 6;
+const DEFAULT_QUESTION_CAP = 20;
 
 export class SurveyEngine {
   private state: EngineState;
@@ -180,7 +182,12 @@ export class SurveyEngine {
     //   - mid-opener-chain → walk to next opener; NO pipeline (openers
     //     don't trigger AI work — they're just data intake).
     //   - end of openers → seed the starter pool. NO pipeline yet.
-    //   - post-opener answer → spawn the 3-agent pipeline.
+    //   - post-opener answer → spawn the 3-agent pipeline UNLESS we
+    //     just hit the question cap (in which case spawn observer +
+    //     detective only — the interrogator's job is done since the
+    //     queue is fully populated).
+    //   - if this answer was the LAST one (cap hit + queue now empty),
+    //     transition to shaman_thinking and fire the shaman.
     if (returningHit) {
       this.clearOpenersFromQueue();
       this.seedStarterPool();
@@ -190,16 +197,109 @@ export class SurveyEngine {
         this.seedStarterPool();
       }
     } else {
-      // Post-opener answer: spawn the serial pipeline.
-      this.spawnPipeline(pick);
+      // Post-opener pipeline. Interrogator suppressed once we'd push
+      // past the question cap with new questions.
+      const postOpenerCount = this.countPostOpenerPicks();
+      const cap = this.questionCap();
+      const suppressInterrogator =
+        postOpenerCount + this.state.queue.length >= cap;
+      this.spawnPipeline(pick, suppressInterrogator);
+
+      // Did this answer just exhaust the question budget? If so, the
+      // user has nothing left to answer — transition to shaman.
+      if (postOpenerCount >= cap && this.state.queue.length === 0) {
+        this.beginShamanStage();
+      }
     }
 
     this.refreshThinking();
     this.emit();
   }
 
+  /** Number of post-opener questions the user has answered. */
+  private countPostOpenerPicks(): number {
+    return this.state.picks_log.filter((p) => !OPENER_NODE_IDS.has(p.node_id)).length;
+  }
+
+  private questionCap(): number {
+    return this.opts.question_cap ?? DEFAULT_QUESTION_CAP;
+  }
+
+  // ─── End-of-survey stages ────────────────────────────
+
+  /** Fire the shaman in the background. While it runs, stage =
+   *  'shaman_thinking' and UI shows a loading state. On return,
+   *  intentions_offered populates + stage flips to awaiting_intention. */
+  private beginShamanStage(): void {
+    if (this.state.stage !== 'questions') return;   // idempotent
+    this.setState({ stage: 'shaman_thinking', thinking: true });
+    this.emit();
+
+    void runShaman(this.opts.adapter, {
+      profile: this.state.profile,
+      investigation: this.state.investigation,
+      history: this.state.picks_log,
+    })
+      .then((out) => {
+        this.setState({
+          intentions_offered: out.intentions,
+          stage: 'awaiting_intention',
+          thinking: false,
+        });
+        this.emit();
+      })
+      .catch((err) => {
+        console.warn('[survey] shaman failed; falling back to write-in-only intention picker', err);
+        this.setState({
+          intentions_offered: [],
+          stage: 'awaiting_intention',
+          thinking: false,
+        });
+        this.emit();
+      });
+  }
+
+  /** User picked (or wrote in) their intention. Fires the compiler. */
+  submitIntention(text: string): void {
+    const cleaned = text.trim();
+    if (!cleaned) return;
+    if (this.state.stage !== 'awaiting_intention') return;
+    this.setState({
+      chosen_intention: cleaned,
+      stage: 'compiling',
+      thinking: true,
+    });
+    this.emit();
+
+    this.compilerPromise = runCompiler(this.opts.adapter, {
+      state: this.state,
+      chosen_intention: cleaned,
+    })
+      .then((out) => {
+        this.compilerOutput = out;
+        this.setState({
+          closed: true,
+          close_reason: 'cap',
+          stage: 'reading_ready',
+          thinking: false,
+        });
+        this.emit();
+        return out;
+      })
+      .catch((err) => {
+        this.setState({ thinking: false });
+        this.emit();
+        throw err;
+      });
+  }
+
+  /** User clicked "ready for the cards" before the question cap. Skip
+   *  remaining queued questions and jump to the shaman step. */
   skipAhead(): void {
-    void this.finalize('user_exit');
+    if (this.state.stage !== 'questions') return;
+    // Drop queued questions — user is done answering.
+    this.setState({ queue: [], close_reason: 'user_exit' });
+    this.beginShamanStage();
   }
 
   subscribe(listener: EngineListener): () => void {
@@ -477,11 +577,11 @@ export class SurveyEngine {
       });
   }
 
-  private spawnPipeline(pick: PickEvent): void {
+  private spawnPipeline(pick: PickEvent, suppressInterrogator = false): void {
     this.pipelinesInFlight += 1;
     this.publishInflight();
     this.refreshThinking();
-    void this.runPipeline(pick).finally(() => {
+    void this.runPipeline(pick, suppressInterrogator).finally(() => {
       this.pipelinesInFlight -= 1;
       this.publishInflight();
       this.refreshThinking();
@@ -489,7 +589,7 @@ export class SurveyEngine {
     });
   }
 
-  private async runPipeline(pick: PickEvent): Promise<void> {
+  private async runPipeline(pick: PickEvent, suppressInterrogator: boolean): Promise<void> {
     // Each pipeline takes ONE snapshot of engine state at fire-time.
     // The three agents run in serial against that snapshot, evolving
     // a local view as they go (observer's output feeds detective's
@@ -586,6 +686,12 @@ export class SurveyEngine {
         )
       : snapshot.investigation;
 
+    // Skip the interrogator entirely once we've hit the question cap.
+    // The queue is fully populated; no more questions need to be added.
+    // (Observer + detective still fire — we want their analysis on the
+    // last picks even though we won't ask anything more.)
+    if (suppressInterrogator) return;
+
     this.agentInFlight.interrogator += 1; this.publishInflight();
     try {
       const ctx: PipelineContext = {
@@ -635,41 +741,8 @@ export class SurveyEngine {
     this.enqueueDirect(pick.id, null, null);
   }
 
-  // ─── close ────────────────────────────────────────────
-
-  private async finalize(reason: CloseReason): Promise<void> {
-    if (this.state.closed) return;
-    this.setState({
-      closed: true,
-      close_reason: reason,
-      phase: 'E',
-      queue: [],
-      thinking: true,    // Compiler is about to run — keep dizzy state on
-    });
-    this.emit();
-
-    if (!this.compilerPromise) {
-      this.compilerPromise = runCompiler(this.opts.adapter, {
-        state: this.state,
-        // Fallback path: close fired without the user picking an intention
-        // (e.g. cap hit + queue empty before shaman stage ran). Pass the
-        // state-stored value if any, else empty string — compiler tolerates
-        // an empty intention (the brief just reads as un-anchored).
-        chosen_intention: this.state.chosen_intention ?? '',
-      })
-        .then((out) => {
-          this.compilerOutput = out;
-          this.setState({ thinking: false });
-          this.emit();
-          return out;
-        })
-        .catch((err) => {
-          this.setState({ thinking: false });
-          this.emit();
-          throw err;
-        });
-    }
-  }
+  // Old finalize() was removed — the close path now runs through
+  // beginShamanStage() → submitIntention() → compiler. See those.
 }
 
 // ─── helpers (module-local) ─────────────────────────────
@@ -760,6 +833,11 @@ function applyDetectiveOutput(inv: Investigation, out: DetectiveOutput): Investi
     hooks: unionByKey(inv.hooks, out.hooks_found, (h) => h.description.toLowerCase()),
     active_threads: Array.from(threadMap.values()),
     posture: out.posture ?? inv.posture,
+    // Write-only stack: append every detective's intention_guess if
+    // present. Duplicates preserved (redundancy is signal).
+    intention_guesses: out.intention_guess && out.intention_guess.trim().length > 0
+      ? [...inv.intention_guesses, out.intention_guess.trim()]
+      : inv.intention_guesses,
   };
 }
 

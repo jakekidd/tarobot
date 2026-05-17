@@ -21,6 +21,7 @@ export async function runCompiler(
   // bloating the prompt.
   const s = input.state;
   const userPayload = {
+    chosen_intention: input.chosen_intention,
     final_state_summary: {
       session_id: s.session_id,
       tree_version: s.tree_version,
@@ -42,11 +43,10 @@ export async function runCompiler(
       hypotheses: s.investigation.hypotheses,
       active_threads: s.investigation.active_threads,
       picks_log: s.picks_log,
-      heat_history: s.heat_history,
       close_reason: s.close_reason,
     },
     instruction:
-      'the survey just closed. emit ONLY brief_summary, prose_brief, and openers. the rest of the Profile is assembled by the engine.',
+      'the chosen_intention is the centerpiece. render brief_summary + prose_brief (orbiting that intention) + 3 opener questions for the seer tailored to that intention. legacy Profile assembly happens engine-side.',
   };
 
   const llmOut = await adapter.invoke<CompilerLLMOutput>(

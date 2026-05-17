@@ -28,6 +28,8 @@ type SurveyHook = {
   state: EngineState;
   currentQuestion: RenderedQuestion | null;
   submitAnswer: (answer: string | string[]) => Promise<void>;
+  /** User picked or wrote in the intention. Fires the compiler. */
+  submitIntention: (text: string) => void;
   skipAhead: () => void;
   compilerOutput: CompilerOutput | null;
 };
@@ -63,10 +65,12 @@ export function useSurveyEngine(opts: Options): SurveyHook {
   }, [engine]);
 
   const submitAnswerRef = useRef(engine.submitAnswer.bind(engine));
+  const submitIntentionRef = useRef(engine.submitIntention.bind(engine));
   const skipAheadRef = useRef(engine.skipAhead.bind(engine));
   // Rebind if engine reference changes
   useEffect(() => {
     submitAnswerRef.current = engine.submitAnswer.bind(engine);
+    submitIntentionRef.current = engine.submitIntention.bind(engine);
     skipAheadRef.current = engine.skipAhead.bind(engine);
   }, [engine]);
 
@@ -76,6 +80,7 @@ export function useSurveyEngine(opts: Options): SurveyHook {
     state,
     currentQuestion,
     submitAnswer: (a) => submitAnswerRef.current(a),
+    submitIntention: (t) => submitIntentionRef.current(t),
     skipAhead: () => skipAheadRef.current(),
     compilerOutput,
   };

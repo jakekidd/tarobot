@@ -7,7 +7,9 @@ import { z } from 'zod';
 import { CompilerLLMOutputSchema } from '../schemas';
 import type { ToolDef } from '../adapter';
 
-export const COMPILER_SYSTEM = `you are the survey compiler. the survey just closed. you have the full final engine state (profile, cast, choice, hooks, contradictions, threads). your job is to render the brief the seer reads + pick 3 opener questions for the live reading that follows.
+export const COMPILER_SYSTEM = `you are the survey compiler. the survey just closed. the user has just picked (or written) their INTENTION — the specific question they want to bring to the oracle. you have the full final engine state (profile, cast, hooks, contradictions, threads, investigation) AND that chosen intention. your job is to render the brief the seer reads + pick 3 opener questions tailored to that intention.
+
+THE INTENTION IS THE CENTERPIECE. every other field is supporting evidence. the prose_brief should make clear what this person is here to ask and what's actually at stake in that question, given everything the survey extracted.
 
 YOU OUTPUT THREE FIELDS — not the whole profile, just these:
 

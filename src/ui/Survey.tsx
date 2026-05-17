@@ -33,7 +33,7 @@ type Props = {
 };
 
 export function Survey({ apiKey, session, onComplete }: Props) {
-  const { state, currentQuestion, submitAnswer, skipAhead, compilerOutput } = useSurveyEngine({
+  const { state, currentQuestion, submitAnswer, submitIntention, skipAhead, compilerOutput } = useSurveyEngine({
     apiKey,
     sessionId: session.id,
   });
@@ -105,17 +105,24 @@ export function Survey({ apiKey, session, onComplete }: Props) {
   // is always present (contents change based on question format or empty
   // while waiting). Layout is anchored to .ui-frame's fixed height (23rem).
 
-  const isCompiling = state.closed && !compilerOutput;
+  const stage = state.stage;
+  const isShamanThinking = stage === 'shaman_thinking';
+  const isAwaitingIntention = stage === 'awaiting_intention';
+  const isCompiling = stage === 'compiling';
   const showReady =
-    !state.closed &&
+    stage === 'questions' &&
     state.picks_log.length >= READY_BUTTON_MIN_TURNS &&
     !!currentQuestion;
 
-  // What text to put in the dialogue stage. Empty during compile/await
-  // — the dizzy scene carries the visual.
   let dialogText = '';
   let dialogKey = 'empty';
-  if (isCompiling) {
+  if (isShamanThinking) {
+    dialogText = '…';
+    dialogKey = 'shaman';
+  } else if (isAwaitingIntention) {
+    dialogText = "finally. what answers dost thou seek from the oracle, traveler?";
+    dialogKey = 'intention';
+  } else if (isCompiling) {
     dialogText = 'the seer is preparing.';
     dialogKey = 'compiling';
   } else if (currentQuestion) {
@@ -170,21 +177,52 @@ export function Survey({ apiKey, session, onComplete }: Props) {
             />
           )}
 
-          {!currentQuestion && (isCompiling || state.thinking) && (
-            <div className="ui-frame__waiting"><Spinner label={isCompiling ? 'preparing' : 'thinking'} /></div>
+          {isShamanThinking && (
+            <div className="ui-frame__waiting"><Spinner label="divining" /></div>
+          )}
+
+          {isCompiling && (
+            <div className="ui-frame__waiting"><Spinner label="preparing" /></div>
+          )}
+
+          {!currentQuestion && !isShamanThinking && !isCompiling && !isAwaitingIntention && state.thinking && (
+            <div className="ui-frame__waiting"><Spinner label="thinking" /></div>
+          )}
+
+          {isAwaitingIntention && state.intentions_offered.length > 0 && (
+            <MultipleChoice
+              key="intentions"
+              suggestions={state.intentions_offered}
+              onPick={(v) => submitIntention(v)}
+            />
+          )}
+
+          {isAwaitingIntention && state.intentions_offered.length === 0 && (
+            <div className="ui-frame__waiting">
+              <em>say what you came to ask in your own words.</em>
+            </div>
           )}
         </div>
       </div>
 
-      {/* Always-on custom-answer input. Lives OUTSIDE the fixed-height
-          ui-frame so it can't compress the choice grid. Disabled during
-          text/date openers + while compiling. */}
-      {!isCompiling && currentQuestion && currentQuestion.format !== 'text' && currentQuestion.format !== 'date' && (
+      {/* Persistent text input. During survey: writes a custom answer
+          to the current question. During awaiting_intention: writes
+          the user's own intention. */}
+      {stage === 'questions' && currentQuestion && currentQuestion.format !== 'text' && currentQuestion.format !== 'date' && (
         <div className="survey__chat-slot">
           <ChatInput
             placeholder="or type your own answer"
             disabled={false}
             onSend={(text) => void submitAnswer(text)}
+          />
+        </div>
+      )}
+      {isAwaitingIntention && (
+        <div className="survey__chat-slot">
+          <ChatInput
+            placeholder="or say it the way you'd say it to a friend"
+            disabled={false}
+            onSend={(text) => submitIntention(text)}
           />
         </div>
       )}
