@@ -188,12 +188,10 @@ export function TarobotScene() {
     const eyeGeom = new THREE.PlaneGeometry(EYE_W, EYE_H);
 
     // ── Cloak silhouette plane (sits behind the eyes) ──
-    const cloakCanvas = document.createElement('canvas');
-    cloakCanvas.width = 320;
-    cloakCanvas.height = 380;
-    const cloakCtx = cloakCanvas.getContext('2d')!;
-    paintCloak(cloakCtx);
-    const cloakTex = new THREE.CanvasTexture(cloakCanvas);
+    // Hooded-robe reference image alpha-keyed to pure-black-on-transparent.
+    // Pre-cropped to a 1347×1221 silhouette (aspect 1.103). The figure
+    // reads against the starfield by occluding stars where it covers them.
+    const cloakTex = new THREE.TextureLoader().load('/cloak.png');
     cloakTex.colorSpace = THREE.SRGBColorSpace;
     cloakTex.minFilter = THREE.LinearFilter;
     cloakTex.magFilter = THREE.LinearFilter;
@@ -203,10 +201,10 @@ export function TarobotScene() {
       transparent: true,
       depthWrite: false,
     });
-    // Raised slightly so the hood sits closer to the eyes; cloak still
-    // extends well off the bottom of the canvas to cover the dialogue
-    // overlay area.
-    const cloakGeom = new THREE.PlaneGeometry(3.6, 5.4);
+    // Aspect-preserving: H=5.4, W=H*1.103=5.96. Hood opening sits ~17%
+    // from the top of the image; with plane center y=-1.85 the hood
+    // lands on the eyes at local y≈0.
+    const cloakGeom = new THREE.PlaneGeometry(5.96, 5.4);
     const cloakMesh = new THREE.Mesh(cloakGeom, cloakMat);
     cloakMesh.position.set(0, -1.85, -0.04);
     eyesGroup.add(cloakMesh);
@@ -1264,53 +1262,3 @@ function makeSquareParticleTexture(): THREE.CanvasTexture {
   return tex;
 }
 
-/** Paint a robed / cloaked silhouette behind the eyes. The shape is a
- *  peaked hood at the top of the canvas that flares OUT into wide
- *  shoulders as it descends, then continues straight down off the
- *  bottom of the canvas. Pure void-black fill — the cloak is a hole in
- *  the starfield, not a tinted shape. */
-function paintCloak(ctx: CanvasRenderingContext2D): void {
-  const W = ctx.canvas.width;
-  const H = ctx.canvas.height;
-  ctx.clearRect(0, 0, W, H);
-
-  // Cloak silhouette — narrow hood up top, flares wide as it falls,
-  // continues off the bottom edge.
-  const path = new Path2D();
-  // Peak (top of hood) — narrow
-  path.moveTo(W * 0.50, H * 0.04);
-  // Right side of hood, curving down
-  path.bezierCurveTo(
-    W * 0.66, H * 0.06,
-    W * 0.78, H * 0.16,
-    W * 0.82, H * 0.30,
-  );
-  // Right shoulder — flares OUT as it descends
-  path.bezierCurveTo(
-    W * 0.95, H * 0.42,
-    W * 1.05, H * 0.62,
-    W * 1.05, H * 0.92,
-  );
-  // Bottom right corner (off-canvas)
-  path.lineTo(W * 1.05, H * 1.05);
-  // Bottom left corner (off-canvas)
-  path.lineTo(W * -0.05, H * 1.05);
-  // Left shoulder flaring back up
-  path.lineTo(W * -0.05, H * 0.92);
-  path.bezierCurveTo(
-    W * -0.05, H * 0.62,
-    W * 0.05, H * 0.42,
-    W * 0.18, H * 0.30,
-  );
-  // Left side of hood back to peak
-  path.bezierCurveTo(
-    W * 0.22, H * 0.16,
-    W * 0.34, H * 0.06,
-    W * 0.50, H * 0.04,
-  );
-  path.closePath();
-
-  // Pure void black fill — no rim. The cloak is a hole in the starfield.
-  ctx.fillStyle = '#000000';
-  ctx.fill(path);
-}
