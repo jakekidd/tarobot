@@ -404,8 +404,74 @@ export function TarobotScene() {
     scene.add(positionGroup);
 
     // Reader mode subscription — flips which face is shown at the anchor.
+    // When transitioning cat → eyes, we trigger the "explosion" effect:
+    // Clat shatters into a 5x5 grid of textured chunks that drift
+    // outward + spin + fade, so the seer's arrival isn't a hard cut.
     let readerMode: ReaderMode = 'cat';
-    const unsubscribeReaderMode = subscribeReaderMode((m) => { readerMode = m; });
+    const unsubscribeReaderMode = subscribeReaderMode((m) => {
+      if (readerMode === 'cat' && m === 'eyes') explodeClat();
+      readerMode = m;
+    });
+
+    // ── Clat explosion chunks ────────────────────────────
+    type ClatChunk = {
+      mesh: THREE.Mesh;
+      mat: THREE.MeshBasicMaterial;
+      geom: THREE.PlaneGeometry;
+      vx: number; vy: number; vz: number;
+      angVel: number;
+      age: number;
+      lifespan: number;
+    };
+    const clatChunks: ClatChunk[] = [];
+    const CHUNK_GRID = 5;
+
+    function explodeClat() {
+      if (clatChunks.length > 0) return;
+      const cellSize = 1 / CHUNK_GRID;
+      for (let i = 0; i < CHUNK_GRID; i++) {
+        for (let j = 0; j < CHUNK_GRID; j++) {
+          const u0 = i * cellSize;
+          const v0 = 1 - (j + 1) * cellSize;
+          const geom = new THREE.PlaneGeometry(cellSize, cellSize);
+          const uvAttr = geom.attributes.uv;
+          // Three's PlaneGeometry default UV order: idx 0=topLeft,
+          // 1=topRight, 2=botLeft, 3=botRight.
+          uvAttr.setXY(0, u0, v0 + cellSize);
+          uvAttr.setXY(1, u0 + cellSize, v0 + cellSize);
+          uvAttr.setXY(2, u0, v0);
+          uvAttr.setXY(3, u0 + cellSize, v0);
+          uvAttr.needsUpdate = true;
+
+          const mat = new THREE.MeshBasicMaterial({
+            map: tex,
+            transparent: true,
+            depthWrite: false,
+            alphaTest: 0.02,
+          });
+          const mesh = new THREE.Mesh(geom, mat);
+          const localX = (i - (CHUNK_GRID - 1) / 2) * cellSize;
+          const localY = ((CHUNK_GRID - 1) / 2 - j) * cellSize;
+          mesh.position.set(localX, localY, 0);
+
+          // Outward radial velocity + slight upward bias + random
+          // angular jitter so the explosion isn't perfectly symmetric.
+          const angle = Math.atan2(localY, localX) + (Math.random() - 0.5) * 0.7;
+          const speed = 0.45 + Math.random() * 0.55;
+          const vx = Math.cos(angle) * speed;
+          const vy = Math.sin(angle) * speed + 0.25;
+          const vz = (Math.random() - 0.5) * 0.35;
+          const angVel = (Math.random() - 0.5) * 5.5;
+
+          clatChunks.push({
+            mesh, mat, geom,
+            vx, vy, vz, angVel,
+            age: 0, lifespan: 1.6 + Math.random() * 0.7,
+          });
+          positionGroup.add(mesh);
+        }
+      }
+    }
 
     // Eyes blink state — independent of Clat's sprite-frame blink, since
     // 'eyes' mode has no spritesheet.
@@ -971,6 +1037,25 @@ export function TarobotScene() {
       catGroup.visible = readerMode === 'cat';
       eyesGroup.visible = readerMode === 'eyes';
 
+      // ── Clat explosion chunks: integrate motion + fade ──
+      for (let ci = clatChunks.length - 1; ci >= 0; ci--) {
+        const c = clatChunks[ci]!;
+        c.age += dt;
+        c.mesh.position.x += c.vx * dt;
+        c.mesh.position.y += c.vy * dt;
+        c.mesh.position.z += c.vz * dt;
+        c.mesh.rotation.z += c.angVel * dt;
+        c.vy -= 0.55 * dt;            // gentle gravity-like drift down
+        const u = c.age / c.lifespan;
+        c.mat.opacity = Math.max(0, 1 - u * u);
+        if (u >= 1) {
+          positionGroup.remove(c.mesh);
+          c.mat.dispose();
+          c.geom.dispose();
+          clatChunks.splice(ci, 1);
+        }
+      }
+
       // ── Eyes: blink + per-frame canvas paint with current mood ───
       if (eyesGroup.visible) {
         // Blink less often, with random fast/slow duration.
@@ -1469,6 +1554,12 @@ export function TarobotScene() {
       catGeom.dispose();
       catMat.dispose();
       tex.dispose();
+      for (const c of clatChunks) {
+        positionGroup.remove(c.mesh);
+        c.mat.dispose();
+        c.geom.dispose();
+      }
+      clatChunks.length = 0;
       eyeGeom.dispose();
       leftEye.mat.dispose();
       rightEye.mat.dispose();
