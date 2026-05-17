@@ -23,6 +23,7 @@ import { cardBackTexture, cardFaceTexture, disposeCardTextures } from '../cards/
 import { subscribeDebugVisible } from '../../debug/visibilityStorage';
 import { publishDebug, clearDebug } from '../../debug/debugBus';
 import { flip as playFlipSfx } from '../sound/sound';
+import { subscribeFlyIn, endFlyIn, type FlyInState } from './flyInStore';
 
 // Reverted from the voxel approach (it merged into a featureless silhouette —
 // the eye gaps disappeared into the surrounding side faces). Back to a flat
@@ -553,12 +554,17 @@ export function TarobotScene() {
     // (menu / survey), the perspective render is skipped entirely.
 
     const perspScene = new THREE.Scene();
-    const perspCamera = new THREE.PerspectiveCamera(34, 1, 0.05, 80);
+    // Bumped far plane 80 → 200 so the fly-in start position (z≈120)
+    // still has the table in view as a tiny speck.
+    const perspCamera = new THREE.PerspectiveCamera(34, 1, 0.05, 200);
     // Seated POV — lookAt sits above the tabletop so the table reads
     // in the lower portion of the canvas. Small pull-back from the
     // previous "too close" pass.
-    perspCamera.position.set(0, 4.6, 7.4);
-    perspCamera.lookAt(0, 1.0, 0);
+    const NORMAL_CAM_POS = new THREE.Vector3(0, 4.6, 7.4);
+    const FLY_START_POS = new THREE.Vector3(0, 4.6, 120);
+    const CAM_LOOKAT = new THREE.Vector3(0, 1.0, 0);
+    perspCamera.position.copy(NORMAL_CAM_POS);
+    perspCamera.lookAt(CAM_LOOKAT);
 
     // ── Lighting ───────────────────────────────────────
     // Warm key from above (the "orb" that hovers over a real tarot table)
@@ -695,6 +701,11 @@ export function TarobotScene() {
         clearDebug('card.ref');
       }
     });
+
+    // Fly-in subscription — Reading triggers via startFlyIn(); the
+    // animate loop reads `flyIn` each frame and lerps perspCamera.
+    let flyIn: FlyInState = { active: false, startTime: 0, durationMs: 3500 };
+    const unsubscribeFlyIn = subscribeFlyIn((s) => { flyIn = s; });
 
     type CardRig = {
       slot: SlotName;
@@ -1269,6 +1280,22 @@ export function TarobotScene() {
       //
       // IMPORTANT: setScissor/setViewport take CSS pixels — three.js
       // multiplies by pixelRatio internally. Don't pre-multiply.
+      // ── Fly-in: override the perspective camera position while a
+      // fly-in animation is active. Camera lerps from FLY_START_POS
+      // (far back, table appears as a tiny speck — "light at the end
+      // of the tunnel") to NORMAL_CAM_POS over flyIn.durationMs. We
+      // call endFlyIn() locally when the lerp completes so Reading can
+      // hand off to the engine intro.
+      if (flyIn.active) {
+        const u = Math.min(1, (now - flyIn.startTime) / flyIn.durationMs);
+        // Heavy ease-out: slow approach until the last beat, then a
+        // last-second "woosh" inward as we settle on the normal POV.
+        const eased = 1 - Math.pow(1 - u, 4);
+        perspCamera.position.lerpVectors(FLY_START_POS, NORMAL_CAM_POS, eased);
+        perspCamera.lookAt(CAM_LOOKAT);
+        if (u >= 1) endFlyIn();
+      }
+
       if (cardScene.drawn) {
         const rect = getTableAnchor();
         if (rect && rect.width >= 2 && rect.height >= 2) {
@@ -1311,6 +1338,7 @@ export function TarobotScene() {
       unsubscribeReaderMode();
       unsubscribeCardScene();
       unsubscribeDebug();
+      unsubscribeFlyIn();
       window.removeEventListener('keydown', onKeyDown);
       clearDebug('card.lift');
       clearDebug('card.ref');

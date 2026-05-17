@@ -56,6 +56,7 @@ import { highlightNames, type Highlights } from './dialogue/highlightNames';
 import { parseEmphasis, type EmphasisRange } from './dialogue/parseEmphasis';
 import { setDizzy } from './scene/dizzyStore';
 import { setReaderMode } from './scene/readerModeStore';
+import { startFlyIn, endFlyIn, subscribeFlyIn } from './scene/flyInStore';
 import { loadSettings } from '../storage';
 import { publishDebug, clearDebug } from '../debug/debugBus';
 import { blip, chime } from './sound/sound';
@@ -93,10 +94,27 @@ export function Reading({ apiKey, brief, preferredIntro, onExit }: Props) {
 
   const [state, setStateLocal] = useState<ReadingState>(() => engine.getState());
 
+  // Cinematic intro: camera starts ~120 units back (table reads as a
+  // tiny speck — the user's "light at the end of the tunnel"), lerps
+  // toward the normal POV over ~3.5s. During fly-in the seer (eyes)
+  // is hidden so the ghost only "appears" when we arrive. The engine
+  // starts in parallel — its first LLM call takes ~1-3s anyway, so
+  // intro lands close to the moment we settle.
   useEffect(() => {
     const unsub = engine.subscribe(setStateLocal);
-    void engine.start();
-    return unsub;
+    startFlyIn();
+    const unsubFly = subscribeFlyIn((s) => {
+      if (!s.active) {
+        // Fly-in landed → ghost appears + engine begins.
+        setReaderMode('eyes');
+        void engine.start();
+      }
+    });
+    return () => {
+      unsub();
+      unsubFly();
+      endFlyIn();
+    };
   }, [engine]);
 
   // Dizzy while we're awaiting an LLM call (any tier).
@@ -105,9 +123,8 @@ export function Reading({ apiKey, brief, preferredIntro, onExit }: Props) {
     return () => setDizzy(false);
   }, [state.awaiting_tier]);
 
-  // Eyes face on the reader anchor; restore cat when we leave.
+  // Restore cat face on unmount (set to 'eyes' in the fly-in handler).
   useEffect(() => {
-    setReaderMode('eyes');
     return () => setReaderMode('cat');
   }, []);
 
