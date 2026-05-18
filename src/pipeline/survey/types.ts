@@ -212,13 +212,10 @@ export type EngineState = {
    *  their durable record so the engine can dedupe (answered_node_ids
    *  filtered from starter pool + interrogator basket) and the shaman
    *  can avoid suggesting an intention they've already pursued. Both
-   *  empty for first-time users. */
+   *  empty for first-time users. The Person id itself is owned by
+   *  Survey.tsx — engine doesn't need it for any internal logic. */
   prior_answered_node_ids: string[];
   prior_intentions: string[];
-  /** Person id this session is folded into on close. Set when a
-   *  RESUME modal confirmation lands, or when the save-threshold
-   *  creates a fresh Person. Null until then. */
-  person_id: string | null;
   prior_session_summary?: string;
 
   queue: QueueItem[];

@@ -23,7 +23,6 @@ import { FOUR_CARD_DIAMOND } from '../spreads';
 import { assembleProfile } from './profile-assembly';
 import { computeAstroProfile, parseBirthDate } from '../astrology';
 import type { ReturningMatch } from './returning';
-import { getPerson } from '../../storage';
 import { publishDebug } from '../../debug/debugBus';
 import {
   getNode,
@@ -59,9 +58,9 @@ export type EngineOpts = {
    *  engine starts in returning-mode: openers satisfied by profile_seed
    *  are skipped, and answered_node_ids dedupe-filter the starter pool
    *  and the interrogator basket. The shaman receives prior_intentions
-   *  as context so it can avoid duplicates. */
+   *  as context so it can avoid duplicates. Person id is tracked by
+   *  the UI layer — the engine doesn't need it. */
   returning?: {
-    person_id: string;
     profile_seed: Partial<SurveyProfile>;
     answered_node_ids: string[];
     prior_intentions: string[];
@@ -355,7 +354,6 @@ export class SurveyEngine {
       is_returning_user: true,
       prior_answered_node_ids: match.answered_node_ids,
       prior_intentions: match.prior_intentions,
-      person_id: match.person_id,
       prior_session_summary: match.display_summary,
     });
     this.clearOpenersFromQueue();
@@ -363,25 +361,11 @@ export class SurveyEngine {
     this.emit();
   }
 
-  /** UI confirmed START FRESH on the modal. The matched Person is
-   *  irrelevant — we proceed as a new visit. (The matched Person was
-   *  already deleted by the UI before calling this; engine just
-   *  continues with the normal opener chain.) */
+  /** UI confirmed START FRESH on the modal. No engine state to flip —
+   *  we were already in new-user mode. Exposed for symmetry and so the
+   *  Survey component has a clear callback to wire up. */
   confirmStartFresh(): void {
-    // No-op on engine state — we're already in new-user mode. Exposed
-    // for symmetry / future expansion (e.g. emitting a state event).
-  }
-
-  /** UI requests the Person record currently powering this session,
-   *  if any. Returns null for first-time visitors. */
-  getPersonId(): string | null {
-    return this.state.person_id;
-  }
-
-  /** UI requests the Person record (full) from storage by id. Convenience
-   *  passthrough so the survey UI doesn't need to import storage. */
-  getReturningPerson(): import('../../storage').Person | null {
-    return this.state.person_id ? getPerson(this.state.person_id) : null;
+    // intentional no-op
   }
 
   /** User clicked "ready for the cards" before the question cap. Skip
@@ -474,7 +458,6 @@ export class SurveyEngine {
       is_returning_user: isReturning,
       prior_answered_node_ids: opts.returning?.answered_node_ids ?? [],
       prior_intentions: opts.returning?.prior_intentions ?? [],
-      person_id: opts.returning?.person_id ?? null,
       prior_session_summary: opts.returning?.prior_session_summary,
       queue: openerQueue,
       picks_log: [],

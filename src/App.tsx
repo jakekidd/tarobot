@@ -2,7 +2,6 @@ import { useEffect, useState, useSyncExternalStore } from 'react';
 import type { Seer } from './pipeline/seer';
 import { isUsingTreeOverride, subscribeToOverrideChanges } from './pipeline/survey';
 import {
-  loadActiveSession,
   loadApiKey,
   newSession,
   clearActiveSession,
@@ -87,25 +86,6 @@ export function App() {
       session: s,
       seer: buildMarisolDemoSeer(adapter),
     });
-  }
-
-  function resumeActive() {
-    const s = loadActiveSession();
-    if (!s) {
-      goMenu();
-      return;
-    }
-    switch (s.phase) {
-      case 'survey':
-      case 'compiling':
-        setPhase({ kind: 'survey', session: s });
-        return;
-      // Past-survey sessions can't be resumed into a reading because the
-      // brief isn't persisted (and cards are drawn fresh each time anyway).
-      // Bounce to menu so the user can start a new one.
-      default:
-        goMenu();
-    }
   }
 
   function onSurveyComplete(session: Session, seer: Seer) {
@@ -193,10 +173,7 @@ export function App() {
           )}
 
           {phase.kind === 'resume' && (
-            <ResumeMenu
-              onResumeActive={resumeActive}
-              onBack={goMenu}
-            />
+            <ResumeMenu onBack={goMenu} />
           )}
 
           {phase.kind === 'settings' && <Settings onBack={goMenu} />}

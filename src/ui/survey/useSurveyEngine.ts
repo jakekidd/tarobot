@@ -17,11 +17,10 @@ import type { SurveyProfile } from '../../pipeline/survey';
 type Options = {
   apiKey: string;
   sessionId: string;
-  /** Optional pre-loaded data for returning users when resuming a
-   *  visit from a stored Person record. Today this path is unused —
-   *  the engine's confirmReturningPerson() handles the modal flow. */
+  /** Optional pre-loaded data for returning users when constructing
+   *  the engine with returning-mode already active. Currently unused —
+   *  the modal flow uses engine.confirmReturningPerson() instead. */
   returning?: {
-    personId: string;
     profileSeed: Partial<SurveyProfile>;
     answeredNodeIds: string[];
     priorIntentions: string[];
@@ -53,7 +52,6 @@ export function useSurveyEngine(opts: Options): SurveyHook {
       session_id: opts.sessionId,
       returning: opts.returning
         ? {
-            person_id: opts.returning.personId,
             profile_seed: opts.returning.profileSeed,
             answered_node_ids: opts.returning.answeredNodeIds,
             prior_intentions: opts.returning.priorIntentions,

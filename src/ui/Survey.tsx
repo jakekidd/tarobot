@@ -73,14 +73,17 @@ export function Survey({ apiKey, session, onComplete }: Props) {
   // user picks RESUME or START FRESH.
   const [pendingMatches, setPendingMatches] = useState<ReturningMatch[] | null>(null);
 
-  // Wraps submitAnswer for the name question: after the engine accepts
-  // the answer, look for matching Persons. On hit, raise the modal.
+  // Wraps submitAnswer for the name question. Check matches FIRST
+  // (synchronous localStorage read) so the modal opens before submit
+  // returns — no flash of Q2 between the engine processing the name
+  // and the modal painting over it.
   async function handleNameSubmit(name: string) {
-    await submitAnswer(name);
     const cleaned = name.trim();
-    if (!cleaned) return;
-    const matches = findPeopleMatchingName(cleaned);
-    if (matches.length > 0) setPendingMatches(matches);
+    if (cleaned) {
+      const matches = findPeopleMatchingName(cleaned);
+      if (matches.length > 0) setPendingMatches(matches);
+    }
+    await submitAnswer(name);
   }
 
   // ─── returning-user line (mascot) ─────────────────────
@@ -91,33 +94,31 @@ export function Survey({ apiKey, session, onComplete }: Props) {
 
   function handleResume(match: ReturningMatch) {
     engine.confirmReturningPerson(match);
+    personIdRef.current = match.person_id;
+    setPersonIdState(match.person_id);
     setReturnLine(pickReturnLine(state.profile.name));
     setPendingMatches(null);
   }
 
   function handleStartFresh() {
-    if (pendingMatches) {
-      // Hard-delete every matched Person under this name. The user
-      // explicitly chose to overwrite — we honor that.
-      for (const m of pendingMatches) deletePerson(m.person_id);
+    // Single-match case: user clicked OVERWRITE — delete the matched
+    // Person. Multi-match (NONE OF THESE): user is claiming to be a
+    // new visitor under a shared first name, so leave every matched
+    // Person untouched. Different verbs, different semantics.
+    if (pendingMatches && pendingMatches.length === 1) {
+      deletePerson(pendingMatches[0]!.person_id);
     }
     engine.confirmStartFresh();
     setPendingMatches(null);
   }
 
   // ─── save-threshold persistence ───────────────────────
-  // Tracked Person id for THIS visit. null until threshold crosses (or
-  // RESUME confirmed). After that, every state change updates the Person.
+  // Tracked Person id for THIS visit. null until either:
+  //   - RESUME modal confirms (set in handleResume), or
+  //   - save threshold creates a fresh Person (set in the effect below).
+  // Engine doesn't know or care about person_id — Survey owns it.
   const personIdRef = useRef<string | null>(null);
-  const [personIdState, setPersonIdState] = useState<string | null>(null); // for re-render triggers if needed
-
-  useEffect(() => {
-    // Mirror engine.state.person_id (set by confirmReturningPerson).
-    if (state.person_id && personIdRef.current !== state.person_id) {
-      personIdRef.current = state.person_id;
-      setPersonIdState(state.person_id);
-    }
-  }, [state.person_id]);
+  const [personIdState, setPersonIdState] = useState<string | null>(null);
 
   useEffect(() => {
     if (!allOpenersAnswered(state.profile)) return;
@@ -404,8 +405,9 @@ export function Survey({ apiKey, session, onComplete }: Props) {
 
 // ─── helpers ────────────────────────────────────────────
 
-const OPENER_IDS_FOR_THRESHOLD = ['name', 'birthday', 'has_question'] as const;
-
+/** Save threshold predicate: a Person record is only written once the
+ *  3 identifying openers are filled (name, birthday, has_question).
+ *  Mirrors src/pipeline/survey/tree.json `openers`. */
 function allOpenersAnswered(profile: SurveyProfile): boolean {
   return (
     profile.name.trim().length > 0 &&
@@ -417,7 +419,3 @@ function allOpenersAnswered(profile: SurveyProfile): boolean {
 function cloneProfile(p: SurveyProfile): SurveyProfile {
   return JSON.parse(JSON.stringify(p)) as SurveyProfile;
 }
-
-// Unused helper kept for documentation: which opener ids count toward the
-// save threshold. Mirrors allOpenersAnswered's logic.
-void OPENER_IDS_FOR_THRESHOLD;

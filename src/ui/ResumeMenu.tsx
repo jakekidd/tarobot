@@ -1,42 +1,29 @@
 import { useState } from 'react';
-import {
-  clearActiveSession,
-  deletePerson,
-  listPeople,
-  loadActiveSession,
-  type Person,
-  type Session,
-} from '../storage';
+import { deletePerson, listPeople, type Person } from '../storage';
 
 type Props = {
-  /** Resume the in-flight active session if any. App handles the routing. */
-  onResumeActive: () => void;
   onBack: () => void;
 };
 
 /**
- * Two sections:
- *   1. Active session — at most one (an in-flight survey). Big RESUME button.
- *   2. People — durable records of prior visitors. Delete-only here; the
- *      RESUME-as-a-Person flow happens at name-input via the modal.
+ * Known visitors list. Each row shows the Person's name + sun sign +
+ * last-seen date + visit count, with a delete button. There is no
+ * "resume" button here — to resume a Person, the user types their name
+ * on a new visit and the returning-user modal handles the rest.
+ *
+ * In-progress survey sessions live in storage under `tarobot:active_session`
+ * for debugging but are not surfaced in this menu. The redesign chose
+ * Person-as-durable / Session-as-volatile; that's the design contract.
  */
-export function ResumeMenu({ onResumeActive, onBack }: Props) {
-  const [active, setActive] = useState<Session | null>(() => loadActiveSession());
+export function ResumeMenu({ onBack }: Props) {
   const [people, setPeople] = useState<Person[]>(() => listPeople());
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
-
-  function discardActive() {
-    clearActiveSession();
-    setActive(null);
-  }
 
   function doDeletePerson(id: string) {
     deletePerson(id);
     setPeople(listPeople());
     setPendingDeleteId(null);
   }
-
-  const empty = !active && people.length === 0;
 
   return (
     <div className="screen screen--resume">
@@ -45,36 +32,7 @@ export function ResumeMenu({ onResumeActive, onBack }: Props) {
         <button className="btn btn--ghost" onClick={onBack}>BACK</button>
       </header>
 
-      {empty && <p className="screen__lede">no prior visits.</p>}
-
-      {active && (
-        <section className="profile-list">
-          <h3 className="screen__subhead">in progress</h3>
-          <div className="profile-row">
-            <div className="profile-row__name">{activeLabel(active)}</div>
-            <div className="profile-row__meta">
-              <span className="profile-row__phase">{active.phase}</span>
-              <span className="profile-row__date">{formatDate(active.last_active_at ?? active.started_at)}</span>
-            </div>
-            <div className="profile-row__actions">
-              <button
-                className="profile-row__delete"
-                onClick={discardActive}
-                aria-label="discard in-progress session"
-              >
-                ✕
-              </button>
-              <button
-                className="profile-row__resume"
-                onClick={onResumeActive}
-                aria-label="resume in-progress session"
-              >
-                →
-              </button>
-            </div>
-          </div>
-        </section>
-      )}
+      {people.length === 0 && <p className="screen__lede">no prior visits.</p>}
 
       {people.length > 0 && (
         <section className="profile-list">
@@ -120,12 +78,6 @@ export function ResumeMenu({ onResumeActive, onBack }: Props) {
       )}
     </div>
   );
-}
-
-function activeLabel(s: Session): string {
-  const fromProfile = s.engine?.profile.name?.trim();
-  if (fromProfile) return fromProfile;
-  return 'unnamed visit';
 }
 
 function formatDate(ts: number): string {
