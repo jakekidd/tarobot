@@ -382,8 +382,10 @@ the doc.
 - **Local LLM swap.** The `LLMAdapter` interface exists for this. Concrete
   Ollama or llama.cpp adapter is the eventual swap. Not on the near-term
   path.
-- **Returning-user UI.** Data layer done (`findReturningUser`,
-  `seedFromReturning`); missing the "is this you?" modal.
+- **Returning-user disambiguation by birthday.** Today the name-match
+  modal triggers on first-name only; a 2+-match shows a picker with sun
+  sign + last-seen, but two people with the same name AND same sun sign
+  collapse visually. Add birthday-as-secondary-key UI when this comes up.
 - **Server-held API key.** Browser-direct is acceptable for the local-only
   MVP where users supply their own key. Festival / public deployment must
   proxy through a server.
@@ -433,26 +435,42 @@ the doc.
 
 1. User lands. If no API key in localStorage, key-entry screen. Key
    validated against a tiny smoke call (Haiku, 1 token) before saving.
-2. Menu → `begin` → new `Session` written to localStorage → survey starts.
-3. Survey: openers deterministic (name, birthday, birth time, has-question);
-   from Q5 the engine fires Observer + Investigator per pick. Heat updates
-   from behavioral signals; phase derives from heat (monotonic). Close
-   predicates fire on saturation / fatigue / cap.
-4. On close, Compiler runs (Sonnet) and returns `CompilerOutput` = profile +
-   openers + prose brief. (Openers are produced but currently unread by the
-   reading flow — vestige from the dormant tent path.)
-5. App routes survey-complete directly into the reading phase. Reading
-   mounts, draws four cards via `drawForSpread(FOUR_CARD_DIAMOND)`, sets
-   reader-mode to `'eyes'`, publishes the drawn cards into `cardSceneStore`
-   so the perspective layer renders the table + face-down cards, then
-   spawns intro (or uses `preferred_intro`) and round-1 fan-out.
-6. Phase machine sequences the reveal: intro → awaiting_flip (user clicks a
-   face-down card) → flipping (CSS-3D anim, 950ms) → beat (typed, user-tap)
-   → next awaiting_flip → … → closing_thinking → outro (typed, user-tap) →
-   done. Chat is enabled in awaiting_flip and done; actor replies are
-   their own LLM call.
-7. User can exit at any point via the topbar `exit` button. No persistence
-   for in-progress readings; cards re-draw fresh on resume.
+2. Menu → `begin` → fresh `Session` in memory (NOT persisted yet). Survey starts.
+3. Q1 (name): on submit, `findPeopleMatchingName` runs.
+   - 0 matches → continue normally.
+   - 1+ match → `ReturningUserModal` overlays. User picks **RESUME** →
+     `engine.confirmReturningPerson(match)` folds the Person's profile +
+     history into engine state, skips remaining openers whose data is
+     already known, seeds the (deduped) starter pool, and the mascot
+     delivers one of `RETURN_LINES`. Or **START FRESH** →
+     `deletePerson(match.id)` and the survey proceeds as for a new user.
+4. Q2 (birthday), Q3 (has_question) run.
+5. **Save threshold:** once all 3 openers are answered, a Person record
+   is created (new user) or updated (returning), and the active session
+   gets persisted to `tarobot:active_session`. Before this, bailing
+   leaves no localStorage trace.
+6. Survey body: engine fires Observer → Detective → Interrogator per
+   pick. Starter pool (6 seeds) and Interrogator basket both filter out
+   `prior_answered_node_ids` (hard dedupe across the visitor's history).
+7. Cap (20 post-opener questions): Interrogator suppressed past
+   `cap − STARTER_SEED_COUNT` so the existing queue rides out the last
+   stretch. On the 20th answer, `beginShamanStage()` fires.
+8. Shaman runs (cloud) with `prior_intentions` in its input — it's
+   instructed not to duplicate prior intentions, optionally proposing
+   one "deepening" of the most recent prior. Returns 4 suggestions.
+9. User picks/writes intention. UI shows `last time you asked: ...` as
+   a soft hint when prior_intentions is non-empty. `submitIntention()`
+   triggers Augur (cloud, 2-stage) → SeerEngine constructed →
+   `seer.ready` resolves → state stage = 'reading_ready'.
+10. ENTER → `onComplete(seer)`. Survey effect appends the completed
+    visit to the Person record (intention + answered_node_ids +
+    completed_at) and clears active session.
+11. App routes to Reading screen with the prebuilt Seer. Card flow:
+    intro → awaiting_flip → flipping (950ms) → beat → loop →
+    closing_thinking → outro → done. Chat allowed in awaiting_flip /
+    done; actor replies are their own LLM call.
+12. Exit anytime via topbar. If past save threshold, the in-progress
+    Person record persists; resuming returns to the same survey state.
 
 This flow will change. When it does, fix this section.
 
