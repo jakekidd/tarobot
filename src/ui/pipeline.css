@@ -1,0 +1,228 @@
+/* =====================================================================
+   pipeline — auditable mermaid + live prompt dump.
+   Sits on the void; scrolls vertically; horizontally pans the mermaid
+   SVGs that overflow.
+   ===================================================================== */
+
+.pipeline {
+  position: relative;
+  z-index: 5;
+  min-height: 100vh;
+  width: 100%;
+  color: var(--fg);
+  font-family: var(--font-mono);
+  padding: 5rem 1.5rem 6rem;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.pipeline__head {
+  max-width: 80rem;
+  margin: 0 auto 2.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.pipeline__head .btn {
+  align-self: flex-start;
+  margin-bottom: 0.75rem;
+}
+
+.pipeline__title {
+  font-family: var(--font-mono);
+  font-size: 1.6rem;
+  letter-spacing: 0.4em;
+  text-transform: lowercase;
+  margin: 0;
+  color: var(--accent);
+  text-shadow: 0 0 12px rgba(124, 58, 237, 0.4);
+}
+
+.pipeline__caption {
+  margin: 0;
+  font-size: 0.9rem;
+  color: var(--fg-muted);
+  max-width: 50rem;
+  line-height: 1.5;
+}
+
+/* ─── section ───────────────────────────────────────── */
+.pipeline__section {
+  max-width: 80rem;
+  margin: 0 auto 4rem;
+  padding-bottom: 2rem;
+  border-bottom: 1px dashed var(--line);
+}
+
+.pipeline__section:last-of-type {
+  border-bottom: 0;
+}
+
+.pipeline__section-title {
+  font-family: var(--font-mono);
+  font-size: 1.2rem;
+  letter-spacing: 0.32em;
+  text-transform: lowercase;
+  margin: 0 0 1.25rem;
+  color: var(--fg);
+}
+
+/* ─── diagram ───────────────────────────────────────── */
+.pipeline__diagram {
+  background: rgba(10, 4, 24, 0.65);
+  border: 1px solid var(--line);
+  padding: 1.5rem;
+  margin-bottom: 2rem;
+  overflow-x: auto;
+  overflow-y: hidden;
+  min-height: 24rem;
+}
+
+.pipeline__diagram svg {
+  display: block;
+  margin: 0 auto;
+  max-width: none !important;
+  height: auto;
+}
+
+.pipeline__diagram-error {
+  background: rgba(226, 83, 110, 0.08);
+  border: 1px solid var(--color-danger);
+  padding: 1rem;
+  color: var(--color-danger);
+  font-size: 0.85rem;
+  margin-bottom: 2rem;
+}
+
+/* ─── agents grid ───────────────────────────────────── */
+.pipeline__agents {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.pipeline__agent {
+  border: 1px solid var(--line);
+  background: rgba(10, 4, 24, 0.55);
+  transition: border-color 120ms ease;
+}
+
+.pipeline__agent:hover {
+  border-color: var(--line-strong);
+}
+
+.pipeline__agent--expanded {
+  border-color: var(--accent);
+}
+
+.pipeline__agent-head {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.7rem 1rem;
+  cursor: pointer;
+  user-select: none;
+}
+
+.pipeline__agent-head:focus-visible {
+  outline: 1px solid var(--accent);
+  outline-offset: -1px;
+}
+
+.pipeline__agent-name {
+  font-size: 1rem;
+  color: var(--fg);
+  flex: 1;
+}
+
+.pipeline__agent-tier {
+  font-size: 0.65rem;
+  letter-spacing: 0.32em;
+  text-transform: lowercase;
+  padding: 0.1rem 0.5rem;
+  border: 1px solid currentColor;
+  font-family: var(--font-mono);
+}
+
+.pipeline__agent-tier--fast      { color: #6b5a8a; }
+.pipeline__agent-tier--cognition { color: var(--accent); }
+.pipeline__agent-tier--deep      { color: #22d3ee; text-shadow: 0 0 6px rgba(34, 211, 238, 0.4); }
+
+.pipeline__agent-expand {
+  font-family: var(--font-mono);
+  font-size: 1.1rem;
+  color: var(--fg-muted);
+  width: 1rem;
+  text-align: center;
+}
+
+.pipeline__agent-body {
+  padding: 0.5rem 1rem 1.25rem;
+  border-top: 1px dashed var(--line);
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.pipeline__field {
+  display: grid;
+  grid-template-columns: 9rem 1fr;
+  gap: 0.75rem;
+  font-size: 0.85rem;
+  line-height: 1.5;
+}
+
+.pipeline__field-label {
+  color: var(--fg-muted);
+  text-transform: lowercase;
+  letter-spacing: 0.16em;
+}
+
+.pipeline__field-value {
+  color: var(--fg);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.pipeline__agent-prompt-label {
+  margin-top: 1rem;
+  color: var(--fg-muted);
+  text-transform: lowercase;
+  letter-spacing: 0.16em;
+  font-size: 0.85rem;
+}
+
+.pipeline__agent-prompt {
+  margin: 0.25rem 0 0;
+  padding: 1rem;
+  background: rgba(0, 0, 0, 0.5);
+  border: 1px solid var(--line);
+  color: var(--fg);
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 30rem;
+  overflow-y: auto;
+}
+
+/* ─── navbar chip ───────────────────────────────────── */
+.pipeline-chip {
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  letter-spacing: 0.32em;
+  text-transform: lowercase;
+  background: transparent;
+  color: #6b5a8a;
+  border: 1px solid rgba(107, 90, 138, 0.45);
+  padding: 0.18rem 0.55rem;
+  cursor: pointer;
+  border-radius: 0;
+}
+
+.pipeline-chip:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}

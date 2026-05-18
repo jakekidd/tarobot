@@ -13,6 +13,7 @@ import { ResumeMenu } from './ui/ResumeMenu';
 import { Settings } from './ui/Settings';
 import { Survey as SurveyScreen } from './ui/Survey';
 import { Reading } from './ui/Reading';
+import { Pipeline } from './ui/Pipeline';
 import { TarobotScene } from './ui/scene/TarobotScene';
 import { buildMarisolDemoSeer, MARISOL_INTRO } from './pipeline/seer';
 import { AnthropicAdapter } from './pipeline/survey';
@@ -20,6 +21,7 @@ import { createClaudeClient } from './pipeline/claude';
 import { Jade } from './jade/Jade';
 import { useSecretSequence } from './jade/useSecretSequence';
 import './jade/jade.css';
+import './ui/pipeline.css';
 import { Debug } from './debug/Debug';
 import { DebugQueue } from './debug/DebugQueue';
 import { loadDebugVisible, saveDebugVisible } from './debug/visibilityStorage';
@@ -33,7 +35,8 @@ type Phase =
   | { kind: 'settings' }
   | { kind: 'survey'; session: Session }
   | { kind: 'reading'; session: Session; seer: Seer; preferredIntro?: typeof MARISOL_INTRO }
-  | { kind: 'jade' };
+  | { kind: 'jade' }
+  | { kind: 'pipeline' };
 
 export function App() {
   const [apiKey, setApiKey] = useState<string | null>(() => loadApiKey());
@@ -147,9 +150,19 @@ export function App() {
               jade
             </button>
           )}
+          {phase.kind !== 'pipeline' && (
+            <button
+              type="button"
+              className="pipeline-chip"
+              onClick={() => setPhase({ kind: 'pipeline' })}
+              title="open pipeline — live audit of all agents + prompts"
+            >
+              pipeline
+            </button>
+          )}
         </div>
         <div className="app__topbar-actions">
-          {phase.kind !== 'menu' && phase.kind !== 'key' && phase.kind !== 'jade' && (
+          {phase.kind !== 'menu' && phase.kind !== 'key' && phase.kind !== 'jade' && phase.kind !== 'pipeline' && (
             <button className="btn btn--quiet" onClick={goMenu}>
               exit
             </button>
@@ -205,6 +218,8 @@ export function App() {
           )}
 
           {phase.kind === 'jade' && <Jade onExit={goMenu} />}
+
+          {phase.kind === 'pipeline' && <Pipeline onBack={goMenu} />}
         </main>
 
       <Debug visible={debugVisible} />
