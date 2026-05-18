@@ -2,9 +2,10 @@ import { useEffect, useState, useSyncExternalStore } from 'react';
 import type { Seer } from './pipeline/seer';
 import { isUsingTreeOverride, subscribeToOverrideChanges } from './pipeline/survey';
 import {
+  loadActiveSession,
   loadApiKey,
   newSession,
-  saveSession,
+  clearActiveSession,
   type Session,
 } from './storage';
 import { KeyEntry } from './ui/KeyEntry';
@@ -15,7 +16,7 @@ import { Survey as SurveyScreen } from './ui/Survey';
 import { Reading } from './ui/Reading';
 import { Pipeline } from './ui/Pipeline';
 import { TarobotScene } from './ui/scene/TarobotScene';
-import { buildMarisolDemoSeer, MARISOL_INTRO } from './pipeline/seer';
+import { buildMarisolDemoSeer } from './pipeline/seer';
 import { AnthropicAdapter } from './pipeline/survey';
 import { createClaudeClient } from './pipeline/claude';
 import { Jade } from './jade/Jade';
@@ -34,7 +35,7 @@ type Phase =
   | { kind: 'resume' }
   | { kind: 'settings' }
   | { kind: 'survey'; session: Session }
-  | { kind: 'reading'; session: Session; seer: Seer; preferredIntro?: typeof MARISOL_INTRO }
+  | { kind: 'reading'; session: Session; seer: Seer }
   | { kind: 'jade' }
   | { kind: 'pipeline' };
 
@@ -70,8 +71,8 @@ export function App() {
   }
 
   function startNewReading() {
+    // New visit. In-memory only until save threshold lands inside Survey.
     const s = newSession();
-    saveSession(s);
     setPhase({ kind: 'survey', session: s });
   }
 
@@ -80,17 +81,20 @@ export function App() {
   function startReadDemo() {
     if (!apiKey) return;
     const s: Session = { ...newSession(), phase: 'tent' };
-    saveSession(s);
     const adapter = new AnthropicAdapter(createClaudeClient(apiKey));
     setPhase({
       kind: 'reading',
       session: s,
       seer: buildMarisolDemoSeer(adapter),
-      preferredIntro: MARISOL_INTRO,
     });
   }
 
-  function resumeSession(s: Session) {
+  function resumeActive() {
+    const s = loadActiveSession();
+    if (!s) {
+      goMenu();
+      return;
+    }
     switch (s.phase) {
       case 'survey':
       case 'compiling':
@@ -105,15 +109,11 @@ export function App() {
   }
 
   function onSurveyComplete(session: Session, seer: Seer) {
-    // Persist a profile snapshot — Seer holds the live read but the
-    // session row still wants a Profile for resume UI.
-    const next: Session = {
-      ...session,
-      phase: 'tent',
-      profile: seer.getProfile(),
-    };
-    saveSession(next);
-    setPhase({ kind: 'reading', session: next, seer });
+    // Survey close: clear the active session and route to the reading.
+    // The Person record was upserted during the survey (at save threshold
+    // and on each subsequent save), so identity persists across visits.
+    clearActiveSession();
+    setPhase({ kind: 'reading', session, seer });
   }
 
   return (
@@ -194,7 +194,7 @@ export function App() {
 
           {phase.kind === 'resume' && (
             <ResumeMenu
-              onResume={(s) => resumeSession(s)}
+              onResumeActive={resumeActive}
               onBack={goMenu}
             />
           )}

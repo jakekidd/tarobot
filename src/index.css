@@ -559,11 +559,36 @@ a:hover { text-decoration: underline; }
 .profile-list {
   list-style: none;
   padding: 0;
-  margin: 0;
+  margin: 0 0 1.4rem;
   width: 100%;
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
+}
+
+.profile-list__items {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.screen__subhead {
+  margin: 1.2rem 0 0.4rem;
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  letter-spacing: 0.32em;
+  text-transform: lowercase;
+  color: var(--accent);
+}
+
+.screen__hint {
+  margin: 0 0 0.6rem;
+  font-size: 0.8rem;
+  color: var(--fg-muted);
+  letter-spacing: 0.04em;
 }
 
 .profile-row {
@@ -1730,6 +1755,99 @@ a:hover { text-decoration: underline; }
 .survey__chat-slot {
   width: min(64ch, calc(100vw - 4rem));
   margin: 0.8rem auto 0;
+}
+
+/* ─── Returning-user modal ────────────────────────────── */
+.returning-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.72);
+  backdrop-filter: blur(2px);
+}
+.returning-modal__inner {
+  width: min(36rem, calc(100vw - 3rem));
+  background: var(--color-navbar);
+  border: 1px solid var(--accent);
+  padding: 1.6rem 1.8rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  box-shadow: 0 0 24px rgba(124, 58, 237, 0.35);
+}
+.returning-modal__prompt {
+  margin: 0;
+  font-family: var(--font-speech);
+  font-size: 1.15rem;
+  color: var(--fg);
+  line-height: 1.4;
+}
+.returning-modal__meta {
+  margin: 0;
+  color: var(--fg-muted);
+  font-size: 0.85rem;
+  letter-spacing: 0.08em;
+}
+.returning-modal__list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+.returning-modal__option {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.15rem;
+  padding: 0.6rem 0.8rem;
+  background: transparent;
+  border: 1px solid var(--line);
+  color: var(--fg);
+  font-family: var(--font-mono);
+  cursor: pointer;
+  text-align: left;
+}
+.returning-modal__option:hover { border-color: var(--accent); }
+.returning-modal__option--on { border-color: var(--accent); background: var(--violet-soft); }
+.returning-modal__option-name {
+  font-size: 1rem;
+  color: var(--fg);
+}
+.returning-modal__option-meta {
+  font-size: 0.75rem;
+  color: var(--fg-muted);
+  letter-spacing: 0.05em;
+}
+.returning-modal__actions {
+  display: flex;
+  gap: 0.8rem;
+  justify-content: flex-end;
+  margin-top: 0.4rem;
+}
+
+/* ─── Last-intention hint above the intention picker ──── */
+.survey__intentions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+.survey__last-intention {
+  margin: 0 0 0.2rem;
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  color: var(--fg-muted);
+  letter-spacing: 0.04em;
+  text-align: center;
+}
+.survey__last-intention em {
+  color: var(--accent);
+  font-style: italic;
 }
 
 /* legacy classes — preserved for the conversation-history details */

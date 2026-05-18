@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Reader } from './reader/Reader';
 import { Dialogue } from './dialogue/Dialogue';
 import { chime } from './sound/sound';
-import { listResumable } from '../storage';
+import { listPeople, loadActiveSession } from '../storage';
 
 type Props = {
   onBegin: () => void;
@@ -14,7 +14,9 @@ type Props = {
 const GREETING = 'come in. tell me you want to know.';
 
 export function Menu({ onBegin, onReadDemo, onOpenResume, onSettings }: Props) {
-  const [resumeCount] = useState(() => listResumable().length);
+  const [resumeCount] = useState(
+    () => (loadActiveSession() ? 1 : 0) + listPeople().length,
+  );
   const [speaking, setSpeaking] = useState(false);
 
   useEffect(() => { chime(); }, []);

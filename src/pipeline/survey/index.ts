@@ -10,7 +10,7 @@ export type { EngineOpts } from './engine';
 export { AnthropicAdapter } from '../llm';
 export type { LLMAdapter, ModelTier, ToolDef, InvocationSpec } from '../llm';
 
-export { findReturningUser, seedFromReturning } from './returning';
+export { findPeopleMatchingName, seedFromPerson } from './returning';
 export type { ReturningMatch } from './returning';
 
 export {
@@ -27,6 +27,8 @@ export {
   getBundledTree,
   subscribeToOverrideChanges,
 } from './tree';
+
+export { RETURN_LINES, pickReturnLine } from './return-lines';
 
 export { shouldClose } from './close';
 export { derivePhase, phaseFromTurns } from './phase';

@@ -1,20 +1,32 @@
-import type {
-  EngineState,
-  PersonaId,
-  Profile,
-  Question,
-  Survey,
-} from './pipeline';
+// Browser-only persistence layer.
+//
+// Two-layer model:
+//   - Person : durable record of someone who's been here. Survives across
+//              visits; accumulates history (which questions they answered,
+//              which intentions they chose). Created when a visit crosses
+//              the save-threshold (3 openers answered).
+//   - Session: volatile in-flight container for the CURRENT visit. At
+//              most one exists at a time (`active_session`). On survey
+//              close it folds into the matching Person and is cleared.
+//
+// Keys (no version prefix — runtime validation handles schema drift):
+//   tarobot:apikey
+//   tarobot:people
+//   tarobot:active_session
+//   tarobot:settings
+//   tarobot:jade:tree    (owned by src/jade/storage.ts)
+
+import type { EngineState, SurveyProfile } from './pipeline/survey';
+import type { PersonaId } from './pipeline';
 import { DEFAULT_MASCOT_ID, type MascotId } from './ui/scene/mascots';
 
-// Browser-only persistence layer. Sits OUTSIDE src/pipeline/ so the
-// pipeline lib stays Node-portable.
+const K_API_KEY = 'tarobot:apikey';
+const K_PEOPLE = 'tarobot:people';
+const K_ACTIVE_SESSION = 'tarobot:active_session';
+const K_SETTINGS = 'tarobot:settings';
 
-const NS = 'tarobot:v3';
-const K_API_KEY = `${NS}:apikey`;
-const K_SESSIONS = `${NS}:sessions`;          // array of in-progress + completed sessions
-const K_SETTINGS = `${NS}:settings`;
-const SESSIONS_CAP = 50;
+const PEOPLE_CAP = 200;
+const HISTORY_VISITS_CAP = 20;
 
 // ─── API key ────────────────────────────────────────────
 
@@ -32,7 +44,97 @@ export function clearApiKey(): void {
   localStorage.removeItem(K_API_KEY);
 }
 
-// ─── Sessions ───────────────────────────────────────────
+// ─── Person (durable record) ────────────────────────────
+
+export type VisitRecord = {
+  visit_id: string;
+  started_at: number;
+  completed_at?: number;
+  intention?: string;
+  answered_node_ids: string[];
+  /** Optional 1-line summary of the reading for "last time you..." UI. */
+  reading_summary?: string;
+};
+
+export type Person = {
+  id: string;
+  /** Lowercase first name — the primary match key. Original casing is
+   *  preserved in `profile.name`. */
+  name: string;
+  /** The most-recent SurveyProfile, used to seed returning visits. */
+  profile: SurveyProfile;
+  history: {
+    visits: VisitRecord[];        // most-recent first; capped at HISTORY_VISITS_CAP
+    answered_node_ids: string[];  // union across all visits
+    intentions: string[];         // most-recent first
+  };
+  created_at: number;
+  last_visit_at: number;
+};
+
+function loadPeopleRaw(): Person[] {
+  try {
+    const raw = localStorage.getItem(K_PEOPLE);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed as Person[];
+  } catch {
+    return [];
+  }
+}
+
+function writePeople(list: Person[]): void {
+  const capped = [...list]
+    .sort((a, b) => (b.last_visit_at ?? 0) - (a.last_visit_at ?? 0))
+    .slice(0, PEOPLE_CAP);
+  localStorage.setItem(K_PEOPLE, JSON.stringify(capped));
+}
+
+/** All known People, ordered by most-recent visit first. */
+export function listPeople(): Person[] {
+  return [...loadPeopleRaw()].sort(
+    (a, b) => (b.last_visit_at ?? 0) - (a.last_visit_at ?? 0),
+  );
+}
+
+export function getPerson(id: string): Person | null {
+  return loadPeopleRaw().find((p) => p.id === id) ?? null;
+}
+
+/** Returns every Person whose lowercase first-name matches, ordered by
+ *  most-recent visit. Empty array means "no prior visits under this name". */
+export function findPeopleByName(name: string): Person[] {
+  const key = name.trim().toLowerCase();
+  if (!key) return [];
+  return loadPeopleRaw()
+    .filter((p) => p.name === key)
+    .sort((a, b) => (b.last_visit_at ?? 0) - (a.last_visit_at ?? 0));
+}
+
+/** Upsert by id. Used when folding a closed session into a Person, or
+ *  when creating a brand-new Person at the save threshold. */
+export function savePerson(person: Person): void {
+  const list = loadPeopleRaw();
+  const next: Person = { ...person, last_visit_at: Date.now() };
+  const idx = list.findIndex((p) => p.id === next.id);
+  if (idx >= 0) list[idx] = next;
+  else list.unshift(next);
+  writePeople(list);
+}
+
+export function deletePerson(id: string): void {
+  const list = loadPeopleRaw().filter((p) => p.id !== id);
+  writePeople(list);
+}
+
+/** All distinct lowercase first names known to storage. Used by the
+ *  name-input UI for soft warnings during typing. */
+export function listKnownNames(): string[] {
+  return Array.from(new Set(loadPeopleRaw().map((p) => p.name)));
+}
+
+// ─── Active session (in-flight visit) ───────────────────
 
 export type SessionPhase =
   | 'survey'
@@ -47,9 +149,13 @@ export type Session = {
   last_active_at: number;
   completed_at?: number;
   phase: SessionPhase;
-  survey?: Survey;
-  profile?: Profile;
-  openers?: Question[];
+  /** ID of the Person this session is tied to. Set once the user's
+   *  name is confirmed (either as a new Person crossing the save
+   *  threshold, or as a matched returning Person at the modal). */
+  person_id?: string;
+  /** Survey engine state snapshot. Storage is opaque — the engine is
+   *  the source of truth in-memory; this field is just so the resume
+   *  UI can label rows and (eventually) hydrate engine state. */
   engine?: EngineState;
 };
 
@@ -63,94 +169,81 @@ export function newSession(): Session {
   };
 }
 
-/** Load all stored sessions, ordered by last_active_at desc. */
-export function loadSessions(): Session[] {
+export function loadActiveSession(): Session | null {
   try {
-    const raw = localStorage.getItem(K_SESSIONS);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return [];
-    return (parsed as Session[])
-      .slice()
-      .sort((a, b) => (b.last_active_at ?? 0) - (a.last_active_at ?? 0));
+    const raw = localStorage.getItem(K_ACTIVE_SESSION);
+    if (!raw) return null;
+    return JSON.parse(raw) as Session;
   } catch {
-    return [];
+    return null;
   }
 }
 
-function writeSessions(list: Session[]): void {
-  const capped = list.slice(0, SESSIONS_CAP);
-  localStorage.setItem(K_SESSIONS, JSON.stringify(capped));
-}
-
-/** Upsert by id, stamping last_active_at = now. */
-export function saveSession(session: Session): void {
-  const list = loadSessions();
+export function saveActiveSession(session: Session): void {
   const next: Session = { ...session, last_active_at: Date.now() };
-  const idx = list.findIndex((s) => s.id === next.id);
-  if (idx >= 0) list[idx] = next;
-  else list.unshift(next);
-  writeSessions(list);
+  localStorage.setItem(K_ACTIVE_SESSION, JSON.stringify(next));
 }
 
-export function deleteSession(id: string): void {
-  const list = loadSessions().filter((s) => s.id !== id);
-  writeSessions(list);
+export function clearActiveSession(): void {
+  localStorage.removeItem(K_ACTIVE_SESSION);
 }
 
-export function getSession(id: string): Session | null {
-  return loadSessions().find((s) => s.id === id) ?? null;
+/** Mark active session done + clear. */
+export function completeActiveSession(): void {
+  clearActiveSession();
 }
 
-/** In-progress sessions only — the resume candidates. */
-export function listResumable(): Session[] {
-  return loadSessions().filter((s) => s.phase !== 'done');
+// ─── Folding active session into Person ─────────────────
+
+/** Build a fresh Person from a closed session's profile + visit record.
+ *  Caller supplies the visit metadata (intention, node ids, summary). */
+export function createPersonFromVisit(args: {
+  profile: SurveyProfile;
+  visit: VisitRecord;
+}): Person {
+  const name = args.profile.name.trim().toLowerCase();
+  const person: Person = {
+    id: makeId(),
+    name,
+    profile: args.profile,
+    history: {
+      visits: [args.visit],
+      answered_node_ids: [...args.visit.answered_node_ids],
+      intentions: args.visit.intention ? [args.visit.intention] : [],
+    },
+    created_at: Date.now(),
+    last_visit_at: Date.now(),
+  };
+  savePerson(person);
+  return person;
 }
 
-/** Most recently touched in-progress session, if any. */
-export function loadMostRecent(): Session | null {
-  return listResumable()[0] ?? null;
-}
-
-/** Mark a session as done and keep it around as a completed entry. */
-export function completeSession(session: Session): void {
-  const next: Session = { ...session, phase: 'done', completed_at: Date.now() };
-  saveSession(next);
-}
-
-/**
- * All distinct names currently in storage — drawn from compiled profiles and
- * from "name-input" survey answers (so a half-finished session still counts).
- * Optionally exclude a specific session id (the one being typed into now).
- */
-export function listSessionNames(excludeId?: string): string[] {
-  const sessions = loadSessions().filter((s) => s.id !== excludeId);
-  const out = new Set<string>();
-  for (const s of sessions) {
-    const fromProfile = s.profile?.identity.name?.trim();
-    if (fromProfile) out.add(fromProfile.toLowerCase());
-    const ans = s.survey?.answers.find((a) => a.question_id === 'name-input');
-    const fromSurvey = ans?.picked[0]?.trim();
-    if (fromSurvey) out.add(fromSurvey.toLowerCase());
-  }
-  return Array.from(out);
-}
-
-/** Most recent Profile per name across all stored sessions. */
-export function listProfilesByName(): Profile[] {
-  type Entry = { profile: Profile; ts: number };
-  const byKey = new Map<string, Entry>();
-  for (const s of loadSessions()) {
-    if (!s.profile) continue;
-    const ts = s.last_active_at ?? s.started_at ?? 0;
-    const name = s.profile.identity.name?.trim().toLowerCase();
-    if (!name) continue;
-    const prior = byKey.get(name);
-    if (!prior || prior.ts < ts) byKey.set(name, { profile: s.profile, ts });
-  }
-  return Array.from(byKey.values())
-    .sort((a, b) => b.ts - a.ts)
-    .map((e) => e.profile);
+/** Fold a new visit into an existing Person. Updates profile (latest
+ *  wins for atomic fields), appends to visit history (capped),
+ *  unions answered question ids, prepends new intention. */
+export function appendVisitToPerson(args: {
+  person_id: string;
+  profile: SurveyProfile;
+  visit: VisitRecord;
+}): Person | null {
+  const list = loadPeopleRaw();
+  const idx = list.findIndex((p) => p.id === args.person_id);
+  if (idx < 0) return null;
+  const prior = list[idx]!;
+  const visits = [args.visit, ...prior.history.visits].slice(0, HISTORY_VISITS_CAP);
+  const answered = unionStrings(prior.history.answered_node_ids, args.visit.answered_node_ids);
+  const intentions = args.visit.intention
+    ? prependUnique(prior.history.intentions, args.visit.intention)
+    : prior.history.intentions;
+  const next: Person = {
+    ...prior,
+    profile: args.profile,
+    history: { visits, answered_node_ids: answered, intentions },
+    last_visit_at: Date.now(),
+  };
+  list[idx] = next;
+  writePeople(list);
+  return next;
 }
 
 // ─── Settings ───────────────────────────────────────────
@@ -185,22 +278,35 @@ export function saveSettings(settings: Partial<Settings>): Settings {
   return merged;
 }
 
-/** Clear all session data EXCEPT the API key. */
+// ─── Bulk clear (Settings screen actions) ───────────────
+
+/** Clear all stored data EXCEPT the API key. */
 export function clearAllExceptKey(): void {
-  localStorage.removeItem(K_SESSIONS);
+  localStorage.removeItem(K_PEOPLE);
+  localStorage.removeItem(K_ACTIVE_SESSION);
   localStorage.removeItem(K_SETTINGS);
 }
 
 /** Full wipe including the API key. */
 export function clearAll(): void {
   clearApiKey();
-  localStorage.removeItem(K_SESSIONS);
-  localStorage.removeItem(K_SETTINGS);
+  clearAllExceptKey();
 }
+
+// ─── helpers ────────────────────────────────────────────
 
 function makeId(): string {
   if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
     return crypto.randomUUID();
   }
   return `s_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
+}
+
+function unionStrings(a: string[], b: string[]): string[] {
+  return Array.from(new Set([...a, ...b]));
+}
+
+function prependUnique(list: string[], value: string): string[] {
+  const filtered = list.filter((x) => x !== value);
+  return [value, ...filtered];
 }

@@ -31,6 +31,7 @@ export async function runShaman(
       answer: p.answer,
       latency_ms: p.latency_ms,
     })),
+    prior_intentions: input.prior_intentions,
     instruction:
       'divine exactly 4 specific intention questions in the user\'s vernacular.',
   };

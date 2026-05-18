@@ -1,84 +1,74 @@
-// Returning-user lookup. Reads from local storage to find prior sessions
-// matching a name. Disambiguates by (name + birthday) when there are multiple
-// Jades. The UI shows a confirm modal when matches are found.
+// Returning-user lookup. Operates on the Person record (durable, multi-
+// visit) rather than the volatile Session. The Survey UI calls
+// findPeopleMatchingName() after Q1 to decide whether to show the
+// RESUME / START FRESH modal.
 
-import type { Profile } from '../types';
-import { loadSessions } from '../../storage';
+import { findPeopleByName, type Person, type VisitRecord } from '../../storage';
 import type { SurveyProfile } from './types';
 
 export type ReturningMatch = {
-  /** The full legacy Profile from the prior session. */
-  profile: Profile;
-  /** When that session was last active. Used for sorting. */
-  last_seen: number;
-  /** Free-form summary string for display in the disambiguator. */
+  person_id: string;
+  profile: SurveyProfile;
+  /** Most-recent visit timestamp, for ordering + display. */
+  last_visit_at: number;
+  /** Question ids the person has already answered across all visits. */
+  answered_node_ids: string[];
+  /** Most-recent-first list of prior intentions. */
+  prior_intentions: string[];
+  /** Free-form summary string for the modal (e.g. "leo · last seen May 3"). */
   display_summary: string;
 };
 
-/**
- * Find returning-user candidates matching a name (case-insensitive, trimmed).
- * Returns at most one match per (name, birthday) combination — the most-recent
- * session that produced a profile for that combo.
- *
- * Empty array means "first-time user, proceed as new".
- */
-export function findReturningUser(name: string): ReturningMatch[] {
-  const trimmed = name.trim().toLowerCase();
-  if (!trimmed) return [];
-
-  const sessions = loadSessions();   // already sorted desc by last_active_at
-  const byKey = new Map<string, ReturningMatch>();
-
-  for (const s of sessions) {
-    if (!s.profile?.identity.name) continue;
-    const sessionName = s.profile.identity.name.trim().toLowerCase();
-    if (sessionName !== trimmed) continue;
-
-    const birthdayKey =
-      s.profile.identity.birth_date ??
-      s.profile.identity.birth_month_day ??
-      'unknown';
-    const key = `${sessionName}::${birthdayKey}`;
-    if (byKey.has(key)) continue;   // we iterate desc, keep the first (most recent)
-
-    byKey.set(key, {
-      profile: s.profile,
-      last_seen: s.last_active_at ?? s.started_at,
-      display_summary: buildSummary(s.profile, s.last_active_at ?? s.started_at),
-    });
-  }
-
-  return Array.from(byKey.values());
+/** Find returning candidates matching a first name. Returns empty when
+ *  there are no prior visits. The UI distinguishes single-match (binary
+ *  RESUME/FRESH modal) vs multi-match (disambiguator) based on length. */
+export function findPeopleMatchingName(name: string): ReturningMatch[] {
+  return findPeopleByName(name).map(toMatch);
 }
 
-/**
- * Project a legacy Profile (from a prior session) into the fields a new
- * SurveyProfile needs to start mid-engine. Used when the user confirms
- * "yes, that was me" on the returning-user modal.
- */
-export function seedFromReturning(match: ReturningMatch): Partial<SurveyProfile> {
-  const id = match.profile.identity;
+/** Project a Person into the fields a new SurveyProfile needs to start
+ *  mid-engine. Used when the user confirms RESUME. The engine will
+ *  skip openers for any fields already populated here. */
+export function seedFromPerson(person: Person): Partial<SurveyProfile> {
   return {
-    name: id.name?.trim() ?? '',
-    sun_sign: id.sun_sign ?? null,
-    life_path: id.life_path ?? null,
-    birth_card: id.tarot_birth_card ?? null,
-    // birthday + birth_time_bracket + has_question_mode aren't on the legacy
-    // Profile; the engine treats them as missing and asks if needed. Most
-    // returning users won't re-answer birthday since astrology fields are set.
+    name: person.profile.name,
+    birthday: person.profile.birthday,
+    sun_sign: person.profile.sun_sign,
+    life_path: person.profile.life_path,
+    birth_card: person.profile.birth_card,
+    age_bracket: person.profile.age_bracket,
+    birth_time_bracket: person.profile.birth_time_bracket,
+    has_question_mode: person.profile.has_question_mode,
+    // sections + cast are NOT pre-seeded — they'll be re-observed fresh.
+    // The accumulated history of answered_node_ids carries the dedupe
+    // separately (not part of the profile).
   };
 }
 
-// ─── helpers ─────────────────────────────────────────────────
+// ─── helpers ─────────────────────────────────────────────
 
-function buildSummary(profile: Profile, ts: number): string {
+function toMatch(person: Person): ReturningMatch {
+  return {
+    person_id: person.id,
+    profile: person.profile,
+    last_visit_at: person.last_visit_at,
+    answered_node_ids: [...person.history.answered_node_ids],
+    prior_intentions: [...person.history.intentions],
+    display_summary: buildSummary(person),
+  };
+}
+
+function buildSummary(person: Person): string {
   const parts: string[] = [];
-  const sign = profile.identity.sun_sign;
-  if (sign) parts.push(sign);
-  const bday = profile.identity.birth_month_day ?? profile.identity.birth_date;
-  if (bday) parts.push(bday);
-  const date = new Date(ts);
-  const dateStr = `${date.toLocaleDateString()}`;
-  parts.push(`last seen ${dateStr}`);
+  if (person.profile.sun_sign) parts.push(person.profile.sun_sign);
+  const last = mostRecentVisit(person.history.visits);
+  if (last) {
+    const d = new Date(last.completed_at ?? last.started_at);
+    parts.push(`last seen ${d.toLocaleDateString()}`);
+  }
   return parts.join(' · ');
+}
+
+function mostRecentVisit(visits: VisitRecord[]): VisitRecord | null {
+  return visits[0] ?? null;
 }

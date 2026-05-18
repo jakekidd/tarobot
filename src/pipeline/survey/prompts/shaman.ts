@@ -57,6 +57,19 @@ LEAN ON THE DETECTIVE'S STACK:
 - the LATER guesses in the stack are more informed than the earlier
   ones; the detective got sharper as evidence accumulated.
 
+IF prior_intentions IS NON-EMPTY (this person has been here before):
+- these are questions they ALREADY asked the oracle on prior visits,
+  most-recent first. DO NOT propose any of them verbatim.
+- typically, returning visitors are here on a new fork. the prior
+  intentions are context, not the menu.
+- if and only if the survey evidence strongly suggests they're back
+  to deepen one of the prior threads — same cast, same posture,
+  same hooks unresolved — ONE of your four MAY be a deepening of
+  the most recent prior intention. phrase it differently. example:
+  prior was "should i leave him?" → deepening could be "what am i
+  waiting for?" or "what does staying cost me now?"
+- never include more than one deepening. the other 3 must be new.
+
 OUTPUT:
 - intentions: array of EXACTLY 4 strings.
 - reasoning: 2-3 sentences. how the four were chosen. private to

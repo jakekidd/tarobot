@@ -208,6 +208,17 @@ export type EngineState = {
   profile: SurveyProfile;
   investigation: Investigation;     // the Clue tools live here
   is_returning_user: boolean;
+  /** When the visitor is a returning Person, these carry over from
+   *  their durable record so the engine can dedupe (answered_node_ids
+   *  filtered from starter pool + interrogator basket) and the shaman
+   *  can avoid suggesting an intention they've already pursued. Both
+   *  empty for first-time users. */
+  prior_answered_node_ids: string[];
+  prior_intentions: string[];
+  /** Person id this session is folded into on close. Set when a
+   *  RESUME modal confirmation lands, or when the save-threshold
+   *  creates a fresh Person. Null until then. */
+  person_id: string | null;
   prior_session_summary?: string;
 
   queue: QueueItem[];
@@ -335,6 +346,10 @@ export type ShamanInput = {
   profile: SurveyProfile;
   investigation: Investigation;     // includes the write-only intention_guesses stack
   history: PickEvent[];             // all picks (openers + survey)
+  /** Intentions this person chose on previous visits, most-recent first.
+   *  Empty for first-time visitors. Shaman is instructed to avoid
+   *  duplicating these; may optionally include one "deepening" option. */
+  prior_intentions: string[];
 };
 
 /** Shaman picks 4 specific intention questions in the user's voice. */

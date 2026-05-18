@@ -22,7 +22,8 @@ import { drawForSpread } from '../cards';
 import { FOUR_CARD_DIAMOND } from '../spreads';
 import { assembleProfile } from './profile-assembly';
 import { computeAstroProfile, parseBirthDate } from '../astrology';
-import { findReturningUser, seedFromReturning } from './returning';
+import type { ReturningMatch } from './returning';
+import { getPerson } from '../../storage';
 import { publishDebug } from '../../debug/debugBus';
 import {
   getNode,
@@ -54,8 +55,16 @@ import type {
 export type EngineOpts = {
   adapter: LLMAdapter;
   session_id?: string;
+  /** Pre-seeded returning-user data. When supplied at construction the
+   *  engine starts in returning-mode: openers satisfied by profile_seed
+   *  are skipped, and answered_node_ids dedupe-filter the starter pool
+   *  and the interrogator basket. The shaman receives prior_intentions
+   *  as context so it can avoid duplicates. */
   returning?: {
+    person_id: string;
     profile_seed: Partial<SurveyProfile>;
+    answered_node_ids: string[];
+    prior_intentions: string[];
     prior_session_summary?: string;
   };
   /** How many post-opener questions the survey runs. Default 20.
@@ -173,17 +182,14 @@ export class SurveyEngine {
       queue: this.state.queue.slice(1),
     });
 
-    // Populate profile if this was an opener. May trigger returning-
-    // user shortcut: name match → load seed + jump straight to
-    // starter pool.
-    const returningHit = this.applyOpenerDataIfRelevant(head.node_id, answer);
+    // Populate profile if this was an opener.
+    this.applyOpenerDataIfRelevant(head.node_id, answer);
 
     this.setState({
       phase: derivePhase(this.state.phase, this.state.picks_log.length, false),
     });
 
     // Routing rule:
-    //   - returning-user match → skip openers, seed starter pool.
     //   - mid-opener-chain → walk to next opener; NO pipeline (openers
     //     don't trigger AI work — they're just data intake).
     //   - end of openers → seed the starter pool. NO pipeline yet.
@@ -193,10 +199,7 @@ export class SurveyEngine {
     //     queue is fully populated).
     //   - if this answer was the LAST one (cap hit + queue now empty),
     //     transition to shaman_thinking and fire the shaman.
-    if (returningHit) {
-      this.clearOpenersFromQueue();
-      this.seedStarterPool();
-    } else if (OPENER_NODE_IDS.has(head.node_id)) {
+    if (OPENER_NODE_IDS.has(head.node_id)) {
       const enqueued = this.enqueueNextOpener(head.node_id);
       if (!enqueued) {
         this.seedStarterPool();
@@ -248,6 +251,7 @@ export class SurveyEngine {
       profile: this.state.profile,
       investigation: this.state.investigation,
       history: this.state.picks_log,
+      prior_intentions: this.state.prior_intentions,
     })
       .then((out) => {
         this.setState({
@@ -328,6 +332,56 @@ export class SurveyEngine {
    *  Reading screen with this Seer instance. */
   getSeer(): Seer | null {
     return this.seer;
+  }
+
+  /** UI confirmed a returning Person (via the RESUME modal). Switch
+   *  the engine into returning-mode mid-flight: fold the Person's
+   *  profile + history into state, drop any pending opener questions
+   *  whose data is already known, and seed the starter pool (deduped). */
+  confirmReturningPerson(match: ReturningMatch): void {
+    // Seed everything from the matched profile EXCEPT name (already set
+    // by the user in Q1, may differ in casing/spelling from storage).
+    this.setState({
+      profile: {
+        ...this.state.profile,
+        birthday: match.profile.birthday,
+        sun_sign: match.profile.sun_sign,
+        life_path: match.profile.life_path,
+        birth_card: match.profile.birth_card,
+        age_bracket: match.profile.age_bracket,
+        birth_time_bracket: match.profile.birth_time_bracket,
+        has_question_mode: match.profile.has_question_mode,
+      },
+      is_returning_user: true,
+      prior_answered_node_ids: match.answered_node_ids,
+      prior_intentions: match.prior_intentions,
+      person_id: match.person_id,
+      prior_session_summary: match.display_summary,
+    });
+    this.clearOpenersFromQueue();
+    if (!this.starterSeedFired) this.seedStarterPool();
+    this.emit();
+  }
+
+  /** UI confirmed START FRESH on the modal. The matched Person is
+   *  irrelevant — we proceed as a new visit. (The matched Person was
+   *  already deleted by the UI before calling this; engine just
+   *  continues with the normal opener chain.) */
+  confirmStartFresh(): void {
+    // No-op on engine state — we're already in new-user mode. Exposed
+    // for symmetry / future expansion (e.g. emitting a state event).
+  }
+
+  /** UI requests the Person record currently powering this session,
+   *  if any. Returns null for first-time visitors. */
+  getPersonId(): string | null {
+    return this.state.person_id;
+  }
+
+  /** UI requests the Person record (full) from storage by id. Convenience
+   *  passthrough so the survey UI doesn't need to import storage. */
+  getReturningPerson(): import('../../storage').Person | null {
+    return this.state.person_id ? getPerson(this.state.person_id) : null;
   }
 
   /** User clicked "ready for the cards" before the question cap. Skip
@@ -418,6 +472,9 @@ export class SurveyEngine {
       profile: startProfile,
       investigation: startInvestigation,
       is_returning_user: isReturning,
+      prior_answered_node_ids: opts.returning?.answered_node_ids ?? [],
+      prior_intentions: opts.returning?.prior_intentions ?? [],
+      person_id: opts.returning?.person_id ?? null,
       prior_session_summary: opts.returning?.prior_session_summary,
       queue: openerQueue,
       picks_log: [],
@@ -444,33 +501,16 @@ export class SurveyEngine {
     }
   }
 
-  /** Apply opener data to profile. Returns true if a RETURNING USER
-   *  was detected (name matched an existing profile); caller then jumps
-   *  straight to the starter pool. */
+  /** Apply opener data to profile. Auto-detect of returning users moved
+   *  out: the UI runs `findPeopleMatchingName` after the name submit
+   *  and shows a RESUME / START FRESH modal. On confirm, the UI calls
+   *  `confirmReturningPerson()` on the engine. */
   private applyOpenerDataIfRelevant(node_id: string, answer: string | string[]): boolean {
     const ans = typeof answer === 'string' ? answer : answer[0];
     if (!ans) return false;
 
     if (node_id === 'name') {
       const cleaned = ans.trim();
-      // Returning-user lookup: if the supplied name matches an existing
-      // profile (case-insensitive), load that profile + skip remaining
-      // openers. Otherwise treat as a new user.
-      const matches = findReturningUser(cleaned);
-      if (matches.length > 0) {
-        const top = matches[0]!;
-        const seed = seedFromReturning(top);
-        this.setState({
-          profile: {
-            ...this.state.profile,
-            ...seed,
-            name: cleaned,
-          },
-          is_returning_user: true,
-          prior_session_summary: top.display_summary,
-        });
-        return true;
-      }
       this.setState({ profile: { ...this.state.profile, name: cleaned } });
       return false;
     }
@@ -514,7 +554,10 @@ export class SurveyEngine {
   private seedStarterPool(): void {
     if (this.starterSeedFired) return;
     this.starterSeedFired = true;
-    const pool = getPoolNodeIds().filter((id) => !this.state.asked_node_ids.includes(id));
+    const priorAnswered = new Set(this.state.prior_answered_node_ids);
+    const pool = getPoolNodeIds().filter(
+      (id) => !this.state.asked_node_ids.includes(id) && !priorAnswered.has(id),
+    );
     const shuffled = [...pool];
     for (let i = shuffled.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
@@ -591,9 +634,11 @@ export class SurveyEngine {
   // queue grows after interrogator.
 
   private buildBasket(): BasketItem[] {
+    const priorAnswered = new Set(this.state.prior_answered_node_ids);
     return getPoolNodeIds()
       .filter((id) => !this.state.asked_node_ids.includes(id))
       .filter((id) => !this.state.queue.some((q) => q.node_id === id))
+      .filter((id) => !priorAnswered.has(id))
       .map((id) => {
         const n = getNode(id)!;
         return {

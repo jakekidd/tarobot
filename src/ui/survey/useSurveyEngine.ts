@@ -17,9 +17,14 @@ import type { SurveyProfile } from '../../pipeline/survey';
 type Options = {
   apiKey: string;
   sessionId: string;
-  /** Optional pre-loaded data for returning users. */
+  /** Optional pre-loaded data for returning users when resuming a
+   *  visit from a stored Person record. Today this path is unused —
+   *  the engine's confirmReturningPerson() handles the modal flow. */
   returning?: {
+    personId: string;
     profileSeed: Partial<SurveyProfile>;
+    answeredNodeIds: string[];
+    priorIntentions: string[];
     priorSessionSummary?: string;
   };
 };
@@ -28,16 +33,18 @@ type SurveyHook = {
   state: EngineState;
   currentQuestion: RenderedQuestion | null;
   submitAnswer: (answer: string | string[]) => Promise<void>;
-  /** User picked or wrote in their intention. Instantiates the Seer
-   *  inside the engine; survey.seer becomes available once ready. */
+  /** User picked or wrote in their intention. */
   submitIntention: (text: string) => void;
   skipAhead: () => void;
   /** Pre-built Seer once stage === 'reading_ready'. null until then. */
   seer: Seer | null;
+  /** Direct engine handle for actions that don't fit the small wrapper
+   *  (e.g. confirmReturningPerson). Stable identity across renders for
+   *  this hook instance. */
+  engine: SurveyEngine;
 };
 
 export function useSurveyEngine(opts: Options): SurveyHook {
-  // Build the engine exactly once per (apiKey, sessionId) pair.
   const engine = useMemo(() => {
     const client = createClaudeClient(opts.apiKey);
     const adapter = new AnthropicAdapter(client);
@@ -46,7 +53,10 @@ export function useSurveyEngine(opts: Options): SurveyHook {
       session_id: opts.sessionId,
       returning: opts.returning
         ? {
+            person_id: opts.returning.personId,
             profile_seed: opts.returning.profileSeed,
+            answered_node_ids: opts.returning.answeredNodeIds,
+            prior_intentions: opts.returning.priorIntentions,
             prior_session_summary: opts.returning.priorSessionSummary,
           }
         : undefined,
@@ -69,7 +79,6 @@ export function useSurveyEngine(opts: Options): SurveyHook {
   const submitAnswerRef = useRef(engine.submitAnswer.bind(engine));
   const submitIntentionRef = useRef(engine.submitIntention.bind(engine));
   const skipAheadRef = useRef(engine.skipAhead.bind(engine));
-  // Rebind if engine reference changes
   useEffect(() => {
     submitAnswerRef.current = engine.submitAnswer.bind(engine);
     submitIntentionRef.current = engine.submitIntention.bind(engine);
@@ -85,6 +94,6 @@ export function useSurveyEngine(opts: Options): SurveyHook {
     submitIntention: (t) => submitIntentionRef.current(t),
     skipAhead: () => skipAheadRef.current(),
     seer,
+    engine,
   };
 }
-

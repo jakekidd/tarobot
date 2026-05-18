@@ -1,10 +1,16 @@
 // Survey UI — thin shell over the SurveyEngine.
 //
 // The engine owns all logic (state machine, agent firing, phase progression,
-// close criteria). This component just renders the current question, dispatches
-// the right input widget for the question's format, and submits the answer
-// back to the engine. On close, it waits for the Compiler to produce a brief,
-// then hands the brief upstream via onComplete.
+// close criteria). This component handles:
+//   - rendering the current question + dispatching the right input widget
+//   - the returning-user modal (after Q1 name submit)
+//   - persistence: createPerson / updatePerson / appendVisitToPerson at
+//     the right lifecycle moments, plus active-session save threshold
+//   - handoff: on survey close, give the ready Seer to App
+//
+// The save-threshold rule: nothing is persisted to localStorage until the
+// user has answered all 3 openers (name, birthday, has_question). Before
+// that, a half-bailed session leaves no litter.
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Reader } from './reader/Reader';
@@ -15,27 +21,38 @@ import { Spinner } from './Spinner';
 import { BirthdayForm } from './survey/BirthdayForm';
 import { NameForm } from './survey/NameForm';
 import { useSurveyEngine } from './survey/useSurveyEngine';
+import { ReturningUserModal } from './survey/ReturningUserModal';
 import { downloadTranscript, persistLog } from './survey/transcript';
 import { setDizzy } from './scene/dizzyStore';
-import { listSessionNames, saveSession, type Session } from '../storage';
+import {
+  appendVisitToPerson,
+  clearActiveSession,
+  createPersonFromVisit,
+  deletePerson,
+  listKnownNames,
+  saveActiveSession,
+  savePerson,
+  getPerson,
+  type Session,
+  type VisitRecord,
+} from '../storage';
+import { findPeopleMatchingName, pickReturnLine, type ReturningMatch } from '../pipeline/survey';
 import type { Seer } from '../pipeline/seer';
+import type { SurveyProfile } from '../pipeline/survey';
 import { publishDebug, clearDebug } from '../debug/debugBus';
 import { ChatInput } from './ChatInput';
 
-// "ready for the cards" button appears after this many answered questions.
-// Below this, the user has to keep going (so they don't bail at Q2).
 const READY_BUTTON_MIN_TURNS = 6;
 
 type Props = {
   apiKey: string;
   session: Session;
-  /** Survey hands off a ready Seer (intro pre-built) instead of a brief.
-   *  App routes from here to Reading with that Seer. */
+  /** Survey hands off a ready Seer (intro pre-built) instead of a brief. */
   onComplete: (seer: Seer) => void;
 };
 
 export function Survey({ apiKey, session, onComplete }: Props) {
-  const { state, currentQuestion, submitAnswer, submitIntention, skipAhead, seer } = useSurveyEngine({
+  const { state, currentQuestion, submitAnswer, submitIntention, skipAhead, seer, engine } = useSurveyEngine({
     apiKey,
     sessionId: session.id,
   });
@@ -43,36 +60,130 @@ export function Survey({ apiKey, session, onComplete }: Props) {
   const [speaking, setSpeaking] = useState(false);
   const persistedFor = useRef<string | null>(null);
 
-  // Snapshot existing names once at mount for the duplicate-name guard.
-  const existingNames = useMemo(
-    () => new Set(listSessionNames(session.id)),
-    [session.id],
+  // Snapshot existing known names for the soft "this name exists" hint
+  // on the NameForm. Live name-match (which fires the modal) happens on
+  // submit, separately.
+  const existingNames = useMemo<Set<string>>(
+    () => new Set(listKnownNames()),
+    [],
   );
 
-  // Persist partial state to the session so resume rows can show the name.
-  useEffect(() => {
-    if (state.profile.name) {
-      saveSession({
-        ...session,
-        survey: {
-          answers: state.picks_log.map((p) => ({
-            question_id: p.node_id,
-            picked: Array.isArray(p.answer) ? p.answer : [p.answer],
-            passed: p.answer === 'pass' || (typeof p.answer === 'string' && p.answer === 'pass'),
-          })),
-          started_at: state.started_at,
-        },
-      });
-    }
-  }, [state.profile.name, state.picks_log, state.started_at, session]);
+  // ─── returning-user modal state ───────────────────────
+  // null: no modal needed. [...]: matches found, modal blocks until
+  // user picks RESUME or START FRESH.
+  const [pendingMatches, setPendingMatches] = useState<ReturningMatch[] | null>(null);
 
-  // When the Seer is ready, persist the transcript. We do NOT auto-
-  // call onComplete here — the user has to click [ENTER] first to
-  // confirm they're ready to enter the tent.
+  // Wraps submitAnswer for the name question: after the engine accepts
+  // the answer, look for matching Persons. On hit, raise the modal.
+  async function handleNameSubmit(name: string) {
+    await submitAnswer(name);
+    const cleaned = name.trim();
+    if (!cleaned) return;
+    const matches = findPeopleMatchingName(cleaned);
+    if (matches.length > 0) setPendingMatches(matches);
+  }
+
+  // ─── returning-user line (mascot) ─────────────────────
+  // Set when user picks RESUME on the modal. Rendered in the dialogue
+  // slot for one tick, then cleared so the next question's preamble
+  // takes over.
+  const [returnLine, setReturnLine] = useState<string | null>(null);
+
+  function handleResume(match: ReturningMatch) {
+    engine.confirmReturningPerson(match);
+    setReturnLine(pickReturnLine(state.profile.name));
+    setPendingMatches(null);
+  }
+
+  function handleStartFresh() {
+    if (pendingMatches) {
+      // Hard-delete every matched Person under this name. The user
+      // explicitly chose to overwrite — we honor that.
+      for (const m of pendingMatches) deletePerson(m.person_id);
+    }
+    engine.confirmStartFresh();
+    setPendingMatches(null);
+  }
+
+  // ─── save-threshold persistence ───────────────────────
+  // Tracked Person id for THIS visit. null until threshold crosses (or
+  // RESUME confirmed). After that, every state change updates the Person.
+  const personIdRef = useRef<string | null>(null);
+  const [personIdState, setPersonIdState] = useState<string | null>(null); // for re-render triggers if needed
+
+  useEffect(() => {
+    // Mirror engine.state.person_id (set by confirmReturningPerson).
+    if (state.person_id && personIdRef.current !== state.person_id) {
+      personIdRef.current = state.person_id;
+      setPersonIdState(state.person_id);
+    }
+  }, [state.person_id]);
+
+  useEffect(() => {
+    if (!allOpenersAnswered(state.profile)) return;
+    const profileSnapshot = cloneProfile(state.profile);
+    const answeredFromSession = state.picks_log.map((p) => p.node_id);
+
+    if (personIdRef.current === null) {
+      // Crossing the threshold for the first time as a NEW user. Create
+      // a Person shell now so the resume list shows them.
+      const visit: VisitRecord = {
+        visit_id: state.session_id,
+        started_at: state.started_at,
+        answered_node_ids: answeredFromSession,
+      };
+      const p = createPersonFromVisit({ profile: profileSnapshot, visit });
+      personIdRef.current = p.id;
+      setPersonIdState(p.id);
+    } else {
+      // Update the existing Person's profile + answered union as the
+      // visit progresses. We do NOT push a new visit record here — only
+      // at survey close.
+      const existing = getPerson(personIdRef.current);
+      if (existing) {
+        const unionAnswered = Array.from(new Set([...existing.history.answered_node_ids, ...answeredFromSession]));
+        savePerson({
+          ...existing,
+          profile: profileSnapshot,
+          history: {
+            ...existing.history,
+            answered_node_ids: unionAnswered,
+          },
+        });
+      }
+    }
+
+    // Save the active session so resume works mid-visit.
+    saveActiveSession({
+      ...session,
+      person_id: personIdRef.current ?? undefined,
+      engine: state,
+    });
+  }, [state, session]);
+
+  // ─── close: fold visit into Person, hand off seer ─────
   useEffect(() => {
     if (state.stage === 'reading_ready' && seer && persistedFor.current !== state.session_id) {
       persistLog(state, null);
       persistedFor.current = state.session_id;
+
+      // Finalize: append this completed visit to the Person record.
+      const pid = personIdRef.current;
+      if (pid) {
+        const visit: VisitRecord = {
+          visit_id: state.session_id,
+          started_at: state.started_at,
+          completed_at: Date.now(),
+          intention: state.chosen_intention ?? undefined,
+          answered_node_ids: state.picks_log.map((p) => p.node_id),
+        };
+        appendVisitToPerson({
+          person_id: pid,
+          profile: cloneProfile(state.profile),
+          visit,
+        });
+      }
+      clearActiveSession();
     }
   }, [state.stage, seer, state]);
 
@@ -81,37 +192,29 @@ export function Survey({ apiKey, session, onComplete }: Props) {
     onComplete(seer);
   }
 
-  // Push engine.thinking → dizzy scene store. Clear on unmount so the cat
-  // doesn't stay dizzy if Survey navigates away mid-thought.
+  // ─── existing side effects (dizzy, debug) ─────────────
   useEffect(() => {
     setDizzy(state.thinking);
   }, [state.thinking]);
-  useEffect(() => {
-    return () => setDizzy(false);
-  }, []);
+  useEffect(() => () => setDizzy(false), []);
 
-  // Publish survey state for the debug overlay + the queue panel.
   useEffect(() => {
     publishDebug('survey.thinking', state.thinking);
     publishDebug('survey.picks', state.picks_log.length);
     publishDebug('survey.queue', state.queue.map((q) => q.node_id).join(','));
     publishDebug('survey.asked', state.asked_node_ids.join(','));
-  }, [state.thinking, state.picks_log.length, state.queue, state.asked_node_ids]);
+    publishDebug('survey.person', personIdState ?? '');
+  }, [state.thinking, state.picks_log.length, state.queue, state.asked_node_ids, personIdState]);
   useEffect(() => () => {
     clearDebug('survey.thinking');
     clearDebug('survey.picks');
     clearDebug('survey.queue');
     clearDebug('survey.asked');
     clearDebug('survey.inflight');
+    clearDebug('survey.person');
   }, []);
 
   // ─── render ───────────────────────────────────────────
-  // Single layout structure for all states so nothing reflows between
-  // questions, thinking pauses, or the compile step. Reader is always
-  // mounted (the scene reads its bbox + applies dizzy/eye-spin overrides);
-  // the dialogue slot is always present (text changes); the answer slot
-  // is always present (contents change based on question format or empty
-  // while waiting). Layout is anchored to .ui-frame's fixed height (23rem).
 
   const stage = state.stage;
   const isShamanThinking = stage === 'shaman_thinking';
@@ -122,9 +225,18 @@ export function Survey({ apiKey, session, onComplete }: Props) {
     state.picks_log.length >= READY_BUTTON_MIN_TURNS &&
     !!currentQuestion;
 
+  // Last intention from prior visits — soft hint near the intention picker.
+  const lastIntention = state.prior_intentions[0] ?? null;
+
   let dialogText = '';
   let dialogKey = 'empty';
-  if (isShamanThinking) {
+  if (returnLine) {
+    dialogText = returnLine;
+    dialogKey = 'return-line';
+  } else if (pendingMatches) {
+    dialogText = 'wait. let me look at you.';
+    dialogKey = 'returning-check';
+  } else if (isShamanThinking) {
     dialogText = '…';
     dialogKey = 'shaman';
   } else if (isAwaitingIntention) {
@@ -143,6 +255,16 @@ export function Survey({ apiKey, session, onComplete }: Props) {
     dialogKey = 'thinking';
   }
 
+  // Clear the return line one tick after it's shown, so the next
+  // question's preamble takes over the dialogue slot.
+  useEffect(() => {
+    if (!returnLine) return;
+    const t = setTimeout(() => setReturnLine(null), 2200);
+    return () => clearTimeout(t);
+  }, [returnLine]);
+
+  const modalOpen = pendingMatches !== null;
+
   return (
     <div className="screen screen--survey">
       <Reader isSpeaking={speaking} />
@@ -155,18 +277,18 @@ export function Survey({ apiKey, session, onComplete }: Props) {
 
       <div className="ui-frame ui-frame--survey">
         <div className="ui-frame__choices">
-          {currentQuestion?.format === 'text' && (
+          {!modalOpen && currentQuestion?.format === 'text' && (
             <NameForm
               existingNames={existingNames}
-              onSubmit={(name) => void submitAnswer(name)}
+              onSubmit={(name) => void handleNameSubmit(name)}
             />
           )}
 
-          {currentQuestion?.format === 'date' && (
+          {!modalOpen && currentQuestion?.format === 'date' && (
             <BirthdayForm onSubmit={(iso) => void submitAnswer(iso)} />
           )}
 
-          {currentQuestion?.format === 'matrix' && currentQuestion.axes && (
+          {!modalOpen && currentQuestion?.format === 'matrix' && currentQuestion.axes && (
             <Matrix2x2Choice
               key={currentQuestion.node_id}
               axes={{ x: currentQuestion.axes[0], y: currentQuestion.axes[1] }}
@@ -175,7 +297,7 @@ export function Survey({ apiKey, session, onComplete }: Props) {
             />
           )}
 
-          {currentQuestion &&
+          {!modalOpen && currentQuestion &&
             (currentQuestion.format === 'choice' || currentQuestion.format === 'binary') && (
             <MultipleChoice
               key={currentQuestion.node_id}
@@ -198,11 +320,18 @@ export function Survey({ apiKey, session, onComplete }: Props) {
           )}
 
           {isAwaitingIntention && state.intentions_offered.length > 0 && (
-            <MultipleChoice
-              key="intentions"
-              suggestions={state.intentions_offered}
-              onPick={(v) => submitIntention(v)}
-            />
+            <div className="survey__intentions">
+              {lastIntention && (
+                <p className="survey__last-intention">
+                  last time you asked: <em>{lastIntention}</em>
+                </p>
+              )}
+              <MultipleChoice
+                key="intentions"
+                suggestions={state.intentions_offered}
+                onPick={(v) => submitIntention(v)}
+              />
+            </div>
           )}
 
           {isAwaitingIntention && state.intentions_offered.length === 0 && (
@@ -213,10 +342,7 @@ export function Survey({ apiKey, session, onComplete }: Props) {
         </div>
       </div>
 
-      {/* Persistent text input. During survey: writes a custom answer
-          to the current question. During awaiting_intention: writes
-          the user's own intention. */}
-      {stage === 'questions' && currentQuestion && currentQuestion.format !== 'text' && currentQuestion.format !== 'date' && (
+      {!modalOpen && stage === 'questions' && currentQuestion && currentQuestion.format !== 'text' && currentQuestion.format !== 'date' && (
         <div className="survey__chat-slot">
           <ChatInput
             placeholder="or type your own answer"
@@ -263,6 +389,35 @@ export function Survey({ apiKey, session, onComplete }: Props) {
           </button>
         )}
       </div>
+
+      {pendingMatches && (
+        <ReturningUserModal
+          name={state.profile.name}
+          matches={pendingMatches}
+          onResume={handleResume}
+          onStartFresh={handleStartFresh}
+        />
+      )}
     </div>
   );
 }
+
+// ─── helpers ────────────────────────────────────────────
+
+const OPENER_IDS_FOR_THRESHOLD = ['name', 'birthday', 'has_question'] as const;
+
+function allOpenersAnswered(profile: SurveyProfile): boolean {
+  return (
+    profile.name.trim().length > 0 &&
+    profile.birthday !== null &&
+    profile.has_question_mode !== null
+  );
+}
+
+function cloneProfile(p: SurveyProfile): SurveyProfile {
+  return JSON.parse(JSON.stringify(p)) as SurveyProfile;
+}
+
+// Unused helper kept for documentation: which opener ids count toward the
+// save threshold. Mirrors allOpenersAnswered's logic.
+void OPENER_IDS_FOR_THRESHOLD;
