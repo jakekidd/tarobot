@@ -33,16 +33,23 @@ export function createTurtleMascot(): Mascot {
       (gltf) => {
         const root = gltf.scene;
 
-        // DEBUG: skipping all transforms (center/scale/rotation) to
-        // isolate whether the SkinnedMesh skinning math is the problem.
-        // Add root raw + log everything we can find about its children.
+        // Normalize: center on origin + scale longest axis to 1. The
+        // rig applies anchor.width on top. Without this, the source
+        // model (~86 world units in its longest dim) renders at
+        // ~12,000 px after the rig scale and you only see the middle
+        // pixel.
         const box = new THREE.Box3().setFromObject(root);
         const size = new THREE.Vector3();
         box.getSize(size);
         const maxDim = Math.max(size.x, size.y, size.z) || 1;
+        const center = new THREE.Vector3();
+        box.getCenter(center);
+        root.position.sub(center);
+        root.scale.setScalar(1 / maxDim);
         console.info(
           '[turtleMascot] root bbox:', JSON.stringify(box.min), 'to', JSON.stringify(box.max),
           '· size:', JSON.stringify(size),
+          '· scaled to 1/maxDim =', (1 / maxDim).toFixed(4),
         );
 
         // DEBUG: MeshNormalMaterial colors by surface normal direction.
@@ -85,21 +92,10 @@ export function createTurtleMascot(): Mascot {
           '[turtleMascot] meshes:', meshCount,
           '· skinned:', skinnedCount,
         );
-        void maxDim;  // intentionally unused — see debug-bypass above
 
-        // DEBUG: no rotation either — pure raw add.
+        // Tilt 90° on X so the turtle faces the camera.
+        root.rotation.set(Math.PI * 0.5, 0, 0);
         group.add(root);
-
-        // DEBUG: control mesh — plain green sphere parented to the
-        // group, no skinning, no skeleton. If this renders but the
-        // turtle doesn't, the issue is the SkinnedMesh specifically
-        // (not the group, the scene, or the camera).
-        const controlGeom = new THREE.SphereGeometry(0.3, 12, 8);
-        const controlMat = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
-        const controlMesh = new THREE.Mesh(controlGeom, controlMat);
-        controlMesh.position.set(0.5, 0, 0);  // offset so it's not inside red box
-        group.add(controlMesh);
-        disposables.push(controlGeom, controlMat);
 
         // DEBUG: explicit unit-cube wireframe in the group's local space.
         // depthTest=false so it draws over ANYTHING — particles, scene,
