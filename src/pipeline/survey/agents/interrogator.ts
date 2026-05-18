@@ -2,7 +2,7 @@
 // question from the basket, optionally adds a preamble + options
 // override.
 
-import type { LLMAdapter } from '../adapter';
+import type { LLMAdapter } from '../../llm/adapter';
 import { InterrogatorOutputSchema } from '../schemas';
 import { INTERROGATOR_SYSTEM, INTERROGATOR_TOOL } from '../prompts/interrogator';
 import type { InterrogatorOutput, PipelineContext } from '../types';

@@ -29,6 +29,34 @@ delete from here.
 
 ## just-deferred (most recent first)
 
+### warning-that-lands as a first-class concept
+The seer's value-prop includes warning-that-lands: a specific blindspot
+or pitfall named with weight, not a generic caution. Today this is
+implicit — cognition's `intent` field on a Set CAN be a warning verb,
+but there's no structured support. The reading depends on cognition
+landing on a warning verb in the right moment, which is fragile.
+
+Engineer it as a first-class output:
+
+  Set { ... warning?: { specific_thing_to_watch_for, why_now } }
+
+Cognition emits it only when the card+context genuinely supports it.
+Persona renders it in voice ("the part of you that handled it last
+time is not the part that handles it now"). Low-stakes when null;
+load-bearing when populated. Should land 1-2x per reading max — over-
+emit and warnings become noise.
+
+### webcam / live-reaction capture (production, much later)
+In production, the tarot reading is a live experience. Atmosphere is
+delivered by peripherals (table, candle, scene). The reads-the-room
+loop could pull from a webcam: user expression (mild surprise vs flat),
+posture shifts, sustained gaze on a specific card.
+
+This is far future. Note here because it changes what "cognition
+sees between cards" eventually looks like — not just chat-history, but
+affect signals. Until then, chat history + per-beat-flip latency is
+the only reaction channel.
+
 ### underline emphasis — markup-driven, animated-in-hindsight
 User wants the seer's monologues to underline key phrases with an
 animated `clip-path` reveal that lags slightly behind the typewriter —

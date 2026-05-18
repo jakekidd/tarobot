@@ -109,6 +109,19 @@ export type Set = {
   /** One line connecting this beat back to THE choice. The specific
    *  angle this card illuminates the user-at-the-fork from. */
   through_line: string;
+  /** Optional. A reframe — "you believe X about yourself / the
+   *  situation; the card licenses a different angle." When populated,
+   *  the persona is invited to voice the swap directly: 'you think
+   *  you're hesitating because of him. you're hesitating because of
+   *  you.' Cognition emits this ONLY when the card genuinely supports
+   *  a reframe; most beats won't have one. Null/omitted otherwise. */
+  reframe?: {
+    /** What the user currently believes (about themselves, the
+     *  situation, the other person). Concrete, citable from picks. */
+    user_belief: string;
+    /** What the card licenses as the alternative angle. Specific. */
+    cards_invitation: string;
+  };
 };
 
 /** @deprecated Use Set. Kept transiently for any consumer still importing. */

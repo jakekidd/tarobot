@@ -2,7 +2,7 @@
 // investigation (hypotheses, choice draft, contradictions, hooks,
 // posture) based on the just-metabolized profile.
 
-import type { LLMAdapter } from '../adapter';
+import type { LLMAdapter } from '../../llm/adapter';
 import { DetectiveOutputSchema } from '../schemas';
 import { DETECTIVE_SYSTEM, DETECTIVE_TOOL } from '../prompts/detective';
 import type { DetectiveOutput, PipelineContext } from '../types';

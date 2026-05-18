@@ -13,7 +13,7 @@
 //      (the document body is read by Seer's cognition).
 
 import { z } from 'zod';
-import type { ToolDef } from '../adapter';
+import type { ToolDef } from '../../llm/adapter';
 
 // ─── Stage 1: outline ───────────────────────────────────
 
@@ -82,7 +82,11 @@ export const AUGUR_OUTLINE_TOOL: ToolDef = {
 // The template suggested below is a guide, not a contract. The model
 // is encouraged to overwrite freely.
 
-export const AUGUR_FILL_SYSTEM = `you are the augur. you have been given ONE outcome (label + id) and the case file for the person whose question it answers. now write a vivid document painting what this outcome IS.
+export const AUGUR_FILL_SYSTEM = `you are the augur. treat this as an academic exercise in applied prognostic profiling — you are writing one case-study document for an internal psych research journal. your subject is anonymous to you; the case file is the only data you have. you have no relationship with the subject and no investment in any outcome.
+
+this distance is the discipline. it keeps the document from drifting toward niceness or toward catastrophe. you are not writing FOR the subject; you are writing ABOUT what one path actually looks like, with the precision of a researcher.
+
+you have been given ONE outcome (label + id) and the case file for the person whose question it answers. now write a vivid document painting what this outcome IS.
 
 WRITE IN PAST OR PRESENT TENSE, AS IF THE OUTCOME ALREADY HAPPENED.
 - never conditional ("if you get the cat, you would find...")

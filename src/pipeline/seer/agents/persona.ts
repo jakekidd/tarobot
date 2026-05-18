@@ -9,9 +9,9 @@
 //                                  cuts ~50% off chat-reply latency.
 // When local OSS LLM swap lands, these are the call sites to repoint.
 
-import type { LLMAdapter } from '../survey/adapter';
-import { MonologueSchema } from './schemas';
-import { sanitizeMonologue as sanitize } from './sanitize';
+import type { LLMAdapter } from '../../llm/adapter';
+import { MonologueSchema } from '../schemas';
+import { sanitizeMonologue as sanitize } from '../sanitize';
 import {
   PER_CARD_PERSONA_SYSTEM,
   PER_CARD_PERSONA_TOOL,
@@ -21,14 +21,14 @@ import {
   CLOSING_PERSONA_TOOL,
   CHAT_PERSONA_SYSTEM,
   CHAT_PERSONA_TOOL,
-} from './prompts/persona';
+} from '../prompts/persona';
 import type {
   ChatPersonaInput,
   ClosingPersonaInput,
   IntroPersonaInput,
   Monologue,
   PerCardPersonaInput,
-} from './types';
+} from '../types';
 
 
 export async function personaPerCard(

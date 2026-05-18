@@ -1,7 +1,7 @@
 // Observer — stage 1 of the survey pipeline. Metabolizes the latest
 // answer into profile notes + cast updates.
 
-import type { LLMAdapter } from '../adapter';
+import type { LLMAdapter } from '../../llm/adapter';
 import { ObserverOutputSchema } from '../schemas';
 import { OBSERVER_SYSTEM, OBSERVER_TOOL } from '../prompts/observer';
 import type { ObserverOutput, PipelineContext } from '../types';

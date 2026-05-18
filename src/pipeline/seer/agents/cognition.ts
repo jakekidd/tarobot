@@ -2,8 +2,8 @@
 // routes through adapter.invoke(). No SDK calls live in here.
 
 import { z } from 'zod';
-import type { LLMAdapter } from '../survey/adapter';
-import { SetSchema, ClosingIntentSchema } from './schemas';
+import type { LLMAdapter } from '../../llm/adapter';
+import { SetSchema, ClosingIntentSchema } from '../schemas';
 import {
   PER_CARD_COGNITION_SYSTEM,
   PER_CARD_COGNITION_TOOL,
@@ -11,14 +11,14 @@ import {
   CLOSING_COGNITION_TOOL,
   INTRO_COGNITION_SYSTEM,
   INTRO_COGNITION_TOOL,
-} from './prompts/cognition';
+} from '../prompts/cognition';
 import type {
   Set,
   ClosingCognitionInput,
   ClosingIntent,
   IntroCognitionInput,
   PerCardCognitionInput,
-} from './types';
+} from '../types';
 
 export async function cognitionPerCard(
   adapter: LLMAdapter,

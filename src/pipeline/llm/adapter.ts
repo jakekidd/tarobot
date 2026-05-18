@@ -1,14 +1,16 @@
 // LLMAdapter — the single interface every agent call goes through.
-// Concrete implementations swap at construction. The engine + agents never
-// import a model SDK directly; only the adapter does.
+//
+// Lives in pipeline/llm/ as shared infrastructure: both SurveyEngine
+// and SeerEngine route every model call through here. The concrete
+// adapter (Anthropic) is the only file that imports the SDK; the
+// interface stays vendor-agnostic so an Ollama / llama.cpp swap is
+// one file later.
+//
+// Zero coupling to either engine. Types referenced here are general
+// (ZodType for schema validation) — engine-specific output types
+// live with their engines.
 
 import type { ZodType } from 'zod';
-import type {
-  DetectiveOutput,
-  InterrogatorOutput,
-  ObserverOutput,
-  PipelineContext,
-} from './types';
 
 /** Abstract model tier — concrete adapters map to specific model IDs. */
 export type ModelTier = 'fast' | 'cognition' | 'deep';
@@ -49,13 +51,3 @@ export interface LLMAdapter {
   invokeFreeform(spec: FreeformSpec): Promise<string>;
 }
 
-/**
- * Higher-level helpers for typed agent calls. These exist so the engine code
- * stays focused on orchestration; the actual prompt-building lives in
- * agents/*.ts which builds an InvocationSpec and routes through invoke().
- */
-export type AgentRunners = {
-  runObserver(ctx: PipelineContext): Promise<ObserverOutput>;
-  runDetective(ctx: PipelineContext): Promise<DetectiveOutput>;
-  runInterrogator(ctx: PipelineContext): Promise<InterrogatorOutput>;
-};

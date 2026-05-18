@@ -4,7 +4,7 @@
 // Seer with the fixture profile + a fresh card draw + the preferred
 // intro short-circuit.
 
-import type { LLMAdapter } from '../survey/adapter';
+import type { LLMAdapter } from '../llm/adapter';
 import type { Choice, Profile } from '../types';
 import { drawForSpread } from '../cards';
 import { FOUR_CARD_DIAMOND } from '../spreads';

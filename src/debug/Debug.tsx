@@ -5,7 +5,7 @@
 
 import { useEffect, useState } from 'react';
 import { audioState } from '../ui/sound/sound';
-import { getInFlight } from '../pipeline/survey/adapter-anthropic';
+import { getInFlight } from '../pipeline/llm';
 import { isUsingTreeOverride } from '../pipeline/survey';
 import {
   getDebugSnapshot,

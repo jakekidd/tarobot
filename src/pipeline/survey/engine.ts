@@ -11,7 +11,7 @@
 //
 // See docs/SURVEY_PIPELINE.md for design rationale.
 
-import type { LLMAdapter } from './adapter';
+import type { LLMAdapter } from '../llm/adapter';
 import { runObserver } from './agents/observer';
 import { runDetective } from './agents/detective';
 import { runInterrogator } from './agents/interrogator';

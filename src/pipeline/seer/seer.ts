@@ -26,16 +26,16 @@
 // (cognition stall vs persona stall) so eventually-local-OSS-LLM costs
 // are visually distinguishable today.
 
-import type { LLMAdapter } from '../survey/adapter';
+import type { LLMAdapter } from '../llm/adapter';
 import type { DrawnCards, Profile } from '../types';
 import type { PickEvent } from '../survey';
-import { cognitionPerCard, cognitionClosing, cognitionIntro } from './cognition';
+import { cognitionPerCard, cognitionClosing, cognitionIntro } from './agents/cognition';
 import {
   personaPerCard,
   personaIntro,
   personaClosing,
   personaChat,
-} from './persona';
+} from './agents/persona';
 import type {
   ChatMessage,
   Outcome,

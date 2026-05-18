@@ -10,7 +10,7 @@
 
 import { z } from 'zod';
 import { SetSchema, ClosingIntentSchema } from '../schemas';
-import type { ToolDef } from '../../survey/adapter';
+import type { ToolDef } from '../../llm/adapter';
 
 // ─── Per-card cognition (prepares the Set) ─────────────────────
 
@@ -59,6 +59,11 @@ YOU OUTPUT a single Set — given circumstances for the performer:
 - uncertainty: 0-1 sentence. what is genuinely unclear. the seer may voice this AS uncertainty — that is eerier than false confidence. example: "uncertain whether the work-grief is real or a stand-in for the relational grief."
 
 - through_line: ONE sentence. the angle this card illuminates the participant's relationship to the CHOICE from. binds this beat to the spine. NOT a prediction. example: "what she carries away from the mother will limit what she can build wherever she goes next."
+
+- reframe (OPTIONAL): emit this ONLY when the card genuinely supports it. a reframe = the participant believes X about themselves or the situation; the card licenses a different angle. the persona will voice the swap directly when it's there. structure:
+    user_belief: "she thinks she is hesitating because of him"
+    cards_invitation: "the card says she is hesitating because of her"
+  most beats will NOT have a reframe — emit only when there is one to make. over-emit and the technique loses its weight. AT MOST one reframe per reading.
 
 YOU DO NOT:
 - write the seer's words. the persona walks onto your set and speaks; you do not put words in her mouth.

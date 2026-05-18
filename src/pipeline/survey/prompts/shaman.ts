@@ -6,7 +6,7 @@
 
 import { z } from 'zod';
 import { ShamanOutputSchema } from '../schemas';
-import type { ToolDef } from '../adapter';
+import type { ToolDef } from '../../llm/adapter';
 
 export const SHAMAN_SYSTEM = `you are the shaman.
 

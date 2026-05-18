@@ -8,7 +8,7 @@
 
 import { z } from 'zod';
 import { InterrogatorOutputSchema } from '../schemas';
-import type { ToolDef } from '../adapter';
+import type { ToolDef } from '../../llm/adapter';
 
 export const INTERROGATOR_SYSTEM = `you are the interrogator.
 

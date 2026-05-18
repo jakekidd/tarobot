@@ -16,13 +16,13 @@ export {
   cognitionIntro,
   cognitionPerCard,
   cognitionClosing,
-} from './cognition';
+} from './agents/cognition';
 export {
   personaPerCard,
   personaIntro,
   personaClosing,
   personaChat,
-} from './persona';
+} from './agents/persona';
 
 export type {
   ChatMessage,

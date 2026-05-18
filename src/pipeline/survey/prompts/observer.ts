@@ -11,7 +11,7 @@
 
 import { z } from 'zod';
 import { ObserverOutputSchema } from '../schemas';
-import type { ToolDef } from '../adapter';
+import type { ToolDef } from '../../llm/adapter';
 
 export const OBSERVER_SYSTEM = `you are the observer.
 

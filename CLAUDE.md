@@ -137,16 +137,28 @@ the openers; Compiler runs once at survey close.
   retries once, then falls back deterministically rather than crashing the
   engine.
 
-### Reading engine (`src/pipeline/reading/`)
+### Seer engine (`src/pipeline/seer/`)
 
-Fan-out architecture (replaced the earlier Plan-and-Write). The user picks
-which face-down card to flip next; the engine pre-computes a monologue per
-hypothetical-next-flip, in parallel, while the user reads the previous
-beat. Latency disappears behind delivery. Director (cognition) and
-performer (persona) stay separated at every step.
+The seer is the live tarot reader. Implementation is a `SeerEngine` class
+(peer to `SurveyEngine`) that hosts two internal agent tiers — cognition
+(clinical, slower) and persona (voiced, fast) — and orchestrates four
+behavior tranches via them: intro, per-card, chat, outro.
 
-The persona is **the Seer**. Voice register: composed, low-volume,
-mirror-shaped, no advise/moralize/verdict. Lowercase output throughout.
+Constructed at survey close. Takes `{ profile, surveyHistory, intention,
+drawn, outcomes }`. Constructor synchronously kicks off the intro
+pipeline (`cognitionIntro → personaIntro`) and exposes `ready: Promise<void>`.
+UI gates the [ENTER] button on that promise.
+
+Persona is **the Seer**: composed, low-volume, mirror-shaped, no
+advise/moralize/verdict. Lowercase. Cognition is the director who
+prepares the Set the persona walks onto.
+
+**Tranches:**
+- **intro** — serial cognition → persona (once, at construction)
+- **per-card** — serial cognition → persona, speculatively pre-computed for
+  every face-down slot via fan-out
+- **chat** — persona-only (cognition lives in TODO backlog)
+- **outro** — serial cognition → persona (after 4th flip)
 
 Calls per round R (revealed.length + 1):
 - For each still-face-down slot S: `cognitionPerCard(S, R, history)` →
@@ -208,10 +220,10 @@ tarot birth card). Treat these as ground truth; do not duplicate inline.
 |---|---|
 | App phase machine, routing | `src/App.tsx` |
 | Anthropic client + MODELS + tier→model map | `src/pipeline/claude.ts` |
-| LLMAdapter interface (provider-agnostic) | `src/pipeline/survey/adapter.ts` |
-| Concrete Anthropic adapter (only file that imports SDK) | `src/pipeline/survey/adapter-anthropic.ts` |
-| Survey engine + agents | `src/pipeline/survey/` |
-| Reading engine + prompts | `src/pipeline/reading/` |
+| LLMAdapter interface (provider-agnostic) | `src/pipeline/llm/adapter.ts` |
+| Concrete Anthropic adapter (only file that imports SDK) | `src/pipeline/llm/adapter-anthropic.ts` |
+| SurveyEngine + agents (observer/detective/interrogator/shaman/augur) | `src/pipeline/survey/` |
+| SeerEngine + agents (cognition/persona) | `src/pipeline/seer/` |
 | Card draw mechanics | `src/pipeline/cards.ts` |
 | Spread definitions | `src/pipeline/spreads.ts` |
 | three.js scene (Clat + eyes + perspective table/cards + scene stores) | `src/ui/scene/`, `src/ui/scene/TarobotScene.tsx` |

@@ -4,8 +4,11 @@
 export { SurveyEngine } from './engine';
 export type { EngineOpts } from './engine';
 
-export { AnthropicAdapter } from './adapter-anthropic';
-export type { LLMAdapter, ModelTier, ToolDef, InvocationSpec, AgentRunners } from './adapter';
+// Adapter moved to ../llm. These re-exports stay so older imports
+// (survey was the original adapter home) keep working — newer code
+// should import from '../llm' directly.
+export { AnthropicAdapter } from '../llm';
+export type { LLMAdapter, ModelTier, ToolDef, InvocationSpec } from '../llm';
 
 export { findReturningUser, seedFromReturning } from './returning';
 export type { ReturningMatch } from './returning';

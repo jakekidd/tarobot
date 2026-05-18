@@ -8,7 +8,7 @@
 // Output: Outcome[]. Consumed by Seer (passed in via SeerOpts.outcomes)
 // and read by all subsequent per-card / closing / intro cognition calls.
 
-import type { LLMAdapter } from '../adapter';
+import type { LLMAdapter } from '../../llm/adapter';
 import {
   AUGUR_OUTLINE_SCHEMA,
   AUGUR_OUTLINE_SYSTEM,

@@ -18,6 +18,10 @@ export const SetSchema = z.object({
   knows: z.array(z.string()).min(0).max(5),
   uncertainty: z.string(),
   through_line: z.string(),
+  reframe: z.object({
+    user_belief: z.string(),
+    cards_invitation: z.string(),
+  }).optional(),
 });
 
 /** @deprecated Use SetSchema. */

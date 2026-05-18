@@ -2,7 +2,7 @@
 // the detective's intention-guess stack, returns 4 candidate
 // intention questions for the user to pick from.
 
-import type { LLMAdapter } from '../adapter';
+import type { LLMAdapter } from '../../llm/adapter';
 import { ShamanOutputSchema } from '../schemas';
 import { SHAMAN_SYSTEM, SHAMAN_TOOL } from '../prompts/shaman';
 import type { ShamanInput, ShamanOutput } from '../types';
