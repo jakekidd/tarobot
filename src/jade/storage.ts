@@ -1,16 +1,14 @@
-// Local persistence for the edited tree. Every change writes immediately,
-// so a reload never loses progress. On load, prefer the stored copy over
-// the bundled defaults — the friend is iterating on her version, not the
-// shipped one.
+// Local persistence for the Jade-edited tree. The Jade UI uses this to
+// preserve in-progress edits across reloads and to export JSON.
 //
-// The survey engine consumes the active tree via `setActiveTree()` in
-// pipeline/survey/tree.ts. We push to it at:
-//   - app boot (applyJadeOverrideAtBoot, called from main.tsx)
-//   - every Jade save (saveJadeTree → also pushes live)
+// IMPORTANT: the engine does NOT read this storage. The survey always
+// runs against the bundled tree.json. Jade is an authoring tool; pushing
+// edits live to the engine was an earlier experiment and has been
+// withdrawn. To deploy a Jade edit, export the JSON and replace
+// src/pipeline/survey/tree.json in the repo.
 
 import bundled from '../pipeline/survey/tree.json';
 import type { DialogueTree } from '../pipeline/survey';
-import { setActiveTree } from '../pipeline/survey';
 
 const TREE_KEY = 'tarobot:jade:tree';
 
@@ -41,9 +39,6 @@ export function saveJadeTree(tree: DialogueTree): void {
   } catch {
     /* quota or private mode — silent for now */
   }
-  // Push live to the survey engine so any open survey instance picks up
-  // the change without a reload.
-  setActiveTree(tree);
 }
 
 export function resetJadeTree(): DialogueTree {
@@ -52,7 +47,6 @@ export function resetJadeTree(): DialogueTree {
   } catch {
     /* ignore */
   }
-  setActiveTree(null); // restore bundled defaults
   return clone(BUNDLED_TREE);
 }
 
@@ -71,13 +65,19 @@ export function downloadJadeTree(tree: DialogueTree, filename = 'tree.json'): vo
 }
 
 /**
- * Called once at app boot from main.tsx. Checks localStorage for a saved
- * tree and, if present, hands it to the survey engine BEFORE any survey
- * UI mounts. Safe no-op if nothing is stored.
+ * Called once at app boot from main.tsx. The engine override path has
+ * been withdrawn; this function now performs a one-time cleanup —
+ * wipes any previously-saved Jade tree from localStorage so it can't
+ * silently affect the live survey via stale code paths.
+ *
+ * Safe to call repeatedly; only the FIRST call actually removes data.
  */
 export function applyJadeOverrideAtBoot(): void {
-  const stored = loadStoredTree();
-  if (stored) setActiveTree(stored);
+  try {
+    localStorage.removeItem(TREE_KEY);
+  } catch {
+    /* ignore */
+  }
 }
 
 function clone<T>(v: T): T {

@@ -1,6 +1,5 @@
-import { useEffect, useState, useSyncExternalStore } from 'react';
+import { useEffect, useState } from 'react';
 import type { Seer } from './pipeline/seer';
-import { isUsingTreeOverride, subscribeToOverrideChanges } from './pipeline/survey';
 import {
   loadApiKey,
   newSession,
@@ -44,13 +43,6 @@ export function App() {
     loadApiKey() ? { kind: 'menu' } : { kind: 'key' },
   );
   const { unlocked: jadeUnlocked } = useSecretSequence();
-  // Live-track whether the survey is using Jade's local override, so the
-  // navbar asterisk reacts the moment edits land.
-  const overrideActive = useSyncExternalStore(
-    subscribeToOverrideChanges,
-    isUsingTreeOverride,
-    isUsingTreeOverride,
-  );
 
   // Debug overlay toggle — persists between sessions.
   const [debugVisible, setDebugVisible] = useState<boolean>(() => loadDebugVisible());
@@ -104,13 +96,6 @@ export function App() {
       <header className="app__topbar">
         <div className="app__brand-block">
           <span className="app__brand">tarobot</span>
-          {overrideActive && (
-            <span
-              className="jade-override-asterisk"
-              title="survey is using your local jade edits, not the bundled tree"
-              aria-label="using local survey override"
-            >*</span>
-          )}
           <span className="app__version">v0.0.2-{__APP_COMMIT__}</span>
           <button
             type="button"
