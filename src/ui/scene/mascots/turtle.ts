@@ -17,6 +17,13 @@ const EYE_COLOR = 0xfff7e0;            // warm white — pops inside the silhoue
 const EYE_MESH_NAME = 'Object_38';     // the smaller skinned mesh in the gltf
 const ANIMATION_TIME_SCALE = 0.2;      // 5× slower than native — calm paddle
 const TURTLE_SCALE = 2.0;              // 2× larger than the anchor footprint
+// Violet tint applied to the body materials' base color + a brand-violet
+// emissive add so the turtle reads as "Clat's turtle" even when the
+// scene lights are dim. multiplies the existing texture/color, so any
+// surface detail the gltf carries survives the tint.
+const BODY_TINT = 0xa78bfa;            // light violet — multiplied onto base color
+const BODY_EMISSIVE = 0x7c3aed;        // brand violet — self-lit glow
+const BODY_EMISSIVE_INTENSITY = 0.35;
 
 // Wander shape — two incommensurate frequencies so the path never closes.
 // Amplitudes in positionGroup-local units (rig is ~100 px/unit), so
@@ -44,7 +51,14 @@ export function createTurtleMascot(): Mascot {
 
   // Eye glow — applied in place of the gltf's eye material so the turtle
   // has visible eyes even when the body uses the original PBR skin.
-  const eyeMat = new THREE.MeshBasicMaterial({ color: EYE_COLOR });
+  // depthTest=false so the eyes draw THROUGH the head silhouette — the
+  // eye mesh sits inside the eye sockets and would otherwise be occluded.
+  const eyeMat = new THREE.MeshBasicMaterial({
+    color: EYE_COLOR,
+    depthTest: false,
+  });
+  const bodyTintColor = new THREE.Color(BODY_TINT);
+  const bodyEmissiveColor = new THREE.Color(BODY_EMISSIVE);
 
   let mixer: THREE.AnimationMixer | null = null;
   const disposables: Array<{ dispose: () => void }> = [eyeMat];
@@ -76,9 +90,10 @@ export function createTurtleMascot(): Mascot {
         );
         root.scale.setScalar(1 / maxDim);
 
-        // Keep the gltf's native materials on the body; only replace the
-        // eyes with the warm-white glow. Body materials still get tracked
-        // for disposal so cleanup is leak-free.
+        // Keep the gltf's native materials on the body, but multiply
+        // a violet tint into the base color and add a brand-violet
+        // emissive so the turtle reads as Clat's even in dim light.
+        // Eyes get the warm-white glow material instead.
         root.traverse((obj) => {
           const m = obj as THREE.Mesh;
           if (!m.isMesh) return;
@@ -87,9 +102,18 @@ export function createTurtleMascot(): Mascot {
             if (Array.isArray(orig)) orig.forEach((mat) => mat.dispose?.());
             else orig?.dispose?.();
             m.material = eyeMat;
+            m.renderOrder = 10; // draw after the body so depthTest=false reads cleanly
           } else if (m.material) {
             const mats = Array.isArray(m.material) ? m.material : [m.material];
-            for (const mat of mats) disposables.push(mat);
+            for (const mat of mats) {
+              const std = mat as THREE.MeshStandardMaterial;
+              if (std.color) std.color.multiply(bodyTintColor);
+              if ('emissive' in std) {
+                std.emissive = bodyEmissiveColor.clone();
+                std.emissiveIntensity = BODY_EMISSIVE_INTENSITY;
+              }
+              disposables.push(mat);
+            }
           }
           m.castShadow = false;
           m.receiveShadow = false;
@@ -99,10 +123,11 @@ export function createTurtleMascot(): Mascot {
           if (m.geometry) disposables.push(m.geometry);
         });
 
-        // Face the camera. gltf native orientation has head at -Z (swim
-        // direction), shell at +Y. Camera looks down -Z, so PI on Y
-        // flips the head to +Z (toward camera) with the shell still up.
-        root.rotation.set(0, Math.PI, 0);
+        // Face the camera. The gltf's natural orientation already has
+        // the head at +Z (toward camera) — no Y rotation needed. (Earlier
+        // builds tried Math.PI here based on a wrong assumption about the
+        // gltf's forward axis; that pointed the head AWAY from the camera.)
+        root.rotation.set(0, 0, 0);
         tiltGroup.add(root);
 
         // 2× the anchor footprint.
@@ -134,11 +159,12 @@ export function createTurtleMascot(): Mascot {
     const wy = Math.cos(ctx.t * WANDER_Y_FREQ) * WANDER_Y_AMP;
     group.position.set(wx, wy, 0);
 
-    // Bank into the offset. Negative signs chosen so that when the
-    // turtle is above center, the back tilts away from camera (back-up
-    // pose); when he's to the right, his right side lifts.
-    tiltGroup.rotation.x = -wy * TILT_PER_UNIT;
-    tiltGroup.rotation.z = -wx * TILT_PER_UNIT;
+    // Bank into the offset. With the turtle's head at +Z and right side
+    // at +X, positive X rotation dips the head down (back rises up) and
+    // positive Z rotation lifts the right side. So tilt magnitude tracks
+    // drift direction directly.
+    tiltGroup.rotation.x = wy * TILT_PER_UNIT;
+    tiltGroup.rotation.z = wx * TILT_PER_UNIT;
 
     if (mixer) mixer.update(ctx.dt);
   }
