@@ -34,22 +34,33 @@ export function createTurtleMascot(): Mascot {
         const root = gltf.scene;
 
         // Normalize: center on origin + scale longest axis to 1. The
-        // rig applies anchor.width on top. Without this, the source
-        // model (~86 world units in its longest dim) renders at
-        // ~12,000 px after the rig scale and you only see the middle
-        // pixel.
+        // rig applies anchor.width on top. CRITICAL: three.js composes
+        // localMatrix as T * R * S (translate FIRST, then scale). If
+        // we set `position = -center` (in source units) and `scale = 1/86`,
+        // the translate isn't scaled down with the geometry — the
+        // turtle ends up at world (1, 1.5, 19.5)·scale, which puts it
+        // BEHIND the camera (at z=100) when the rig scales up.
+        // Divide the offset by maxDim so it scales correctly:
+        //   final geometry pos = root.position + scale * geometry_vert
+        // For geometry_vert = center, we want final = 0:
+        //   root.position = -scale * center = -center / maxDim
         const box = new THREE.Box3().setFromObject(root);
         const size = new THREE.Vector3();
         box.getSize(size);
         const maxDim = Math.max(size.x, size.y, size.z) || 1;
         const center = new THREE.Vector3();
         box.getCenter(center);
-        root.position.sub(center);
+        root.position.set(
+          -center.x / maxDim,
+          -center.y / maxDim,
+          -center.z / maxDim,
+        );
         root.scale.setScalar(1 / maxDim);
         console.info(
           '[turtleMascot] root bbox:', JSON.stringify(box.min), 'to', JSON.stringify(box.max),
           '· size:', JSON.stringify(size),
           '· scaled to 1/maxDim =', (1 / maxDim).toFixed(4),
+          '· root.position =', root.position.toArray().map((v) => v.toFixed(4)),
         );
 
         // DEBUG: MeshBasicMaterial cyan — unlit, definitely renders
