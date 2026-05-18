@@ -16,6 +16,7 @@ import { runObserver } from './agents/observer';
 import { runDetective } from './agents/detective';
 import { runInterrogator } from './agents/interrogator';
 import { runShaman } from './agents/shaman';
+import { runAugur } from './agents/augur';
 import { Seer } from '../seer';
 import { drawForSpread } from '../cards';
 import { FOUR_CARD_DIAMOND } from '../spreads';
@@ -272,26 +273,37 @@ export class SurveyEngine {
     if (!cleaned) return;
     if (this.state.stage !== 'awaiting_intention') return;
 
-    // Deterministic identity record from the closed survey state.
-    const profile = assembleProfile(this.state, '');
-    const drawn = drawForSpread(FOUR_CARD_DIAMOND);
-
-    this.seer = new Seer({
-      adapter: this.opts.adapter,
-      profile,
-      surveyHistory: this.state.picks_log,
-      intention: cleaned,
-      drawn,
-    });
-
     this.setState({
       chosen_intention: cleaned,
-      stage: 'compiling',         // re-using 'compiling' stage for "seer-preparing"
+      stage: 'compiling',         // covers Augur + Seer-construction loading
       thinking: true,
     });
     this.emit();
 
-    void this.seer.ready
+    // Deterministic identity record from the closed survey state.
+    const profile = assembleProfile(this.state, '');
+    const drawn = drawForSpread(FOUR_CARD_DIAMOND);
+
+    // Augur runs FIRST (~5-7s, opus×N for outcome fills). When it
+    // resolves, we instantiate Seer with the outcomes — Seer's own
+    // intro pipeline (~3s) then runs to fill state.intro. UI loading
+    // is a single 'compiling' phase covering both.
+    void runAugur(this.opts.adapter, {
+      profile,
+      intention: cleaned,
+      surveyHistory: this.state.picks_log,
+    })
+      .then((outcomes) => {
+        this.seer = new Seer({
+          adapter: this.opts.adapter,
+          profile,
+          surveyHistory: this.state.picks_log,
+          intention: cleaned,
+          drawn,
+          outcomes,
+        });
+        return this.seer.ready;
+      })
       .then(() => {
         this.setState({
           closed: true,
@@ -302,7 +314,7 @@ export class SurveyEngine {
         this.emit();
       })
       .catch((err) => {
-        console.warn('[survey] seer intro failed', err);
+        console.warn('[survey] augur+seer pipeline failed', err);
         this.setState({ thinking: false });
         this.emit();
       });

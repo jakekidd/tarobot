@@ -42,12 +42,33 @@ export type ReadingInputs = {
   preferred_intro?: Monologue;
 };
 
+// ─── Outcomes ───────────────────────────────────────────────
+//
+// An Outcome is a coherent picture of one way the intention could open
+// onto reality. Seeded by the survey-side Augur agent before the Seer
+// is constructed; passed in as Seer input; consumed by all cognition
+// calls (per-card, closing, intro) for texture. Persona does NOT read
+// outcomes directly — cognition embeds specifics from outcomes into
+// the Sets it produces, and the persona voices the Set.
+//
+// `document` is FREELY-formatted markdown — no enforced sections (the
+// Augur prompt suggests a template but the model can blow past it).
+// Per the .txt-team / Castillo research on JSON-vs-prose: structured
+// JSON only where the next consumer is the engine (id + label); prose
+// where the next consumer is another LLM (the document body).
+export type Outcome = {
+  id: string;          // stable across session updates (e.g., 'outcome-cat-yes')
+  label: string;       // short tag, 3-6 words ("jake gets a cat")
+  document: string;    // freely-written markdown, present tense, vivid
+};
+
 // ─── Intro cognition ────────────────────────────────────────
 
 export type IntroCognitionInput = {
   profile: Profile;
   intention: string;
   surveyHistory: PickEvent[];
+  outcomes: Outcome[];
 };
 
 // ─── Per-card cognition (prepares the Set the seer inhabits) ────
@@ -169,6 +190,10 @@ export type ReadingListener = (state: ReadingState) => void;
 export type PerCardCognitionInput = {
   profile: Profile;
   prose_brief: string;
+  /** Outcomes (Augur-seeded) the seer carries through this session.
+   *  Cognition picks WHICH outcome this card sharpens + may embed a
+   *  specific from that outcome into the Set. Persona never sees these. */
+  outcomes: Outcome[];
   /** All slots in the spread (with prompt_labels) so the model knows
    *  the structure, but face information is restricted to this_slot +
    *  already-revealed. */
@@ -216,6 +241,7 @@ export type IntroPersonaInput = {
 export type ClosingCognitionInput = {
   profile: Profile;
   prose_brief: string;
+  outcomes: Outcome[];
   revealed: RevealedSlot[];
   chat_history: ChatMessage[];
 };

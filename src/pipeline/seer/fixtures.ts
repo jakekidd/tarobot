@@ -170,6 +170,11 @@ export function buildMarisolDemoSeer(adapter: LLMAdapter): Seer {
     surveyHistory: [],
     intention: 'Should I move back to Oakland for my mom?',
     drawn: drawForSpread(FOUR_CARD_DIAMOND),
+    // Demo path: no Augur step. cognition's outcomes input is empty;
+    // the persona ride is anchored by the hand-authored MARISOL_INTRO
+    // + prose brief. (TODO: hand-author 2 fixture outcomes so demo
+    // beats have visions to surface, not just the choice draft.)
+    outcomes: [],
     preferred_intro: MARISOL_INTRO,
   });
   // Force the fixture prose_brief into the Seer's internal state so all

@@ -36,6 +36,9 @@ export async function cognitionPerCard(
     cognition_log: input.profile.cognition_log,
     highlights: input.profile.highlights,
     prose_brief: input.prose_brief,
+    // Augur-seeded outcomes — pick the one this card sharpens and
+    // surface a specific from it into the Set the persona will voice.
+    outcomes: input.outcomes.map((o) => ({ id: o.id, label: o.label, document: o.document })),
     spread_id: input.spread_id,
     spread_name: input.spread_name,
     all_positions: input.all_positions,
@@ -44,7 +47,7 @@ export async function cognitionPerCard(
     revealed_history: input.revealed_history,
     chat_history: input.chat_history,
     instruction:
-      'prepare ONE Set for this_slot — given circumstances the seer will inhabit when this card flips. you do not know the other face-down cards.',
+      'prepare ONE Set for this_slot. pick WHICH outcome this card most sharpens — embed at least one specific from that outcome (a name, a scene, a friction) into the Set. you do not know the other face-down cards.',
   };
 
   return adapter.invoke<Set>(
@@ -78,8 +81,12 @@ export async function cognitionIntro(
       options: p.options_shown,
       answer: p.answer,
     })),
+    // Augur outcomes — the brief should orient the seer to what's
+    // ACROSS them (which one she's noticing first, what's at stake in
+    // the user picking either). She does not pitch an outcome.
+    outcomes: input.outcomes.map((o) => ({ id: o.id, label: o.label, document: o.document })),
     instruction:
-      'write the prose brief the seer reads silently before voicing the intro. detective-tier specificity, 200-400 words, third person, the INTENTION is the centerpiece.',
+      'write the prose brief the seer reads silently before voicing the intro. detective-tier specificity, 200-400 words, third person, the INTENTION is the centerpiece. orient the seer ACROSS the outcomes — what is at stake either way — without advocating for one.',
   };
 
   const out = await adapter.invoke<{ prose_brief: string; reasoning: string }>(
@@ -109,6 +116,7 @@ export async function cognitionClosing(
     hunches: input.profile.hunches,
     margin: input.profile.margin,
     prose_brief: input.prose_brief,
+    outcomes: input.outcomes.map((o) => ({ id: o.id, label: o.label, document: o.document })),
     revealed: input.revealed.map((r) => ({
       position_id: r.position_id,
       card_id: r.card_id,
@@ -117,7 +125,7 @@ export async function cognitionClosing(
     })),
     chat_history: input.chat_history,
     instruction:
-      'emit ONE ClosingIntent — a structural takeaway, not a recap. mirror, not oracle.',
+      'emit ONE ClosingIntent — a structural takeaway, not a recap. mirror, not oracle. you may name an outcome by its label if a beat sharpened it; you may not pick one.',
   };
 
   return adapter.invoke<ClosingIntent>(

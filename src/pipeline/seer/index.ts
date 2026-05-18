@@ -32,6 +32,7 @@ export type {
   ClosingIntent,
   IntroCognitionInput,
   Monologue,
+  Outcome,
   NarrativeRole,
   ReadingInputs,
   ReadingListener,

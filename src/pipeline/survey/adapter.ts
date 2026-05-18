@@ -29,13 +29,24 @@ export type InvocationSpec = {
   max_tokens: number;
 };
 
+/** Freeform invocation — no tool, no schema. The model writes prose
+ *  and we take its full assistant-message text. Used for Augur Stage 2
+ *  (outcome documents) and any future agent where the next consumer
+ *  is another LLM and a JSON schema would constrain expressivity. */
+export type FreeformSpec = {
+  system: string;
+  user: string;
+  model: ModelTier;
+  max_tokens: number;
+};
+
 /**
- * The single adapter primitive: invoke a model with a tool spec, get back
- * the validated tool-call output. Concrete adapters handle retries,
- * malformed-output fallbacks, and provider-specific quirks.
+ * The adapter primitives. Concrete impls handle retries, malformed-
+ * output fallbacks, and provider-specific quirks.
  */
 export interface LLMAdapter {
   invoke<T>(spec: InvocationSpec, schema: ZodType<T>): Promise<T>;
+  invokeFreeform(spec: FreeformSpec): Promise<string>;
 }
 
 /**
