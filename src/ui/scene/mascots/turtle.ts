@@ -4,12 +4,19 @@
 // soft Lissajous wander while BANKING into the drift so the back tilts
 // up as he climbs and tilts left/right with horizontal motion.
 //
+// Debug rotation control: when the DEBUG chip is on, arrow keys spin the
+// turtle live, current rotation prints in the debug overlay. Find the
+// orientation you want, copy the values, and bake them into BASE_ROTATION
+// below.
+//
 // Implements the Mascot interface in ./types.ts so the scene can swap
 // it with any other mascot (Clat, future-mascots) without changes
 // elsewhere.
 
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { publishDebug, clearDebug } from '../../../debug/debugBus';
+import { subscribeDebugVisible } from '../../../debug/visibilityStorage';
 import type { Mascot, MascotContext } from './types';
 
 const ASSET_URL = '/mascots/turtle/scene.gltf';
@@ -17,6 +24,13 @@ const EYE_COLOR = 0xfff7e0;            // warm white — pops inside the silhoue
 const EYE_MESH_NAME = 'Object_38';     // the smaller skinned mesh in the gltf
 const ANIMATION_TIME_SCALE = 0.2;      // 5× slower than native — calm paddle
 const TURTLE_SCALE = 2.0;              // 2× larger than the anchor footprint
+const Z_OFFSET = -0.3;                 // push back in positionGroup-local Z
+
+// ↓↓↓ BAKED ORIENTATION — edit this after dialing in via debug arrows. ↓↓↓
+// Order: (x, y, z) in radians.
+const BASE_ROTATION = new THREE.Euler(0, Math.PI, 0);
+// ↑↑↑
+
 // Violet tint applied to the body materials' base color + a brand-violet
 // emissive add so the turtle reads as "Clat's turtle" even when the
 // scene lights are dim. multiplies the existing texture/color, so any
@@ -37,6 +51,9 @@ const WANDER_Y_FREQ = 0.37;
 // of 0.30, that's ~17° tilt at the extreme — readable but not goofy.
 const TILT_PER_UNIT = 1.0;
 
+// Debug rotation: arrow-key increment (radians). ~5.7° per press.
+const DEBUG_ROT_STEP = 0.1;
+
 export function createTurtleMascot(): Mascot {
   const group = new THREE.Group();
   group.visible = false;
@@ -47,6 +64,7 @@ export function createTurtleMascot(): Mascot {
   // which composes cleanly with the head-toward-camera Y rotation
   // baked into root.
   const tiltGroup = new THREE.Group();
+  tiltGroup.position.z = Z_OFFSET;
   group.add(tiltGroup);
 
   // Eye glow — applied in place of the gltf's eye material so the turtle
@@ -60,8 +78,52 @@ export function createTurtleMascot(): Mascot {
   const bodyTintColor = new THREE.Color(BODY_TINT);
   const bodyEmissiveColor = new THREE.Color(BODY_EMISSIVE);
 
-  let mixer: THREE.AnimationMixer | null = null;
+  // Live rotation — starts at BASE_ROTATION, mutated by debug arrow keys.
+  // root.rotation is kept in sync so what you see is what gets reported.
+  const liveRotation = BASE_ROTATION.clone();
+  let rootRef: THREE.Object3D | null = null;
+  let debugVisible = false;
+
+  const mixer: { value: THREE.AnimationMixer | null } = { value: null };
   const disposables: Array<{ dispose: () => void }> = [eyeMat];
+
+  function publishRotation(): void {
+    publishDebug('turtle.rotX', formatRot(liveRotation.x));
+    publishDebug('turtle.rotY', formatRot(liveRotation.y));
+    publishDebug('turtle.rotZ', formatRot(liveRotation.z));
+  }
+
+  function onKey(e: KeyboardEvent): void {
+    if (!debugVisible) return;
+    // Don't hijack arrows while the user is typing in an input/textarea.
+    const tag = (e.target as HTMLElement | null)?.tagName;
+    if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+    let handled = false;
+    switch (e.key) {
+      case 'ArrowLeft':  liveRotation.y -= DEBUG_ROT_STEP; handled = true; break;
+      case 'ArrowRight': liveRotation.y += DEBUG_ROT_STEP; handled = true; break;
+      case 'ArrowUp':    liveRotation.x -= DEBUG_ROT_STEP; handled = true; break;
+      case 'ArrowDown':  liveRotation.x += DEBUG_ROT_STEP; handled = true; break;
+      case '[':          liveRotation.z -= DEBUG_ROT_STEP; handled = true; break;
+      case ']':          liveRotation.z += DEBUG_ROT_STEP; handled = true; break;
+    }
+    if (handled) {
+      e.preventDefault();
+      if (rootRef) rootRef.rotation.copy(liveRotation);
+      publishRotation();
+    }
+  }
+  window.addEventListener('keydown', onKey);
+
+  const unsubDebug = subscribeDebugVisible((v) => {
+    debugVisible = v;
+    if (v) publishRotation();
+    else {
+      clearDebug('turtle.rotX');
+      clearDebug('turtle.rotY');
+      clearDebug('turtle.rotZ');
+    }
+  });
 
   const ready = new Promise<void>((resolve, reject) => {
     const loader = new GLTFLoader();
@@ -123,22 +185,22 @@ export function createTurtleMascot(): Mascot {
           if (m.geometry) disposables.push(m.geometry);
         });
 
-        // Face the camera. Established by elimination: head is at -Z
-        // in the gltf's native frame (verified via R_Y(0) showing the
-        // butt to camera and R_Y(±π/2) showing profiles), so R_Y(π)
-        // brings the head to +Z (toward camera).
-        root.rotation.set(0, Math.PI, 0);
+        // Apply the live rotation (default = BASE_ROTATION, can be
+        // mutated by debug arrow keys).
+        root.rotation.copy(liveRotation);
         tiltGroup.add(root);
+        rootRef = root;
+        if (debugVisible) publishRotation();
 
         // 2× the anchor footprint.
         group.scale.setScalar(TURTLE_SCALE);
 
         if (gltf.animations.length > 0) {
-          mixer = new THREE.AnimationMixer(root);
+          mixer.value = new THREE.AnimationMixer(root);
           const clip = gltf.animations[0];
           if (clip) {
-            mixer.clipAction(clip).play();
-            mixer.timeScale = ANIMATION_TIME_SCALE;
+            mixer.value.clipAction(clip).play();
+            mixer.value.timeScale = ANIMATION_TIME_SCALE;
           }
         }
 
@@ -166,17 +228,27 @@ export function createTurtleMascot(): Mascot {
     tiltGroup.rotation.x = wy * TILT_PER_UNIT;
     tiltGroup.rotation.z = wx * TILT_PER_UNIT;
 
-    if (mixer) mixer.update(ctx.dt);
+    if (mixer.value) mixer.value.update(ctx.dt);
   }
 
   function dispose(): void {
-    if (mixer) mixer.stopAllAction();
+    if (mixer.value) mixer.value.stopAllAction();
     for (const d of disposables) {
       try { d.dispose(); } catch { /* swallow */ }
     }
     disposables.length = 0;
+    window.removeEventListener('keydown', onKey);
+    unsubDebug();
+    clearDebug('turtle.rotX');
+    clearDebug('turtle.rotY');
+    clearDebug('turtle.rotZ');
     if (group.parent) group.parent.remove(group);
   }
 
   return { group, update, dispose, ready };
+}
+
+function formatRot(r: number): string {
+  const deg = (r * 180) / Math.PI;
+  return `${r.toFixed(3)} (${deg.toFixed(1)}°)`;
 }

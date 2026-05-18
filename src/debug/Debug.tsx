@@ -39,6 +39,9 @@ const KEY_ORDER = [
   'errors.count',
   'errors.last',
   'viewport',
+  'turtle.rotX',
+  'turtle.rotY',
+  'turtle.rotZ',
 ];
 
 const KEY_LABEL: Record<string, string> = {
@@ -59,6 +62,9 @@ const KEY_LABEL: Record<string, string> = {
   'errors.count':      'errors',
   'errors.last':       'last err',
   'viewport':          'vp',
+  'turtle.rotX':       'turtle rotX',
+  'turtle.rotY':       'turtle rotY',
+  'turtle.rotZ':       'turtle rotZ',
 };
 
 export function Debug({ visible }: Props) {
