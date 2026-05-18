@@ -1,20 +1,20 @@
-// Cognition-tier prompts for the reading. Two prompts:
+// Director-layer prompts for the reading. Two prompts:
 //   - PER_CARD: one fan-out thread per still-face-down slot, per round.
 //   - CLOSING:  one synthesis pass after all four flips.
 //
-// Cognition is the director / detective. It prepares a SET — Stanislavski
-// "given circumstances" — that the persona will INHABIT. Cognition does
-// NOT write content. It stages the interior state from which the seer
-// will perform. Persona ≠ translator; persona = actor walking onto a
-// prepared scene.
+// The director is the offstage planner / detective. It prepares a SET —
+// Stanislavski "given circumstances" — that the actor will INHABIT. The
+// director does NOT write content. It stages the interior state from
+// which the seer will perform. The actor is not a translator; the actor
+// walks onto a prepared scene.
 
 import { z } from 'zod';
 import { SetSchema, ClosingIntentSchema } from '../schemas';
 import type { ToolDef } from '../../llm/adapter';
 
-// ─── Per-card cognition (prepares the Set) ─────────────────────
+// ─── Per-card director (prepares the Set) ─────────────────────
 
-export const PER_CARD_COGNITION_SYSTEM = `you are the director behind the seer.
+export const PER_CARD_DIRECTOR_SYSTEM = `you are the director behind the seer.
 
 a participant is sitting in front of the seer. four cards are on the table, face down. the participant will pick which card to flip next. you have been spawned to read for ONE specific slot, as if the participant has just chosen that slot for their next flip. you do not know the faces of the OTHER face-down slots — only your own.
 
@@ -75,16 +75,16 @@ YOU DO NOT:
 
 return a single tool call.`;
 
-export const PER_CARD_COGNITION_TOOL: ToolDef = {
+export const PER_CARD_DIRECTOR_TOOL: ToolDef = {
   name: 'prepare_set',
   description:
     'prepare a Set — given circumstances the seer will inhabit when this card flips.',
   input_schema: z.toJSONSchema(SetSchema) as Record<string, unknown>,
 };
 
-// ─── Closing cognition ─────────────────────────────────────────
+// ─── Closing director ─────────────────────────────────────────
 
-export const CLOSING_COGNITION_SYSTEM = `you are the director behind the seer.
+export const CLOSING_DIRECTOR_SYSTEM = `you are the director behind the seer.
 
 all four cards have been flipped and voiced. the reading is closing. you are producing the structural takeaway the participant will carry out of the tent. mirror, not oracle.
 
@@ -105,7 +105,7 @@ YOU DO NOT:
 
 return only the tool call.`;
 
-export const CLOSING_COGNITION_TOOL: ToolDef = {
+export const CLOSING_DIRECTOR_TOOL: ToolDef = {
   name: 'plan_closing',
   description: 'plan the closing takeaway the seer will voice as outro.',
   input_schema: z.toJSONSchema(ClosingIntentSchema) as Record<string, unknown>,
@@ -113,7 +113,7 @@ export const CLOSING_COGNITION_TOOL: ToolDef = {
 
 // ─── INTRO (replaces survey Compiler's prose_brief) ─────────
 
-export const INTRO_COGNITION_SYSTEM = `you are the director behind the seer.
+export const INTRO_DIRECTOR_SYSTEM = `you are the director behind the seer.
 
 the survey is over. the user has named their INTENTION — the specific
 question they bring to the oracle. your job: write the prose brief the
@@ -152,7 +152,7 @@ REGISTER:
 
 return only the tool call.`;
 
-export const INTRO_COGNITION_TOOL: ToolDef = {
+export const INTRO_DIRECTOR_TOOL: ToolDef = {
   name: 'plan_intro',
   description: 'write the prose brief the seer reads silently before voicing her intro. operational, detective-tier specificity, 200-400 words.',
   input_schema: {

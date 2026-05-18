@@ -26,7 +26,7 @@ type Props = {
   onClose?: () => void;
 };
 
-/** Strip persona's `_emphasis_` markers and lowercase everything for
+/** Strip the actor's `_emphasis_` markers and lowercase everything for
  *  the transcript view. (Dialogue uses the markers to drive the
  *  animated underline — transcript is plain text, so the underscores
  *  are noise.) The highlighter handles the user name uppercase. */
@@ -38,7 +38,7 @@ export function Transcript({ items, stallShown, highlights, onClose }: Props) {
   const scrollRef = useRef<HTMLDivElement>(null);
   // New stall phrase each time the stall transitions on.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  const stallPhrase = useMemo(() => pickStall('persona'), [stallShown]);
+  const stallPhrase = useMemo(() => pickStall('actor'), [stallShown]);
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {

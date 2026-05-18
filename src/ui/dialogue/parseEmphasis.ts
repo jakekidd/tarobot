@@ -1,4 +1,4 @@
-// Strips persona's _underscore_ emphasis markers from a string and
+// Strips the actor's _underscore_ emphasis markers from a string and
 // returns the cleaned text + the character ranges where the emphasis
 // lived. The dialogue renderer animates an underline under each range
 // after the typewriter passes through it.

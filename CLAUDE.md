@@ -17,10 +17,15 @@ exists to serve.
 
 Deploy is Vercel static. The browser holds the user's Anthropic API key and
 calls the model directly — there is no backend, no database, no auth layer.
-Persistence is `localStorage` only. The cognition library
+Persistence is `localStorage` only. The pipeline library
 (`src/pipeline/`) is structured to run unchanged in Node so the eventual
 production system can swap the browser-direct call for a server-held key
 without touching pipeline code.
+
+In prod, this app runs on an on-prem booth computer at a music festival
+(Burning Man). The booth serves the survey page over its local hotspot/LAN
+to phones in line. The reading happens at the booth itself with a real-
+robot Seer. Latency budget shapes the runtime split below.
 
 Owner: jakek. Project tone is dark, game-feel, sparse. Pixel / ASCII /
 unicode-glyph aesthetic. CRT scanline overlay, three.js Clat as full-screen
@@ -46,26 +51,30 @@ Operationally: the Seer must not advise, moralize, or assign verdicts.
 carrying X into this" / "the part you are not looking at is Y" are the
 register.
 
-### Cognition is the director, persona is the performer
+### Director plans, actor performs
 
-Cognition (Sonnet / Opus tier, structured tool calls) is offstage. It holds
+In the Seer, the **director** (structured tool calls) is offstage. It holds
 the whole arc, models the user on multiple timescales, and produces
-*understanding* — not lines. Persona (any tier) is onstage. It receives
-the director's notes and improvises the actual utterance in-character.
+*understanding* — not lines. The **actor** (also a model call, voiced) is
+onstage. It receives the director's notes and improvises the actual
+utterance in-character.
 
 The split exists because alignment-trained models pull toward
 helpful-and-clear, which is the opposite of what the Seer needs.
 Asking one model to both reason carefully *and* perform character at once
 collapses the reasoning. Keep them separated.
 
-The thematic restatement: the Seer is a medium. Cognition is what she
+The thematic restatement: the Seer is a medium. The director is what she
 channels. There really is an intelligence whispering to her that she does
 not fully see. Architecturally and narratively, the same shape.
+
+(Historical note: this split was called `cognition` / `persona` until the
+runtime category — `local` / `cloud`, see below — overloaded "cognition.")
 
 ### Cards as constraints
 
 Random card draws are not noise to compensate for. They are the engine that
-forces cognition into one narrow angle on this specific person. The
+forces the director into one narrow angle on this specific person. The
 constraint-satisfaction surprises both reader and seeker — that surprise is
 where the hair-on-the-back-of-the-neck comes from.
 
@@ -91,6 +100,29 @@ The historical failure mode this guards against: a smug investigator agent
 that ramps difficulty in response to non-engagement, killing the session.
 The investigator's job is to deduce *while keeping the room warm*.
 
+### Local vs cloud (runtime category)
+
+Every agent is designated **local** or **cloud**. The category is about
+*where the call goes in prod* — not about model size, which is a separate
+concern (`fast` / `cognition-tier` / `deep` in `src/pipeline/claude.ts`).
+
+- **local** runs on the booth's on-prem LLM (an OSS model on a local box).
+  Used for everything in the critical-latency path: survey-time agents
+  (observer, detective, interrogator) that fire every turn, and the
+  seer's actor (which the user hears voiced in real-time). Today these
+  are all satisfied by Claude as scaffolding — the local-LLM swap is the
+  eventual replacement, and the `LLMAdapter` interface is the seam.
+
+- **cloud** stays on the Anthropic API. Used where latency is tolerable
+  because the call is one-shot (shaman, augur) or parallel-with-voice
+  (the seer's director runs while the actor is already speaking the
+  previous beat). Reasoning quality matters more than wall-clock here.
+
+This split is load-bearing for the festival deployment: cloud calls cost
+network round-trip + provider variance, which is fatal on the per-turn
+survey loop. The pipeline page (`src/ui/Pipeline.tsx`) makes the
+designation visible per agent.
+
 ### Mirror through the seams
 
 Both halves of the experience already wear this shape — survey reconstructs
@@ -107,9 +139,10 @@ Three layers, top to bottom:
 1. **UI** (`src/ui/`, `src/App.tsx`) — React 19, Vite 7, TypeScript strict.
    Phase-machine `App.tsx` switches between screens. No business logic in
    components beyond phase routing and adapter construction.
-2. **Cognition pipeline** (`src/pipeline/`) — Node-portable. Owns engines,
-   prompts, schemas, adapter, static data (cards, spreads, personas, the
-   dialogue tree). The product.
+2. **Pipeline** (`src/pipeline/`) — Node-portable. Owns engines, prompts,
+   schemas, adapter, static data (cards, spreads, personas, the dialogue
+   tree). The product. (`personas` here means the catalog of seer
+   characters like Marisol — NOT the runtime layer, which is now `actor`.)
 3. **Persistence + bootstrap** (`src/storage.ts`) — `localStorage` wrapper
    for the API key, sessions, settings. Sits outside `src/pipeline/` so the
    pipeline stays browser-portable.
@@ -118,7 +151,10 @@ The pipeline is structured so that every model call routes through an
 `LLMAdapter` interface. Concrete impl (`AnthropicAdapter`) is the only thing
 that imports `@anthropic-ai/sdk`. Tier names (`fast` / `cognition` / `deep`)
 abstract over model IDs — the tier→model mapping lives in one file and is
-the only place to change models.
+the only place to change models. (Note: `cognition` here is a model-size
+tier name — Sonnet — distinct from the runtime category "cloud" and from
+the old layer name "cognition." Plan to rename the tier eventually, but
+not load-bearing yet.)
 
 ### Survey engine (`src/pipeline/survey/`)
 
@@ -140,45 +176,46 @@ the openers; Compiler runs once at survey close.
 ### Seer engine (`src/pipeline/seer/`)
 
 The seer is the live tarot reader. Implementation is a `SeerEngine` class
-(peer to `SurveyEngine`) that hosts two internal agent tiers — cognition
-(clinical, slower) and persona (voiced, fast) — and orchestrates four
-behavior tranches via them: intro, per-card, chat, outro.
+(peer to `SurveyEngine`) that hosts two internal layers — **director**
+(clinical, slower, cloud runtime) and **actor** (voiced, fast, local
+runtime) — and orchestrates four behavior tranches via them: intro,
+per-card, chat, outro.
 
 Constructed at survey close. Takes `{ profile, surveyHistory, intention,
 drawn, outcomes }`. Constructor synchronously kicks off the intro
-pipeline (`cognitionIntro → personaIntro`) and exposes `ready: Promise<void>`.
+pipeline (`directorIntro → actorIntro`) and exposes `ready: Promise<void>`.
 UI gates the [ENTER] button on that promise.
 
-Persona is **the Seer**: composed, low-volume, mirror-shaped, no
-advise/moralize/verdict. Lowercase. Cognition is the director who
-prepares the Set the persona walks onto.
+The actor is **the Seer**: composed, low-volume, mirror-shaped, no
+advise/moralize/verdict. Lowercase. The director prepares the Set the
+actor walks onto.
 
 **Tranches:**
-- **intro** — serial cognition → persona (once, at construction)
-- **per-card** — serial cognition → persona, speculatively pre-computed for
+- **intro** — serial director → actor (once, at construction)
+- **per-card** — serial director → actor, speculatively pre-computed for
   every face-down slot via fan-out
-- **chat** — persona-only (cognition lives in TODO backlog)
-- **outro** — serial cognition → persona (after 4th flip)
+- **chat** — actor-only (director-side chat lives in TODO backlog)
+- **outro** — serial director → actor (after 4th flip)
 
 Calls per round R (revealed.length + 1):
-- For each still-face-down slot S: `cognitionPerCard(S, R, history)` →
-  `personaPerCard(clinical, history)` → Monologue cached at `[R, S]`.
-- The cognition thread for slot S sees its OWN card face plus revealed
+- For each still-face-down slot S: `directorPerCard(S, R, history)` →
+  `actorPerCard(set, history)` → Monologue cached at `[R, S]`.
+- The director thread for slot S sees its OWN card face plus revealed
   history; it does NOT see the faces of other still-face-down slots.
   That constraint is load-bearing — without it, threads cross-leak and
   the round-1 monologues become a single-shot Plan-and-Write in
   disguise.
 
 Total LLM-call budget per reading (full 4-card spread):
-- 1 intro persona call (skipped when `preferred_intro` is supplied; the
+- 1 intro actor call (skipped when `preferred_intro` is supplied; the
   READ DEMO path uses a hand-authored intro from `fixtures.ts`).
-- 4 + 3 + 2 + 1 = 10 cognition calls (per-card across 4 rounds).
-- 10 persona calls (one per cognition).
-- 1 closing cognition + 1 closing persona after the 4th flip.
-- N chat persona calls (user-initiated; persona-only).
+- 4 + 3 + 2 + 1 = 10 director calls (per-card across 4 rounds).
+- 10 actor calls (one per director).
+- 1 closing director + 1 closing actor after the 4th flip.
+- N chat actor calls (user-initiated; actor-only).
 
 That's ~23 calls/reading. Wasteful by design — the cost of hiding
-latency *and* not letting cognition cheat by seeing unflipped cards.
+latency *and* not letting the director cheat by seeing unflipped cards.
 
 Engine state machine (`ReadingPhase`):
 ```
@@ -189,11 +226,11 @@ idle → thinking? → intro → awaiting_flip → flipping → beat_pending? �
 Chat can be sent from `awaiting_flip` or `done` (`chat_pending` returns
 to entry phase).
 
-`awaiting_tier` is `'cognition' | 'persona' | null` — UI uses it to pick a
-latency catchphrase from `stalls.ts`. Cognition stalls and persona stalls
-render in different colors so it's visually obvious which tier the system
-is waiting on. (Persona is the tier eventually swappable to local OSS
-LLMs; cognition stays cloud.)
+`awaiting_layer` is `'director' | 'actor' | null` — UI uses it to pick a
+latency catchphrase from `stalls.ts`. Director stalls and actor stalls
+render in different colors so it's visually obvious which layer the system
+is waiting on. The actor runtime is **local** (eventually OSS LLM on the
+booth); the director runtime is **cloud** (Anthropic API).
 
 The slot meanings are *mirror-shaped*, not classical:
 
@@ -202,7 +239,7 @@ The slot meanings are *mirror-shaped*, not classical:
 - **right** — what is unseen about path B
 - **bottom** — an unaddressed factor sitting under both
 
-These slot meanings are stated in the cognition prompt and are
+These slot meanings are stated in the director prompt and are
 load-bearing. Changing them changes the reading.
 
 ### Static data
@@ -223,7 +260,7 @@ tarot birth card). Treat these as ground truth; do not duplicate inline.
 | LLMAdapter interface (provider-agnostic) | `src/pipeline/llm/adapter.ts` |
 | Concrete Anthropic adapter (only file that imports SDK) | `src/pipeline/llm/adapter-anthropic.ts` |
 | SurveyEngine + agents (observer/detective/interrogator/shaman/augur) | `src/pipeline/survey/` |
-| SeerEngine + agents (cognition/persona) | `src/pipeline/seer/` |
+| SeerEngine + agents (director/actor) | `src/pipeline/seer/` |
 | Card draw mechanics | `src/pipeline/cards.ts` |
 | Spread definitions | `src/pipeline/spreads.ts` |
 | three.js scene (Clat + eyes + perspective table/cards + scene stores) | `src/ui/scene/`, `src/ui/scene/TarobotScene.tsx` |
@@ -309,10 +346,10 @@ the doc.
   Investigator + trigger-fired Observer + specific-guess-injection +
   flat-pool / runtime-tree. Refactor is gated on actually walking through
   the reading first, but expect this subsystem to change significantly.
-- **Reading engine.** Fan-out architecture just shipped. Per-card cognition
-  + persona threads spawn per round; user picks which face-down card to
+- **Reading engine.** Fan-out architecture just shipped. Per-card director
+  + actor threads spawn per round; user picks which face-down card to
   flip. Slot meanings are load-bearing; FLIP_ANIM_MS (950) is a placeholder
-  number. The chat plumbing exists but persona-chat voice will iterate after
+  number. The chat plumbing exists but actor-chat voice will iterate after
   real walkthroughs. The READ DEMO menu path skips survey and uses a hand-
   authored Marisol fixture — useful for iterating on the reading without
   burning survey time.
@@ -336,7 +373,7 @@ the doc.
   shift, body/somatic, and family-of-origin forks. Documented gap from a
   bot-harness run where a geographic Choice was extracted as relational.
 - **Eval rig (the apparatus).** Synthetic-participant generator
-  (different model from cognition under test) + ground-truth backstory +
+  (different model from the director under test) + ground-truth backstory +
   evaluator that scores readings against the hidden backstory along
   inference-quality axes (touched-real-fork, ground-truth-supported,
   ground-truth-contradicted, generic-to-specific calibration). Plus a
@@ -366,20 +403,20 @@ the doc.
 1. **Building rubrics for "fun" or "eerie."** People have tried for decades
    in comedy and game design. Define failure modes; verify residual with
    humans. Negative engineering, then positive verification.
-2. **Iterating persona voice in a vacuum.** Sketch, lock, leave. Real
+2. **Iterating actor voice in a vacuum.** Sketch, lock, leave. Real
    voice iteration requires real users in front of it. Burning cycles on
    prompt wordsmithing without playtest data produces nothing that survives
    contact.
-3. **One-prompt-and-pray.** Every cognition call has a fixed schema. If you
+3. **One-prompt-and-pray.** Every director call has a fixed schema. If you
    find yourself prompting "do X and also Y and format it nicely," split it.
-4. **Cognition that writes user-facing words.** Cognition produces
-   understanding and intention. Persona produces utterance. If cognition
-   leaks into delivery, persona either parrots (off-character) or rewrites
-   (wasted work + risk of dropping load-bearing intent).
+4. **Director that writes user-facing words.** The director produces
+   understanding and intention. The actor produces utterance. If the
+   director leaks into delivery, the actor either parrots (off-character)
+   or rewrites (wasted work + risk of dropping load-bearing intent).
 5. **Optimizing a component before knowing it's the bottleneck.** Always
    re-check where the system is actually failing. The most common waste is
-   three weeks tuning persona temperature when the Compiler was producing
-   bad TargetChoices the whole time.
+   three weeks tuning actor temperature when an upstream agent was
+   producing bad inputs the whole time.
 6. **Symptom-driven "fixes" that bypass diagnosis.** When a flow breaks,
    find the root cause. Don't `--no-verify`, don't try/catch around the
    broken thing, don't add a fallback that hides the bug.
@@ -412,7 +449,7 @@ the doc.
 6. Phase machine sequences the reveal: intro → awaiting_flip (user clicks a
    face-down card) → flipping (CSS-3D anim, 950ms) → beat (typed, user-tap)
    → next awaiting_flip → … → closing_thinking → outro (typed, user-tap) →
-   done. Chat is enabled in awaiting_flip and done; persona replies are
+   done. Chat is enabled in awaiting_flip and done; actor replies are
    their own LLM call.
 7. User can exit at any point via the topbar `exit` button. No persistence
    for in-progress readings; cards re-draw fresh on resume.
@@ -438,6 +475,6 @@ This flow will change. When it does, fix this section.
   to mark work-in-progress, but the tag itself is the bookmark.
 - The eventual production "foundation model" the user is building is not
   the AI model — it is the *apparatus* that lets the tarot methodology be
-  discovered through selection pressure. Cognition runs the apparatus;
-  deployed Tarobot is the persona. Same shape as cognition/persona at the
+  discovered through selection pressure. The director runs the apparatus;
+  deployed Tarobot is the actor. Same shape as director/actor at the
   per-reading level. As above, so below.

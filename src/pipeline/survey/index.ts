@@ -1,7 +1,7 @@
 // Public surface of the survey engine module. Everything the UI / scripts /
 // other pipeline code needs comes through here.
 
-export { SurveyEngine } from './engine';
+export { SurveyEngine, STARTER_SEED_COUNT } from './engine';
 export type { EngineOpts } from './engine';
 
 // Adapter moved to ../llm. These re-exports stay so older imports

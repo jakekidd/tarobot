@@ -1,28 +1,30 @@
-// Cognition-tier call wrappers. Each function builds an InvocationSpec and
-// routes through adapter.invoke(). No SDK calls live in here.
+// Director-layer call wrappers. Each function builds an InvocationSpec
+// and routes through adapter.invoke(). No SDK calls live in here. The
+// director is the offstage planner — it prepares the Set the actor will
+// inhabit; it does not voice anything.
 
 import { z } from 'zod';
 import type { LLMAdapter } from '../../llm/adapter';
 import { SetSchema, ClosingIntentSchema } from '../schemas';
 import {
-  PER_CARD_COGNITION_SYSTEM,
-  PER_CARD_COGNITION_TOOL,
-  CLOSING_COGNITION_SYSTEM,
-  CLOSING_COGNITION_TOOL,
-  INTRO_COGNITION_SYSTEM,
-  INTRO_COGNITION_TOOL,
-} from '../prompts/cognition';
+  PER_CARD_DIRECTOR_SYSTEM,
+  PER_CARD_DIRECTOR_TOOL,
+  CLOSING_DIRECTOR_SYSTEM,
+  CLOSING_DIRECTOR_TOOL,
+  INTRO_DIRECTOR_SYSTEM,
+  INTRO_DIRECTOR_TOOL,
+} from '../prompts/director';
 import type {
   Set,
-  ClosingCognitionInput,
+  ClosingDirectorInput,
   ClosingIntent,
-  IntroCognitionInput,
-  PerCardCognitionInput,
+  IntroDirectorInput,
+  PerCardDirectorInput,
 } from '../types';
 
-export async function cognitionPerCard(
+export async function directorPerCard(
   adapter: LLMAdapter,
-  input: PerCardCognitionInput,
+  input: PerCardDirectorInput,
 ): Promise<Set> {
   const payload = {
     identity: input.profile.identity,
@@ -37,7 +39,7 @@ export async function cognitionPerCard(
     highlights: input.profile.highlights,
     prose_brief: input.prose_brief,
     // Augur-seeded outcomes — pick the one this card sharpens and
-    // surface a specific from it into the Set the persona will voice.
+    // surface a specific from it into the Set the actor will voice.
     outcomes: input.outcomes.map((o) => ({ id: o.id, label: o.label, document: o.document })),
     spread_id: input.spread_id,
     spread_name: input.spread_name,
@@ -52,9 +54,9 @@ export async function cognitionPerCard(
 
   return adapter.invoke<Set>(
     {
-      system: PER_CARD_COGNITION_SYSTEM,
+      system: PER_CARD_DIRECTOR_SYSTEM,
       user: JSON.stringify(payload, null, 2),
-      tool: PER_CARD_COGNITION_TOOL,
+      tool: PER_CARD_DIRECTOR_TOOL,
       model: 'cognition',
       max_tokens: 700,        // Set is shorter than the old clinical doc
     },
@@ -62,12 +64,12 @@ export async function cognitionPerCard(
   );
 }
 
-/** Intro cognition — writes the prose brief the seer reads silently
+/** Intro director pass — writes the prose brief the seer reads silently
  *  before voicing the intro. Output is reused by all subsequent
- *  per-card + closing cognition calls (stored on state.inputs.prose_brief). */
-export async function cognitionIntro(
+ *  per-card + closing director calls (stored on state.inputs.prose_brief). */
+export async function directorIntro(
   adapter: LLMAdapter,
-  input: IntroCognitionInput,
+  input: IntroDirectorInput,
 ): Promise<string> {
   const payload = {
     identity: input.profile.identity,
@@ -91,9 +93,9 @@ export async function cognitionIntro(
 
   const out = await adapter.invoke<{ prose_brief: string; reasoning: string }>(
     {
-      system: INTRO_COGNITION_SYSTEM,
+      system: INTRO_DIRECTOR_SYSTEM,
       user: JSON.stringify(payload, null, 2),
-      tool: INTRO_COGNITION_TOOL,
+      tool: INTRO_DIRECTOR_TOOL,
       model: 'cognition',
       max_tokens: 1200,
     },
@@ -102,9 +104,9 @@ export async function cognitionIntro(
   return out.prose_brief;
 }
 
-export async function cognitionClosing(
+export async function directorClosing(
   adapter: LLMAdapter,
-  input: ClosingCognitionInput,
+  input: ClosingDirectorInput,
 ): Promise<ClosingIntent> {
   const payload = {
     identity: input.profile.identity,
@@ -130,9 +132,9 @@ export async function cognitionClosing(
 
   return adapter.invoke<ClosingIntent>(
     {
-      system: CLOSING_COGNITION_SYSTEM,
+      system: CLOSING_DIRECTOR_SYSTEM,
       user: JSON.stringify(payload, null, 2),
-      tool: CLOSING_COGNITION_TOOL,
+      tool: CLOSING_DIRECTOR_TOOL,
       model: 'cognition',
       max_tokens: 800,
     },

@@ -93,11 +93,11 @@ export function Reading({ apiKey: _apiKey, seer, onExit }: Props) {
     };
   }, [engine]);
 
-  // Dizzy while we're awaiting an LLM call (any tier).
+  // Dizzy while we're awaiting an LLM call (either layer).
   useEffect(() => {
-    setDizzy(state.awaiting_tier !== null);
+    setDizzy(state.awaiting_layer !== null);
     return () => setDizzy(false);
-  }, [state.awaiting_tier]);
+  }, [state.awaiting_layer]);
 
   // Restore cat face on unmount (set to 'eyes' in the fly-in handler).
   useEffect(() => {
@@ -128,10 +128,10 @@ export function Reading({ apiKey: _apiKey, seer, onExit }: Props) {
   // Publish reading state for the debug overlay.
   useEffect(() => {
     publishDebug('reading.phase', state.phase);
-    publishDebug('reading.awaiting', state.awaiting_tier ?? null);
+    publishDebug('reading.awaiting', state.awaiting_layer ?? null);
     publishDebug('reading.revealed', `${state.revealed.length}/${drawn.cards.length}`);
     publishDebug('reading.slot', state.current_slot ?? null);
-  }, [state.phase, state.awaiting_tier, state.revealed.length, state.current_slot, drawn.cards.length]);
+  }, [state.phase, state.awaiting_layer, state.revealed.length, state.current_slot, drawn.cards.length]);
   useEffect(() => () => {
     clearDebug('reading.phase');
     clearDebug('reading.awaiting');
@@ -380,7 +380,7 @@ type StageProps = {
 
 function ReadingStage({ state, engine, advanceTick, highlights }: StageProps) {
   if (state.phase === 'idle' || state.phase === 'thinking') {
-    return <FillerLine tier="persona" />;
+    return <FillerLine layer="actor" />;
   }
   if (state.phase === 'error') {
     return <div className="reading__error">{state.error ?? 'something went wrong.'}</div>;
@@ -419,7 +419,7 @@ function ReadingStage({ state, engine, advanceTick, highlights }: StageProps) {
     return <div className="reading__beat reading__dialogue-rigid" />;
   }
   if (state.phase === 'flipping' || state.phase === 'beat_pending') {
-    return <FillerLine tier={state.awaiting_tier ?? 'persona'} />;
+    return <FillerLine layer={state.awaiting_layer ?? 'actor'} />;
   }
   if (state.phase === 'beat') {
     const monologue = engine.getCurrentMonologue();
@@ -436,7 +436,7 @@ function ReadingStage({ state, engine, advanceTick, highlights }: StageProps) {
     );
   }
   if (state.phase === 'closing_thinking') {
-    return <FillerLine tier={state.awaiting_tier ?? 'cognition'} />;
+    return <FillerLine layer={state.awaiting_layer ?? 'director'} />;
   }
   if (state.phase === 'outro' && state.outro) {
     return (
@@ -462,7 +462,7 @@ function ReadingStage({ state, engine, advanceTick, highlights }: StageProps) {
 // "i see…", "patience…") that rotate every ~1.5–3s. Reads as
 // thoughtfulness; disguises the latency.
 
-function FillerLine({ tier }: { tier: 'cognition' | 'persona' }) {
+function FillerLine({ layer }: { layer: 'director' | 'actor' }) {
   const [text, setText] = useState(() => pickFiller());
 
   useEffect(() => {
@@ -484,7 +484,7 @@ function FillerLine({ tier }: { tier: 'cognition' | 'persona' }) {
   }, []);
 
   return (
-    <div className={`reading__filler reading__filler--${tier}`} aria-live="polite">
+    <div className={`reading__filler reading__filler--${layer}`} aria-live="polite">
       {text}
     </div>
   );

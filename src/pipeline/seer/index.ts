@@ -1,28 +1,28 @@
 // Public surface of the seer module.
 //
 // The Seer is an engine (same architectural tier as SurveyEngine) that
-// hosts internal cognition + persona agents and orchestrates four
+// hosts internal director + actor layers and orchestrates four
 // behavior tranches:
 //
-//   intro       — serial cognition → persona (kicked off at construction)
-//   per-card    — serial cognition → persona, speculative fan-out
-//   chat        — parallel cognition || persona (chat lives in persona today)
-//   outro       — serial cognition → persona (after the last flip)
+//   intro       — serial director → actor (kicked off at construction)
+//   per-card    — serial director → actor, speculative fan-out
+//   chat        — actor-only today (director-side chat lives in TODO)
+//   outro       — serial director → actor (after the last flip)
 
 export { Seer } from './seer';
 export type { SeerOpts } from './seer';
 
 export {
-  cognitionIntro,
-  cognitionPerCard,
-  cognitionClosing,
-} from './agents/cognition';
+  directorIntro,
+  directorPerCard,
+  directorClosing,
+} from './agents/director';
 export {
-  personaPerCard,
-  personaIntro,
-  personaClosing,
-  personaChat,
-} from './agents/persona';
+  actorPerCard,
+  actorIntro,
+  actorClosing,
+  actorChat,
+} from './agents/actor';
 
 export type {
   ChatMessage,
@@ -30,7 +30,7 @@ export type {
   Set,
   ClinicalIntent,         // deprecated alias of Set
   ClosingIntent,
-  IntroCognitionInput,
+  IntroDirectorInput,
   Monologue,
   Outcome,
   NarrativeRole,
@@ -43,5 +43,5 @@ export type {
 
 export { buildMarisolDemoSeer, MARISOL_INTRO } from './fixtures';
 export { pickStall } from './stalls';
-export type { StallTier } from './stalls';
+export type { StallLayer } from './stalls';
 export { FILLERS, pickFiller, FILLER_MIN_MS, FILLER_MAX_MS } from './fillers';

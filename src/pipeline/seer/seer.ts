@@ -1,11 +1,11 @@
-// Reading engine — orchestrates fan-out cognition + persona, exposes a
+// Reading engine — orchestrates fan-out director + actor, exposes a
 // state machine the UI subscribes to.
 //
 // Architecture (replaces the older Plan-and-Write single-shot):
 //
 //   start() →
 //     intro (preferred OR generated) +
-//     round-1 fan-out (4 parallel cognition→persona threads, one per
+//     round-1 fan-out (4 parallel director→actor threads, one per
 //     face-down slot, each treating its slot as the hypothetical-next-
 //     flip and seeing no other faces)
 //
@@ -17,25 +17,25 @@
 //                slot's promise lands.
 //     After the beat is delivered and user advances, kick off round-(N+1)
 //     fan-out (3, 2, 1 threads respectively) AND, if last beat, run the
-//     closing cognition+persona pair.
+//     closing director+actor pair.
 //
 //   user submits chat in 'awaiting_flip' or 'done' →
-//     chat_pending → persona reply → back to entry phase.
+//     chat_pending → actor reply → back to entry phase.
 //
-// The 'awaiting_tier' field tells the UI which kind of latency to mask
-// (cognition stall vs persona stall) so eventually-local-OSS-LLM costs
+// The 'awaiting_layer' field tells the UI which kind of latency to mask
+// (director stall vs actor stall) so eventually-local-OSS-LLM costs
 // are visually distinguishable today.
 
 import type { LLMAdapter } from '../llm/adapter';
 import type { DrawnCards, Profile } from '../types';
 import type { PickEvent } from '../survey';
-import { cognitionPerCard, cognitionClosing, cognitionIntro } from './agents/cognition';
+import { directorPerCard, directorClosing, directorIntro } from './agents/director';
 import {
-  personaPerCard,
-  personaIntro,
-  personaClosing,
-  personaChat,
-} from './agents/persona';
+  actorPerCard,
+  actorIntro,
+  actorClosing,
+  actorChat,
+} from './agents/actor';
 import type {
   ChatMessage,
   Outcome,
@@ -53,10 +53,11 @@ import { sanitizeMonologue } from './sanitize';
  *  survey-derived identity record; surveyHistory + intention are the
  *  case file the seer reads before speaking. drawn is the spread the
  *  reading will use. outcomes are the Augur-produced pictures of what
- *  the intention opens onto — passed into all cognition calls (per-
- *  card, closing, intro) but NOT into persona (persona only sees the
- *  Set cognition builds, which already embeds the relevant specifics).
- *  preferred_intro short-circuits intro generation for the demo path. */
+ *  the intention opens onto — passed into all director calls (per-
+ *  card, closing, intro) but NOT into the actor (the actor only sees
+ *  the Set the director builds, which already embeds the relevant
+ *  specifics). preferred_intro short-circuits intro generation for the
+ *  demo path. */
 export type SeerOpts = {
   adapter: LLMAdapter;
   profile: Profile;
@@ -91,7 +92,7 @@ export class Seer {
   /** Phase to return to after a chat round completes. */
   private phaseBeforeChat: ReadingPhase | null = null;
 
-  /** Resolves when the intro is fully built (cognition → persona → spoken).
+  /** Resolves when the intro is fully built (director → actor → spoken).
    *  UI gates the [ENTER] button on this. */
   public readonly ready: Promise<void>;
 
@@ -103,7 +104,7 @@ export class Seer {
     this.state = {
       inputs: {
         profile: opts.profile,
-        // Filled by cognitionIntro (or '<demo>' for preferred_intro path).
+        // Filled by directorIntro (or '<demo>' for preferred_intro path).
         prose_brief: '',
         drawn: opts.drawn,
         ...(opts.preferred_intro ? { preferred_intro: opts.preferred_intro } : {}),
@@ -113,7 +114,7 @@ export class Seer {
       outro: null,
       revealed: [],
       current_slot: null,
-      awaiting_tier: null,
+      awaiting_layer: null,
       active_prompt_to_user: null,
       chat: [],
     };
@@ -121,9 +122,9 @@ export class Seer {
     this.ready = this.buildIntro();
   }
 
-  /** Build the intro via serial cognition → persona. Called once by
+  /** Build the intro via serial director → actor. Called once by
    *  the constructor. Stores the prose_brief on state.inputs so all
-   *  subsequent per-card cognition calls can reuse it. */
+   *  subsequent per-card director calls can reuse it. */
   private async buildIntro(): Promise<void> {
     const preferred = this.state.inputs.preferred_intro;
     if (preferred) {
@@ -131,35 +132,35 @@ export class Seer {
       this.setState({
         phase: 'intro',
         intro: sanitizeMonologue(preferred),
-        awaiting_tier: null,
+        awaiting_layer: null,
       });
       return;
     }
 
-    this.setState({ phase: 'thinking', awaiting_tier: 'cognition' });
+    this.setState({ phase: 'thinking', awaiting_layer: 'director' });
     try {
-      // STAGE 1: cognition — produce the clinical brief / guide.
-      const brief = await cognitionIntro(this.adapter, {
+      // STAGE 1: director — produce the clinical brief / guide.
+      const brief = await directorIntro(this.adapter, {
         profile: this.state.inputs.profile,
         intention: this.intention,
         surveyHistory: this.surveyHistory,
         outcomes: this.outcomes,
       });
-      // Mutate inputs in place — all per-card/closing cognition calls
+      // Mutate inputs in place — all per-card/closing director calls
       // downstream read this field.
       this.state.inputs.prose_brief = brief;
 
-      // STAGE 2: persona — turn the brief into the spoken intro.
-      this.setState({ phase: 'thinking', awaiting_tier: 'persona' });
-      const intro = await personaIntro(this.adapter, {
+      // STAGE 2: actor — turn the brief into the spoken intro.
+      this.setState({ phase: 'thinking', awaiting_layer: 'actor' });
+      const intro = await actorIntro(this.adapter, {
         profile: this.state.inputs.profile,
         prose_brief: brief,
       });
-      this.setState({ phase: 'intro', intro, awaiting_tier: null });
+      this.setState({ phase: 'intro', intro, awaiting_layer: null });
     } catch (err) {
       this.setState({
         phase: 'error',
-        awaiting_tier: null,
+        awaiting_layer: null,
         error: err instanceof Error ? err.message : 'intro generation failed',
       });
     }
@@ -181,8 +182,8 @@ export class Seer {
     return this.intention;
   }
 
-  /** The Augur-seeded outcomes for this session. Read by cognition;
-   *  not exposed to persona. Mutable in the future (chat-cognition
+  /** The Augur-seeded outcomes for this session. Read by the director;
+   *  not exposed to the actor. Mutable in the future (chat-director
    *  pass may refine them mid-session). */
   getOutcomes(): Outcome[] {
     return this.outcomes;
@@ -206,7 +207,7 @@ export class Seer {
     if (this.state.phase !== 'intro') return;
     this.setState({
       phase: 'awaiting_flip',
-      awaiting_tier: null,
+      awaiting_layer: null,
       active_prompt_to_user: promptOrNull(this.state.intro),
     });
   }
@@ -233,11 +234,11 @@ export class Seer {
     const key = roundKey(round, slot);
     const cached = this.slotResults.get(key);
     if (cached) {
-      this.setState({ phase: 'beat', awaiting_tier: null });
+      this.setState({ phase: 'beat', awaiting_layer: null });
       return;
     }
     // Not ready yet — show stall and await the slot's promise.
-    this.setState({ phase: 'beat_pending', awaiting_tier: 'persona' });
+    this.setState({ phase: 'beat_pending', awaiting_layer: 'actor' });
     const pending = this.slotPromises.get(key);
     if (!pending) {
       // Defensive — spawn it now if somehow missing.
@@ -245,20 +246,20 @@ export class Seer {
       const retry = this.slotPromises.get(key);
       if (retry) {
         retry
-          .then(() => this.setState({ phase: 'beat', awaiting_tier: null }))
+          .then(() => this.setState({ phase: 'beat', awaiting_layer: null }))
           .catch((err) => this.setState({
             phase: 'error',
-            awaiting_tier: null,
+            awaiting_layer: null,
             error: err instanceof Error ? err.message : 'fan-out failed',
           }));
       }
       return;
     }
     pending
-      .then(() => this.setState({ phase: 'beat', awaiting_tier: null }))
+      .then(() => this.setState({ phase: 'beat', awaiting_layer: null }))
       .catch((err) => this.setState({
         phase: 'error',
-        awaiting_tier: null,
+        awaiting_layer: null,
         error: err instanceof Error ? err.message : 'fan-out failed',
       }));
   }
@@ -290,7 +291,7 @@ export class Seer {
         revealed: nextRevealed,
         current_slot: null,
         phase: 'closing_thinking',
-        awaiting_tier: 'cognition',
+        awaiting_layer: 'director',
         active_prompt_to_user: null,
       });
       void this.runClosing(nextRevealed);
@@ -302,7 +303,7 @@ export class Seer {
       revealed: nextRevealed,
       current_slot: null,
       phase: 'awaiting_flip',
-      awaiting_tier: null,
+      awaiting_layer: null,
       active_prompt_to_user: promptOrNull(result.monologue),
     });
     this.spawnFanOut(nextRevealed.length + 1, nextRevealed);
@@ -313,7 +314,7 @@ export class Seer {
     if (this.state.phase !== 'outro') return;
     this.setState({
       phase: 'done',
-      awaiting_tier: null,
+      awaiting_layer: null,
       active_prompt_to_user: promptOrNull(this.state.outro),
     });
   }
@@ -331,12 +332,12 @@ export class Seer {
     this.setState({
       chat: [...priorChat, userMsg],
       phase: 'chat_pending',
-      awaiting_tier: 'persona',
+      awaiting_layer: 'actor',
       active_prompt_to_user: null,
     });
 
     try {
-      const reply = await personaChat(this.adapter, {
+      const reply = await actorChat(this.adapter, {
         profile: this.state.inputs.profile,
         prose_brief: this.state.inputs.prose_brief,
         revealed: this.state.revealed,
@@ -350,7 +351,7 @@ export class Seer {
       this.setState({
         chat: [...this.state.chat, seerMsg],
         phase: this.phaseBeforeChat ?? 'awaiting_flip',
-        awaiting_tier: null,
+        awaiting_layer: null,
         active_prompt_to_user: promptOrNull(reply),
       });
       this.phaseBeforeChat = null;
@@ -365,7 +366,7 @@ export class Seer {
       this.setState({
         chat: [...this.state.chat, fallback],
         phase: this.phaseBeforeChat ?? 'awaiting_flip',
-        awaiting_tier: null,
+        awaiting_layer: null,
       });
       this.phaseBeforeChat = null;
     }
@@ -419,7 +420,7 @@ export class Seer {
       if (this.slotPromises.has(key)) continue;
 
       const slotPromise: Promise<SlotResult> = (async () => {
-        const rawSet = await cognitionPerCard(this.adapter, {
+        const rawSet = await directorPerCard(this.adapter, {
           profile: this.state.inputs.profile,
           prose_brief: this.state.inputs.prose_brief,
           outcomes: this.outcomes,
@@ -440,10 +441,10 @@ export class Seer {
           chat_history: chat_snapshot,
         });
         // Belt-and-suspenders: normalize narrative_role + flip_round in
-        // case cognition's emission drifted from what the engine knows.
+        // case the director's emission drifted from what the engine knows.
         const set: Set = { ...rawSet, narrative_role: role, flip_round: round };
 
-        const monologue = await personaPerCard(this.adapter, {
+        const monologue = await actorPerCard(this.adapter, {
           profile: this.state.inputs.profile,
           prose_brief: this.state.inputs.prose_brief,
           set,
@@ -472,26 +473,26 @@ export class Seer {
 
   private async runClosing(revealed: RevealedSlot[]): Promise<void> {
     try {
-      const closing = await cognitionClosing(this.adapter, {
+      const closing = await directorClosing(this.adapter, {
         profile: this.state.inputs.profile,
         prose_brief: this.state.inputs.prose_brief,
         outcomes: this.outcomes,
         revealed,
         chat_history: this.state.chat,
       });
-      this.setState({ awaiting_tier: 'persona' });
-      const outro = await personaClosing(this.adapter, {
+      this.setState({ awaiting_layer: 'actor' });
+      const outro = await actorClosing(this.adapter, {
         profile: this.state.inputs.profile,
         prose_brief: this.state.inputs.prose_brief,
         revealed,
         chat_history: this.state.chat,
         closing,
       });
-      this.setState({ phase: 'outro', outro, awaiting_tier: null });
+      this.setState({ phase: 'outro', outro, awaiting_layer: null });
     } catch (err) {
       this.setState({
         phase: 'error',
-        awaiting_tier: null,
+        awaiting_layer: null,
         error: err instanceof Error ? err.message : 'closing failed',
       });
     }

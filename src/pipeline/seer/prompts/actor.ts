@@ -1,12 +1,12 @@
-// Persona-tier prompts for the reading. Four prompts:
+// Actor-layer prompts for the reading. Four prompts:
 //   - PER_CARD: voices one beat from a clinical intent.
 //   - INTRO:    voices the opening line (skipped if preferred_intro supplied).
 //   - CLOSING:  voices the outro from a closing intent.
 //   - CHAT:     responds to a user chat message between or after flips.
 //
-// The persona is the seer. Cold-reading craft, under-specification, mirror
-// register. The seer never breaks character to clarify; she hedges inside
-// her voice when she has to.
+// The actor IS the seer onstage. Cold-reading craft, under-specification,
+// mirror register. The seer never breaks character to clarify; she hedges
+// inside her voice when she has to.
 
 import { z } from 'zod';
 import { MonologueSchema } from '../schemas';
@@ -47,9 +47,9 @@ YOU MAY:
 
 ALL OUTPUT IS LOWERCASE. you do not perform authority through volume.`;
 
-// ─── Per-card persona ──────────────────────────────────────────
+// ─── Per-card actor ────────────────────────────────────────────
 
-export const PER_CARD_PERSONA_SYSTEM = `${SEER_VOICE_BIBLE}
+export const PER_CARD_ACTOR_SYSTEM = `${SEER_VOICE_BIBLE}
 
 YOU ARE NOW VOICING ONE BEAT, for one specific card the participant just flipped.
 
@@ -85,15 +85,15 @@ RULES OF PERFORMANCE:
 
 return only the tool call.`;
 
-export const PER_CARD_PERSONA_TOOL: ToolDef = {
+export const PER_CARD_ACTOR_TOOL: ToolDef = {
   name: 'voice_beat',
   description: 'voice one card-beat as the seer, performing from the given Set.',
   input_schema: z.toJSONSchema(MonologueSchema) as Record<string, unknown>,
 };
 
-// ─── Intro persona ─────────────────────────────────────────────
+// ─── Intro actor ───────────────────────────────────────────────
 
-export const INTRO_PERSONA_SYSTEM = `${SEER_VOICE_BIBLE}
+export const INTRO_ACTOR_SYSTEM = `${SEER_VOICE_BIBLE}
 
 YOU ARE NOW VOICING THE OPENING LINE — before any cards have flipped, before any beats have been spoken. this is the first thing the participant will hear from you.
 
@@ -106,15 +106,15 @@ YOU OUTPUT a single Monologue:
 
 return only the tool call.`;
 
-export const INTRO_PERSONA_TOOL: ToolDef = {
+export const INTRO_ACTOR_TOOL: ToolDef = {
   name: 'voice_intro',
   description: 'voice the seer\'s opening line, before any cards flip.',
   input_schema: z.toJSONSchema(MonologueSchema) as Record<string, unknown>,
 };
 
-// ─── Closing persona ───────────────────────────────────────────
+// ─── Closing actor ─────────────────────────────────────────────
 
-export const CLOSING_PERSONA_SYSTEM = `${SEER_VOICE_BIBLE}
+export const CLOSING_ACTOR_SYSTEM = `${SEER_VOICE_BIBLE}
 
 YOU ARE NOW VOICING THE OUTRO — after all four cards have been flipped and all four beats delivered. this is the last thing the participant will hear before the eyes fade. voice drops.
 
@@ -130,15 +130,15 @@ YOU OUTPUT a single Monologue:
 
 return only the tool call.`;
 
-export const CLOSING_PERSONA_TOOL: ToolDef = {
+export const CLOSING_ACTOR_TOOL: ToolDef = {
   name: 'voice_closing',
   description: 'voice the seer\'s outro line after all four cards.',
   input_schema: z.toJSONSchema(MonologueSchema) as Record<string, unknown>,
 };
 
-// ─── Chat persona ──────────────────────────────────────────────
+// ─── Chat actor ────────────────────────────────────────────────
 
-export const CHAT_PERSONA_SYSTEM = `${SEER_VOICE_BIBLE}
+export const CHAT_ACTOR_SYSTEM = `${SEER_VOICE_BIBLE}
 
 THE PARTICIPANT JUST SPOKE TO YOU mid-session. they may be asking about something you said, pushing back on it, sharing a reaction, or asking a tangential question. you respond as the seer.
 
@@ -162,7 +162,7 @@ YOU OUTPUT a single Monologue:
 
 return only the tool call.`;
 
-export const CHAT_PERSONA_TOOL: ToolDef = {
+export const CHAT_ACTOR_TOOL: ToolDef = {
   name: 'voice_chat',
   description: 'voice the seer\'s reply to a user chat message.',
   input_schema: z.toJSONSchema(MonologueSchema) as Record<string, unknown>,

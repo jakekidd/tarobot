@@ -1,16 +1,16 @@
-// Latency catchphrases. Two pools, keyed by which tier the reader is
-// currently waiting on. Cognition pool is for things only cloud Claude
-// can answer; persona pool is for the voicing step (eventually local OSS
+// Latency catchphrases. Two pools, keyed by which seer layer the reader
+// is currently waiting on. Director pool is for things only cloud Claude
+// can answer; actor pool is for the voicing step (eventually local OSS
 // LLM). Distinguishing them visually telegraphs which kind of wait the
 // user is enduring — and where future optimization will pay off.
 //
 // Hardcoded for now. The eventual production system may want a way for
-// the persona to author its own stall (or to draw from a private bank
+// the actor to author its own stall (or to draw from a private bank
 // that the user has not heard).
 
-export type StallTier = 'cognition' | 'persona';
+export type StallLayer = 'director' | 'actor';
 
-const COGNITION_STALLS = [
+const DIRECTOR_STALLS = [
   'looking into my crystal ball...',
   'the deeper waters take a moment.',
   'i am listening for what the cards have not said yet.',
@@ -19,7 +19,7 @@ const COGNITION_STALLS = [
   'the pattern is forming. give it room.',
 ];
 
-const PERSONA_STALLS = [
+const ACTOR_STALLS = [
   'give me a moment to find the words.',
   'mm.',
   'a breath, then i will speak.',
@@ -27,8 +27,8 @@ const PERSONA_STALLS = [
   'one moment.',
 ];
 
-export function pickStall(tier: StallTier): string {
-  const pool = tier === 'cognition' ? COGNITION_STALLS : PERSONA_STALLS;
+export function pickStall(layer: StallLayer): string {
+  const pool = layer === 'director' ? DIRECTOR_STALLS : ACTOR_STALLS;
   const idx = Math.floor(Math.random() * pool.length);
   return pool[idx] ?? pool[0]!;
 }

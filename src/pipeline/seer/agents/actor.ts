@@ -1,39 +1,40 @@
-// Persona-tier call wrappers. Each function builds an InvocationSpec and
-// routes through adapter.invoke(). The voiced layer.
+// Actor-layer call wrappers. Each function builds an InvocationSpec and
+// routes through adapter.invoke(). The voiced layer — the actor is the
+// onstage seer; the director's Set is what the actor walks into.
 //
 // Tier choices, deliberate:
-//   - personaPerCard:  deep   — beat voice is load-bearing
-//   - personaIntro:    deep   — first impression, sets the room
-//   - personaClosing:  deep   — the line they carry home
-//   - personaChat:     cognition — quick, conversational, lower stakes;
-//                                  cuts ~50% off chat-reply latency.
+//   - actorPerCard:  deep   — beat voice is load-bearing
+//   - actorIntro:    deep   — first impression, sets the room
+//   - actorClosing:  deep   — the line they carry home
+//   - actorChat:     cognition — quick, conversational, lower stakes;
+//                                cuts ~50% off chat-reply latency.
 // When local OSS LLM swap lands, these are the call sites to repoint.
 
 import type { LLMAdapter } from '../../llm/adapter';
 import { MonologueSchema } from '../schemas';
 import { sanitizeMonologue as sanitize } from '../sanitize';
 import {
-  PER_CARD_PERSONA_SYSTEM,
-  PER_CARD_PERSONA_TOOL,
-  INTRO_PERSONA_SYSTEM,
-  INTRO_PERSONA_TOOL,
-  CLOSING_PERSONA_SYSTEM,
-  CLOSING_PERSONA_TOOL,
-  CHAT_PERSONA_SYSTEM,
-  CHAT_PERSONA_TOOL,
-} from '../prompts/persona';
+  PER_CARD_ACTOR_SYSTEM,
+  PER_CARD_ACTOR_TOOL,
+  INTRO_ACTOR_SYSTEM,
+  INTRO_ACTOR_TOOL,
+  CLOSING_ACTOR_SYSTEM,
+  CLOSING_ACTOR_TOOL,
+  CHAT_ACTOR_SYSTEM,
+  CHAT_ACTOR_TOOL,
+} from '../prompts/actor';
 import type {
-  ChatPersonaInput,
-  ClosingPersonaInput,
-  IntroPersonaInput,
+  ChatActorInput,
+  ClosingActorInput,
+  IntroActorInput,
   Monologue,
-  PerCardPersonaInput,
+  PerCardActorInput,
 } from '../types';
 
 
-export async function personaPerCard(
+export async function actorPerCard(
   adapter: LLMAdapter,
-  input: PerCardPersonaInput,
+  input: PerCardActorInput,
 ): Promise<Monologue> {
   const payload = {
     identity: input.profile.identity,
@@ -49,9 +50,9 @@ export async function personaPerCard(
 
   return sanitize(await adapter.invoke<Monologue>(
     {
-      system: PER_CARD_PERSONA_SYSTEM,
+      system: PER_CARD_ACTOR_SYSTEM,
       user: JSON.stringify(payload, null, 2),
-      tool: PER_CARD_PERSONA_TOOL,
+      tool: PER_CARD_ACTOR_TOOL,
       model: 'deep',
       max_tokens: 500,         // beats are 2-4 sentences; cap tighter
     },
@@ -59,9 +60,9 @@ export async function personaPerCard(
   ));
 }
 
-export async function personaIntro(
+export async function actorIntro(
   adapter: LLMAdapter,
-  input: IntroPersonaInput,
+  input: IntroActorInput,
 ): Promise<Monologue> {
   const payload = {
     identity: input.profile.identity,
@@ -72,9 +73,9 @@ export async function personaIntro(
 
   return sanitize(await adapter.invoke<Monologue>(
     {
-      system: INTRO_PERSONA_SYSTEM,
+      system: INTRO_ACTOR_SYSTEM,
       user: JSON.stringify(payload, null, 2),
-      tool: INTRO_PERSONA_TOOL,
+      tool: INTRO_ACTOR_TOOL,
       model: 'deep',
       max_tokens: 200,
     },
@@ -82,9 +83,9 @@ export async function personaIntro(
   ));
 }
 
-export async function personaClosing(
+export async function actorClosing(
   adapter: LLMAdapter,
-  input: ClosingPersonaInput,
+  input: ClosingActorInput,
 ): Promise<Monologue> {
   const payload = {
     identity: input.profile.identity,
@@ -101,9 +102,9 @@ export async function personaClosing(
 
   return sanitize(await adapter.invoke<Monologue>(
     {
-      system: CLOSING_PERSONA_SYSTEM,
+      system: CLOSING_ACTOR_SYSTEM,
       user: JSON.stringify(payload, null, 2),
-      tool: CLOSING_PERSONA_TOOL,
+      tool: CLOSING_ACTOR_TOOL,
       model: 'deep',
       max_tokens: 300,
     },
@@ -111,9 +112,9 @@ export async function personaClosing(
   ));
 }
 
-export async function personaChat(
+export async function actorChat(
   adapter: LLMAdapter,
-  input: ChatPersonaInput,
+  input: ChatActorInput,
 ): Promise<Monologue> {
   const payload = {
     identity: input.profile.identity,
@@ -130,9 +131,9 @@ export async function personaChat(
 
   return sanitize(await adapter.invoke<Monologue>(
     {
-      system: CHAT_PERSONA_SYSTEM,
+      system: CHAT_ACTOR_SYSTEM,
       user: JSON.stringify(payload, null, 2),
-      tool: CHAT_PERSONA_TOOL,
+      tool: CHAT_ACTOR_TOOL,
       model: 'cognition',      // chat replies don't need the full deep tier
       max_tokens: 300,
     },

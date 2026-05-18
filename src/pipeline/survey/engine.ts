@@ -66,7 +66,7 @@ export type EngineOpts = {
 
 const OPENER_NODE_IDS = new Set<string>(getOpeners());
 
-const STARTER_SEED_COUNT = 6;
+export const STARTER_SEED_COUNT = 6;
 const DEFAULT_QUESTION_CAP = 20;
 
 export class SurveyEngine {
@@ -202,12 +202,16 @@ export class SurveyEngine {
         this.seedStarterPool();
       }
     } else {
-      // Post-opener pipeline. Interrogator suppressed once we'd push
-      // past the question cap with new questions.
+      // Post-opener pipeline. Interrogator suppressed cap−6 turns out so
+      // the existing starter-pool seeds (STARTER_SEED_COUNT) carry the
+      // final stretch without piling on new questions the user won't
+      // reach. Past that watermark we still run Observer + Detective —
+      // we just stop appending to the queue.
       const postOpenerCount = this.countPostOpenerPicks();
       const cap = this.questionCap();
+      const interrogatorWatermark = cap - STARTER_SEED_COUNT;
       const suppressInterrogator =
-        postOpenerCount + this.state.queue.length >= cap;
+        postOpenerCount + this.state.queue.length >= interrogatorWatermark;
       this.spawnPipeline(pick, suppressInterrogator);
 
       // Did this answer just exhaust the question budget? If so, the

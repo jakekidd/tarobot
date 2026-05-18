@@ -5,7 +5,7 @@ import { z } from 'zod';
 const NarrativeRole = z.enum(['opening', 'rising', 'turning', 'closing']);
 
 /** A Set — Stanislavski "given circumstances" the seer inhabits.
- *  Interior state, not content. The persona does not paraphrase this. */
+ *  Interior state, not content. The actor does not paraphrase this. */
 export const SetSchema = z.object({
   position_id: z.string(),
   card_id: z.number().int().min(0),
