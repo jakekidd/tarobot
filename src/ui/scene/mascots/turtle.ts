@@ -24,20 +24,16 @@ const EYE_COLOR = 0xfff7e0;            // warm white — pops inside the silhoue
 const EYE_MESH_NAME = 'Object_38';     // the smaller skinned mesh in the gltf
 const ANIMATION_TIME_SCALE = 0.2;      // 5× slower than native — calm paddle
 const TURTLE_SCALE = 2.0;              // 2× larger than the anchor footprint
-const Z_OFFSET = -0.3;                 // push back in positionGroup-local Z
+// Push back in local Z. With group.scale=2 and the rig's ~100 px/unit
+// scale on top, Z_OFFSET=-1.0 puts him ~200 world units behind the
+// rig anchor — well clear of the camera's near plane (at z=99.9) even
+// when bank-tilt swings part of the model forward.
+const Z_OFFSET = -1.0;
 
 // ↓↓↓ BAKED ORIENTATION — edit this after dialing in via debug arrows. ↓↓↓
 // Order: (x, y, z) in radians.
 const BASE_ROTATION = new THREE.Euler(0, Math.PI, 0);
 // ↑↑↑
-
-// Violet tint applied to the body materials' base color + a brand-violet
-// emissive add so the turtle reads as "Clat's turtle" even when the
-// scene lights are dim. multiplies the existing texture/color, so any
-// surface detail the gltf carries survives the tint.
-const BODY_TINT = 0xa78bfa;            // light violet — multiplied onto base color
-const BODY_EMISSIVE = 0x7c3aed;        // brand violet — self-lit glow
-const BODY_EMISSIVE_INTENSITY = 0.35;
 
 // Wander shape — two incommensurate frequencies so the path never closes.
 // Amplitudes in positionGroup-local units (rig is ~100 px/unit), so
@@ -75,9 +71,6 @@ export function createTurtleMascot(): Mascot {
     color: EYE_COLOR,
     depthTest: false,
   });
-  const bodyTintColor = new THREE.Color(BODY_TINT);
-  const bodyEmissiveColor = new THREE.Color(BODY_EMISSIVE);
-
   // Live rotation — starts at BASE_ROTATION, mutated by debug arrow keys.
   // root.rotation is kept in sync so what you see is what gets reported.
   const liveRotation = BASE_ROTATION.clone();
@@ -152,10 +145,9 @@ export function createTurtleMascot(): Mascot {
         );
         root.scale.setScalar(1 / maxDim);
 
-        // Keep the gltf's native materials on the body, but multiply
-        // a violet tint into the base color and add a brand-violet
-        // emissive so the turtle reads as Clat's even in dim light.
-        // Eyes get the warm-white glow material instead.
+        // Keep the gltf's native materials on the body — no tint, no
+        // emissive. Only the eyes get the warm-white glow material so
+        // they read clearly through the head silhouette.
         root.traverse((obj) => {
           const m = obj as THREE.Mesh;
           if (!m.isMesh) return;
@@ -167,15 +159,7 @@ export function createTurtleMascot(): Mascot {
             m.renderOrder = 10; // draw after the body so depthTest=false reads cleanly
           } else if (m.material) {
             const mats = Array.isArray(m.material) ? m.material : [m.material];
-            for (const mat of mats) {
-              const std = mat as THREE.MeshStandardMaterial;
-              if (std.color) std.color.multiply(bodyTintColor);
-              if ('emissive' in std) {
-                std.emissive = bodyEmissiveColor.clone();
-                std.emissiveIntensity = BODY_EMISSIVE_INTENSITY;
-              }
-              disposables.push(mat);
-            }
+            for (const mat of mats) disposables.push(mat);
           }
           m.castShadow = false;
           m.receiveShadow = false;
