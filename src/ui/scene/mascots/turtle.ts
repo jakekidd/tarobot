@@ -50,18 +50,35 @@ export function createTurtleMascot(): Mascot {
         // is not lighting, it's visibility / scale / camera / culling.
         const violet = new THREE.MeshNormalMaterial();
         disposables.push(violet);
+        let meshCount = 0;
+        let skinnedCount = 0;
         root.traverse((obj) => {
           const m = obj as THREE.Mesh;
           if (m.isMesh) {
+            meshCount += 1;
             const orig = m.material as THREE.Material | THREE.Material[];
             if (Array.isArray(orig)) orig.forEach((mat) => mat.dispose?.());
             else orig?.dispose?.();
             m.material = violet;
             m.castShadow = false;
             m.receiveShadow = false;
+            // SkinnedMesh frustum culling uses the REST-POSE vertex bbox,
+            // not the post-skinning world bounds. After our rotate/scale
+            // the rest-pose bbox can fall outside the camera frustum even
+            // though the rendered (skinned) verts are dead-center.
+            // Disable culling for these specifically.
+            const sm = m as unknown as THREE.SkinnedMesh;
+            if ((sm as THREE.SkinnedMesh).isSkinnedMesh) {
+              skinnedCount += 1;
+              m.frustumCulled = false;
+            }
             if (m.geometry) disposables.push(m.geometry);
           }
         });
+        console.info(
+          '[turtleMascot] meshes:', meshCount,
+          '· skinned:', skinnedCount,
+        );
 
         // Tilt 90° on X so the turtle faces the camera (otherwise the
         // model is in swim-pose — looking sideways relative to the ortho
