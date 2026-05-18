@@ -33,17 +33,17 @@ export function createTurtleMascot(): Mascot {
       (gltf) => {
         const root = gltf.scene;
 
-        // Normalize: center on origin + scale longest axis to 1. The
-        // rig applies anchor.width on top, so the mascot reads at a
-        // predictable on-screen size regardless of source-model units.
+        // DEBUG: skipping all transforms (center/scale/rotation) to
+        // isolate whether the SkinnedMesh skinning math is the problem.
+        // Add root raw + log everything we can find about its children.
         const box = new THREE.Box3().setFromObject(root);
         const size = new THREE.Vector3();
         box.getSize(size);
         const maxDim = Math.max(size.x, size.y, size.z) || 1;
-        const center = new THREE.Vector3();
-        box.getCenter(center);
-        root.position.sub(center);
-        root.scale.setScalar(1 / maxDim);
+        console.info(
+          '[turtleMascot] root bbox:', JSON.stringify(box.min), 'to', JSON.stringify(box.max),
+          '· size:', JSON.stringify(size),
+        );
 
         // DEBUG: MeshNormalMaterial colors by surface normal direction.
         // Renders without any lighting — if this doesn't show, the issue
@@ -62,16 +62,22 @@ export function createTurtleMascot(): Mascot {
             m.material = violet;
             m.castShadow = false;
             m.receiveShadow = false;
-            // SkinnedMesh frustum culling uses the REST-POSE vertex bbox,
-            // not the post-skinning world bounds. After our rotate/scale
-            // the rest-pose bbox can fall outside the camera frustum even
-            // though the rendered (skinned) verts are dead-center.
-            // Disable culling for these specifically.
+            m.frustumCulled = false;
             const sm = m as unknown as THREE.SkinnedMesh;
-            if ((sm as THREE.SkinnedMesh).isSkinnedMesh) {
-              skinnedCount += 1;
-              m.frustumCulled = false;
-            }
+            const isSkinned = (sm as THREE.SkinnedMesh).isSkinnedMesh === true;
+            if (isSkinned) skinnedCount += 1;
+            const wpos = new THREE.Vector3();
+            m.getWorldPosition(wpos);
+            const meshBox = new THREE.Box3().setFromObject(m);
+            console.info(
+              '[turtleMascot] mesh', meshCount,
+              '· name:', m.name,
+              '· isSkinned:', isSkinned,
+              '· verts:', m.geometry.attributes.position?.count ?? '?',
+              '· localPos:', m.position.toArray().map((v) => v.toFixed(2)),
+              '· worldPos:', [wpos.x, wpos.y, wpos.z].map((v) => v.toFixed(2)),
+              '· bbox:', JSON.stringify({ min: meshBox.min.toArray(), max: meshBox.max.toArray() }),
+            );
             if (m.geometry) disposables.push(m.geometry);
           }
         });
@@ -79,13 +85,21 @@ export function createTurtleMascot(): Mascot {
           '[turtleMascot] meshes:', meshCount,
           '· skinned:', skinnedCount,
         );
+        void maxDim;  // intentionally unused — see debug-bypass above
 
-        // Tilt 90° on X so the turtle faces the camera (otherwise the
-        // model is in swim-pose — looking sideways relative to the ortho
-        // camera's top-down view).
-        root.rotation.set(Math.PI * 0.5, 0, 0);
-
+        // DEBUG: no rotation either — pure raw add.
         group.add(root);
+
+        // DEBUG: control mesh — plain green sphere parented to the
+        // group, no skinning, no skeleton. If this renders but the
+        // turtle doesn't, the issue is the SkinnedMesh specifically
+        // (not the group, the scene, or the camera).
+        const controlGeom = new THREE.SphereGeometry(0.3, 12, 8);
+        const controlMat = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
+        const controlMesh = new THREE.Mesh(controlGeom, controlMat);
+        controlMesh.position.set(0.5, 0, 0);  // offset so it's not inside red box
+        group.add(controlMesh);
+        disposables.push(controlGeom, controlMat);
 
         // DEBUG: explicit unit-cube wireframe in the group's local space.
         // depthTest=false so it draws over ANYTHING — particles, scene,
