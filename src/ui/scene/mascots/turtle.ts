@@ -12,7 +12,7 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import type { Mascot, MascotContext } from './types';
 
 const ASSET_URL = '/mascots/turtle/scene.gltf';
-const VIOLET = 0x7c3aed;                // Clat's brand violet
+// const VIOLET = 0x7c3aed;             // Clat's brand violet (restore when debug box removed)
 const ANIMATION_TIME_SCALE = 0.01;      // 100× slower than native ("floating")
 
 export function createTurtleMascot(): Mascot {
