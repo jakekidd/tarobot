@@ -123,11 +123,12 @@ export function createTurtleMascot(): Mascot {
           if (m.geometry) disposables.push(m.geometry);
         });
 
-        // Face the camera. The gltf's natural orientation already has
-        // the head at +Z (toward camera) — no Y rotation needed. (Earlier
-        // builds tried Math.PI here based on a wrong assumption about the
-        // gltf's forward axis; that pointed the head AWAY from the camera.)
-        root.rotation.set(0, 0, 0);
+        // Face the camera. The gltf's natural orientation has the head
+        // at -X (swims along the world X axis), so we rotate +π/2 on Y
+        // to bring -X to +Z (toward camera, which sits at +Z looking
+        // down -Z). Earlier attempts tried 0 and π on Y — both put him
+        // in profile or backward.
+        root.rotation.set(0, Math.PI / 2, 0);
         tiltGroup.add(root);
 
         // 2× the anchor footprint.
