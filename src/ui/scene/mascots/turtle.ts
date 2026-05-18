@@ -45,14 +45,10 @@ export function createTurtleMascot(): Mascot {
         root.position.sub(center);
         root.scale.setScalar(1 / maxDim);
 
-        // Violet PBR — the scene adds an ambient + key light at world
-        // coords (see TarobotScene) so this shades properly. Texture is
-        // dropped (mobile-friendlier + matches the flat palette).
-        const violet = new THREE.MeshStandardMaterial({
-          color: VIOLET,
-          roughness: 0.55,
-          metalness: 0.0,
-        });
+        // DEBUG: MeshNormalMaterial colors by surface normal direction.
+        // Renders without any lighting — if this doesn't show, the issue
+        // is not lighting, it's visibility / scale / camera / culling.
+        const violet = new THREE.MeshNormalMaterial();
         disposables.push(violet);
         root.traverse((obj) => {
           const m = obj as THREE.Mesh;
@@ -74,17 +70,34 @@ export function createTurtleMascot(): Mascot {
 
         group.add(root);
 
-        // DEBUG: red wireframe AABB so we can see exactly where he lives.
-        // Remove once positioning is sorted.
-        const boxHelper = new THREE.BoxHelper(root, 0xff0000);
-        group.add(boxHelper);
+        // DEBUG: explicit unit-cube wireframe in the group's local space.
+        // depthTest=false so it draws over ANYTHING — particles, scene,
+        // whatever. If this doesn't show, the group isn't being rendered
+        // at all (visibility/anchor/camera issue, not z-order).
+        const boxGeom = new THREE.BoxGeometry(1.05, 1.05, 1.05);
+        const boxEdges = new THREE.EdgesGeometry(boxGeom);
+        const boxMat = new THREE.LineBasicMaterial({
+          color: 0xff0000,
+          depthTest: false,
+          depthWrite: false,
+          transparent: true,
+        });
+        const debugBox = new THREE.LineSegments(boxEdges, boxMat);
+        debugBox.renderOrder = 9999;
+        group.add(debugBox);
+        disposables.push(boxGeom, boxEdges, boxMat);
 
-        // DEBUG: a temp PointLight parented to the group so it follows
-        // the turtle through the rig scale. Bright, close-range; meant
-        // to be loud while we sort out the real lighting.
-        const fillLight = new THREE.PointLight(0xffffff, 4.0, 5, 1.0);
-        fillLight.position.set(0.6, 0.4, 1.2);  // above + in front
-        group.add(fillLight);
+        // Inner debug crosshair — solid red sphere at the group origin.
+        // Smaller than the box; helps confirm the group's actual center.
+        const dotGeom = new THREE.SphereGeometry(0.08, 12, 8);
+        const dotMat = new THREE.MeshBasicMaterial({
+          color: 0xff0000,
+          depthTest: false,
+        });
+        const dot = new THREE.Mesh(dotGeom, dotMat);
+        dot.renderOrder = 9999;
+        group.add(dot);
+        disposables.push(dotGeom, dotMat);
 
         // Wire up Swim Cycle at the slow timeScale.
         if (gltf.animations.length > 0) {
@@ -108,7 +121,18 @@ export function createTurtleMascot(): Mascot {
     );
   });
 
+  let lastReportedVisible: boolean | null = null;
   function update(ctx: MascotContext): void {
+    // DEBUG: announce visibility transitions so we can confirm the
+    // scene is actually trying to show the turtle.
+    if (group.visible !== lastReportedVisible) {
+      lastReportedVisible = group.visible;
+      console.info(
+        '[turtleMascot] visible →', group.visible,
+        '· children:', group.children.length,
+        '· world-scale:', group.parent?.scale.x.toFixed(2) ?? '?',
+      );
+    }
     // Turtle ignores mouse + dizzy for now — it just floats. Future
     // versions could pulse on dizzy or react to cursor proximity.
     if (mixer) mixer.update(ctx.dt);
