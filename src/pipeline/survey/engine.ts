@@ -270,8 +270,8 @@ export class SurveyEngine {
 
   /** User picked (or wrote in) their intention. Instantiates the Seer
    *  with the survey case file + intention + a fresh card draw. The
-   *  Seer's constructor kicks off its intro pipeline (cognition →
-   *  persona); UI gates the [ENTER] button on seer.ready. */
+   *  Seer's constructor kicks off its intro pipeline (director →
+   *  actor); UI gates the [ENTER] button on seer.ready. */
   submitIntention(text: string): void {
     const cleaned = text.trim();
     if (!cleaned) return;
