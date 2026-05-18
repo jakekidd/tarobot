@@ -1,8 +1,6 @@
-// Survey engine types. Internal to the survey module; the engine produces a
-// CompilerOutput at close that maps back to the legacy Profile/Question shape
-// the tent consumes (so the rest of the app doesn't need to change).
-
-import type { Profile, Question } from '../types';
+// Survey engine types. Internal to the survey module. On close, the
+// engine hands off a pre-built Seer instance (see getSeer()) — no
+// compiler stage, no CompilerOutput intermediate.
 
 // ─── Phase ──────────────────────────────────────────────
 
@@ -347,34 +345,10 @@ export type ShamanOutput = {
   reasoning: string;
 };
 
-export type CompilerInput = {
-  state: EngineState;
-  /** The intention the user picked at the shaman screen. Becomes the
-   *  focal point the seer's reading orbits. May be one of
-   *  `state.intentions_offered` or a write-in. */
-  chosen_intention: string;
-};
-
-/**
- * What the LLM contributes at compile time. Kept tight: just the synthesis
- * fields. The engine maps the rest of the legacy Profile from EngineState
- * deterministically — see assembleCompilerOutput() in engine.ts.
- */
-export type CompilerLLMOutput = {
-  /** 3-6 sentence summary that goes into Profile.brief. */
-  brief_summary: string;
-  /** The opinionated PI brief the seer reads (200-400 words). */
-  prose_brief: string;
-  /** Three openers for the reading. Schema-locked to legacy Question shape. */
-  openers: Question[];
-};
-
-/** Final Compiler payload — legacy Profile + openers + the prose brief. */
-export type CompilerOutput = {
-  profile: Profile;
-  openers: Question[];
-  prose_brief: string;
-};
+// Compiler types removed — survey hands off via a pre-built Seer
+// (see ../seer/seer.ts). The intro pipeline (cognition → persona) is
+// kicked off in the Seer's constructor; there's no separate compiler
+// stage.
 
 // ─── Engine API ─────────────────────────────────────────
 

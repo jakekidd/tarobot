@@ -6,11 +6,11 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   AnthropicAdapter,
   SurveyEngine,
-  type CompilerOutput,
   type EngineState,
   type RenderedQuestion,
 } from '../../pipeline/survey';
 import { createClaudeClient } from '../../pipeline/claude';
+import type { Seer } from '../../pipeline/seer';
 
 import type { SurveyProfile } from '../../pipeline/survey';
 
@@ -28,10 +28,12 @@ type SurveyHook = {
   state: EngineState;
   currentQuestion: RenderedQuestion | null;
   submitAnswer: (answer: string | string[]) => Promise<void>;
-  /** User picked or wrote in the intention. Fires the compiler. */
+  /** User picked or wrote in their intention. Instantiates the Seer
+   *  inside the engine; survey.seer becomes available once ready. */
   submitIntention: (text: string) => void;
   skipAhead: () => void;
-  compilerOutput: CompilerOutput | null;
+  /** Pre-built Seer once stage === 'reading_ready'. null until then. */
+  seer: Seer | null;
 };
 
 export function useSurveyEngine(opts: Options): SurveyHook {
@@ -53,13 +55,13 @@ export function useSurveyEngine(opts: Options): SurveyHook {
   }, [opts.apiKey, opts.sessionId]);
 
   const [state, setState] = useState<EngineState>(() => engine.getState());
-  const [compilerOutput, setCompilerOutput] = useState<CompilerOutput | null>(null);
+  const [seer, setSeer] = useState<Seer | null>(null);
 
   useEffect(() => {
     const unsub = engine.subscribe((s) => {
       setState(s);
-      const out = engine.getCompilerOutput();
-      if (out) setCompilerOutput(out);
+      const sr = engine.getSeer();
+      if (sr) setSeer(sr);
     });
     return unsub;
   }, [engine]);
@@ -82,7 +84,7 @@ export function useSurveyEngine(opts: Options): SurveyHook {
     submitAnswer: (a) => submitAnswerRef.current(a),
     submitIntention: (t) => submitIntentionRef.current(t),
     skipAhead: () => skipAheadRef.current(),
-    compilerOutput,
+    seer,
   };
 }
 

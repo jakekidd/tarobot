@@ -27,7 +27,9 @@
 // are visually distinguishable today.
 
 import type { LLMAdapter } from '../survey/adapter';
-import { cognitionPerCard, cognitionClosing } from './cognition';
+import type { DrawnCards, Profile } from '../types';
+import type { PickEvent } from '../survey';
+import { cognitionPerCard, cognitionClosing, cognitionIntro } from './cognition';
 import {
   personaPerCard,
   personaIntro,
@@ -39,7 +41,6 @@ import type {
   Set,
   Monologue,
   NarrativeRole,
-  ReadingInputs,
   ReadingListener,
   ReadingPhase,
   ReadingState,
@@ -47,9 +48,18 @@ import type {
 } from './types';
 import { sanitizeMonologue } from './sanitize';
 
-export type ReadingOpts = {
+/** What Seer needs to inhabit the table. profile is the deterministic
+ *  survey-derived identity record; surveyHistory + intention are the
+ *  case file the seer reads before speaking. drawn is the spread the
+ *  reading will use. preferred_intro short-circuits intro generation
+ *  for the demo path. */
+export type SeerOpts = {
   adapter: LLMAdapter;
-  inputs: ReadingInputs;
+  profile: Profile;
+  surveyHistory: PickEvent[];
+  intention: string;
+  drawn: DrawnCards;
+  preferred_intro?: Monologue;
 };
 
 type SlotResult = { set: Set; monologue: Monologue };
@@ -61,10 +71,12 @@ const ROUND_TO_ROLE: Record<number, NarrativeRole> = {
   4: 'closing',
 };
 
-export class ReadingEngine {
+export class Seer {
   private state: ReadingState;
   private adapter: LLMAdapter;
   private listeners = new Set<ReadingListener>();
+  private intention: string;
+  private surveyHistory: PickEvent[];
 
   /** key = `${round}:${position_id}` → eventual SlotResult */
   private slotPromises = new Map<string, Promise<SlotResult>>();
@@ -73,10 +85,22 @@ export class ReadingEngine {
   /** Phase to return to after a chat round completes. */
   private phaseBeforeChat: ReadingPhase | null = null;
 
-  constructor(opts: ReadingOpts) {
+  /** Resolves when the intro is fully built (cognition → persona → spoken).
+   *  UI gates the [ENTER] button on this. */
+  public readonly ready: Promise<void>;
+
+  constructor(opts: SeerOpts) {
     this.adapter = opts.adapter;
+    this.intention = opts.intention;
+    this.surveyHistory = opts.surveyHistory;
     this.state = {
-      inputs: opts.inputs,
+      inputs: {
+        profile: opts.profile,
+        // Filled by cognitionIntro (or '<demo>' for preferred_intro path).
+        prose_brief: '',
+        drawn: opts.drawn,
+        ...(opts.preferred_intro ? { preferred_intro: opts.preferred_intro } : {}),
+      },
       phase: 'idle',
       intro: null,
       outro: null,
@@ -86,38 +110,42 @@ export class ReadingEngine {
       active_prompt_to_user: null,
       chat: [],
     };
+    // Kick off intro generation. Stores result in state.intro; UI waits.
+    this.ready = this.buildIntro();
   }
 
-  getState(): ReadingState {
-    return this.state;
-  }
-
-  subscribe(listener: ReadingListener): () => void {
-    this.listeners.add(listener);
-    return () => { this.listeners.delete(listener); };
-  }
-
-  /** Kick off intro + round-1 fan-out. Resolves once the intro is ready. */
-  async start(): Promise<void> {
-    if (this.state.phase !== 'idle') return;
-
-    // Spawn round-1 fan-out immediately, in parallel with intro generation.
-    // If intro is pre-baked (demo), fan-out gets a head start.
-    this.spawnFanOut(1, []);
-
+  /** Build the intro via serial cognition → persona. Called once by
+   *  the constructor. Stores the prose_brief on state.inputs so all
+   *  subsequent per-card cognition calls can reuse it. */
+  private async buildIntro(): Promise<void> {
     const preferred = this.state.inputs.preferred_intro;
     if (preferred) {
-      // Fixture-sourced intros bypass persona.ts's sanitize — apply here
-      // so em-dashes / en-dashes get the engine-layer ellipsis treatment.
-      this.setState({ phase: 'intro', intro: sanitizeMonologue(preferred), awaiting_tier: null });
+      this.state.inputs.prose_brief = '<demo fixture>';
+      this.setState({
+        phase: 'intro',
+        intro: sanitizeMonologue(preferred),
+        awaiting_tier: null,
+      });
       return;
     }
 
-    this.setState({ phase: 'thinking', awaiting_tier: 'persona' });
+    this.setState({ phase: 'thinking', awaiting_tier: 'cognition' });
     try {
+      // STAGE 1: cognition — produce the clinical brief / guide.
+      const brief = await cognitionIntro(this.adapter, {
+        profile: this.state.inputs.profile,
+        intention: this.intention,
+        surveyHistory: this.surveyHistory,
+      });
+      // Mutate inputs in place — all per-card/closing cognition calls
+      // downstream read this field.
+      this.state.inputs.prose_brief = brief;
+
+      // STAGE 2: persona — turn the brief into the spoken intro.
+      this.setState({ phase: 'thinking', awaiting_tier: 'persona' });
       const intro = await personaIntro(this.adapter, {
         profile: this.state.inputs.profile,
-        prose_brief: this.state.inputs.prose_brief,
+        prose_brief: brief,
       });
       this.setState({ phase: 'intro', intro, awaiting_tier: null });
     } catch (err) {
@@ -127,6 +155,35 @@ export class ReadingEngine {
         error: err instanceof Error ? err.message : 'intro generation failed',
       });
     }
+  }
+
+  getState(): ReadingState {
+    return this.state;
+  }
+
+  /** The legacy Profile snapshot the Seer was built from. Reused by
+   *  App.tsx to populate the Session row for resume UI. */
+  getProfile(): Profile {
+    return this.state.inputs.profile;
+  }
+
+  /** The user's chosen intention (the question they brought to the
+   *  oracle). Available for the reading UI's debug overlay. */
+  getIntention(): string {
+    return this.intention;
+  }
+
+  subscribe(listener: ReadingListener): () => void {
+    this.listeners.add(listener);
+    return () => { this.listeners.delete(listener); };
+  }
+
+  /** Called by Reading screen on mount (after user clicks [ENTER]).
+   *  Spawns round-1 fan-out so card-stories are speculatively built
+   *  while the user reads the intro. The intro itself was already
+   *  built in the constructor — UI gated entry on `ready`. */
+  enter(): void {
+    this.spawnFanOut(1, []);
   }
 
   /** Called by UI after the intro typewriter completes AND user taps. */

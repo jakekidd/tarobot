@@ -4,7 +4,6 @@
 import {
   AnthropicAdapter,
   SurveyEngine,
-  type CompilerOutput,
   type EngineState,
 } from '../../src/pipeline/survey';
 import type { ClaudeClient } from '../../src/pipeline/claude';
@@ -15,7 +14,7 @@ import { recordTokens } from './tokens';
 
 export type RunResult = {
   final_state: EngineState;
-  brief: CompilerOutput | null;
+  brief: null;     // legacy slot — Seer owns the prose now
   transcript: TranscriptEntry[];
 };
 
@@ -105,19 +104,19 @@ export async function runSurvey(
   const final_state = engine.getState();
   logger.close(final_state.close_reason ?? 'unknown');
 
-  // Wait for the Compiler to finish
-  const briefPromise = engine.getCompilerPromise();
-  let brief: CompilerOutput | null = null;
-  if (briefPromise) {
+  // Wait for the Seer's intro to land. Replaces the old Compiler wait
+  // step. We don't have a "brief" anymore — the prose lives inside Seer.
+  const seer = engine.getSeer();
+  if (seer) {
     try {
-      brief = await briefPromise;
-      logger.compilerSection('PROSE BRIEF', brief.prose_brief);
+      await seer.ready;
+      logger.compilerSection('SEER INTRO', seer.getState().intro?.text ?? '(no intro)');
     } catch (err) {
-      logger.error('compiler', err);
+      logger.error('seer.intro', err);
     }
   }
 
-  return { final_state, brief, transcript };
+  return { final_state, brief: null, transcript };
 }
 
 function countNotes(state: EngineState): number {

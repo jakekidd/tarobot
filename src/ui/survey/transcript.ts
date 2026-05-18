@@ -3,13 +3,17 @@
 // shared back for iteration. Also persists per-run to localStorage and
 // offers a downloadTranscript() helper for the browser-side save.
 
-import type { CompilerOutput, EngineState, PickEvent } from '../../pipeline/survey';
+import type { EngineState, PickEvent } from '../../pipeline/survey';
 
 const LS_KEY = 'tarobot:survey-logs';
 
+/** Build a markdown transcript from the closed engine state. The
+ *  brief/openers (formerly from Compiler) are no longer captured here
+ *  — the Seer owns its prose_brief now and exposing it would couple
+ *  this util to the Seer instance lifecycle. */
 export function buildTranscriptMarkdown(
   state: EngineState,
-  brief: CompilerOutput | null,
+  _unused: unknown = null,
 ): string {
   const name = state.profile.name || 'unnamed';
   const startedAt = new Date(state.started_at);
@@ -40,17 +44,8 @@ export function buildTranscriptMarkdown(
   lines.push(`turn count: ${state.picks_log.length}`);
   lines.push('');
 
-  if (brief) {
-    lines.push('## Brief');
-    lines.push('');
-    lines.push(brief.prose_brief);
-    lines.push('');
-    lines.push('## Openers handed to the tent');
-    lines.push('```json');
-    lines.push(JSON.stringify(brief.openers, null, 2));
-    lines.push('```');
-    lines.push('');
-  }
+  // (prose_brief + openers used to be captured here from CompilerOutput;
+  // they're owned by the Seer now and we don't thread them through.)
 
   lines.push('## Final engine state');
   lines.push('```json');
@@ -85,8 +80,8 @@ type StoredLog = {
   markdown: string;
 };
 
-export function persistLog(state: EngineState, brief: CompilerOutput | null): void {
-  const md = buildTranscriptMarkdown(state, brief);
+export function persistLog(state: EngineState, _unused: unknown = null): void {
+  const md = buildTranscriptMarkdown(state);
   const entry: StoredLog = {
     session_id: state.session_id,
     saved_at: Date.now(),
@@ -121,8 +116,8 @@ export function loadLogs(): StoredLog[] {
   }
 }
 
-export function downloadTranscript(state: EngineState, brief: CompilerOutput | null): void {
-  const md = buildTranscriptMarkdown(state, brief);
+export function downloadTranscript(state: EngineState, _unused: unknown = null): void {
+  const md = buildTranscriptMarkdown(state);
   const blob = new Blob([md], { type: 'text/markdown' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');

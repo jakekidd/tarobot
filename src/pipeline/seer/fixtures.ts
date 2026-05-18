@@ -1,10 +1,14 @@
 // Demo fixtures. Used by the READ DEMO menu path to skip survey and land
-// directly in a reading with a rich, hand-authored profile. The shape
-// matches CompilerOutput so the reading engine treats it identically to a
-// real survey close.
+// directly in a reading with a rich, hand-authored profile. Exports a
+// `buildMarisolDemoSeer(adapter)` helper that returns a ready-to-use
+// Seer with the fixture profile + a fresh card draw + the preferred
+// intro short-circuit.
 
-import type { CompilerOutput } from '../survey';
+import type { LLMAdapter } from '../survey/adapter';
 import type { Choice, Profile } from '../types';
+import { drawForSpread } from '../cards';
+import { FOUR_CARD_DIAMOND } from '../spreads';
+import { Seer } from './seer';
 import type { Monologue } from './types';
 
 const MARISOL_CHOICE: Choice = {
@@ -156,10 +160,21 @@ export const MARISOL_INTRO: Monologue = {
   text: 'marisol. sit with me. you brought something heavier than the question you came with — let us look at what wants looking at.',
 };
 
-export function buildMarisolDemoBrief(): CompilerOutput {
-  return {
+/** Build a ready-to-use Seer for the READ DEMO path. The preferred_intro
+ *  short-circuits intro generation (no LLM call); the prose_brief is
+ *  pre-filled from the fixture. Seer's `ready` resolves immediately. */
+export function buildMarisolDemoSeer(adapter: LLMAdapter): Seer {
+  const seer = new Seer({
+    adapter,
     profile: MARISOL_PROFILE,
-    openers: [],
-    prose_brief: MARISOL_PROSE_BRIEF,
-  };
+    surveyHistory: [],
+    intention: 'Should I move back to Oakland for my mom?',
+    drawn: drawForSpread(FOUR_CARD_DIAMOND),
+    preferred_intro: MARISOL_INTRO,
+  });
+  // Force the fixture prose_brief into the Seer's internal state so all
+  // subsequent per-card cognition calls have the rich Marisol context
+  // (instead of the empty default the preferred_intro path leaves).
+  (seer.getState().inputs as { prose_brief: string }).prose_brief = MARISOL_PROSE_BRIEF;
+  return seer;
 }

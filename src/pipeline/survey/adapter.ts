@@ -4,8 +4,6 @@
 
 import type { ZodType } from 'zod';
 import type {
-  CompilerInput,
-  CompilerOutput,
   DetectiveOutput,
   InterrogatorOutput,
   ObserverOutput,
@@ -49,5 +47,4 @@ export type AgentRunners = {
   runObserver(ctx: PipelineContext): Promise<ObserverOutput>;
   runDetective(ctx: PipelineContext): Promise<DetectiveOutput>;
   runInterrogator(ctx: PipelineContext): Promise<InterrogatorOutput>;
-  runCompiler(input: CompilerInput): Promise<CompilerOutput>;
 };

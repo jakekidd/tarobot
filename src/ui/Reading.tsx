@@ -26,22 +26,13 @@
 //   error               → message + close
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { AnthropicAdapter, type CompilerOutput } from '../pipeline/survey';
 import {
-  drawForSpread,
-  FOUR_CARD_DIAMOND,
-  type DrawnCards,
-} from '../pipeline';
-import { createClaudeClient } from '../pipeline/claude';
-import {
-  ReadingEngine,
-  readingInputsFromCompiler,
-  type Monologue,
+  Seer,
   type ReadingState,
   pickFiller,
   FILLER_MIN_MS,
   FILLER_MAX_MS,
-} from '../pipeline/reading';
+} from '../pipeline/seer';
 import { ReaderAnchor } from './scene/ReaderAnchor';
 import { TableAnchor } from './scene/TableAnchor';
 import {
@@ -64,8 +55,9 @@ import { ChatInput } from './ChatInput';
 
 type Props = {
   apiKey: string;
-  brief: CompilerOutput;
-  preferredIntro?: Monologue;
+  /** Pre-built Seer handed from App (survey close OR demo path). The
+   *  intro was generated during construction; we just play it. */
+  seer: Seer;
   onExit: () => void;
 };
 
@@ -75,40 +67,23 @@ const FLIP_ANIM_MS = 950;
 // picks the nearest break under this cap.
 const CHUNK_MAX_CHARS = 200;
 
-export function Reading({ apiKey, brief, preferredIntro, onExit }: Props) {
-  const drawn: DrawnCards = useMemo(
-    () => drawForSpread(FOUR_CARD_DIAMOND),
-    [],
-  );
-
-  const engine = useMemo(() => {
-    const client = createClaudeClient(apiKey);
-    const adapter = new AnthropicAdapter(client);
-    return new ReadingEngine({
-      adapter,
-      inputs: readingInputsFromCompiler(brief, drawn, {
-        ...(preferredIntro ? { preferred_intro: preferredIntro } : {}),
-      }),
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [apiKey, drawn]);
+export function Reading({ apiKey: _apiKey, seer, onExit }: Props) {
+  const engine = seer;     // alias — local reads still call this `engine`
+  const drawn = seer.getState().inputs.drawn;
 
   const [state, setStateLocal] = useState<ReadingState>(() => engine.getState());
 
-  // Cinematic intro: camera starts ~120 units back (table reads as a
-  // tiny speck — the user's "light at the end of the tunnel"), lerps
-  // toward the normal POV over ~3.5s. During fly-in the seer (eyes)
-  // is hidden so the ghost only "appears" when we arrive. The engine
-  // starts in parallel — its first LLM call takes ~1-3s anyway, so
-  // intro lands close to the moment we settle.
+  // Cinematic intro: camera starts ~120 units back, lerps toward the
+  // normal POV over ~3.5s. During fly-in the seer (eyes) is hidden so
+  // the ghost only "appears" when we arrive. Seer.enter() spawns the
+  // round-1 fan-out so card stories speculatively build while intro plays.
   useEffect(() => {
     const unsub = engine.subscribe(setStateLocal);
     startFlyIn();
     const unsubFly = subscribeFlyIn((s) => {
       if (!s.active) {
-        // Fly-in landed → ghost appears + engine begins.
         setReaderMode('eyes');
-        void engine.start();
+        engine.enter();
       }
     });
     return () => {
@@ -216,9 +191,9 @@ export function Reading({ apiKey, brief, preferredIntro, onExit }: Props) {
   // Names to highlight in seer dialogue + transcript. The user's name
   // and any drawn card's name read in brand violet.
   const highlights = useMemo<Highlights>(() => ({
-    userName: brief.profile?.identity?.name ?? null,
+    userName: seer.getProfile().identity?.name ?? null,
     cardNames: drawn.cards.map((c) => c.card.name),
-  }), [brief.profile?.identity?.name, drawn]);
+  }), [seer, drawn]);
 
   // Unified transcript: seer's intro + each beat (with card name label) +
   // user/seer chat exchanges + outro (once delivered). The IN-PROGRESS
@@ -398,7 +373,7 @@ function CardHint({ visible }: { visible: boolean }) {
 
 type StageProps = {
   state: ReadingState;
-  engine: ReadingEngine;
+  engine: Seer;
   advanceTick: number;
   highlights: Highlights;
 };

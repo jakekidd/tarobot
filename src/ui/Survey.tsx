@@ -18,7 +18,7 @@ import { useSurveyEngine } from './survey/useSurveyEngine';
 import { downloadTranscript, persistLog } from './survey/transcript';
 import { setDizzy } from './scene/dizzyStore';
 import { listSessionNames, saveSession, type Session } from '../storage';
-import type { CompilerOutput } from '../pipeline/survey';
+import type { Seer } from '../pipeline/seer';
 import { publishDebug, clearDebug } from '../debug/debugBus';
 import { ChatInput } from './ChatInput';
 
@@ -29,11 +29,13 @@ const READY_BUTTON_MIN_TURNS = 6;
 type Props = {
   apiKey: string;
   session: Session;
-  onComplete: (brief: CompilerOutput) => void;
+  /** Survey hands off a ready Seer (intro pre-built) instead of a brief.
+   *  App routes from here to Reading with that Seer. */
+  onComplete: (seer: Seer) => void;
 };
 
 export function Survey({ apiKey, session, onComplete }: Props) {
-  const { state, currentQuestion, submitAnswer, submitIntention, skipAhead, compilerOutput } = useSurveyEngine({
+  const { state, currentQuestion, submitAnswer, submitIntention, skipAhead, seer } = useSurveyEngine({
     apiKey,
     sessionId: session.id,
   });
@@ -64,14 +66,20 @@ export function Survey({ apiKey, session, onComplete }: Props) {
     }
   }, [state.profile.name, state.picks_log, state.started_at, session]);
 
-  // When the Compiler finishes, persist the transcript + hand off.
+  // When the Seer is ready, persist the transcript. We do NOT auto-
+  // call onComplete here — the user has to click [ENTER] first to
+  // confirm they're ready to enter the tent.
   useEffect(() => {
-    if (state.closed && compilerOutput && persistedFor.current !== state.session_id) {
-      persistLog(state, compilerOutput);
+    if (state.stage === 'reading_ready' && seer && persistedFor.current !== state.session_id) {
+      persistLog(state, null);
       persistedFor.current = state.session_id;
-      onComplete(compilerOutput);
     }
-  }, [state.closed, compilerOutput, onComplete, state]);
+  }, [state.stage, seer, state]);
+
+  function handleEnter() {
+    if (!seer) return;
+    onComplete(seer);
+  }
 
   // Push engine.thinking → dizzy scene store. Clear on unmount so the cat
   // doesn't stay dizzy if Survey navigates away mid-thought.
@@ -237,10 +245,19 @@ export function Survey({ apiKey, session, onComplete }: Props) {
             ready for the cards →
           </button>
         )}
+        {state.stage === 'reading_ready' && seer && (
+          <button
+            className="btn btn--big survey__enter"
+            onClick={handleEnter}
+            title="enter the tent — the seer is ready for you."
+          >
+            ENTER
+          </button>
+        )}
         {isCompiling && (
           <button
             className="btn btn--quiet"
-            onClick={() => downloadTranscript(state, compilerOutput)}
+            onClick={() => downloadTranscript(state)}
           >
             download transcript
           </button>

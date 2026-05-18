@@ -16,7 +16,10 @@ import { runObserver } from './agents/observer';
 import { runDetective } from './agents/detective';
 import { runInterrogator } from './agents/interrogator';
 import { runShaman } from './agents/shaman';
-import { runCompiler } from './agents/compiler';
+import { Seer } from '../seer';
+import { drawForSpread } from '../cards';
+import { FOUR_CARD_DIAMOND } from '../spreads';
+import { assembleProfile } from './profile-assembly';
 import { computeAstroProfile, parseBirthDate } from '../astrology';
 import { findReturningUser, seedFromReturning } from './returning';
 import { publishDebug } from '../../debug/debugBus';
@@ -31,7 +34,6 @@ import { derivePhase } from './phase';
 import type {
   BasketItem,
   CastMember,
-  CompilerOutput,
   EngineListener,
   EngineState,
   Hypothesis,
@@ -71,8 +73,10 @@ export class SurveyEngine {
   private opts: EngineOpts;
   private listeners = new Set<EngineListener>();
   private currentRenderedAt = 0;
-  private compilerOutput: CompilerOutput | null = null;
-  private compilerPromise: Promise<CompilerOutput> | null = null;
+  /** The Seer instance, created when the user submits their intention.
+   *  Survey UI waits on seer.ready before showing the [ENTER] button;
+   *  App routes to Reading with the Seer in hand. */
+  private seer: Seer | null = null;
   /** Each pipeline run is a single Promise<void> covering Observer →
    *  Detective → Interrogator, all serial. The UI watches the count to
    *  show the spinner when queue is empty + a pipeline is running. */
@@ -259,24 +263,36 @@ export class SurveyEngine {
       });
   }
 
-  /** User picked (or wrote in) their intention. Fires the compiler. */
+  /** User picked (or wrote in) their intention. Instantiates the Seer
+   *  with the survey case file + intention + a fresh card draw. The
+   *  Seer's constructor kicks off its intro pipeline (cognition →
+   *  persona); UI gates the [ENTER] button on seer.ready. */
   submitIntention(text: string): void {
     const cleaned = text.trim();
     if (!cleaned) return;
     if (this.state.stage !== 'awaiting_intention') return;
+
+    // Deterministic identity record from the closed survey state.
+    const profile = assembleProfile(this.state, '');
+    const drawn = drawForSpread(FOUR_CARD_DIAMOND);
+
+    this.seer = new Seer({
+      adapter: this.opts.adapter,
+      profile,
+      surveyHistory: this.state.picks_log,
+      intention: cleaned,
+      drawn,
+    });
+
     this.setState({
       chosen_intention: cleaned,
-      stage: 'compiling',
+      stage: 'compiling',         // re-using 'compiling' stage for "seer-preparing"
       thinking: true,
     });
     this.emit();
 
-    this.compilerPromise = runCompiler(this.opts.adapter, {
-      state: this.state,
-      chosen_intention: cleaned,
-    })
-      .then((out) => {
-        this.compilerOutput = out;
+    void this.seer.ready
+      .then(() => {
         this.setState({
           closed: true,
           close_reason: 'cap',
@@ -284,13 +300,18 @@ export class SurveyEngine {
           thinking: false,
         });
         this.emit();
-        return out;
       })
       .catch((err) => {
+        console.warn('[survey] seer intro failed', err);
         this.setState({ thinking: false });
         this.emit();
-        throw err;
       });
+  }
+
+  /** Exposed to App once stage === 'reading_ready'. App routes to the
+   *  Reading screen with this Seer instance. */
+  getSeer(): Seer | null {
+    return this.seer;
   }
 
   /** User clicked "ready for the cards" before the question cap. Skip
@@ -309,15 +330,7 @@ export class SurveyEngine {
     };
   }
 
-  /** Returns the Compiler's brief, populated after close. null until then. */
-  getCompilerOutput(): CompilerOutput | null {
-    return this.compilerOutput;
-  }
-
-  /** Awaitable handle for the Compiler. Null until close fires. */
-  getCompilerPromise(): Promise<CompilerOutput> | null {
-    return this.compilerPromise;
-  }
+  // Compiler accessors removed — the survey hands off via getSeer().
 
   /** Await all in-flight pipelines. Useful for tests that need a
    *  quiet state. Returns when no observer/detective/interrogator is

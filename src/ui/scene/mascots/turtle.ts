@@ -52,13 +52,19 @@ export function createTurtleMascot(): Mascot {
           '· scaled to 1/maxDim =', (1 / maxDim).toFixed(4),
         );
 
-        // DEBUG: MeshNormalMaterial colors by surface normal direction.
-        // Renders without any lighting — if this doesn't show, the issue
-        // is not lighting, it's visibility / scale / camera / culling.
-        const violet = new THREE.MeshNormalMaterial();
+        // DEBUG: MeshBasicMaterial cyan — unlit, definitely renders
+        // regardless of normals, lights, or skinning shader paths.
+        const violet = new THREE.MeshBasicMaterial({ color: 0x00ffff });
         disposables.push(violet);
+        // DEBUG: for each SkinnedMesh, also add a SIBLING regular Mesh
+        // with the same geometry at the same parent. If the sibling
+        // renders but the original SkinnedMesh doesn't, the issue is
+        // skinning-pipeline (skeleton, bind matrices, shader). If
+        // neither renders, it's something else (camera / material /
+        // depth). Sibling positioned at same world location.
         let meshCount = 0;
         let skinnedCount = 0;
+        const skinnedMeshes: THREE.SkinnedMesh[] = [];
         root.traverse((obj) => {
           const m = obj as THREE.Mesh;
           if (m.isMesh) {
@@ -72,7 +78,10 @@ export function createTurtleMascot(): Mascot {
             m.frustumCulled = false;
             const sm = m as unknown as THREE.SkinnedMesh;
             const isSkinned = (sm as THREE.SkinnedMesh).isSkinnedMesh === true;
-            if (isSkinned) skinnedCount += 1;
+            if (isSkinned) {
+              skinnedCount += 1;
+              skinnedMeshes.push(sm);
+            }
             const wpos = new THREE.Vector3();
             m.getWorldPosition(wpos);
             const meshBox = new THREE.Box3().setFromObject(m);
@@ -81,16 +90,28 @@ export function createTurtleMascot(): Mascot {
               '· name:', m.name,
               '· isSkinned:', isSkinned,
               '· verts:', m.geometry.attributes.position?.count ?? '?',
-              '· localPos:', m.position.toArray().map((v) => v.toFixed(2)),
               '· worldPos:', [wpos.x, wpos.y, wpos.z].map((v) => v.toFixed(2)),
               '· bbox:', JSON.stringify({ min: meshBox.min.toArray(), max: meshBox.max.toArray() }),
             );
             if (m.geometry) disposables.push(m.geometry);
           }
         });
+        // DEBUG: for each SkinnedMesh, drop a plain Mesh control at the
+        // SkinnedMesh's parent with the SAME geometry. Different bright
+        // color (orange) so we can tell them apart. Same world transform.
+        const controlMat = new THREE.MeshBasicMaterial({ color: 0xff9900 });
+        disposables.push(controlMat);
+        for (const sm of skinnedMeshes) {
+          const ctrl = new THREE.Mesh(sm.geometry, controlMat);
+          ctrl.frustumCulled = false;
+          ctrl.renderOrder = 1000;
+          // Place at the same parent so transforms match exactly.
+          if (sm.parent) sm.parent.add(ctrl);
+        }
         console.info(
           '[turtleMascot] meshes:', meshCount,
           '· skinned:', skinnedCount,
+          '· added', skinnedMeshes.length, 'orange sibling control meshes',
         );
 
         // Tilt 90° on X so the turtle faces the camera.

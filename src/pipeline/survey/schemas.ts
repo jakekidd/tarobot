@@ -118,28 +118,8 @@ export const InterrogatorOutputSchema = z.object({
   reasoning: z.string(),
 });
 
-// ─── Compiler ───────────────────────────────────────────
-
-const LegacyQuestion = z.object({
-  id: z.string(),
-  prompt: z.string(),
-  options: z.array(z.string()),
-  responses: z.array(z.string()),
-  fork_lead: z.string().optional(),
-  depth: z.enum(['warm', 'medium', 'edge']),
-  meta: z.object({
-    based_on_profile_version: z.number(),
-    rationale: z.string(),
-  }),
-});
-
-/**
- * What the LLM emits — JUST the synthesis bits. The engine maps the rest of
- * the legacy Profile from EngineState deterministically, so we don't ask the
- * model to construct ~11 nested shapes correctly each time.
- */
-export const CompilerLLMOutputSchema = z.object({
-  brief_summary: z.string(),
-  prose_brief: z.string(),
-  openers: z.array(LegacyQuestion),
-});
+// ─── Compiler (removed) ─────────────────────────────────
+// The compiler stage was dropped in favor of handing off a Seer
+// instance directly. The Seer's intro pipeline (cognition → persona)
+// runs in its constructor; survey hands off via getSeer() instead of
+// producing an intermediate CompilerOutput object.

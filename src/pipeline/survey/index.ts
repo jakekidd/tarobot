@@ -35,8 +35,6 @@ export type {
   CastMember,
   Choice,
   CloseReason,
-  CompilerInput,
-  CompilerOutput,
   Contradiction,
   DetectiveOutput,
   DialogueTree,

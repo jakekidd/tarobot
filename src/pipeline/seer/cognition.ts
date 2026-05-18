@@ -1,6 +1,7 @@
 // Cognition-tier call wrappers. Each function builds an InvocationSpec and
 // routes through adapter.invoke(). No SDK calls live in here.
 
+import { z } from 'zod';
 import type { LLMAdapter } from '../survey/adapter';
 import { SetSchema, ClosingIntentSchema } from './schemas';
 import {
@@ -8,11 +9,14 @@ import {
   PER_CARD_COGNITION_TOOL,
   CLOSING_COGNITION_SYSTEM,
   CLOSING_COGNITION_TOOL,
+  INTRO_COGNITION_SYSTEM,
+  INTRO_COGNITION_TOOL,
 } from './prompts/cognition';
 import type {
   Set,
   ClosingCognitionInput,
   ClosingIntent,
+  IntroCognitionInput,
   PerCardCognitionInput,
 } from './types';
 
@@ -53,6 +57,42 @@ export async function cognitionPerCard(
     },
     SetSchema,
   );
+}
+
+/** Intro cognition — writes the prose brief the seer reads silently
+ *  before voicing the intro. Output is reused by all subsequent
+ *  per-card + closing cognition calls (stored on state.inputs.prose_brief). */
+export async function cognitionIntro(
+  adapter: LLMAdapter,
+  input: IntroCognitionInput,
+): Promise<string> {
+  const payload = {
+    identity: input.profile.identity,
+    cast: input.profile.cast,
+    hunches: input.profile.hunches,
+    margin: input.profile.margin,
+    highlights: input.profile.highlights,
+    intention: input.intention,
+    survey_history: input.surveyHistory.map((p) => ({
+      question: p.question_text,
+      options: p.options_shown,
+      answer: p.answer,
+    })),
+    instruction:
+      'write the prose brief the seer reads silently before voicing the intro. detective-tier specificity, 200-400 words, third person, the INTENTION is the centerpiece.',
+  };
+
+  const out = await adapter.invoke<{ prose_brief: string; reasoning: string }>(
+    {
+      system: INTRO_COGNITION_SYSTEM,
+      user: JSON.stringify(payload, null, 2),
+      tool: INTRO_COGNITION_TOOL,
+      model: 'cognition',
+      max_tokens: 1200,
+    },
+    z.object({ prose_brief: z.string(), reasoning: z.string() }),
+  );
+  return out.prose_brief;
 }
 
 export async function cognitionClosing(

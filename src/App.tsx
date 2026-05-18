@@ -1,5 +1,5 @@
 import { useEffect, useState, useSyncExternalStore } from 'react';
-import type { CompilerOutput } from './pipeline/survey';
+import type { Seer } from './pipeline/seer';
 import { isUsingTreeOverride, subscribeToOverrideChanges } from './pipeline/survey';
 import {
   loadApiKey,
@@ -14,7 +14,9 @@ import { Settings } from './ui/Settings';
 import { Survey as SurveyScreen } from './ui/Survey';
 import { Reading } from './ui/Reading';
 import { TarobotScene } from './ui/scene/TarobotScene';
-import { buildMarisolDemoBrief, MARISOL_INTRO } from './pipeline/reading';
+import { buildMarisolDemoSeer, MARISOL_INTRO } from './pipeline/seer';
+import { AnthropicAdapter } from './pipeline/survey';
+import { createClaudeClient } from './pipeline/claude';
 import { Jade } from './jade/Jade';
 import { useSecretSequence } from './jade/useSecretSequence';
 import './jade/jade.css';
@@ -30,7 +32,7 @@ type Phase =
   | { kind: 'resume' }
   | { kind: 'settings' }
   | { kind: 'survey'; session: Session }
-  | { kind: 'reading'; session: Session; brief: CompilerOutput; preferredIntro?: typeof MARISOL_INTRO }
+  | { kind: 'reading'; session: Session; seer: Seer; preferredIntro?: typeof MARISOL_INTRO }
   | { kind: 'jade' };
 
 export function App() {
@@ -73,12 +75,14 @@ export function App() {
   /** Skip survey: synthesize a session and route straight into the
    *  reading with a hand-authored brief and intro. */
   function startReadDemo() {
+    if (!apiKey) return;
     const s: Session = { ...newSession(), phase: 'tent' };
     saveSession(s);
+    const adapter = new AnthropicAdapter(createClaudeClient(apiKey));
     setPhase({
       kind: 'reading',
       session: s,
-      brief: buildMarisolDemoBrief(),
+      seer: buildMarisolDemoSeer(adapter),
       preferredIntro: MARISOL_INTRO,
     });
   }
@@ -97,15 +101,16 @@ export function App() {
     }
   }
 
-  function onSurveyComplete(session: Session, brief: CompilerOutput) {
+  function onSurveyComplete(session: Session, seer: Seer) {
+    // Persist a profile snapshot — Seer holds the live read but the
+    // session row still wants a Profile for resume UI.
     const next: Session = {
       ...session,
       phase: 'tent',
-      profile: brief.profile,
-      openers: brief.openers,
+      profile: seer.getProfile(),
     };
     saveSession(next);
-    setPhase({ kind: 'reading', session: next, brief });
+    setPhase({ kind: 'reading', session: next, seer });
   }
 
   return (
@@ -187,15 +192,14 @@ export function App() {
             <SurveyScreen
               apiKey={apiKey}
               session={phase.session}
-              onComplete={(brief) => onSurveyComplete(phase.session, brief)}
+              onComplete={(seer) => onSurveyComplete(phase.session, seer)}
             />
           )}
 
           {phase.kind === 'reading' && apiKey && (
             <Reading
               apiKey={apiKey}
-              brief={phase.brief}
-              preferredIntro={phase.preferredIntro}
+              seer={phase.seer}
               onExit={goMenu}
             />
           )}

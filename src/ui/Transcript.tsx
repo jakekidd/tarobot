@@ -5,7 +5,7 @@
 // thing as plain text.
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { pickStall } from '../pipeline/reading';
+import { pickStall } from '../pipeline/seer';
 import { highlightNames, type Highlights } from './dialogue/highlightNames';
 
 export type TranscriptItem = {
