@@ -79,13 +79,14 @@ export function Menu({ onBegin, onReadDemo, onOpenResume, onSettings }: Props) {
       <div className="menu__choices">
         {buttons.map((b, i) => {
           const cascaded = i < visibleButtons;
-          if (!cascaded) return null;          // not yet revealed — render nothing (no animation)
           return (
             <button
               key={b.key}
-              className={b.cls}
+              className={`${b.cls} menu__btn ${cascaded ? 'is-visible' : ''}`}
               onClick={b.onClick}
-              disabled={b.disabledByState}
+              // Disabled if either: still cascading in OR no underlying state (e.g. no resume profiles).
+              disabled={!cascaded || b.disabledByState}
+              tabIndex={cascaded ? 0 : -1}
             >
               {b.label}
             </button>
