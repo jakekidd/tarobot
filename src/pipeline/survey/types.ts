@@ -44,7 +44,6 @@ export type DialogueTree = {
    *  detective is guaranteed to see. */
   pillars: string[];
   nodes: Record<string, TreeNode>;
-  interp: Record<string, string>;
 };
 
 /** Question rendered for the UI: post-substitution, options flattened. */

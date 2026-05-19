@@ -1,19 +1,16 @@
-// Local persistence for the Jade-edited tree. The Jade UI uses this to
-// preserve in-progress edits across reloads and to export JSON.
-//
-// IMPORTANT: the engine does NOT read this storage. The survey always
-// runs against the bundled tree.json. Jade is an authoring tool; pushing
-// edits live to the engine was an earlier experiment and has been
-// withdrawn. To deploy a Jade edit, export the JSON and replace
-// src/pipeline/survey/tree.json in the repo.
+// Local persistence for the Jade-edited tree. The Jade UI is now a
+// VIEWER on top of the bundled survey (sourced from SURVEY.md). It can
+// still snapshot edits to localStorage and export JSON for inspection,
+// but those edits don't affect the live engine — the source of truth
+// is the markdown doc at src/pipeline/survey/SURVEY.md.
 
-import bundled from '../pipeline/survey/tree.json';
+import { getBundledTree } from '../pipeline/survey';
 import type { DialogueTree } from '../pipeline/survey';
 
 const TREE_KEY = 'tarobot:jade:tree';
 
-/** Bundled tree.json — the source-of-truth defaults. */
-export const BUNDLED_TREE: DialogueTree = bundled as unknown as DialogueTree;
+/** The bundled tree as parsed from SURVEY.md. */
+export const BUNDLED_TREE: DialogueTree = getBundledTree();
 
 export function loadJadeTree(): DialogueTree {
   const stored = loadStoredTree();

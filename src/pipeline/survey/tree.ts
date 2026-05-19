@@ -1,11 +1,13 @@
 // Dialogue tree loader, validator, and question renderer.
 //
-// The tree is authored in tree.json (directed graph format documented in
-// the file's _doc block). This module is the boundary between the raw JSON
-// and the engine — it parses, validates references, and renders questions
-// for the UI with substitution applied.
+// The survey is authored in `SURVEY.md` (sibling file). Edits there ship
+// straight to production — Jade can edit the markdown on GitHub, push,
+// and Vercel rebuilds with the new questions. This module is the
+// boundary between the raw markdown and the engine: parses, validates,
+// renders questions with substitution applied.
 
-import treeData from './tree.json';
+import surveyMdSource from './SURVEY.md?raw';
+import { parseSurveyMd } from './parseSurveyMd';
 import type {
   AnswerFormat,
   DialogueTree,
@@ -15,16 +17,15 @@ import type {
 } from './types';
 import { substituteOrBlank, substituteOrNull } from './substitution';
 
-const BUNDLED_TREE = treeData as unknown as DialogueTree;
+const BUNDLED_TREE: DialogueTree = parseSurveyMd(surveyMdSource);
 
-// The active tree. Defaults to the bundled tree.json (validated at module
-// load — loud failure if the bundled defaults are broken). Can be swapped
-// at runtime via setActiveTree() — used by the Jade editor so the live
-// survey picks up the user's local edits without a rebuild.
+// The active tree. Defaults to the bundled SURVEY.md (validated at
+// module load — loud failure if the markdown is broken). `setActiveTree`
+// is retained for the Jade live-edit codepath but the engine no longer
+// applies overrides — see jade/storage.ts.
 //
 // `let` not `const`: ES module live bindings mean importers of `TREE`
-// transparently see the new value after a swap. The pipeline-portability
-// rule still holds — this module never imports from outside `pipeline/`.
+// transparently see the new value after a swap.
 export let TREE: DialogueTree = (() => {
   validateTree(BUNDLED_TREE);
   return BUNDLED_TREE;
@@ -189,26 +190,9 @@ export function commentForAnswer(node: TreeNode, answer: string): string | null 
   return match[1] && match[1].length > 0 ? match[1] : null;
 }
 
-/** The relevant `interp` entries for a given pick — keyed and meta variants. */
-export function relevantInterp(
-  node_id: string,
-  answer: string | string[],
-): Record<string, string> {
-  const out: Record<string, string> = {};
-  const keys: string[] = [];
-  if (Array.isArray(answer)) {
-    for (const a of answer) keys.push(`${node_id}.${a}`);
-    keys.push(`${node_id}._meta`);
-    keys.push(`${node_id}._combos`);
-  } else {
-    keys.push(`${node_id}.${answer}`);
-  }
-  for (const k of keys) {
-    const v = TREE.interp[k];
-    if (v) out[k] = v;
-  }
-  return out;
-}
+// relevantInterp / per-answer interp removed when the survey moved to
+// SURVEY.md. Per-question `probe` (decoder hook) replaced it; the
+// detective now reads probe directly via the payload.
 
 /** Read-only helpers for callers that don't want to import the tree directly. */
 export function getNode(node_id: string): TreeNode | null {
@@ -238,10 +222,6 @@ export function getOpeners(): string[] {
  *  openers complete. Pipeline DOES fire on Pillar answers. */
 export function getPillars(): string[] {
   return TREE.pillars.slice();
-}
-
-export function getInterp(key: string): string | undefined {
-  return TREE.interp[key];
 }
 
 export type { AnswerFormat };
