@@ -326,6 +326,22 @@ export function Survey({ apiKey, session, onComplete }: Props) {
             <GagQuestion onDismiss={() => setGagShown(true)} />
           )}
 
+          {/* Intent question (sandwich opener): text entry FIRST, NOT
+              YET button SECOND. Documented exception to the general
+              "text input last" rule. */}
+          {!showGag && !modalOpen && currentQuestion?.format === 'intent' && (
+            <>
+              <div className="ui-frame__custom-input ui-frame__custom-input--intent">
+                <ChatInput
+                  placeholder="type your question for the cards…"
+                  disabled={false}
+                  onSend={(text) => void submitAnswer(text)}
+                />
+              </div>
+              <IntentForm onNotYet={() => void submitAnswer('')} />
+            </>
+          )}
+
           {!showGag && !modalOpen && currentQuestion?.format === 'text' && (
             <NameForm
               existingNames={existingNames}
@@ -338,30 +354,44 @@ export function Survey({ apiKey, session, onComplete }: Props) {
           )}
 
           {!showGag && !modalOpen && currentQuestion?.format === 'matrix' && currentQuestion.axes && (
-            <Matrix2x2Choice
-              key={currentQuestion.node_id}
-              axes={{ x: currentQuestion.axes[0], y: currentQuestion.axes[1] }}
-              options={currentQuestion.options}
-              onPick={(v) => void submitAnswer(v)}
-            />
+            <>
+              <Matrix2x2Choice
+                key={currentQuestion.node_id}
+                axes={{ x: currentQuestion.axes[0], y: currentQuestion.axes[1] }}
+                options={currentQuestion.options}
+                onPick={(v) => void submitAnswer(v)}
+              />
+              <div className="ui-frame__custom-input">
+                <ChatInput
+                  placeholder="or type your own answer"
+                  disabled={false}
+                  onSend={(text) => void submitAnswer(text)}
+                />
+              </div>
+            </>
           )}
 
           {!showGag && !modalOpen && currentQuestion &&
             (currentQuestion.format === 'choice' || currentQuestion.format === 'binary') && (
-            <MultipleChoice
-              key={currentQuestion.node_id}
-              suggestions={currentQuestion.options}
-              isBinary={currentQuestion.format === 'binary'}
-              onPick={(v) => void submitAnswer(v)}
-            />
+            <>
+              <MultipleChoice
+                key={currentQuestion.node_id}
+                suggestions={currentQuestion.options}
+                isBinary={currentQuestion.format === 'binary'}
+                onPick={(v) => void submitAnswer(v)}
+              />
+              <div className="ui-frame__custom-input">
+                <ChatInput
+                  placeholder="or type your own answer"
+                  disabled={false}
+                  onSend={(text) => void submitAnswer(text)}
+                />
+              </div>
+            </>
           )}
 
           {!showGag && !modalOpen && currentQuestion?.format === 'relationship_status' && (
             <RelationshipStatusForm onPick={(v) => void submitAnswer(v)} />
-          )}
-
-          {!showGag && !modalOpen && currentQuestion?.format === 'intent' && (
-            <IntentForm onNotYet={() => void submitAnswer('')} />
           )}
 
           {!showGag && !modalOpen && currentQuestion?.format === 'relationship_pick' && (
@@ -398,34 +428,6 @@ export function Survey({ apiKey, session, onComplete }: Props) {
           )}
         </div>
       </div>
-
-      {!showGag && !modalOpen && stage === 'questions' && currentQuestion
-        && currentQuestion.format !== 'text'
-        && currentQuestion.format !== 'date'
-        && currentQuestion.format !== 'relationship_pick'
-        && currentQuestion.format !== 'relationship_status'
-        && (
-        <div className="survey__chat-slot">
-          <ChatInput
-            placeholder={
-              currentQuestion.format === 'intent'
-                ? 'type your question for the cards…'
-                : 'or type your own answer'
-            }
-            disabled={false}
-            onSend={(text) => void submitAnswer(text)}
-          />
-        </div>
-      )}
-      {isAwaitingIntention && (
-        <div className="survey__chat-slot">
-          <ChatInput
-            placeholder="or say it the way you'd say it to a friend"
-            disabled={false}
-            onSend={(text) => submitIntention(text)}
-          />
-        </div>
-      )}
 
       <div className="survey__footer">
         {showReady && (

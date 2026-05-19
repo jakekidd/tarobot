@@ -2246,12 +2246,22 @@ input, textarea {
      override that was letting the survey layout reflow per question. */
 }
 
-/* Survey's custom-answer chat row. Sits BELOW the fixed-height ui-frame
-   (not inside it) so the choices grid keeps its full 23rem and the
-   chat row doesn't compete for that height. */
-.survey__chat-slot {
-  width: min(64ch, calc(100vw - 4rem));
-  margin: 0.8rem auto 0;
+/* Survey's custom-answer chat row. Lives INSIDE .ui-frame__choices as
+   the LAST child of the question stack — the entire survey UI is
+   contained within the fixed-height ui-frame so nothing below it
+   shifts between questions. Pinned to the bottom of the column via
+   margin-top: auto so it always sits at the same vertical position
+   regardless of how short the form above it is.
+   The --intent modifier overrides this for the intent question, which
+   needs text-input FIRST and button SECOND. */
+.ui-frame__custom-input {
+  width: 100%;
+  margin-top: auto;       /* pin to bottom of the flex column */
+  padding-top: 0.6rem;
+}
+.ui-frame__custom-input--intent {
+  margin-top: 0;          /* intent's input is FIRST, not pinned */
+  margin-bottom: 0.6rem;
 }
 
 /* ─── Returning-user modal ────────────────────────────── */
