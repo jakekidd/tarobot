@@ -5,7 +5,7 @@
 // menu). It is NOT the seer — the seer is a separate concept on the
 // reading side.
 //
-// Mascots are swappable. Today: Clat the cat (legacy, currently gated
+// Mascots are swappable. Today: the cat the cat (legacy, currently gated
 // off in TarobotScene) and Turtle (loggerhead). Future mascots — or
 // per-user customization — drop in the same way as long as they
 // implement this shape.
@@ -36,7 +36,7 @@ export type MascotContext = {
     intensity: number;
   };
   /** True while an LLM call is in flight (Investigator, intro,
-   *  per-card cognition, etc). Mascots may react: Clat's eyes spin,
+   *  per-card cognition, etc). Mascots may react: the cat's eyes spin,
    *  Turtle could pulse, future mascots can do whatever. */
   dizzy: boolean;
 };

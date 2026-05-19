@@ -1,4 +1,4 @@
-// Clat the cat — sprite-based mascot. Two parallax textured planes
+// Cat — sprite-based mascot. Two parallax textured planes
 // repainted per frame from a JSON sprite sheet. Reacts to mouse
 // (drift away + dwell-triggered tremor), blinks on a random cadence,
 // spins its eyes when the LLM is mid-thought (`ctx.dizzy`).
@@ -47,7 +47,7 @@ void DIZZY_PEAK_MULTIPLIER;
 
 // ─── Factory ───────────────────────────────────────────────
 
-export function createClatMascot(): Mascot {
+export function createCatMascot(): Mascot {
   // Sprite canvas — repainted on every frame-index change (not every tick).
   const spriteCanvas = document.createElement('canvas');
   const spriteCtx = spriteCanvas.getContext('2d')!;

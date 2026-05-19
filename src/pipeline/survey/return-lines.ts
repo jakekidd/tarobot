@@ -1,6 +1,6 @@
 // Mascot lines delivered when a returning user confirms RESUME.
 //
-// Canned, lowercase, in Clat's voice. Kept short — the dialogue line
+// Canned, lowercase, in the cat's voice. Kept short — the dialogue line
 // component types them out, so length is felt. Pick one at random; UI
 // supplies the name (or undefined for anonymous warmth).
 //

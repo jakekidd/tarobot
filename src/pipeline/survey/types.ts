@@ -362,7 +362,7 @@ export type InterrogatorOutput = {
   next_question: {
     /** MUST be an id from basket[]. */
     node_id: string;
-    /** Optional Clat-voice prefix (rendered above the question text).
+    /** Optional the cat-voice prefix (rendered above the question text).
      *  Does NOT modify the question text itself. Empty = no preamble. */
     preamble?: string;
     /** Choice-format only. Replaces the default options (can shrink,

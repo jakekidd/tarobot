@@ -9,7 +9,7 @@
      one of these. Do not introduce new hex values outside this block.
   */
   --color-black:        #000000;
-  --color-violet:       #7c3aed;   /* THE violet — Clat's color. all purples derive. */
+  --color-violet:       #7c3aed;   /* THE violet — the cat's color. all purples derive. */
   --color-navbar:       #1a0f2e;   /* darker shade of the same violet hue family */
   --color-gray:         #564a78;   /* partial-violet gray; muted text, quiet buttons */
   --color-white:        #f4ecff;   /* slight violet tint; primary text + chrome fill */
@@ -130,7 +130,7 @@ a:hover { text-decoration: underline; }
   display: block;
 }
 
-/* Invisible layout placeholder — defines where Clat renders */
+/* Invisible layout placeholder — defines where the cat renders */
 .reader-anchor {
   display: block;
   margin: 0 auto;
@@ -155,7 +155,7 @@ a:hover { text-decoration: underline; }
   position: relative;
   z-index: 1;
   min-width: 0;
-  /* Transparent — TarobotScene at z:0 must show through to render Clat. */
+  /* Transparent — TarobotScene at z:0 must show through to render the cat. */
   background: transparent;
 }
 .app__main--full {
@@ -537,7 +537,7 @@ a:hover { text-decoration: underline; }
   cursor: pointer;
   /* PRE-ALLOCATED — always this width, even when text is short */
   width: min(64ch, calc(100vw - 4rem));
-  height: calc(1.55em * 4 + 0.9rem);  /* 4 lines: leaves room for indented Clat aside */
+  height: calc(1.55em * 4 + 0.9rem);  /* 4 lines: leaves room for indented the cat aside */
   padding: 0.45rem 1.1rem;
   text-align: left;
   background: transparent;
@@ -2338,7 +2338,7 @@ a:hover { text-decoration: underline; }
   margin-top: 1rem;
 }
 
-/* Clat's sidebar reaction — sits below the current question, indented,
+/* the cat's sidebar reaction — sits below the current question, indented,
    with an empty row above for visual separation. */
 .survey__reaction {
   width: min(64ch, calc(100vw - 4rem));

@@ -35,7 +35,7 @@ export function JadeHome({ onOpenSurvey, onOpenPersona }: Props) {
           <button type="button" className="jade-home__editor-btn" onClick={onOpenSurvey}>
             <span className="jade-home__editor-name">SURVEY</span>
             <span className="jade-home__editor-sub">
-              the questions clat asks · grouped by topic · 40 nodes
+              the questions cat asks · grouped by topic · 40 nodes
             </span>
           </button>
           <button type="button" className="jade-home__editor-btn" onClick={onOpenPersona}>
@@ -51,7 +51,7 @@ export function JadeHome({ onOpenSurvey, onOpenPersona }: Props) {
         <h2 className="jade-home__doc-title">survey engine</h2>
         <div className="jade-home__doc-prose">
           <p>
-            the survey is a one-shot intake: the cat (clat) asks the user a sequence
+            the survey is a one-shot intake: the cat (cat) asks the user a sequence
             of multiple-choice questions, and by the end of it the app has a{' '}
             <strong>profile</strong> rich enough for the seer to read from. it's not
             a personality test — it's a structured way to surface what's actually
@@ -72,7 +72,7 @@ export function JadeHome({ onOpenSurvey, onOpenPersona }: Props) {
             <li>
               <strong>investigator</strong> (sonnet · cognition · the user waits
               on this) — reads the running profile + the pool of unasked questions,
-              picks what to ask next, and writes a one-line preamble in clat's
+              picks what to ask next, and writes a one-line preamble in cat's
               voice. it's the slow one because picking{' '}
               <em>the right next question</em> is the actual craft of the survey.
             </li>
@@ -89,7 +89,7 @@ export function JadeHome({ onOpenSurvey, onOpenPersona }: Props) {
             in jade you edit the question pool — every question has a topic
             (intake / state / relational / self / decisions / projective / meta),
             a format (binary / choice / multi / matrix / text / date), answer
-            options, and optional inline comments per answer (clat reacts to the
+            options, and optional inline comments per answer (cat reacts to the
             pick before moving on). the openers are the four intake questions and
             always run first in stored order. everything else is fair game for
             the investigator to pick from.
@@ -201,7 +201,7 @@ LEGEND
 │  │ updates  │    │  question +     │                     │
 │  │ PROFILE  │    │  a one-line     │                     │
 │  │ slots    │    │  preamble in    │                     │
-│  │ (cast,   │    │  clat's voice   │                     │
+│  │ (cast,   │    │  cat's voice   │                     │
 │  │ threads, │    │                 │                     │
 │  │ hunches, │    │                 │                     │
 │  │ choice…) │    │                 │                     │

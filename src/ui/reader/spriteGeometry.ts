@@ -9,7 +9,7 @@ type FaceColors = readonly [number, number, number, number, number, number];
 
 // All faces sit at or BELOW the original sprite luminance (#7c3aed) so the
 // bloom pass — which is tuned for a sprinkle of bright points (stars, orbs) —
-// doesn't blow Clat out into a white beacon. Subtle dark variation around the
+// doesn't blow the cat out into a white beacon. Subtle dark variation around the
 // base violet is enough to read as 3D once he tilts.
 const DEFAULT_FACE_COLORS: FaceColors = [
   0x5e26b8,   // +x right

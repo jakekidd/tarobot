@@ -1,4 +1,4 @@
-// Shared state for "where on screen should Clat render right now?"
+// Shared state for "where on screen should the cat render right now?"
 //
 // React layer publishes Anchor objects via setAnchor(); the Three.js
 // scene polls getAnchor() each frame. Decoupled from React's reactivity

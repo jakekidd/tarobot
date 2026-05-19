@@ -30,7 +30,7 @@ export function paintFrame(
   // Transparent padding around the sprite so the textured plane's outer edges
   // never sample a non-zero alpha pixel. Without this, sprite content at row 0,
   // row N-1, col 0, or col M-1 paints a thin rectangular outline along the
-  // plane's silhouette (a "box around Clat") that follows the cat's rotation.
+  // plane's silhouette (a "box around the cat") that follows the cat's rotation.
   const padPx = quadPx;
   const w = cols * cellPx + 2 * padPx;
   const h = rows * cellPx + 2 * padPx;

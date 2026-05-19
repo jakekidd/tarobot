@@ -15,7 +15,7 @@ type Props = {
 /**
  * Pre-allocated dialogue rig. The container is sized to the FINAL text
  * (via a hidden measure layer) so letters appear within an already-correct
- * frame. Multi-line speech (e.g. a question with an indented Clat aside on
+ * frame. Multi-line speech (e.g. a question with an indented the cat aside on
  * the next line) is supported via `\n` in `text` + `white-space: pre-wrap`.
  */
 export function Dialogue({

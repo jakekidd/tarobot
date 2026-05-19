@@ -1,6 +1,6 @@
 // Which face the TarobotScene shows at the ReaderAnchor.
 //
-//   'cat'   — Clat sprite (default; menu, survey)
+//   'cat'   — cat sprite (default; menu, survey)
 //   'eyes'  — two glowing eyes (the seer; reading)
 //   'hidden'— nothing rendered at the anchor (transitional, screensavers)
 //

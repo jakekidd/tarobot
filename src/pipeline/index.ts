@@ -12,7 +12,7 @@ export type {
   // Choice (unified)
   Choice, ChoiceSource,
   // Profile blobs
-  CastEntry, Thread, Hunch, Highlight, ClatNote,
+  CastEntry, Thread, Hunch, Highlight,
   // Profile (the growing blob)
   Profile,
   // Question (cognition→persona unit)

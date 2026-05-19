@@ -147,7 +147,7 @@ export function parseBirthDate(s: string): BirthDate | null {
 
 /**
  * Short human-readable summary of an AstroProfile. Lowercase register
- * matches Clat's voice; suitable for the compiler's user payload or debug.
+ * matches the cat's voice; suitable for the compiler's user payload or debug.
  */
 export function summarizeAstro(astro: AstroProfile): string {
   const lp = astro.lifePath === 11 || astro.lifePath === 22 || astro.lifePath === 33

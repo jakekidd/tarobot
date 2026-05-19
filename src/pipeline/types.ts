@@ -19,7 +19,7 @@ export type SurveyQuestionFormat = 'binary' | 'choice' | 'matrix-2x2' | 'multi-s
 export type SurveyQuestion = {
   id: string;
   text: string;
-  /** Optional short clat-voice preface that prints above the question text. */
+  /** Optional short cat-voice preface that prints above the question text. */
   lead_in?: string;
   format: SurveyQuestionFormat;
   options: string[];
@@ -88,10 +88,8 @@ export type Highlight = {
 
 // ─── Profile (the growing blob) ─────────────────────────
 
-export type ClatNote = {
-  category: 'observation' | 'suspicion' | 'contradiction' | 'gossip-flag';
-  text: string;
-};
+// (ClatNote removed — vestigial from the legacy Compiler-era pipeline,
+// no consumers. New survey notes live on SurveyProfile.sections.)
 
 export type Profile = {
   identity: {

@@ -90,7 +90,7 @@ export function App() {
 
   return (
     <div className="app">
-      {/* Full-screen Three.js scene — renders Clat wherever a ReaderAnchor is mounted */}
+      {/* Full-screen Three.js scene — renders the cat wherever a ReaderAnchor is mounted */}
       <TarobotScene />
 
       <header className="app__topbar">

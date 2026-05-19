@@ -19,7 +19,7 @@ const PHASE_RANK: Record<Phase, number> = { A: 0, B: 1, C: 2, D: 3, E: 4 };
 //   A: openers + 1 warmup (0..4)        — silence
 //   B: light probes (5..8)              — dry, no name
 //   C: deepening (9..13)                — name allowed, callbacks
-//   D: specific (14+)                   — full clat voice, anchors unlocked
+//   D: specific (14+)                   — full cat voice, anchors unlocked
 //
 // E is closed-state, set externally by the engine.
 export function phaseFromTurns(turnCount: number): Phase {

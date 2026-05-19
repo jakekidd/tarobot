@@ -11,7 +11,7 @@ type Props = {
 /**
  * Reader is now a layout-only placeholder. It reserves a square area
  * via ReaderAnchor; the full-screen TarobotScene reads that area's
- * bounding box and renders Clat there. Props kept for API parity with
+ * bounding box and renders the cat there. Props kept for API parity with
  * existing call sites.
  */
 export function Reader({ size = 100 }: Props) {

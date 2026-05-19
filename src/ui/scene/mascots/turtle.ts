@@ -10,7 +10,7 @@
 // below.
 //
 // Implements the Mascot interface in ./types.ts so the scene can swap
-// it with any other mascot (Clat, future-mascots) without changes
+// it with any other mascot (the cat, future-mascots) without changes
 // elsewhere.
 
 import * as THREE from 'three';

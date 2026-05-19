@@ -46,7 +46,7 @@ const PARTICLE_BASE_OMEGA = -0.012;
 // "Dizzy" state — fires while a blocking LLM call is in flight. Dust
 // ramps to ~10× baseline omega clockwise, holds, then brakes fast when
 // dizzy releases. The mascot is passed `dizzy` via context and may
-// react however it wants (Clat spins her eyes; turtle ignores).
+// react however it wants (the cat spins her eyes; turtle ignores).
 const DIZZY_PEAK_MULTIPLIER = 10;
 const DIZZY_RAMP_UP_RATE = 0.05;          // per-frame lerp toward peak (slow start)
 const DIZZY_RAMP_DOWN_RATE = 0.25;        // per-frame lerp toward baseline (fast brake)
@@ -78,9 +78,9 @@ type ParticleData = {
 /**
  * Full-screen Three.js scene. Mounted once at app root.
  *   - Orthographic camera; world units == viewport pixels.
- *   - Reads ReaderAnchor's bbox each frame and places Clat there.
+ *   - Reads ReaderAnchor's bbox each frame and places the cat there.
  *   - Particles are camera-facing squares that burst-out on mount, then
- *     swirl clockwise around Clat with per-particle randomness.
+ *     swirl clockwise around the cat with per-particle randomness.
  *   - Mouse reactivity: cat shifts away from cursor (spring), purrs and
  *     closes eyes on rapid mouse motion.
  */
@@ -362,7 +362,7 @@ export function TarobotScene() {
 
     // Reader mode subscription — flips which face is shown at the anchor.
     // (The old cat→eyes "shatter" transition is deferred — it lived
-    // here because it used Clat's sprite texture; will be re-added as
+    // here because it used the cat's sprite texture; will be re-added as
     // a Mascot lifecycle hook when another mascot also wants a custom
     // transition. See TODO.md → "mascot exit animation hook".)
     let readerMode: ReaderMode = 'cat';
@@ -370,7 +370,7 @@ export function TarobotScene() {
       readerMode = m;
     });
 
-    // Eyes blink state — independent of Clat's sprite-frame blink, since
+    // Eyes blink state — independent of the cat's sprite-frame blink, since
     // 'eyes' mode has no spritesheet.
     const eyesBlink = {
       blinking: false,
@@ -765,7 +765,7 @@ export function TarobotScene() {
     // ─── Mouse position tracking ──────────────────────────
     // We track the mouse in scene coords and pass {dx, dy, close,
     // intensity} to the mascot per frame. The mascot decides whether
-    // and how to react (Clat: drift away + dwell-vibrate; turtle: ignore).
+    // and how to react (the cat: drift away + dwell-vibrate; turtle: ignore).
     let mouseSceneX = 999;             // viewport-pixel coords, center-origin
     let mouseSceneY = 999;
 
@@ -784,7 +784,7 @@ export function TarobotScene() {
     // ─── Dizzy state ──────────────────────────────────────
     // Subscribed to dizzyStore (fires while a blocking LLM call is in
     // flight). The mascot reads `dizzy` via context and reacts however
-    // it wants (Clat spins her eyes; turtle ignores). Particles ramp
+    // it wants (the cat spins her eyes; turtle ignores). Particles ramp
     // their clockwise omega up using dizzyMultiplier.
     let dizzy = false;
     let dizzyMultiplier = 1;
@@ -826,7 +826,7 @@ export function TarobotScene() {
       mascot.group.visible = readerMode === 'cat';
       eyesGroup.visible = readerMode === 'eyes';
 
-      // (Legacy Clat explosion-chunk loop removed with cat extraction.
+      // (Legacy the cat explosion-chunk loop removed with cat extraction.
       //  Lived here; replaced when Mascot exit-hook lands. See TODO.md.)
 
       // ── Eyes: blink + per-frame canvas paint with current mood ───
