@@ -30,7 +30,6 @@ import { STARTER_SEED_COUNT } from '../pipeline/survey';
 import { OBSERVER_SYSTEM, OBSERVER_TOOL } from '../pipeline/survey/prompts/observer';
 import { DETECTIVE_SYSTEM, DETECTIVE_TOOL } from '../pipeline/survey/prompts/detective';
 import { INTERROGATOR_SYSTEM, INTERROGATOR_TOOL } from '../pipeline/survey/prompts/interrogator';
-import { SHAMAN_SYSTEM, SHAMAN_TOOL } from '../pipeline/survey/prompts/shaman';
 import {
   AUGUR_OUTLINE_SYSTEM,
   AUGUR_OUTLINE_TOOL,
@@ -113,19 +112,6 @@ const SURVEY_AGENTS: AgentSpec[] = [
     prompt: INTERROGATOR_SYSTEM,
     tool_name: INTERROGATOR_TOOL.name,
     notes: 'Picks next question from basket. Can rewrite choice options to inject a high-confidence guess. Local (Haiku) — mechanical task, latency matters.',
-  },
-  {
-    id: 'shaman',
-    name: 'Shaman',
-    runtime: 'cloud',
-    call_pattern: 'blocking — once at survey close',
-    input_type: 'ShamanInput',
-    output_type: 'ShamanOutput',
-    inputs: 'ShamanInput { profile, investigation, history }. Reads detective intention_guesses stack.',
-    outputs: 'ShamanOutput { intentions: 4 strings }',
-    prompt: SHAMAN_SYSTEM,
-    tool_name: SHAMAN_TOOL.name,
-    notes: 'Empathizes with the user. Becomes them. Picks 4 specific Should/Do questions they might bring to the oracle. Redundancy in the detective stack is signal.',
   },
   {
     id: 'augur-outline',

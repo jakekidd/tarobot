@@ -34,9 +34,9 @@ THE FORK IS THE CENTERPIECE
     pull_weight (how strongly the evidence pulls toward this side, ~0-1)
 - stakes_domain: relational | occupational | identity | geographic | unknown
 - confidence: low / medium / high.
-- is_stated=true ONLY if the user explicitly named a question (e.g.
-  has_question_mode=specific and they later articulated it). otherwise
-  is_constructed=true.
+- is_stated=true ONLY if the user explicitly named a question (their
+  profile's initial_intention is non-null AND the answers track it).
+  otherwise is_constructed=true.
 - once a draft exists, REVISE it with each new turn. don't re-emit
   unchanged drafts; emit choice_update only when it MOVES.
 

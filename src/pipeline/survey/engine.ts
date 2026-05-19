@@ -15,7 +15,6 @@ import type { LLMAdapter } from '../llm/adapter';
 import { runObserver } from './agents/observer';
 import { runDetective } from './agents/detective';
 import { runInterrogator } from './agents/interrogator';
-import { runShaman } from './agents/shaman';
 import { runAugur } from './agents/augur';
 import { Seer } from '../seer';
 import { drawForSpread } from '../cards';
@@ -233,7 +232,7 @@ export class SurveyEngine {
       const capReached = postOpenerCount >= cap;
       const stalled = queueEmpty && this.pipelinesInFlight === 0 && postOpenerCount >= STARTER_SEED_COUNT;
       if (queueEmpty && (capReached || stalled)) {
-        this.beginShamanStage();
+        this.beginIntentionStage();
       }
     }
 
@@ -252,37 +251,13 @@ export class SurveyEngine {
 
   // ─── End-of-survey stages ────────────────────────────
 
-  /** Fire the shaman in the background. While it runs, stage =
-   *  'shaman_thinking' and UI shows a loading state. On return,
-   *  intentions_offered populates + stage flips to awaiting_intention. */
-  private beginShamanStage(): void {
+  /** Sync transition from questions → awaiting_intention. No LLM call.
+   *  The user provides their own intention via the IntentConfirm UI;
+   *  the engine doesn't guess. */
+  private beginIntentionStage(): void {
     if (this.state.stage !== 'questions') return;   // idempotent
-    this.setState({ stage: 'shaman_thinking', thinking: true });
+    this.setState({ stage: 'awaiting_intention', thinking: false });
     this.emit();
-
-    void runShaman(this.opts.adapter, {
-      profile: this.state.profile,
-      investigation: this.state.investigation,
-      history: this.state.picks_log,
-      prior_intentions: this.state.prior_intentions,
-    })
-      .then((out) => {
-        this.setState({
-          intentions_offered: out.intentions,
-          stage: 'awaiting_intention',
-          thinking: false,
-        });
-        this.emit();
-      })
-      .catch((err) => {
-        console.warn('[survey] shaman failed; falling back to write-in-only intention picker', err);
-        this.setState({
-          intentions_offered: [],
-          stage: 'awaiting_intention',
-          thinking: false,
-        });
-        this.emit();
-      });
   }
 
   /** User picked (or wrote in) their intention. Instantiates the Seer
@@ -363,7 +338,8 @@ export class SurveyEngine {
         birth_card: match.profile.birth_card,
         age_bracket: match.profile.age_bracket,
         birth_time_bracket: match.profile.birth_time_bracket,
-        has_question_mode: match.profile.has_question_mode,
+        // initial_intention not carried across visits — each visit asks
+        // its own question via the intent opener.
       },
       is_returning_user: true,
       prior_answered_node_ids: match.answered_node_ids,
@@ -388,7 +364,7 @@ export class SurveyEngine {
     if (this.state.stage !== 'questions') return;
     // Drop queued questions — user is done answering.
     this.setState({ queue: [], close_reason: 'user_exit' });
-    this.beginShamanStage();
+    this.beginIntentionStage();
   }
 
   subscribe(listener: EngineListener): () => void {
@@ -437,7 +413,7 @@ export class SurveyEngine {
       birth_card: null,
       age_bracket: null,
       birth_time_bracket: null,
-      has_question_mode: null,
+      initial_intention: null,
       sections: {
         identity: [], state: [], relational: [],
         self_model: [], decision_context: [], patterns: [],
@@ -452,7 +428,6 @@ export class SurveyEngine {
       hooks: [],
       active_threads: [],
       posture: null,
-      intention_guesses: [],
     };
     const isReturning = !!opts.returning;
 
@@ -493,7 +468,12 @@ export class SurveyEngine {
       case 'name':         return profile.name.trim().length > 0;
       case 'birthday':     return profile.birthday !== null;
       case 'birth_time':   return profile.birth_time_bracket !== null;
-      case 'has_question': return profile.has_question_mode !== null;
+      // intent opener: satisfied once the user has answered it ONCE
+      // (initial_intention may legitimately be null when they pressed
+      // "I DON'T KNOW"). We track that they answered via picks_log /
+      // asked_node_ids, but for opener-chain advance, treat as satisfied
+      // by the node_id being asked — handled by the queue.
+      case 'intent':       return false;
       default:             return false;
     }
   }
@@ -531,8 +511,16 @@ export class SurveyEngine {
       this.setState({ profile: { ...this.state.profile, birth_time_bracket: mapBirthTime(ans) } });
       return false;
     }
-    if (node_id === 'has_question') {
-      this.setState({ profile: { ...this.state.profile, has_question_mode: mapHasQuestion(ans) } });
+    if (node_id === 'intent') {
+      // The IntentForm submits the user's typed question, OR an empty
+      // string when they pressed "I DON'T KNOW". Empty → null.
+      const trimmed = (typeof answer === 'string' ? answer : answer[0] ?? '').trim();
+      this.setState({
+        profile: {
+          ...this.state.profile,
+          initial_intention: trimmed.length > 0 ? trimmed : null,
+        },
+      });
       return false;
     }
     return false;
@@ -670,7 +658,7 @@ export class SurveyEngine {
     if (this.pipelinesInFlight > 0) return;
     const postOpenerCount = this.countPostOpenerPicks();
     if (postOpenerCount < STARTER_SEED_COUNT) return;
-    this.beginShamanStage();
+    this.beginIntentionStage();
   }
 
   private async runPipeline(pick: PickEvent, suppressInterrogator: boolean): Promise<void> {
@@ -797,7 +785,7 @@ export class SurveyEngine {
   }
 
   // Old finalize() was removed — the close path now runs through
-  // beginShamanStage() → submitIntention() → compiler. See those.
+  // beginIntentionStage() → submitIntention() → compiler. See those.
 }
 
 // ─── helpers (module-local) ─────────────────────────────
@@ -824,13 +812,6 @@ function mapBirthTime(ans: string): 'morning' | 'afternoon_evening' | 'overnight
   if (ans.includes('afternoon')) return 'afternoon_evening';
   if (ans.includes('overnight')) return 'overnight';
   return 'unknown';
-}
-
-function mapHasQuestion(ans: string): 'specific' | 'general' | 'not_really' | 'not_sure' {
-  if (ans.includes('specific')) return 'specific';
-  if (ans.includes('general'))  return 'general';
-  if (ans.includes('not really')) return 'not_really';
-  return 'not_sure';
 }
 
 /** Merge observer output into profile — append notes by section,
@@ -888,11 +869,6 @@ function applyDetectiveOutput(inv: Investigation, out: DetectiveOutput): Investi
     hooks: unionByKey(inv.hooks, out.hooks_found, (h) => h.description.toLowerCase()),
     active_threads: Array.from(threadMap.values()),
     posture: out.posture ?? inv.posture,
-    // Write-only stack: append every detective's intention_guess if
-    // present. Duplicates preserved (redundancy is signal).
-    intention_guesses: out.intention_guess && out.intention_guess.trim().length > 0
-      ? [...inv.intention_guesses, out.intention_guess.trim()]
-      : inv.intention_guesses,
   };
 }
 

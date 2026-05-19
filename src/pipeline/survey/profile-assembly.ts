@@ -117,8 +117,10 @@ function collectIdentityNotes(state: EngineState): string {
   if (id.birth_time_bracket && id.birth_time_bracket !== 'unknown') {
     parts.push(`birth time: ${id.birth_time_bracket}`);
   }
-  if (id.has_question_mode) {
-    parts.push(`came with question: ${id.has_question_mode}`);
+  if (id.initial_intention) {
+    parts.push(`initial intention: ${id.initial_intention}`);
+  } else {
+    parts.push('came without an intention');
   }
   if (state.is_returning_user) {
     parts.push('returning user');

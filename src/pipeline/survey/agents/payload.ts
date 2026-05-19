@@ -99,7 +99,7 @@ function compactProfile(p: PipelineContext['profile']) {
       birth_card: p.birth_card,
       age_bracket: p.age_bracket,
       birth_time_bracket: p.birth_time_bracket,
-      has_question_mode: p.has_question_mode,
+      initial_intention: p.initial_intention,
     },
     sections: Object.fromEntries(
       Object.entries(p.sections).filter(([, notes]) => notes.length > 0),

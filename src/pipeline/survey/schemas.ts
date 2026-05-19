@@ -96,16 +96,11 @@ export const DetectiveOutputSchema = z.object({
     status: ThreadStatus,
   })),
   posture: Posture.nullable(),
-  intention_guess: z.string().optional(),
   reasoning: z.string(),
 });
 
-// ─── Shaman ─────────────────────────────────────────────
-
-export const ShamanOutputSchema = z.object({
-  intentions: z.array(z.string()).length(4),
-  reasoning: z.string(),
-});
+// ─── Shaman (removed) ───────────────────────────────────
+// User provides their own intention via IntentConfirm UI.
 
 // ─── Interrogator ───────────────────────────────────────
 

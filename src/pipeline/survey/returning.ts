@@ -38,7 +38,8 @@ export function seedFromPerson(person: Person): Partial<SurveyProfile> {
     birth_card: person.profile.birth_card,
     age_bracket: person.profile.age_bracket,
     birth_time_bracket: person.profile.birth_time_bracket,
-    has_question_mode: person.profile.has_question_mode,
+    // Don't carry initial_intention across visits — each visit asks its
+    // own question. prior_intentions on the engine state is the history.
     // sections + cast are NOT pre-seeded — they'll be re-observed fresh.
     // The accumulated history of answered_node_ids carries the dedupe
     // separately (not part of the profile).

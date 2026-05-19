@@ -349,6 +349,82 @@ a:hover { text-decoration: underline; }
   font-style: italic;
 }
 
+/* ─── Intent question sandwich ────────────────────────── */
+
+.survey__dialogue-host--intent .dialogue-text,
+.survey__dialogue-host--intent .dialogue-caret,
+.survey__dialogue-host--intent .dialogue-measure {
+  color: var(--color-danger);
+  text-shadow: 0 0 8px rgba(226, 83, 110, 0.35);
+}
+
+.intent-form {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.6rem;
+  width: min(36rem, calc(100vw - 4rem));
+  margin: 0 auto;
+}
+
+.intent-form__form {
+  display: flex;
+  gap: 0.6rem;
+}
+
+.intent-form__input { flex: 1; }
+
+.intent-form__dont-know {
+  align-self: center;
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  letter-spacing: 0.32em;
+  text-transform: uppercase;
+  background: transparent;
+  color: var(--color-danger);
+  border: 1px solid var(--color-danger);
+  padding: 0.45rem 1.1rem;
+  cursor: pointer;
+  text-shadow: 0 0 8px rgba(226, 83, 110, 0.45);
+}
+.intent-form__dont-know:hover { background: rgba(226, 83, 110, 0.08); }
+
+.intent-confirm {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.6rem;
+  width: min(42rem, calc(100vw - 4rem));
+  margin: 0 auto;
+}
+
+.intent-confirm__prompt {
+  margin: 0;
+  text-align: center;
+  font-family: var(--font-mono);
+  color: var(--color-danger);
+  font-size: 1rem;
+  line-height: 1.45;
+  letter-spacing: 0.04em;
+  text-shadow: 0 0 8px rgba(226, 83, 110, 0.35);
+}
+
+.intent-confirm__form {
+  display: flex;
+  gap: 0.6rem;
+}
+
+.intent-confirm__input { flex: 1; }
+
+.intent-confirm__nudge {
+  text-align: center;
+  font-family: var(--font-mono);
+  font-style: italic;
+  font-size: 0.85rem;
+  color: var(--color-danger);
+  letter-spacing: 0.04em;
+}
+
 .text-input--narrow {
   width: 4.5em;
   padding: 0.5rem 0.4rem;

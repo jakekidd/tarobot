@@ -12,7 +12,7 @@ export const PHASE_ORDER: Phase[] = ['A', 'B', 'C', 'D', 'E'];
 // Question formats. `multi` was dropped — collapsed to `choice` (single
 // select). `binary` ALWAYS resolves to [yes, no, sometimes] regardless
 // of the node's `a` field; investigator can't alter binary options.
-export type AnswerFormat = 'text' | 'date' | 'choice' | 'binary' | 'matrix';
+export type AnswerFormat = 'text' | 'date' | 'choice' | 'binary' | 'matrix' | 'intent';
 
 /** [answer_text] | [answer_text, comment]. Comment is shown inline after pick. */
 export type AnswerTuple = [string] | [string, string];
@@ -114,7 +114,12 @@ export type SurveyProfile = {
   birth_card: { number: number; name: string } | null;
   age_bracket: string | null;
   birth_time_bracket: 'morning' | 'afternoon_evening' | 'overnight' | 'unknown' | null;
-  has_question_mode: 'specific' | 'general' | 'not_really' | 'not_sure' | null;
+  /** The user's question for the cards, captured at the start of the
+   *  survey (the "intent" opener). Null when the user pressed "I DON'T
+   *  KNOW". At survey close, the IntentConfirm UI uses this to either
+   *  confirm-and-edit or ask freshly. The final value lands on
+   *  EngineState.chosen_intention. */
+  initial_intention: string | null;
 
   // Populated by the Observer
   sections: ProfileSections;
@@ -132,11 +137,6 @@ export type Investigation = {
   hooks: Hook[];
   active_threads: ActiveThread[];
   posture: 'warm' | 'careful' | 'direct' | null;
-  /** Write-only stack of intention guesses from the Detective. Every
-   *  pipeline turn appends one (optional) — duplicates are signal, not
-   *  noise (a question coming up 3 times is pressing). The Shaman
-   *  reads the whole stack at survey close to divine 4 candidates. */
-  intention_guesses: string[];
 };
 
 // ─── Events ─────────────────────────────────────────────
@@ -188,14 +188,13 @@ export type CloseReason = 'user_exit' | 'queue_exhausted' | 'cap';
 /** Post-question-cap lifecycle:
  *
  *   questions          → user is still answering survey questions
- *   shaman_thinking    → cap hit, shaman call in flight, loading state
- *   awaiting_intention → shaman returned, user is picking from offered intentions
- *   compiling          → user picked, compiler running for the reading handoff
- *   reading_ready      → compiler done, app routes to reading
+ *   awaiting_intention → cap hit; user is typing/confirming their question
+ *                        for the cards (the IntentConfirm UI)
+ *   compiling          → user submitted intention; augur + seer constructing
+ *   reading_ready      → ready to enter the reading
  */
 export type SurveyStage =
   | 'questions'
-  | 'shaman_thinking'
   | 'awaiting_intention'
   | 'compiling'
   | 'reading_ready';
@@ -318,10 +317,6 @@ export type DetectiveOutput = {
   thread_updates: Array<{ thread_id: string; status: ActiveThread['status'] }>;
   /** null = no change. otherwise overwrites investigation.posture. */
   posture: 'warm' | 'careful' | 'direct' | null;
-  /** Optional one-question guess about what the user is here to ask
-   *  the oracle. Specific Should/Do form, ≤ 12 words. Appended to a
-   *  write-only stack; redundancy across turns is signal. */
-  intention_guess?: string;
   /** Private to engine logs — 2-3 sentences on what's now believed. */
   reasoning: string;
 };
@@ -342,25 +337,8 @@ export type InterrogatorOutput = {
   reasoning: string;
 };
 
-/** Shaman input — full record at survey close. The Shaman becomes the
- *  user for a moment and asks what they'd bring to a living god. */
-export type ShamanInput = {
-  profile: SurveyProfile;
-  investigation: Investigation;     // includes the write-only intention_guesses stack
-  history: PickEvent[];             // all picks (openers + survey)
-  /** Intentions this person chose on previous visits, most-recent first.
-   *  Empty for first-time visitors. Shaman is instructed to avoid
-   *  duplicating these; may optionally include one "deepening" option. */
-  prior_intentions: string[];
-};
-
-/** Shaman picks 4 specific intention questions in the user's voice. */
-export type ShamanOutput = {
-  /** Exactly 4 questions, in the user's vernacular. ≤ 12 words each. */
-  intentions: string[];
-  /** Private to engine logs — 2-3 sentences on how the four were chosen. */
-  reasoning: string;
-};
+// Shaman types removed — the user provides their own intention via the
+// IntentConfirm UI; no LLM guess. See engine.beginIntentionStage().
 
 // Compiler types removed — survey hands off via a pre-built Seer
 // (see ../seer/seer.ts). The intro pipeline (cognition → persona) is

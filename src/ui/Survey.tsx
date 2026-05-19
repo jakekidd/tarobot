@@ -20,6 +20,8 @@ import { Matrix2x2Choice } from './choices/Matrix2x2Choice';
 import { Spinner } from './Spinner';
 import { BirthdayForm } from './survey/BirthdayForm';
 import { NameForm } from './survey/NameForm';
+import { IntentForm } from './survey/IntentForm';
+import { IntentConfirm } from './survey/IntentConfirm';
 import { useSurveyEngine } from './survey/useSurveyEngine';
 import { ReturningUserModal } from './survey/ReturningUserModal';
 import { downloadTranscript, persistLog } from './survey/transcript';
@@ -121,7 +123,7 @@ export function Survey({ apiKey, session, onComplete }: Props) {
   const [personIdState, setPersonIdState] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!allOpenersAnswered(state.profile)) return;
+    if (!allOpenersAnswered(state.profile, state.asked_node_ids)) return;
     const profileSnapshot = cloneProfile(state.profile);
     const answeredFromSession = state.picks_log.map((p) => p.node_id);
 
@@ -218,7 +220,6 @@ export function Survey({ apiKey, session, onComplete }: Props) {
   // ─── render ───────────────────────────────────────────
 
   const stage = state.stage;
-  const isShamanThinking = stage === 'shaman_thinking';
   const isAwaitingIntention = stage === 'awaiting_intention';
   const isCompiling = stage === 'compiling';
   const showReady =
@@ -237,9 +238,6 @@ export function Survey({ apiKey, session, onComplete }: Props) {
   } else if (pendingMatches) {
     dialogText = 'wait. let me look at you.';
     dialogKey = 'returning-check';
-  } else if (isShamanThinking) {
-    dialogText = '…';
-    dialogKey = 'shaman';
   } else if (isAwaitingIntention) {
     dialogText = "finally. what answers dost thou seek from the oracle, traveler?";
     dialogKey = 'intention';
@@ -265,16 +263,21 @@ export function Survey({ apiKey, session, onComplete }: Props) {
   }, [returnLine]);
 
   const modalOpen = pendingMatches !== null;
+  // The intent opener (and the closing IntentConfirm) get a red treatment
+  // to flag the question-sandwich as user-driven rather than system-driven.
+  const isIntentMoment = currentQuestion?.node_id === 'intent' || isAwaitingIntention;
 
   return (
     <div className="screen screen--survey">
       <Reader isSpeaking={speaking} />
 
-      <Dialogue
-        key={dialogKey}
-        text={dialogText}
-        onTypingChange={setSpeaking}
-      />
+      <div className={isIntentMoment ? 'survey__dialogue-host survey__dialogue-host--intent' : 'survey__dialogue-host'}>
+        <Dialogue
+          key={dialogKey}
+          text={dialogText}
+          onTypingChange={setSpeaking}
+        />
+      </div>
 
       <div className="ui-frame ui-frame--survey">
         <div className="ui-frame__choices">
@@ -308,36 +311,29 @@ export function Survey({ apiKey, session, onComplete }: Props) {
             />
           )}
 
-          {isShamanThinking && (
-            <div className="ui-frame__waiting"><Spinner label="divining" /></div>
+          {!modalOpen && currentQuestion?.format === 'intent' && (
+            <IntentForm onSubmit={(ans) => void submitAnswer(ans)} />
           )}
 
           {isCompiling && (
             <div className="ui-frame__waiting"><Spinner label="preparing" /></div>
           )}
 
-          {!currentQuestion && !isShamanThinking && !isCompiling && !isAwaitingIntention && state.thinking && (
+          {!currentQuestion && !isCompiling && !isAwaitingIntention && state.thinking && (
             <div className="ui-frame__waiting"><Spinner label="thinking" /></div>
           )}
 
-          {isAwaitingIntention && state.intentions_offered.length > 0 && (
+          {isAwaitingIntention && (
             <div className="survey__intentions">
               {lastIntention && (
                 <p className="survey__last-intention">
                   last time you asked: <em>{lastIntention}</em>
                 </p>
               )}
-              <MultipleChoice
-                key="intentions"
-                suggestions={state.intentions_offered}
-                onPick={(v) => submitIntention(v)}
+              <IntentConfirm
+                initialIntention={state.profile.initial_intention}
+                onSubmit={(text) => submitIntention(text)}
               />
-            </div>
-          )}
-
-          {isAwaitingIntention && state.intentions_offered.length === 0 && (
-            <div className="ui-frame__waiting">
-              <em>say what you came to ask in your own words.</em>
             </div>
           )}
         </div>
@@ -406,13 +402,15 @@ export function Survey({ apiKey, session, onComplete }: Props) {
 // ─── helpers ────────────────────────────────────────────
 
 /** Save threshold predicate: a Person record is only written once the
- *  3 identifying openers are filled (name, birthday, has_question).
- *  Mirrors src/pipeline/survey/tree.json `openers`. */
-function allOpenersAnswered(profile: SurveyProfile): boolean {
+ *  identifying openers are filled (name, birthday, birth_time, intent).
+ *  The intent slot is counted via `asked_node_ids` because `initial_intention`
+ *  can legitimately be null (user pressed "I DON'T KNOW"). */
+function allOpenersAnswered(profile: SurveyProfile, askedNodeIds: string[]): boolean {
   return (
     profile.name.trim().length > 0 &&
     profile.birthday !== null &&
-    profile.has_question_mode !== null
+    profile.birth_time_bracket !== null &&
+    askedNodeIds.includes('intent')
   );
 }
 
