@@ -151,15 +151,13 @@ export function RelationshipPickForm({ cast, onSubmit, onSensingChange }: Props)
     setOffLimits(false);
   }
 
-  function setPronounSubjective(s: 'he' | 'they' | 'she') {
-    setPronounsTouched(true);
-    const cur = pronouns ?? { subjective: s, objective: defaultObjective(s) };
-    setPronouns({ ...cur, subjective: s });
-  }
   function setPronounObjective(o: 'him' | 'them' | 'her') {
+    // Derive subjective from objective (him → he, her → she, them → they).
+    // We only collect objective from the user — keeps the row to one set
+    // of buttons. The subjective slot is still on the CastMember for
+    // downstream voice rendering ("he handled it" vs "she handled it").
     setPronounsTouched(true);
-    const cur = pronouns ?? { subjective: defaultSubjective(o), objective: o };
-    setPronouns({ ...cur, objective: o });
+    setPronouns({ subjective: defaultSubjective(o), objective: o });
   }
 
   function pickGender(g: GenderPick) {
@@ -315,18 +313,6 @@ export function RelationshipPickForm({ cast, onSubmit, onSensingChange }: Props)
           <div className="rel-pick__row">
             <span className="rel-pick__row-label">pronouns</span>
             <div className="rel-pick__pronoun-group">
-              {(['he', 'they', 'she'] as const).map((s) => (
-                <button
-                  key={s}
-                  type="button"
-                  className={`rel-pick__pronoun ${pronouns?.subjective === s ? 'rel-pick__pronoun--on' : ''}`}
-                  onClick={() => setPronounSubjective(s)}
-                >
-                  {s}
-                </button>
-              ))}
-            </div>
-            <div className="rel-pick__pronoun-group">
               {(['him', 'them', 'her'] as const).map((o) => (
                 <button
                   key={o}
@@ -395,11 +381,6 @@ function namePlaceholder(c: PickedCategory): string {
   return 'their name';
 }
 
-function defaultObjective(s: 'he' | 'they' | 'she'): 'him' | 'them' | 'her' {
-  if (s === 'he') return 'him';
-  if (s === 'she') return 'her';
-  return 'them';
-}
 function defaultSubjective(o: 'him' | 'them' | 'her'): 'he' | 'they' | 'she' {
   if (o === 'him') return 'he';
   if (o === 'her') return 'she';
