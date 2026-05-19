@@ -44,15 +44,25 @@ import {
   INTRO_DIRECTOR_TOOL,
 } from '../pipeline/seer/prompts/director';
 import {
-  PER_CARD_ACTOR_SYSTEM,
+  buildPerCardActorSystem,
   PER_CARD_ACTOR_TOOL,
-  INTRO_ACTOR_SYSTEM,
+  buildIntroActorSystem,
   INTRO_ACTOR_TOOL,
-  CLOSING_ACTOR_SYSTEM,
+  buildClosingActorSystem,
   CLOSING_ACTOR_TOOL,
-  CHAT_ACTOR_SYSTEM,
+  buildChatActorSystem,
   CHAT_ACTOR_TOOL,
 } from '../pipeline/seer/prompts/actor';
+import { getActor } from '../pipeline/seer/actors';
+
+// The pipeline inspector renders the system prompt for the DEFAULT actor.
+// (If you add an actor selector to the inspector, derive these per-row
+// from the selection instead.)
+const DEFAULT_ACTOR = getActor();
+const PER_CARD_ACTOR_SYSTEM = buildPerCardActorSystem(DEFAULT_ACTOR);
+const INTRO_ACTOR_SYSTEM = buildIntroActorSystem(DEFAULT_ACTOR);
+const CLOSING_ACTOR_SYSTEM = buildClosingActorSystem(DEFAULT_ACTOR);
+const CHAT_ACTOR_SYSTEM = buildChatActorSystem(DEFAULT_ACTOR);
 
 // ── Agent metadata ──────────────────────────────────────────
 

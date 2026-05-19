@@ -11,16 +11,17 @@
 // When local OSS LLM swap lands, these are the call sites to repoint.
 
 import type { LLMAdapter } from '../../llm/adapter';
+import type { Actor } from '../actors';
 import { MonologueSchema } from '../schemas';
 import { sanitizeMonologue as sanitize } from '../sanitize';
 import {
-  PER_CARD_ACTOR_SYSTEM,
+  buildPerCardActorSystem,
   PER_CARD_ACTOR_TOOL,
-  INTRO_ACTOR_SYSTEM,
+  buildIntroActorSystem,
   INTRO_ACTOR_TOOL,
-  CLOSING_ACTOR_SYSTEM,
+  buildClosingActorSystem,
   CLOSING_ACTOR_TOOL,
-  CHAT_ACTOR_SYSTEM,
+  buildChatActorSystem,
   CHAT_ACTOR_TOOL,
 } from '../prompts/actor';
 import type {
@@ -34,6 +35,7 @@ import type {
 
 export async function actorPerCard(
   adapter: LLMAdapter,
+  actor: Actor,
   input: PerCardActorInput,
 ): Promise<Monologue> {
   const payload = {
@@ -50,11 +52,11 @@ export async function actorPerCard(
 
   return sanitize(await adapter.invoke<Monologue>(
     {
-      system: PER_CARD_ACTOR_SYSTEM,
+      system: buildPerCardActorSystem(actor),
       user: JSON.stringify(payload, null, 2),
       tool: PER_CARD_ACTOR_TOOL,
       model: 'deep',
-      max_tokens: 500,         // beats are 2-4 sentences; cap tighter
+      max_tokens: 500,
     },
     MonologueSchema,
   ));
@@ -62,6 +64,7 @@ export async function actorPerCard(
 
 export async function actorIntro(
   adapter: LLMAdapter,
+  actor: Actor,
   input: IntroActorInput,
 ): Promise<Monologue> {
   const payload = {
@@ -73,7 +76,7 @@ export async function actorIntro(
 
   return sanitize(await adapter.invoke<Monologue>(
     {
-      system: INTRO_ACTOR_SYSTEM,
+      system: buildIntroActorSystem(actor),
       user: JSON.stringify(payload, null, 2),
       tool: INTRO_ACTOR_TOOL,
       model: 'deep',
@@ -85,6 +88,7 @@ export async function actorIntro(
 
 export async function actorClosing(
   adapter: LLMAdapter,
+  actor: Actor,
   input: ClosingActorInput,
 ): Promise<Monologue> {
   const payload = {
@@ -102,7 +106,7 @@ export async function actorClosing(
 
   return sanitize(await adapter.invoke<Monologue>(
     {
-      system: CLOSING_ACTOR_SYSTEM,
+      system: buildClosingActorSystem(actor),
       user: JSON.stringify(payload, null, 2),
       tool: CLOSING_ACTOR_TOOL,
       model: 'deep',
@@ -114,6 +118,7 @@ export async function actorClosing(
 
 export async function actorChat(
   adapter: LLMAdapter,
+  actor: Actor,
   input: ChatActorInput,
 ): Promise<Monologue> {
   const payload = {
@@ -126,15 +131,15 @@ export async function actorChat(
     })),
     chat_history: input.chat_history,
     user_message: input.user_message,
-    instruction: 'respond to the participant as the seer. short.',
+    instruction: 'respond to the subject as the seer. short.',
   };
 
   return sanitize(await adapter.invoke<Monologue>(
     {
-      system: CHAT_ACTOR_SYSTEM,
+      system: buildChatActorSystem(actor),
       user: JSON.stringify(payload, null, 2),
       tool: CHAT_ACTOR_TOOL,
-      model: 'cognition',      // chat replies don't need the full deep tier
+      model: 'cognition',
       max_tokens: 300,
     },
     MonologueSchema,

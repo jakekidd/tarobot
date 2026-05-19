@@ -36,6 +36,7 @@ import {
   actorClosing,
   actorChat,
 } from './agents/actor';
+import { getActor, type Actor, type ActorId } from './actors';
 import type {
   ChatMessage,
   Outcome,
@@ -66,6 +67,10 @@ export type SeerOpts = {
   drawn: DrawnCards;
   outcomes: Outcome[];
   preferred_intro?: Monologue;
+  /** Onstage actor voicing the reading. Defaults to the registry default
+   *  (currently the Geometer). Director Set is voice-agnostic; only the
+   *  actor layer is shaped by this. */
+  actor?: ActorId;
 };
 
 type SlotResult = { set: Set; monologue: Monologue };
@@ -84,6 +89,7 @@ export class Seer {
   private intention: string;
   private surveyHistory: PickEvent[];
   private outcomes: Outcome[];
+  private actor: Actor;
 
   /** key = `${round}:${position_id}` → eventual SlotResult */
   private slotPromises = new Map<string, Promise<SlotResult>>();
@@ -101,6 +107,7 @@ export class Seer {
     this.intention = opts.intention;
     this.surveyHistory = opts.surveyHistory;
     this.outcomes = opts.outcomes;
+    this.actor = getActor(opts.actor);
     this.state = {
       inputs: {
         profile: opts.profile,
@@ -152,7 +159,7 @@ export class Seer {
 
       // STAGE 2: actor — turn the brief into the spoken intro.
       this.setState({ phase: 'thinking', awaiting_layer: 'actor' });
-      const intro = await actorIntro(this.adapter, {
+      const intro = await actorIntro(this.adapter, this.actor, {
         profile: this.state.inputs.profile,
         prose_brief: brief,
       });
@@ -337,7 +344,7 @@ export class Seer {
     });
 
     try {
-      const reply = await actorChat(this.adapter, {
+      const reply = await actorChat(this.adapter, this.actor, {
         profile: this.state.inputs.profile,
         prose_brief: this.state.inputs.prose_brief,
         revealed: this.state.revealed,
@@ -444,7 +451,7 @@ export class Seer {
         // case the director's emission drifted from what the engine knows.
         const set: Set = { ...rawSet, narrative_role: role, flip_round: round };
 
-        const monologue = await actorPerCard(this.adapter, {
+        const monologue = await actorPerCard(this.adapter, this.actor, {
           profile: this.state.inputs.profile,
           prose_brief: this.state.inputs.prose_brief,
           set,
@@ -481,7 +488,7 @@ export class Seer {
         chat_history: this.state.chat,
       });
       this.setState({ awaiting_layer: 'actor' });
-      const outro = await actorClosing(this.adapter, {
+      const outro = await actorClosing(this.adapter, this.actor, {
         profile: this.state.inputs.profile,
         prose_brief: this.state.inputs.prose_brief,
         revealed,

@@ -13,6 +13,14 @@ export { Seer } from './seer';
 export type { SeerOpts } from './seer';
 
 export {
+  ACTORS,
+  DEFAULT_ACTOR_ID,
+  getActor,
+  SHARED_CRAFT,
+} from './actors';
+export type { Actor, ActorId } from './actors';
+
+export {
   directorIntro,
   directorPerCard,
   directorClosing,
