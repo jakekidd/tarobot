@@ -1,6 +1,13 @@
-// Small helpers for the relationship_pick form: kin-term gender / pronoun
-// inference, brand-color palette for gender quick-picks, and a wider
-// accent-color palette for the random name-color dice.
+// Small helpers for the relationship_pick form: kin-term pronoun
+// inference + the random name-color dice palette.
+//
+// Reserved colors (NEVER appear in the dice palette):
+//   - Purple (#7c3aed and adjacent violets) — reserved for the user's
+//     own name when the seer / cat references it.
+//   - Turquoise (#22d3ee and adjacent cyans/teals) — reserved for the
+//     seer's first-person ("me" / "I") references.
+// Picking either of those for a relationship would muddle their
+// load-bearing meaning downstream.
 //
 // Kin-term detection is intentionally NARROW. The rule: only auto-suggest
 // pronouns when the user types a recognizable RELATIONAL label (mom,
@@ -14,35 +21,30 @@ export type Pronouns = {
   objective: 'him' | 'them' | 'her';
 };
 
-export type GenderPick = 'masc' | 'enby' | 'fem';
+/** Pronoun-set returned by a kin-term match. The form auto-fills these
+ *  when detection fires AND the user hasn't manually touched the row. */
+type KinPronouns = Pronouns;
 
-/** 3 brand-tier gender colors, matched to the gender quick-picks. */
-export const GENDER_COLORS: Record<GenderPick, string> = {
-  masc: '#22d3ee',  // turquoise — the local-LLM accent tone, repurposed
-  enby: '#ff9d3a',  // brand orange (also used by the jade override asterisk)
-  fem:  '#7c3aed',  // brand violet — Tarobot's primary
-};
+const FEM_PRONOUNS: KinPronouns = { subjective: 'she', objective: 'her' };
+const MASC_PRONOUNS: KinPronouns = { subjective: 'he', objective: 'him' };
 
-export const GENDER_DEFAULT_PRONOUNS: Record<GenderPick, Pronouns> = {
-  masc: { subjective: 'he',   objective: 'him' },
-  enby: { subjective: 'they', objective: 'them' },
-  fem:  { subjective: 'she',  objective: 'her' },
-};
-
-/** Wide-spectrum accent colors for the name-color dice. Picked to avoid
- *  the canonical UI colors (violet/turquoise/orange/red) so a person's
- *  name stays distinct from existing chrome. */
+/** Wide-spectrum accent colors for the name-color dice. Hand-picked to
+ *  span the wheel WITHOUT touching the two reserved hue bands:
+ *    • purple / violet / indigo / lavender  (≈ 250°–290°)
+ *    • turquoise / cyan / teal             (≈ 160°–200°)
+ *  Roughly: red → orange → amber → yellow → chartreuse → green → forest
+ *           → sky-blue → hot pink → soft pink. */
 export const NAME_ACCENT_PALETTE = [
-  '#f6c453',  // amber
+  '#ef4444',  // red
+  '#f97316',  // orange (warm; distinct from brand #ff9d3a)
+  '#f59e0b',  // amber
+  '#facc15',  // sun yellow
   '#a3e635',  // chartreuse
-  '#34d399',  // mint
-  '#06b6d4',  // cyan-bright (distinct from the local-LLM turquoise)
-  '#60a5fa',  // sky
-  '#a78bfa',  // soft violet (distinct from brand violet)
-  '#f472b6',  // pink
-  '#fb7185',  // coral
-  '#facc15',  // sun
-  '#4ade80',  // grass
+  '#4ade80',  // grass-green
+  '#16a34a',  // forest-green
+  '#60a5fa',  // sky-blue
+  '#ec4899',  // hot pink
+  '#f472b6',  // soft pink
 ];
 
 /** Pick a random accent color. Optionally avoids a previous one so the
@@ -56,13 +58,13 @@ export function randomAccent(prev?: string): string {
 }
 
 /** Strict kin-term map. Only triggers on exact / clearly-prefixed matches.
- *  Returns null when nothing applies. */
-export function detectKinTerm(rawName: string): GenderPick | null {
+ *  Returns the canonical pronoun set (or null when nothing applies). */
+export function detectKinTerm(rawName: string): KinPronouns | null {
   const t = rawName.trim().toLowerCase();
   if (!t) return null;
   // Female: mom / mama / mommy / mother / mum
-  if (/^(mom|mama|mommy|momma|mother|mum|mommie)$/.test(t)) return 'fem';
+  if (/^(mom|mama|mommy|momma|mother|mum|mommie)$/.test(t)) return FEM_PRONOUNS;
   // Male: dad / papa / pop / pops / daddy / father
-  if (/^(dad|daddy|papa|pop|pops|father)$/.test(t)) return 'masc';
+  if (/^(dad|daddy|papa|pop|pops|father)$/.test(t)) return MASC_PRONOUNS;
   return null;
 }

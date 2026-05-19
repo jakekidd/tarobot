@@ -728,19 +728,12 @@ input, textarea {
   gap: 0.5rem;
   align-items: center;
 }
-.rel-pick__gender-dot {
+.rel-pick__accent-preview {
   width: 1.6rem;
   height: 1.6rem;
-  border: 2px solid transparent;
-  cursor: pointer;
-  padding: 0;
+  display: inline-block;
   border-radius: 50%;
-  transition: transform 0.1s;
-}
-.rel-pick__gender-dot:hover { transform: scale(1.1); }
-.rel-pick__gender-dot--on {
-  border-color: var(--fg);
-  box-shadow: 0 0 0 2px var(--color-black), 0 0 12px currentColor;
+  box-shadow: 0 0 8px currentColor;
 }
 
 .rel-pick__dice {

@@ -18,10 +18,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { CastMember } from '../../pipeline/survey';
 import {
   detectKinTerm,
-  GENDER_COLORS,
-  GENDER_DEFAULT_PRONOUNS,
   randomAccent,
-  type GenderPick,
   type Pronouns,
 } from './relationshipHelpers';
 
@@ -75,8 +72,6 @@ export function RelationshipPickForm({ cast, onSubmit, onSensingChange }: Props)
   const [name, setName] = useState('');
   const [pronouns, setPronouns] = useState<Pronouns | null>(null);
   const [pronounsTouched, setPronounsTouched] = useState(false);
-  const [genderPick, setGenderPick] = useState<GenderPick | null>(null);
-  const [genderTouched, setGenderTouched] = useState(false);
   const [accent, setAccent] = useState<string>(() => randomAccent());
   const [offLimits, setOffLimits] = useState(false);
   const accentInitialRef = useRef(false);
@@ -95,30 +90,28 @@ export function RelationshipPickForm({ cast, onSubmit, onSensingChange }: Props)
 
   // Smart auto-detection from kin terms — applied inline on input change
   // so it doesn't run as a setState-in-effect. Only fires when the user
-  // hasn't explicitly toggled the matching control.
+  // hasn't explicitly toggled the pronouns. Detection now suggests
+  // pronouns only — color is dice-driven (purple + turquoise are
+  // reserved for the user and the seer, so they can't be relation
+  // accents anymore).
   function handleNameChange(next: string) {
     setName(next);
     const detected = detectKinTerm(next);
     if (!detected) return;
-    if (!genderTouched) setGenderPick(detected);
-    if (!pronounsTouched) setPronouns(GENDER_DEFAULT_PRONOUNS[detected]);
+    if (!pronounsTouched) setPronouns(detected);
   }
-
-  // The visible "name" color: either the gender quick-pick color, or the
-  // random accent if the user hasn't picked a gender.
-  const displayColor = genderPick ? GENDER_COLORS[genderPick] : accent;
 
   // Publish sensing state to the parent (so it can render the live
   // "i'm sensing... a [NAME]" line in the mascot's dialogue box).
   useEffect(() => {
     if (!onSensingChange) return;
     if (mode === 'who' && name.trim().length > 0) {
-      onSensingChange({ name: name.trim(), color: displayColor });
+      onSensingChange({ name: name.trim(), color: accent });
     } else {
       onSensingChange(null);
     }
     return () => { onSensingChange(null); };
-  }, [mode, name, displayColor, onSensingChange]);
+  }, [mode, name, accent, onSensingChange]);
 
   function pickExisting(member: CastMember) {
     onSubmit(JSON.stringify({
@@ -146,8 +139,6 @@ export function RelationshipPickForm({ cast, onSubmit, onSensingChange }: Props)
     setName('');
     setPronouns(null);
     setPronounsTouched(false);
-    setGenderPick(null);
-    setGenderTouched(false);
     setOffLimits(false);
   }
 
@@ -160,19 +151,7 @@ export function RelationshipPickForm({ cast, onSubmit, onSensingChange }: Props)
     setPronouns({ subjective: defaultSubjective(o), objective: o });
   }
 
-  function pickGender(g: GenderPick) {
-    setGenderTouched(true);
-    setGenderPick(g);
-    // Setting a gender pick also wires the canonical pronouns IF the user
-    // hasn't separately set pronouns. The user can still re-toggle.
-    if (!pronounsTouched) {
-      setPronouns(GENDER_DEFAULT_PRONOUNS[g]);
-    }
-  }
-
   function rerollAccent() {
-    setGenderPick(null);
-    setGenderTouched(true);
     setAccent((prev) => randomAccent(prev));
   }
 
@@ -184,7 +163,7 @@ export function RelationshipPickForm({ cast, onSubmit, onSensingChange }: Props)
       name: cleaned,
       off_limits: offLimits,
       pronouns: pronouns ?? undefined,
-      color: displayColor,
+      color: accent,
     }));
   }
 
@@ -329,22 +308,22 @@ export function RelationshipPickForm({ cast, onSubmit, onSensingChange }: Props)
           <div className="rel-pick__row">
             <span className="rel-pick__row-label">color</span>
             <div className="rel-pick__gender-group">
-              {(['masc', 'enby', 'fem'] as const).map((g) => (
-                <button
-                  key={g}
-                  type="button"
-                  className={`rel-pick__gender-dot ${genderPick === g ? 'rel-pick__gender-dot--on' : ''}`}
-                  style={{ background: GENDER_COLORS[g] }}
-                  onClick={() => pickGender(g)}
-                  aria-label={`gender color ${g}`}
-                />
-              ))}
+              {/* Current accent (preview) + dice to reroll. The 3
+                  gender-dot quick-picks were removed: purple is
+                  reserved for the user's own name, turquoise for the
+                  seer's first-person — so they can't be relation
+                  colors. Random palette excludes both hue bands. */}
+              <span
+                className="rel-pick__accent-preview"
+                style={{ background: accent }}
+                aria-label="current name color"
+              />
               <button
                 type="button"
                 className="rel-pick__dice"
                 onClick={rerollAccent}
                 aria-label="roll a random color"
-                title="random color"
+                title="reroll the color"
               >
                 ⚀
               </button>
