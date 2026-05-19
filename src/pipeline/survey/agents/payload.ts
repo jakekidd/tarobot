@@ -36,16 +36,27 @@ export function buildAgentPayload(ctx: PipelineContext, stage: Stage) {
 
   switch (stage) {
     case 'observer': {
-      // Observer doesn't need the basket OR the upcoming queue; it's
-      // focused on metabolizing this turn into profile notes. It DOES
-      // want history + investigation for context (so notes don't
-      // duplicate what's already on file).
+      // Observer fires every Nth turn (engine's OBSERVER_INTERVAL) and
+      // metabolizes a window of recent picks at once. `recent_picks` is
+      // the window; `history` is everything BEFORE that window (older
+      // context, for cross-referencing and de-duping notes).
+      const recent = ctx.recent_picks ?? [];
+      const recentIds = new Set(recent.map((p) => p.node_id));
+      const olderHistory = history.filter((h) => !recentIds.has(h.node_id));
       return {
-        this_turn,
+        // Each entry: node_id + question + options + answer + latency.
+        recent_picks: recent.map((p) => ({
+          node_id: p.node_id,
+          question: p.question_text,
+          options: p.options_shown,
+          answer: p.answer,
+          latency_ms: p.latency_ms,
+        })),
         profile,
         investigation,
-        history,
-        instruction: 'file profile-grade notes + cast updates. only what is worth filing.',
+        history: olderHistory,
+        instruction:
+          'metabolize the recent_picks window into profile notes + cast updates. file only what is worth filing across these turns.',
       };
     }
     case 'detective': {

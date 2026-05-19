@@ -275,16 +275,21 @@ export type PipelineContext = {
   options_shown: string[];
   /** The user's pick. */
   answer: string | string[];
-  /** Profile so far — mutated in-place by Observer before passing on. */
+  /** Profile so far — agents read this snapshot at pipeline start.
+   *  Same-pipeline observer updates DO NOT propagate (parallel firing). */
   profile: SurveyProfile;
-  /** Investigation so far — mutated by Detective before passing to Interrogator. */
+  /** Investigation so far — same snapshot semantics as profile. */
   investigation: Investigation;
-  /** Full Q&A history, including this turn. Each entry has options_shown + answer. */
+  /** Full Q&A history, including this turn. */
   history: PickEvent[];
   /** Questions currently queued AFTER this one (head=next to ask). */
   queue: QueueItem[];
   /** The basket of available unasked questions — what the Interrogator picks from. */
   basket: BasketItem[];
+  /** Observer-only: when present, replaces `history`-tail-focus with a
+   *  multi-turn window. Set by the engine on observer fire turns
+   *  (every OBSERVER_INTERVAL post-opener picks). */
+  recent_picks?: PickEvent[];
 };
 
 /** Observer outputs profile updates. Kept open-ended on purpose: the

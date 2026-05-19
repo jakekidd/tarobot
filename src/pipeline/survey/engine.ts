@@ -77,6 +77,13 @@ const OPENER_NODE_IDS = new Set<string>(getOpeners());
 export const STARTER_SEED_COUNT = 6;
 const DEFAULT_QUESTION_CAP = 20;
 
+/** Observer fires every N post-opener picks. On turns where it doesn't
+ *  fire, only detective + interrogator run. Observer's payload then
+ *  carries a window of recent picks (defined by OBSERVER_WINDOW) so it
+ *  can metabolize multiple turns at once. */
+const OBSERVER_INTERVAL = 3;
+const OBSERVER_WINDOW = 3;
+
 export class SurveyEngine {
   private state: EngineState;
   private opts: EngineOpts;
@@ -667,83 +674,76 @@ export class SurveyEngine {
   }
 
   private async runPipeline(pick: PickEvent, suppressInterrogator: boolean): Promise<void> {
-    // Each pipeline takes ONE snapshot of engine state at fire-time.
-    // The three agents run in serial against that snapshot, evolving
-    // a local view as they go (observer's output feeds detective's
-    // ctx; detective's feeds interrogator's). Agents NEVER re-read
-    // engine state mid-pipeline — sibling pipelines may have written
-    // since this one started, and seeing those writes would muddy the
-    // pipeline's own reasoning. The cost of that "ignorance" is a
-    // little staleness on the prompt input; the benefit is each
-    // pipeline produces internally-consistent output without
-    // synchronization across pipelines.
+    // Each pipeline takes ONE snapshot at fire-time. All agents read this
+    // SAME snapshot in parallel. Cross-agent updates (this pipeline's
+    // observer output → detective context, etc.) DO NOT propagate within
+    // a single pipeline — they land on the NEXT pipeline's snapshot.
     //
-    // The collision handling lives in the merge functions (apply…)
-    // which write into CURRENT engine state. Outputs are designed to
-    // be commutative-ish: notes append, hypotheses upsert by id,
-    // contradictions/hooks append-with-dedupe, choice_draft replaces.
-    // Two sibling pipelines stomping on the same field = the later
-    // writer wins (per spec).
+    // The lag is acceptable: each agent's contribution accumulates in
+    // engine state and the next pipeline catches up. The win is ~2x
+    // wall-clock since we no longer chain observer → detective →
+    // interrogator serially.
+    //
+    // Collision handling lives in the merge functions (apply…). Outputs
+    // are designed to be commutative-ish: notes append, hypotheses upsert
+    // by id, contradictions/hooks append-with-dedupe, choice_draft
+    // replaces. Sibling pipelines stomping the same field → later writer
+    // wins (per spec).
 
-    const snapshot = {
+    const baseCtx: PipelineContext = {
+      index: this.state.picks_log.length,
+      question: pick.question_text,
+      options_shown: pick.options_shown,
+      answer: pick.answer,
       profile: this.state.profile,
       investigation: this.state.investigation,
       history: this.state.picks_log,
       queue: this.state.queue,
       basket: this.buildBasket(),
     };
-    const thisTurn = {
-      index: this.state.picks_log.length,
-      question: pick.question_text,
-      options_shown: pick.options_shown,
-      answer: pick.answer,
-    };
 
-    // ── STAGE 1: Observer ────────────────────────────
-    // Observer sees snapshot. Outputs profile updates.
+    // Observer fires every OBSERVER_INTERVAL post-opener picks. On the
+    // turns it fires, payload includes a window of recent picks
+    // (OBSERVER_WINDOW) so it metabolizes multiple turns at once. Skipped
+    // turns mean detective + interrogator run without an observer firing
+    // — observer's next firing will catch up.
+    const postOpenerCount = this.countPostOpenerPicks();
+    const observerThisTurn = postOpenerCount % OBSERVER_INTERVAL === 1;
+
+    const tasks: Promise<unknown>[] = [];
+
+    if (observerThisTurn) tasks.push(this.runObserverTask(baseCtx));
+    tasks.push(this.runDetectiveTask(baseCtx));
+    if (!suppressInterrogator) tasks.push(this.runInterrogatorTask(baseCtx));
+
+    await Promise.allSettled(tasks);
+  }
+
+  private async runObserverTask(baseCtx: PipelineContext): Promise<void> {
     this.agentInFlight.observer += 1; this.publishInflight();
-    let observerOut: ObserverOutput | null = null;
     try {
-      const ctx: PipelineContext = {
-        ...thisTurn,
-        profile: snapshot.profile,
-        investigation: snapshot.investigation,
-        history: snapshot.history,
-        queue: snapshot.queue,
-        basket: snapshot.basket,
-      };
-      observerOut = await runObserver(this.opts.adapter, ctx);
-      this.setState({
-        profile: applyObserverOutput(this.state.profile, observerOut),
+      // Observer payload carries `recent_picks` = last OBSERVER_WINDOW
+      // entries of picks_log (snapshot's history). Prompt instructs the
+      // model to file notes for any of those turns worth filing.
+      const recentPicks = baseCtx.history.slice(-OBSERVER_WINDOW);
+      const out: ObserverOutput = await runObserver(this.opts.adapter, {
+        ...baseCtx,
+        recent_picks: recentPicks,
       });
+      this.setState({ profile: applyObserverOutput(this.state.profile, out) });
       this.emit();
     } catch (e) {
       console.warn('[survey] observer failed', e);
     } finally {
       this.agentInFlight.observer -= 1; this.publishInflight();
     }
+  }
 
-    // ── STAGE 2: Detective ───────────────────────────
-    // Detective sees snapshot + observer's just-produced output. That
-    // projection is built from `snapshot.profile`, NOT engine state,
-    // so sibling pipelines' writes don't leak into this prompt.
-    const profileAfterObserver = observerOut
-      ? applyObserverOutput(snapshot.profile, observerOut)
-      : snapshot.profile;
-
+  private async runDetectiveTask(baseCtx: PipelineContext): Promise<void> {
     this.agentInFlight.detective += 1; this.publishInflight();
-    let detectiveOut: DetectiveOutput | null = null;
     try {
-      const ctx: PipelineContext = {
-        ...thisTurn,
-        profile: profileAfterObserver,
-        investigation: snapshot.investigation,
-        history: snapshot.history,
-        queue: snapshot.queue,
-        basket: snapshot.basket,
-      };
-      detectiveOut = await runDetective(this.opts.adapter, ctx);
-      let nextInvestigation = applyDetectiveOutput(this.state.investigation, detectiveOut);
+      const out: DetectiveOutput = await runDetective(this.opts.adapter, baseCtx);
+      let nextInvestigation = applyDetectiveOutput(this.state.investigation, out);
       nextInvestigation = pruneStaleHypotheses(nextInvestigation, this.state.picks_log);
       this.setState({ investigation: nextInvestigation });
       this.emit();
@@ -752,34 +752,12 @@ export class SurveyEngine {
     } finally {
       this.agentInFlight.detective -= 1; this.publishInflight();
     }
+  }
 
-    // ── STAGE 3: Interrogator ────────────────────────
-    // Interrogator sees snapshot + observer + detective. Same projection
-    // pattern — never re-reads engine state.
-    const investigationAfterDetective = detectiveOut
-      ? pruneStaleHypotheses(
-          applyDetectiveOutput(snapshot.investigation, detectiveOut),
-          snapshot.history,
-        )
-      : snapshot.investigation;
-
-    // Skip the interrogator entirely once we've hit the question cap.
-    // The queue is fully populated; no more questions need to be added.
-    // (Observer + detective still fire — we want their analysis on the
-    // last picks even though we won't ask anything more.)
-    if (suppressInterrogator) return;
-
+  private async runInterrogatorTask(baseCtx: PipelineContext): Promise<void> {
     this.agentInFlight.interrogator += 1; this.publishInflight();
     try {
-      const ctx: PipelineContext = {
-        ...thisTurn,
-        profile: profileAfterObserver,
-        investigation: investigationAfterDetective,
-        history: snapshot.history,
-        queue: snapshot.queue,
-        basket: snapshot.basket,
-      };
-      const out: InterrogatorOutput = await runInterrogator(this.opts.adapter, ctx);
+      const out: InterrogatorOutput = await runInterrogator(this.opts.adapter, baseCtx);
       this.applyInterrogatorOutput(out);
     } catch (e) {
       console.warn('[survey] interrogator failed, falling back to random pool pick', e);
