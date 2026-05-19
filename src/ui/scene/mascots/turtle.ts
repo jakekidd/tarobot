@@ -24,6 +24,15 @@ const EYE_COLOR = 0xfff7e0;            // warm white — pops inside the silhoue
 const EYE_MESH_NAME = 'Object_38';     // the smaller skinned mesh in the gltf
 const ANIMATION_TIME_SCALE = 0.2;      // 5× slower than native — calm paddle
 const TURTLE_SCALE = 2.0;              // 2× larger than the anchor footprint
+
+// Animated green gradient — flows over the skin in model space, so it
+// stays glued to the body as the bones animate (rather than slipping
+// as he wanders through world space). Two greens lerped by a sine of
+// position.y + uTime; speed and band density tunable here.
+const GRADIENT_DARK = new THREE.Color(0x0a3818);   // deep moss
+const GRADIENT_LIGHT = new THREE.Color(0x6dff8a);  // bright neon green
+const GRADIENT_BAND_FREQ = 4.0;     // bands per unit of local Y — higher = tighter stripes
+const GRADIENT_SPEED = 1.5;         // rad/sec — flow speed of the wave
 // Push back in local Z. With group.scale=2 and the rig's ~100 px/unit
 // scale on top, Z_OFFSET=-1.0 puts him ~200 world units behind the
 // rig anchor — well clear of the camera's near plane (at z=99.9) even
@@ -71,6 +80,50 @@ export function createTurtleMascot(): Mascot {
     color: EYE_COLOR,
     depthTest: false,
   });
+
+  // Body skin — MeshBasicMaterial patched via onBeforeCompile so we get
+  // built-in skinning vertex chunks for free, then override the
+  // fragment color with an animated gradient driven by a shared uTime
+  // uniform. CPU cost per frame = one uniform write; GPU cost is a
+  // single sin + mix per fragment.
+  const bodyTimeUniform = { value: 0 };
+  const bodyMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+  bodyMat.onBeforeCompile = (shader) => {
+    shader.uniforms.uTime = bodyTimeUniform;
+    shader.uniforms.uGradDark = { value: GRADIENT_DARK };
+    shader.uniforms.uGradLight = { value: GRADIENT_LIGHT };
+    shader.uniforms.uBandFreq = { value: GRADIENT_BAND_FREQ };
+    shader.uniforms.uSpeed = { value: GRADIENT_SPEED };
+    // Pass the rest-pose local position to the fragment so the gradient
+    // is painted onto the skin and follows the bone animation rather
+    // than slipping as the model translates.
+    shader.vertexShader = shader.vertexShader
+      .replace(
+        '#include <common>',
+        '#include <common>\nvarying vec3 vLocalPos;',
+      )
+      .replace(
+        '#include <begin_vertex>',
+        '#include <begin_vertex>\nvLocalPos = position;',
+      );
+    shader.fragmentShader = shader.fragmentShader
+      .replace(
+        '#include <common>',
+        `#include <common>
+         uniform float uTime;
+         uniform vec3 uGradDark;
+         uniform vec3 uGradLight;
+         uniform float uBandFreq;
+         uniform float uSpeed;
+         varying vec3 vLocalPos;`,
+      )
+      .replace(
+        '#include <color_fragment>',
+        `#include <color_fragment>
+         float wave = sin(vLocalPos.y * uBandFreq + uTime * uSpeed) * 0.5 + 0.5;
+         diffuseColor.rgb = mix(uGradDark, uGradLight, wave);`,
+      );
+  };
   // Live rotation — starts at BASE_ROTATION, mutated by debug arrow keys.
   // root.rotation is kept in sync so what you see is what gets reported.
   const liveRotation = BASE_ROTATION.clone();
@@ -78,7 +131,7 @@ export function createTurtleMascot(): Mascot {
   let debugVisible = false;
 
   const mixer: { value: THREE.AnimationMixer | null } = { value: null };
-  const disposables: Array<{ dispose: () => void }> = [eyeMat];
+  const disposables: Array<{ dispose: () => void }> = [eyeMat, bodyMat];
 
   function publishRotation(): void {
     publishDebug('turtle.rotX', formatRot(liveRotation.x));
@@ -145,21 +198,20 @@ export function createTurtleMascot(): Mascot {
         );
         root.scale.setScalar(1 / maxDim);
 
-        // Keep the gltf's native materials on the body — no tint, no
-        // emissive. Only the eyes get the warm-white glow material so
-        // they read clearly through the head silhouette.
+        // Body meshes get the animated-gradient material; eye mesh gets
+        // the warm-white glow. Original gltf materials are disposed
+        // since we're replacing them all.
         root.traverse((obj) => {
           const m = obj as THREE.Mesh;
           if (!m.isMesh) return;
+          const orig = m.material as THREE.Material | THREE.Material[];
+          if (Array.isArray(orig)) orig.forEach((mat) => mat.dispose?.());
+          else orig?.dispose?.();
           if (m.name === EYE_MESH_NAME) {
-            const orig = m.material as THREE.Material | THREE.Material[];
-            if (Array.isArray(orig)) orig.forEach((mat) => mat.dispose?.());
-            else orig?.dispose?.();
             m.material = eyeMat;
             m.renderOrder = 10; // draw after the body so depthTest=false reads cleanly
-          } else if (m.material) {
-            const mats = Array.isArray(m.material) ? m.material : [m.material];
-            for (const mat of mats) disposables.push(mat);
+          } else {
+            m.material = bodyMat;
           }
           m.castShadow = false;
           m.receiveShadow = false;
@@ -211,6 +263,9 @@ export function createTurtleMascot(): Mascot {
     // drift direction directly.
     tiltGroup.rotation.x = wy * TILT_PER_UNIT;
     tiltGroup.rotation.z = wx * TILT_PER_UNIT;
+
+    // Drive the moving-gradient shader.
+    bodyTimeUniform.value = ctx.t;
 
     if (mixer.value) mixer.value.update(ctx.dt);
   }
