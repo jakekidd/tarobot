@@ -105,6 +105,12 @@ export const DetectiveOutputSchema = z.object({
    *  the response thinking out loud here — guesses, walks-back, leads,
    *  emotional reads. Persisted to detective_log; fed back on next call. */
   private_thoughts: z.string(),
+  /** Compressed synthesis: at most 3 claims, each ≤25 words, that
+   *  capture the load-bearing facts about this person right now. This
+   *  REPLACES the prior value on each call — the detective sees the
+   *  prior and either keeps, edits, or rewrites. Surfaced to the
+   *  seer's directorIntro as the spine of the prose_brief. */
+  current_understanding: z.array(z.string().max(200)).max(3),
   /** The next question the survey asks. node_id must be in the basket. */
   next_question: z.object({
     node_id: z.string(),

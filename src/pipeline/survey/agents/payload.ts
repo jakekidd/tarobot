@@ -63,7 +63,8 @@ export function buildAgentPayload(ctx: PipelineContext, stage: Stage) {
       // Detective is now the combined investigator + question-picker.
       // Gets profile + investigation + history + basket + queue (so it
       // doesn't double-pick something already queued) + its own running
-      // scratchpad. Carries the user's stated `initial_intention` if any.
+      // scratchpad + the current_understanding it's been maintaining.
+      // Carries the user's stated `initial_intention` if any.
       return {
         this_turn,
         profile,
@@ -75,8 +76,9 @@ export function buildAgentPayload(ctx: PipelineContext, stage: Stage) {
         })),
         basket: ctx.basket,
         detective_log: ctx.detective_log ?? [],
+        current_understanding: ctx.current_understanding ?? [],
         instruction:
-          'spend at least half the response in private_thoughts (think out loud). update investigation by changes only. pick next_question from basket; inject a guess only at hypothesis confidence ≥0.6.',
+          'spend at least half the response in private_thoughts (think out loud). update investigation by changes only. revise current_understanding (≤3 claims). pick next_question from basket; inject a guess only at hypothesis confidence ≥0.6.',
       };
     }
   }

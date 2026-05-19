@@ -66,6 +66,9 @@ export type SeerOpts = {
   intention: string;
   drawn: DrawnCards;
   outcomes: Outcome[];
+  /** Compressed synthesis the survey's detective maintained (≤3 claims).
+   *  Threaded into directorIntro as the spine of the prose_brief. */
+  surveySynthesis?: string[];
   preferred_intro?: Monologue;
   /** Onstage actor voicing the reading. Defaults to the registry default
    *  (currently the Geometer). Director Set is voice-agnostic; only the
@@ -89,6 +92,7 @@ export class Seer {
   private intention: string;
   private surveyHistory: PickEvent[];
   private outcomes: Outcome[];
+  private surveySynthesis: string[];
   private actor: Actor;
 
   /** key = `${round}:${position_id}` → eventual SlotResult */
@@ -107,6 +111,7 @@ export class Seer {
     this.intention = opts.intention;
     this.surveyHistory = opts.surveyHistory;
     this.outcomes = opts.outcomes;
+    this.surveySynthesis = opts.surveySynthesis ?? [];
     this.actor = getActor(opts.actor);
     this.state = {
       inputs: {
@@ -148,6 +153,7 @@ export class Seer {
     try {
       // STAGE 1: director — produce the clinical brief / guide.
       const brief = await directorIntro(this.adapter, {
+        surveySynthesis: this.surveySynthesis,
         profile: this.state.inputs.profile,
         intention: this.intention,
         surveyHistory: this.surveyHistory,

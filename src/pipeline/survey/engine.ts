@@ -302,6 +302,7 @@ export class SurveyEngine {
           intention: cleaned,
           drawn,
           outcomes,
+          surveySynthesis: this.state.current_understanding,
         });
         return this.seer.ready;
       })
@@ -454,6 +455,7 @@ export class SurveyEngine {
       prior_intentions: opts.returning?.prior_intentions ?? [],
       prior_session_summary: opts.returning?.prior_session_summary,
       detective_log: [],
+      current_understanding: [],
       queue: openerQueue,
       picks_log: [],
       timing_log: [],
@@ -742,6 +744,7 @@ export class SurveyEngine {
       const out: DetectiveOutput = await runDetective(this.opts.adapter, {
         ...baseCtx,
         detective_log: this.state.detective_log,
+        current_understanding: this.state.current_understanding,
       });
       // Hypotheses never auto-prune — the detective's full board persists
       // across the whole survey, per design.
@@ -751,7 +754,17 @@ export class SurveyEngine {
       const nextLog = out.private_thoughts && out.private_thoughts.trim().length > 0
         ? [...this.state.detective_log, out.private_thoughts.trim()].slice(-DETECTIVE_LOG_CAP)
         : this.state.detective_log;
-      this.setState({ investigation: nextInvestigation, detective_log: nextLog });
+      // current_understanding REPLACES the prior on each call. Detective
+      // is the sole author; engine just stores. Filter empties.
+      const nextUnderstanding = (out.current_understanding ?? [])
+        .map((c) => c.trim())
+        .filter((c) => c.length > 0)
+        .slice(0, 3);
+      this.setState({
+        investigation: nextInvestigation,
+        detective_log: nextLog,
+        current_understanding: nextUnderstanding,
+      });
       this.emit();
       // Apply next_question — unless suppressed (past cap−SEED watermark).
       if (!suppressNextQuestion) {

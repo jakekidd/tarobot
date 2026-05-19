@@ -140,6 +140,18 @@ it like a case file. detective-tier specificity. example tone:
 
   Posture: careful — she's curated for years, don't slam open.
 
+YOU HAVE A SPINE: survey_synthesis.
+- this is ≤3 short claims the survey's detective committed to before
+  closing. it is the load-bearing read. write the brief AROUND it —
+  not as a paraphrase, but as the structural skeleton you flesh out
+  with picks, cast, hooks, and posture.
+- if survey_synthesis is empty (the visit closed early or no synthesis
+  was committed), reconstruct it from picks. that's slower; the
+  synthesis is meant to do this lifting for you.
+- if the synthesis CONTRADICTS the picks somewhere, trust the picks
+  and flag the gap in your brief — the synthesis is the detective's
+  read, not ground truth.
+
 REGISTER:
 - third person. "she" / "he" / "they". never address the user directly.
 - 200-400 words. specific. cite picks. no generic horoscope.

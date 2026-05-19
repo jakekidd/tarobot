@@ -69,6 +69,11 @@ export type IntroDirectorInput = {
   intention: string;
   surveyHistory: PickEvent[];
   outcomes: Outcome[];
+  /** Compressed synthesis the survey's detective maintained: ≤3 claims
+   *  capturing what's load-bearing about this person. Forms the SPINE
+   *  of the prose_brief the director writes. May be empty for visits
+   *  that closed early or where the detective didn't commit synthesis. */
+  surveySynthesis?: string[];
 };
 
 // ─── Per-card director (prepares the Set the seer inhabits) ─────

@@ -78,6 +78,11 @@ export async function directorIntro(
     margin: input.profile.margin,
     highlights: input.profile.highlights,
     intention: input.intention,
+    // The survey's detective compressed its synthesis into ≤3 claims.
+    // Treat these as the SPINE of the brief — the load-bearing facts.
+    // Survey history is below for cross-reference; synthesis is the
+    // through-line.
+    survey_synthesis: input.surveySynthesis ?? [],
     survey_history: input.surveyHistory.map((p) => ({
       question: p.question_text,
       options: p.options_shown,
@@ -88,7 +93,7 @@ export async function directorIntro(
     // the user picking either). She does not pitch an outcome.
     outcomes: input.outcomes.map((o) => ({ id: o.id, label: o.label, document: o.document })),
     instruction:
-      'write the prose brief the seer reads silently before voicing the intro. detective-tier specificity, 200-400 words, third person, the INTENTION is the centerpiece. orient the seer ACROSS the outcomes — what is at stake either way — without advocating for one.',
+      'write the prose brief the seer reads silently before voicing the intro. lead with the survey_synthesis as the spine; use survey_history only to add texture or contradict the synthesis where it must. detective-tier specificity, 200-400 words, third person, the INTENTION is the centerpiece. orient the seer ACROSS the outcomes — what is at stake either way — without advocating for one.',
   };
 
   const out = await adapter.invoke<{ prose_brief: string; reasoning: string }>(

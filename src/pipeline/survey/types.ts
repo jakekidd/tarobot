@@ -220,6 +220,11 @@ export type EngineState = {
   /** Detective's running scratchpad — last N `private_thoughts` entries
    *  fed back to the detective on its next call. Capped at DETECTIVE_LOG_CAP. */
   detective_log: string[];
+  /** Detective's compressed synthesis: ≤3 load-bearing claims about the
+   *  user. Updated on EVERY detective call (replaces prior). Read by
+   *  the next detective call AND passed to the seer's directorIntro as
+   *  the spine of the prose_brief. */
+  current_understanding: string[];
 
   queue: QueueItem[];
   picks_log: PickEvent[];
@@ -296,6 +301,10 @@ export type PipelineContext = {
   /** Detective-only: the running scratchpad from previous turns'
    *  `private_thoughts`. Most-recent last. */
   detective_log?: string[];
+  /** Detective-only: the current compressed synthesis (≤3 claims) the
+   *  detective is maintaining. Detective sees the prior value and may
+   *  keep / edit / rewrite it on each call. */
+  current_understanding?: string[];
 };
 
 /** Observer outputs profile updates. Kept open-ended on purpose: the
@@ -328,6 +337,10 @@ export type DetectiveOutput = {
    *  model's response. Appended to engine state's detective_log and
    *  surfaced on subsequent detective calls as continuity. */
   private_thoughts: string;
+  /** Compressed synthesis: ≤3 short claims (each ≤25 words) capturing
+   *  the load-bearing facts about this person. REPLACES prior on each
+   *  call. Surfaced to seer.directorIntro as the spine of the brief. */
+  current_understanding: string[];
   /** The next question to ask. Folds in the old Interrogator's output. */
   next_question: {
     node_id: string;
