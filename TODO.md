@@ -29,6 +29,23 @@ delete from here.
 
 ## just-deferred (most recent first)
 
+### detective queue-editing (re-enable when guarded)
+The detective used to emit `queue_edits[]` that the engine applied to
+upcoming queue items (options_override + preamble). Cut on 2026-05-19
+because async detective passes were landing edits that no longer
+matched the user's current question — users saw options that didn't
+fit. Detective still EMITS edits (schema unchanged); engine silently
+drops them.
+
+To re-enable: add a guard that compares the queue item's identity at
+edit time vs at apply time. Only apply if (a) the target node hasn't
+been advanced past, (b) the node's text/options haven't changed shape
+since the snapshot, and (c) no other edit from a later turn has
+already touched it. Easier path: detective takes a snapshot ID along
+with each edit; engine accepts only edits keyed to the current
+snapshot. Worth doing once we have the eval rig to verify the
+specificity lift is real.
+
 ### relationship_pick: poly relationships + marriages (multi-person)
 Many users will have more than one CastMember in the same relationship
 slot — two parents, multiple partners, three siblings. Today the form

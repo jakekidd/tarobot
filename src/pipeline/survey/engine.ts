@@ -811,15 +811,19 @@ export class SurveyEngine {
         .map((c) => c.trim())
         .filter((c) => c.length > 0)
         .slice(0, 3);
-      // Apply queue_edits to UPCOMING queue items. Each edit references a
-      // queue index (0 = next to be asked); only items still ahead of the
-      // user get modified. Edits that miss the window are silently dropped.
-      const nextQueue = applyQueueEdits(this.state.queue, out.queue_edits ?? []);
+      // queue_edits intentionally NOT applied. The detective still emits
+      // them (schema is unchanged) but the engine drops them on the floor.
+      // Reason: when the detective runs async, by the time its edits land,
+      // the upcoming queue items may already have been advanced or the
+      // detective was reasoning about a snapshot that no longer matches —
+      // resulting in users seeing options that don't fit the question text
+      // they're answering. Cut the feature until we have a guarded
+      // re-apply path (edit only if target node hasn't been advanced past
+      // AND its shape matches what the detective saw). Tracked in TODO.md.
       this.setState({
         investigation: nextInvestigation,
         detective_log: nextLog,
         current_understanding: nextUnderstanding,
-        queue: nextQueue,
       });
       this.emit();
     } catch (e) {
@@ -868,34 +872,9 @@ function shuffleInPlace<T>(arr: T[]): T[] {
   return arr;
 }
 
-/** Apply detective queue_edits to upcoming queue items. Edits reference
- *  queue indices (0 = next). Edits past the queue length are dropped.
- *  Per edit: optional preamble override, optional options_override for
- *  choice-format nodes. Returns a new queue (never mutates input). */
-function applyQueueEdits(
-  queue: QueueItem[],
-  edits: Array<{ index: number; preamble?: string; options_override?: string[] }>,
-): QueueItem[] {
-  if (edits.length === 0) return queue;
-  const next = queue.slice();
-  for (const edit of edits) {
-    if (edit.index < 0 || edit.index >= next.length) continue;
-    const item = next[edit.index];
-    if (!item) continue;
-    const node = getNode(item.node_id);
-    const preamble = edit.preamble?.trim();
-    const optionsOverride =
-      node && node.f === 'choice' && edit.options_override && edit.options_override.length > 0
-        ? edit.options_override
-        : undefined;
-    next[edit.index] = {
-      ...item,
-      preamble: preamble && preamble.length > 0 ? preamble : item.preamble,
-      options_override: optionsOverride ?? item.options_override,
-    };
-  }
-  return next;
-}
+// applyQueueEdits removed — the detective still emits queue_edits but
+// the engine no longer applies them (see runDetectiveTask). This helper
+// can come back once the re-apply path is guarded against stale edits.
 
 /** Merge observer output into profile — append notes by section,
  *  upsert cast by label. */
