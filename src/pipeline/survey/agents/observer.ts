@@ -16,8 +16,11 @@ export async function runObserver(
       system: OBSERVER_SYSTEM,
       user: JSON.stringify(buildAgentPayload(ctx, 'observer'), null, 2),
       tool: OBSERVER_TOOL,
-      model: 'cognition',
-      max_tokens: 1200,
+      // Haiku — observer's job is bounded (file ≤3 notes + cast updates).
+      // ~3-5x faster than Sonnet. Quality risk is low because the rules
+      // (one fact per note, third person, present tense) are concrete.
+      model: 'fast',
+      max_tokens: 800,
     },
     ObserverOutputSchema,
   );

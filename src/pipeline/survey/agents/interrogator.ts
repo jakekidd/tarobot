@@ -17,8 +17,11 @@ export async function runInterrogator(
       system: INTERROGATOR_SYSTEM,
       user: JSON.stringify(buildAgentPayload(ctx, 'interrogator'), null, 2),
       tool: INTERROGATOR_TOOL,
-      model: 'cognition',
-      max_tokens: 1000,
+      // Haiku — interrogator's job is bounded (pick from basket + optional
+      // preamble). ~3-5x faster than Sonnet. Matches the long-term plan
+      // where this agent moves to a local OSS LLM on the booth.
+      model: 'fast',
+      max_tokens: 500,
     },
     InterrogatorOutputSchema,
   );

@@ -17,8 +17,12 @@ export async function runDetective(
       system: DETECTIVE_SYSTEM,
       user: JSON.stringify(buildAgentPayload(ctx, 'detective'), null, 2),
       tool: DETECTIVE_TOOL,
+      // Detective stays on Sonnet — it's the survey's brain (hypothesis
+      // maintenance, contradiction detection, intention guesses). When
+      // OSS local LLMs come in, this is the agent that needs the
+      // strongest replacement.
       model: 'cognition',
-      max_tokens: 1600,
+      max_tokens: 1200,
     },
     DetectiveOutputSchema,
   );
