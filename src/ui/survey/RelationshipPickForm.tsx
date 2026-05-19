@@ -26,10 +26,11 @@ import {
 } from './relationshipHelpers';
 
 type FamilyCategory =
-  | 'parent' | 'sibling' | 'child' | 'cousin'
-  | 'partner' | 'ex' | 'friend';
+  | 'parent' | 'sibling' | 'child'
+  | 'partner' | 'friend';
 
 type SomeoneElseSubcat =
+  | 'ex' | 'cousin' | 'best friend' | 'childhood friend'
   | 'boss' | 'colleague' | 'mentor' | 'therapist' | 'teacher'
   | 'coach' | 'neighbor' | 'roommate' | 'in-law' | 'stepparent'
   | 'group chat friend' | 'online friend' | 'someone i used to know';
@@ -45,14 +46,17 @@ const FAMILY: { id: FamilyCategory; label: string }[] = [
   { id: 'parent',  label: 'parent or caretaker' },
   { id: 'sibling', label: 'sibling' },
   { id: 'child',   label: 'child' },
-  { id: 'cousin',  label: 'cousin' },
 ];
 const OTHER: { id: FamilyCategory; label: string }[] = [
   { id: 'partner', label: 'partner' },
-  { id: 'ex',      label: 'ex' },
   { id: 'friend',  label: 'friend' },
 ];
+// Sub-list ordered by likely relational charge: ex / cousin / friend variants
+// first (these were lifted from the main grid per user feedback), then the
+// broader social roles. The scrollable container makes the list length
+// inexpensive — anything that's genuinely a recognized role can go here.
 const SOMEONE_ELSE: SomeoneElseSubcat[] = [
+  'ex', 'cousin', 'best friend', 'childhood friend',
   'boss', 'colleague', 'mentor', 'therapist', 'teacher', 'coach',
   'neighbor', 'roommate', 'in-law', 'stepparent',
   'group chat friend', 'online friend', 'someone i used to know',
@@ -372,7 +376,7 @@ export function RelationshipPickForm({ cast, onSubmit }: Props) {
 function namePlaceholder(c: PickedCategory): string {
   if (c === 'parent') return 'mom, dad, …';
   if (c === 'sibling') return 'their name, or "sis" / "bro"';
-  if (c === 'partner' || c === 'ex') return 'their name';
+  if (c === 'ex' || c === 'partner') return 'their name';
   if (c === 'someone i used to know') return 'their name (or just a tag)';
   return 'their name';
 }
