@@ -312,7 +312,7 @@ export function Survey({ apiKey, session, onComplete }: Props) {
           )}
 
           {!modalOpen && currentQuestion?.format === 'intent' && (
-            <IntentForm onSubmit={(ans) => void submitAnswer(ans)} />
+            <IntentForm onDontKnow={() => void submitAnswer('')} />
           )}
 
           {isCompiling && (
@@ -342,7 +342,11 @@ export function Survey({ apiKey, session, onComplete }: Props) {
       {!modalOpen && stage === 'questions' && currentQuestion && currentQuestion.format !== 'text' && currentQuestion.format !== 'date' && (
         <div className="survey__chat-slot">
           <ChatInput
-            placeholder="or type your own answer"
+            placeholder={
+              currentQuestion.format === 'intent'
+                ? 'type your question for the cards…'
+                : 'or type your own answer'
+            }
             disabled={false}
             onSend={(text) => void submitAnswer(text)}
           />

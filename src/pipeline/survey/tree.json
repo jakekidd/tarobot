@@ -11,7 +11,7 @@
 
   "topics": ["intake", "state", "relational", "self", "decisions", "projective", "shadow", "meta"],
 
-  "openers": ["name", "birthday", "birth_time", "intent"],
+  "openers": ["name", "birthday", "intent"],
 
   "nodes": {
     "name": {
@@ -23,17 +23,6 @@
       "topic": "intake",
       "q": "when were you born? the day, month, and year. time and location optional.",
       "f": "date"
-    },
-    "birth_time": {
-      "topic": "intake",
-      "q": "roughly what time of day were you born?",
-      "f": "choice",
-      "a": [
-        ["morning"],
-        ["afternoon or evening"],
-        ["overnight"],
-        ["i don't know"]
-      ]
     },
     "intent": {
       "topic": "intake",
@@ -602,10 +591,6 @@
 
     "intent.has_initial": "user typed a question at the start. surveyors should sharpen around it (without restating it back too literally).",
     "intent.dont_know": "user came in with no question. survey works harder to surface what's actually live for them.",
-    "birth_time.morning": "early-bird tendency; astrology gets ascending sign emphasis.",
-    "birth_time.afternoon or evening": "balanced; midday rising sign.",
-    "birth_time.overnight": "night owl; deep/private chart tilt.",
-    "birth_time.i don't know": "skip rising-sign details; lean on sun + life path.",
 
     "work_feeling.meaningful": "occupational alignment. not a fork candidate; anchor.",
     "work_feeling.fine": "neutral surface. probe for what's underneath.",

@@ -358,36 +358,33 @@ a:hover { text-decoration: underline; }
   text-shadow: 0 0 8px rgba(226, 83, 110, 0.35);
 }
 
-.intent-form {
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  gap: 0.6rem;
-  width: min(36rem, calc(100vw - 4rem));
-  margin: 0 auto;
-}
+/* I DON'T KNOW big button — same shape/size as a MultipleChoice option,
+   but filled red. Sits in the .choice-list slot. */
+.intent-form-list { list-style: none; padding: 0; margin: 0; }
 
-.intent-form__form {
-  display: flex;
-  gap: 0.6rem;
-}
-
-.intent-form__input { flex: 1; }
-
-.intent-form__dont-know {
-  align-self: center;
+.intent-form__dont-know-big {
   font-family: var(--font-mono);
-  font-size: 0.8rem;
+  font-size: 1.15rem;
   letter-spacing: 0.32em;
   text-transform: uppercase;
-  background: transparent;
-  color: var(--color-danger);
-  border: 1px solid var(--color-danger);
-  padding: 0.45rem 1.1rem;
+  padding: 0.7rem 1.4rem;
+  background-color: #6a1722;              /* darker shade of --color-danger */
+  background-image: none;
+  color: #fde2e6;
+  border: 1px solid #6a1722;
+  border-radius: 0;
   cursor: pointer;
-  text-shadow: 0 0 8px rgba(226, 83, 110, 0.45);
+  text-align: center;
+  transition: filter 0.1s, transform 0.06s;
+  width: 100%;
+  min-height: 3rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-shadow: 0 0 8px rgba(226, 83, 110, 0.6);
 }
-.intent-form__dont-know:hover { background: rgba(226, 83, 110, 0.08); }
+.intent-form__dont-know-big:hover { filter: brightness(1.18); }
+.intent-form__dont-know-big:active { transform: translateY(1px); }
 
 .intent-confirm {
   display: flex;
