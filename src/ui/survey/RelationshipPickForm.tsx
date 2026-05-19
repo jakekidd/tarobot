@@ -40,6 +40,13 @@ type PickedCategory = FamilyCategory | SomeoneElseSubcat | 'existing';
 type Props = {
   cast: CastMember[];
   onSubmit: (encoded: string) => void;
+  /** Fires with the live typed name + the color it should render in
+   *  whenever the user is on the "who specifically?" screen with a
+   *  name partial. Survey lifts this into the mascot's dialogue box
+   *  so the line `i'm sensing... a [NAME]` appears voiced from the
+   *  turtle, not from a form-internal preview. Fires null when the
+   *  user isn't on the who screen or the input is empty. */
+  onSensingChange?: (state: { name: string; color: string } | null) => void;
 };
 
 const FAMILY: { id: FamilyCategory; label: string }[] = [
@@ -62,7 +69,7 @@ const SOMEONE_ELSE: SomeoneElseSubcat[] = [
   'group chat friend', 'online friend', 'someone i used to know',
 ];
 
-export function RelationshipPickForm({ cast, onSubmit }: Props) {
+export function RelationshipPickForm({ cast, onSubmit, onSensingChange }: Props) {
   const [mode, setMode] = useState<'category' | 'someone-else' | 'who'>('category');
   const [picked, setPicked] = useState<PickedCategory | null>(null);
   const [name, setName] = useState('');
@@ -100,6 +107,18 @@ export function RelationshipPickForm({ cast, onSubmit }: Props) {
   // The visible "name" color: either the gender quick-pick color, or the
   // random accent if the user hasn't picked a gender.
   const displayColor = genderPick ? GENDER_COLORS[genderPick] : accent;
+
+  // Publish sensing state to the parent (so it can render the live
+  // "i'm sensing... a [NAME]" line in the mascot's dialogue box).
+  useEffect(() => {
+    if (!onSensingChange) return;
+    if (mode === 'who' && name.trim().length > 0) {
+      onSensingChange({ name: name.trim(), color: displayColor });
+    } else {
+      onSensingChange(null);
+    }
+    return () => { onSensingChange(null); };
+  }, [mode, name, displayColor, onSensingChange]);
 
   function pickExisting(member: CastMember) {
     onSubmit(JSON.stringify({
@@ -288,15 +307,10 @@ export function RelationshipPickForm({ cast, onSubmit }: Props) {
             spellCheck={false}
           />
 
-          <div className="rel-pick__sensing" aria-live="polite">
-            <span className="rel-pick__sensing-prefix">i'm sensing... a</span>
-            <span
-              className="rel-pick__sensing-name"
-              style={{ color: displayColor }}
-            >
-              {(name.trim() || '___').toUpperCase()}
-            </span>
-          </div>
+          {/* "i'm sensing... a [NAME]" is rendered upstream in the
+              mascot's dialogue box (Survey.tsx subscribes via
+              onSensingChange) so the cat appears to voice the guess
+              rather than the form previewing it inline. */}
 
           <div className="rel-pick__row">
             <span className="rel-pick__row-label">pronouns</span>

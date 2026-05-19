@@ -680,23 +680,10 @@ input, textarea {
   font-size: 1.1rem;
 }
 
-.rel-pick__sensing {
-  display: flex;
-  align-items: baseline;
-  justify-content: center;
-  gap: 0.4rem;
-  font-family: var(--font-mono);
-  font-style: italic;
-  font-size: 0.95rem;
-  color: var(--fg-muted);
-  padding: 0.1rem 0;
-}
-.rel-pick__sensing-name {
-  font-style: normal;
-  letter-spacing: 0.2em;
-  text-transform: uppercase;
-  font-weight: 500;
-}
+/* .rel-pick__sensing inline preview removed — the "i'm sensing..." line
+   now renders in the mascot's dialogue stage via .dialogue-stage--instant.
+   Kept this comment as a breadcrumb so a grep for rel-pick__sensing finds
+   the new location instead of a dead style. */
 
 .rel-pick__row {
   display: flex;
@@ -917,6 +904,30 @@ input, textarea {
   display: flex;
   align-items: center;
   justify-content: flex-start;
+}
+
+/* Instant variant — used by the "i'm sensing... a [NAME]" mascot line
+   during relationship_pick. Skips the typewriter measure/position
+   trick: the text mirrors the user's keystrokes in real time, so we
+   render it in flow (no absolute positioning). */
+.dialogue-stage--instant {
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-start;
+}
+.dialogue-text--instant {
+  position: static;
+  top: auto;
+  left: auto;
+  right: auto;
+  bottom: auto;
+  display: block;
+}
+.sensing-name {
+  font-weight: 500;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  /* Color is set inline (per-person accent). */
 }
 
 .dialogue-measure,

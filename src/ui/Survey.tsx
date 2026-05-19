@@ -97,6 +97,13 @@ export function Survey({ apiKey, session, onComplete }: Props) {
   // takes over.
   const [returnLine, setReturnLine] = useState<string | null>(null);
 
+  // ─── relationship_pick: "i'm sensing..." mascot line ───
+  // Set by RelationshipPickForm via callback while the user is typing
+  // a name. While non-null, the dialogue box replaces the original
+  // question with the sensing line (voiced by the mascot, instant,
+  // colored to the name's accent).
+  const [sensing, setSensing] = useState<{ name: string; color: string } | null>(null);
+
   function handleResume(match: ReturningMatch) {
     engine.confirmReturningPerson(match);
     personIdRef.current = match.person_id;
@@ -302,11 +309,15 @@ export function Survey({ apiKey, session, onComplete }: Props) {
             ? 'survey__dialogue-host survey__dialogue-host--intent'
             : 'survey__dialogue-host'
       }>
-        <Dialogue
-          key={dialogKey}
-          text={dialogText}
-          onTypingChange={setSpeaking}
-        />
+        {sensing ? (
+          <SensingLine name={sensing.name} color={sensing.color} />
+        ) : (
+          <Dialogue
+            key={dialogKey}
+            text={dialogText}
+            onTypingChange={setSpeaking}
+          />
+        )}
       </div>
 
       <div className="ui-frame ui-frame--survey">
@@ -356,7 +367,11 @@ export function Survey({ apiKey, session, onComplete }: Props) {
           {!showGag && !modalOpen && currentQuestion?.format === 'relationship_pick' && (
             <RelationshipPickForm
               cast={state.profile.cast}
-              onSubmit={(encoded) => void submitAnswer(encoded)}
+              onSubmit={(encoded) => {
+                setSensing(null);
+                void submitAnswer(encoded);
+              }}
+              onSensingChange={setSensing}
             />
           )}
 
@@ -470,4 +485,29 @@ function allOpenersAnswered(profile: SurveyProfile, askedNodeIds: string[]): boo
 
 function cloneProfile(p: SurveyProfile): SurveyProfile {
   return JSON.parse(JSON.stringify(p)) as SurveyProfile;
+}
+
+/** The mascot's "i'm sensing... a [NAME]" line, rendered in the dialogue
+ *  slot instead of the original question while the user is typing a
+ *  relationship_pick name. Uses .dialogue-stage so it inherits the same
+ *  visual frame as the normal Dialogue — but bypasses the typewriter
+ *  (instant render) so the [NAME] reflects keystrokes in real time. */
+function SensingLine({ name, color }: { name: string; color: string }) {
+  return (
+    <div
+      className="dialogue-stage dialogue-stage--instant"
+      role="region"
+      aria-live="polite"
+    >
+      <span className="dialogue-text dialogue-text--instant">
+        {"i'm sensing... a "}
+        <span
+          className="sensing-name"
+          style={{ color }}
+        >
+          {name.toUpperCase()}
+        </span>
+      </span>
+    </div>
+  );
 }
