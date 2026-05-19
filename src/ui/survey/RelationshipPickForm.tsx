@@ -341,7 +341,7 @@ export function RelationshipPickForm({ cast, onSubmit, onSensingChange }: Props)
 
           <button
             type="submit"
-            className="btn btn--chrome btn--send rel-pick__commit"
+            className="btn btn--primary btn--menu rel-pick__commit"
             disabled={!name.trim()}
           >
             confirm
