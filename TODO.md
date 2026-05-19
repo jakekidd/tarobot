@@ -29,6 +29,36 @@ delete from here.
 
 ## just-deferred (most recent first)
 
+### relationship_pick: sub-options under a category
+The "someone else" sub-list works, but the user has flagged that some
+categories (especially `friend`) really want their own sub-pick:
+*best friend / childhood friend / family friend / casual friend*. Same
+for `parent` (`bio?` checkbox, default checked) — though the user
+waffled on whether forcing that detail is worth it.
+
+Cleanest shape: each category in the family/other grid optionally
+opens to a small sub-list before landing on the "who specifically?"
+screen. Implementation lift = low (one more `mode` state) but
+authoring lift = real — every category needs a thoughtful sub-list.
+Currently best-friend and childhood-friend live as separate entries
+in the "someone else" sub-list as the pragmatic-now answer.
+
+### relationship_pick: optional memo per cast member
+After name + pronouns, an optional `anything you want to tell me about
+them?` free-text field. Stored as `CastMember.note` (new field). The
+detective gets it in its payload as flavor / context (NOT load-bearing
+to the survey logic — purely for the seer's downstream prose). Don't
+make it required; the friction kills the form if even half of users
+have to think about it.
+
+### relationship_pick: friend-closeness slider (mobile-tactile)
+For friend-category cast members, a fun interactive "how close are
+you" widget. User imagined a "selector toy" — something physical-
+feeling on mobile, like a distance measure that you swipe to extend
+or contract. Stored as `CastMember.closeness: 0..1`. Pure delight
+feature, no detective dependence — but it would give the seer a
+texture cue for friend-references that wouldn't otherwise be there.
+
 ### floating agent-readouts debug panel
 Right-side floating display of each agent's most-recent output (observer,
 detective, augur, director, actor). Use case: watch what the detective is

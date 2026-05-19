@@ -505,8 +505,12 @@ input, textarea {
   display: flex;
   flex-direction: column;
   gap: 0.7rem;
-  width: min(44rem, calc(100vw - 4rem));
+  /* Match the canonical column width used by .dialogue-stage and .ui-frame
+     so the widget never extends past its sibling containers. */
+  width: 100%;
+  max-width: min(64ch, calc(100vw - 4rem));
   margin: 0 auto;
+  box-sizing: border-box;
 }
 
 .rel-pick__chips {
