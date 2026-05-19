@@ -83,7 +83,12 @@ export const ObserverOutputSchema = z.object({
   reasoning: z.string(),
 });
 
-// ─── Detective ──────────────────────────────────────────
+// ─── Detective (combined Detective + Interrogator) ─────
+// The detective now does BOTH the investigation update AND the next-question
+// pick. Half or more of its response is `private_thoughts`, a freeform
+// scratchpad the engine keeps and feeds back on the next call as
+// `detective_log`. The next_question subobject is what the old Interrogator
+// produced; the rest is what the old Detective produced.
 
 export const DetectiveOutputSchema = z.object({
   hypothesis_updates: z.array(Hypothesis),
@@ -96,15 +101,11 @@ export const DetectiveOutputSchema = z.object({
     status: ThreadStatus,
   })),
   posture: Posture.nullable(),
-  reasoning: z.string(),
-});
-
-// ─── Shaman (removed) ───────────────────────────────────
-// User provides their own intention via IntentConfirm UI.
-
-// ─── Interrogator ───────────────────────────────────────
-
-export const InterrogatorOutputSchema = z.object({
+  /** Private scratchpad. The model is instructed to spend at least half
+   *  the response thinking out loud here — guesses, walks-back, leads,
+   *  emotional reads. Persisted to detective_log; fed back on next call. */
+  private_thoughts: z.string(),
+  /** The next question the survey asks. node_id must be in the basket. */
   next_question: z.object({
     node_id: z.string(),
     preamble: z.string().optional(),

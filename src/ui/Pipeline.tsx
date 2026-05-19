@@ -29,7 +29,6 @@ import { STARTER_SEED_COUNT } from '../pipeline/survey';
 
 import { OBSERVER_SYSTEM, OBSERVER_TOOL } from '../pipeline/survey/prompts/observer';
 import { DETECTIVE_SYSTEM, DETECTIVE_TOOL } from '../pipeline/survey/prompts/detective';
-import { INTERROGATOR_SYSTEM, INTERROGATOR_TOOL } from '../pipeline/survey/prompts/interrogator';
 import {
   AUGUR_OUTLINE_SYSTEM,
   AUGUR_OUTLINE_TOOL,
@@ -91,27 +90,14 @@ const SURVEY_AGENTS: AgentSpec[] = [
     id: 'detective',
     name: 'Detective',
     runtime: 'cloud',
-    call_pattern: 'parallel — fires every post-answer pipeline alongside Observer + Interrogator. Sees the snapshot ctx, not other agents\' updates.',
-    input_type: 'PipelineContext',
+    call_pattern: `parallel — fires every post-answer pipeline. Combines the old detective + interrogator: updates investigation AND picks next_question. Suppressed at cap−${STARTER_SEED_COUNT} (next_question only; investigation update keeps firing).`,
+    input_type: 'PipelineContext (+ detective_log)',
     output_type: 'DetectiveOutput',
-    inputs: 'snapshot at pipeline start',
-    outputs: 'DetectiveOutput { hypothesis_updates, choice_update, contradictions, hooks, posture, intention_guess? }',
+    inputs: 'snapshot at pipeline start + detective_log (last 8 private_thoughts entries)',
+    outputs: 'DetectiveOutput { hypothesis_updates, choice_update, contradictions, hooks, posture, private_thoughts, next_question }',
     prompt: DETECTIVE_SYSTEM,
     tool_name: DETECTIVE_TOOL.name,
-    notes: 'Plays Clue. Drops one optional intention_guess per turn into a write-only stack for the Shaman. Cross-agent context lag is 1 turn (parallel pipeline).',
-  },
-  {
-    id: 'interrogator',
-    name: 'Interrogator',
-    runtime: 'local',
-    call_pattern: `parallel — fires every post-answer pipeline alongside Observer + Detective. Suppressed past cap−${STARTER_SEED_COUNT} turns so starter-pool seeds carry the final stretch.`,
-    input_type: 'PipelineContext',
-    output_type: 'InterrogatorOutput',
-    inputs: 'snapshot at pipeline start',
-    outputs: 'InterrogatorOutput { next_question: { node_id, preamble?, options_override? } }',
-    prompt: INTERROGATOR_SYSTEM,
-    tool_name: INTERROGATOR_TOOL.name,
-    notes: 'Picks next question from basket. Can rewrite choice options to inject a high-confidence guess. Local (Haiku) — mechanical task, latency matters.',
+    notes: 'Opus. Spends ≥half its response writing out a private scratchpad (private_thoughts) that the engine keeps and feeds back on the next call. Hypotheses persist; nothing is pruned.',
   },
   {
     id: 'augur-outline',

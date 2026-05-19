@@ -17,12 +17,13 @@ export async function runDetective(
       system: DETECTIVE_SYSTEM,
       user: JSON.stringify(buildAgentPayload(ctx, 'detective'), null, 2),
       tool: DETECTIVE_TOOL,
-      // Detective stays on Sonnet — it's the survey's brain (hypothesis
-      // maintenance, contradiction detection, intention guesses). When
-      // OSS local LLMs come in, this is the agent that needs the
-      // strongest replacement.
-      model: 'cognition',
-      max_tokens: 1200,
+      // Opus — the detective now does BOTH the investigation update AND
+      // the next-question pick, plus an extended private_thoughts
+      // scratchpad. The scratchpad is half-or-more of the output, so the
+      // total token budget is higher than the old detective-only call.
+      // When OSS local LLMs come in, this is the highest-bar replacement.
+      model: 'deep',
+      max_tokens: 4000,
     },
     DetectiveOutputSchema,
   );

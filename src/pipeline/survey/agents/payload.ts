@@ -5,7 +5,7 @@
 
 import type { PipelineContext } from '../types';
 
-type Stage = 'observer' | 'detective' | 'interrogator';
+type Stage = 'observer' | 'detective';
 
 export function buildAgentPayload(ctx: PipelineContext, stage: Stage) {
   // The just-answered question + the user's pick are the focal point
@@ -60,20 +60,10 @@ export function buildAgentPayload(ctx: PipelineContext, stage: Stage) {
       };
     }
     case 'detective': {
-      // Detective sees the OBSERVER'S updated profile + the full
-      // investigation. No basket needed (it doesn't pick questions).
-      return {
-        this_turn,
-        profile,
-        investigation,
-        history,
-        instruction: 'update the investigation. emit only changes. mark refuted hypotheses refuted.',
-      };
-    }
-    case 'interrogator': {
-      // Interrogator needs the basket (to pick from) + the upcoming
-      // queue (to avoid redundancy) + the detective's leads. Profile
-      // is light support; investigation is the real driver.
+      // Detective is now the combined investigator + question-picker.
+      // Gets profile + investigation + history + basket + queue (so it
+      // doesn't double-pick something already queued) + its own running
+      // scratchpad. Carries the user's stated `initial_intention` if any.
       return {
         this_turn,
         profile,
@@ -84,7 +74,9 @@ export function buildAgentPayload(ctx: PipelineContext, stage: Stage) {
           preamble: q.preamble,
         })),
         basket: ctx.basket,
-        instruction: 'pick the next question from basket. inject a guess only at hypothesis confidence ≥0.6.',
+        detective_log: ctx.detective_log ?? [],
+        instruction:
+          'spend at least half the response in private_thoughts (think out loud). update investigation by changes only. pick next_question from basket; inject a guess only at hypothesis confidence ≥0.6.',
       };
     }
   }

@@ -217,6 +217,10 @@ export type EngineState = {
   prior_intentions: string[];
   prior_session_summary?: string;
 
+  /** Detective's running scratchpad — last N `private_thoughts` entries
+   *  fed back to the detective on its next call. Capped at DETECTIVE_LOG_CAP. */
+  detective_log: string[];
+
   queue: QueueItem[];
   picks_log: PickEvent[];
   timing_log: TimingEvent[];
@@ -289,6 +293,9 @@ export type PipelineContext = {
    *  multi-turn window. Set by the engine on observer fire turns
    *  (every OBSERVER_INTERVAL post-opener picks). */
   recent_picks?: PickEvent[];
+  /** Detective-only: the running scratchpad from previous turns'
+   *  `private_thoughts`. Most-recent last. */
+  detective_log?: string[];
 };
 
 /** Observer outputs profile updates. Kept open-ended on purpose: the
@@ -317,6 +324,16 @@ export type DetectiveOutput = {
   thread_updates: Array<{ thread_id: string; status: ActiveThread['status'] }>;
   /** null = no change. otherwise overwrites investigation.posture. */
   posture: 'warm' | 'careful' | 'direct' | null;
+  /** Private scratchpad the detective writes out. Half-or-more of the
+   *  model's response. Appended to engine state's detective_log and
+   *  surfaced on subsequent detective calls as continuity. */
+  private_thoughts: string;
+  /** The next question to ask. Folds in the old Interrogator's output. */
+  next_question: {
+    node_id: string;
+    preamble?: string;
+    options_override?: string[];
+  };
   /** Private to engine logs — 2-3 sentences on what's now believed. */
   reasoning: string;
 };

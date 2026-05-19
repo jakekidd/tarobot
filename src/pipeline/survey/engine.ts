@@ -14,7 +14,6 @@
 import type { LLMAdapter } from '../llm/adapter';
 import { runObserver } from './agents/observer';
 import { runDetective } from './agents/detective';
-import { runInterrogator } from './agents/interrogator';
 import { runAugur } from './agents/augur';
 import { Seer } from '../seer';
 import { drawForSpread } from '../cards';
@@ -41,7 +40,6 @@ import type {
   Note,
   ObserverOutput,
   DetectiveOutput,
-  InterrogatorOutput,
   PickEvent,
   PipelineContext,
   QueueItem,
@@ -82,6 +80,9 @@ const DEFAULT_QUESTION_CAP = 20;
  *  can metabolize multiple turns at once. */
 const OBSERVER_INTERVAL = 3;
 const OBSERVER_WINDOW = 3;
+/** Detective's running scratchpad. Last N entries are surfaced as
+ *  `detective_log` on the next call so the detective has continuity. */
+const DETECTIVE_LOG_CAP = 8;
 
 export class SurveyEngine {
   private state: EngineState;
@@ -97,7 +98,7 @@ export class SurveyEngine {
    *  show the spinner when queue is empty + a pipeline is running. */
   private pipelinesInFlight = 0;
   /** Per-agent in-flight counts. Published to debug bus per change. */
-  private agentInFlight = { observer: 0, detective: 0, interrogator: 0 };
+  private agentInFlight = { observer: 0, detective: 0 };
   private starterSeedFired = false;
 
   constructor(opts: EngineOpts) {
@@ -246,7 +247,11 @@ export class SurveyEngine {
   }
 
   private questionCap(): number {
-    return this.opts.question_cap ?? DEFAULT_QUESTION_CAP;
+    if (this.opts.question_cap !== undefined) return this.opts.question_cap;
+    // Returning users only do a lite refresh: 6 dedup'd pool Qs and then
+    // straight to IntentConfirm. Detective is skipped entirely for them,
+    // so the seeded pool IS the survey.
+    return this.state.is_returning_user ? STARTER_SEED_COUNT : DEFAULT_QUESTION_CAP;
   }
 
   // ─── End-of-survey stages ────────────────────────────
@@ -448,6 +453,7 @@ export class SurveyEngine {
       prior_answered_node_ids: opts.returning?.answered_node_ids ?? [],
       prior_intentions: opts.returning?.prior_intentions ?? [],
       prior_session_summary: opts.returning?.prior_session_summary,
+      detective_log: [],
       queue: openerQueue,
       picks_log: [],
       timing_log: [],
@@ -559,7 +565,6 @@ export class SurveyEngine {
     publishDebug('survey.inflight', this.pipelinesInFlight);
     publishDebug('survey.agent.observer', this.agentInFlight.observer);
     publishDebug('survey.agent.detective', this.agentInFlight.detective);
-    publishDebug('survey.agent.interrogator', this.agentInFlight.interrogator);
   }
 
   /** `thinking` is the UI's "we have nothing to show, wait" hint. True
@@ -701,8 +706,12 @@ export class SurveyEngine {
     const tasks: Promise<unknown>[] = [];
 
     if (observerThisTurn) tasks.push(this.runObserverTask(baseCtx));
-    tasks.push(this.runDetectiveTask(baseCtx));
-    if (!suppressInterrogator) tasks.push(this.runInterrogatorTask(baseCtx));
+    // Returning users skip detective entirely — the seeded 6 questions
+    // ARE the survey, no need to pick more or run hypothesis work. Their
+    // profile already exists; observer's profile pass is enough.
+    if (!this.state.is_returning_user) {
+      tasks.push(this.runDetectiveTask(baseCtx, suppressInterrogator));
+    }
 
     await Promise.allSettled(tasks);
   }
@@ -727,36 +736,37 @@ export class SurveyEngine {
     }
   }
 
-  private async runDetectiveTask(baseCtx: PipelineContext): Promise<void> {
+  private async runDetectiveTask(baseCtx: PipelineContext, suppressNextQuestion: boolean): Promise<void> {
     this.agentInFlight.detective += 1; this.publishInflight();
     try {
-      const out: DetectiveOutput = await runDetective(this.opts.adapter, baseCtx);
-      let nextInvestigation = applyDetectiveOutput(this.state.investigation, out);
-      nextInvestigation = pruneStaleHypotheses(nextInvestigation, this.state.picks_log);
-      this.setState({ investigation: nextInvestigation });
+      const out: DetectiveOutput = await runDetective(this.opts.adapter, {
+        ...baseCtx,
+        detective_log: this.state.detective_log,
+      });
+      // Hypotheses never auto-prune — the detective's full board persists
+      // across the whole survey, per design.
+      const nextInvestigation = applyDetectiveOutput(this.state.investigation, out);
+      // Append this turn's scratchpad to the log, capped at DETECTIVE_LOG_CAP
+      // most-recent entries (the detective sees these next call).
+      const nextLog = out.private_thoughts && out.private_thoughts.trim().length > 0
+        ? [...this.state.detective_log, out.private_thoughts.trim()].slice(-DETECTIVE_LOG_CAP)
+        : this.state.detective_log;
+      this.setState({ investigation: nextInvestigation, detective_log: nextLog });
       this.emit();
+      // Apply next_question — unless suppressed (past cap−SEED watermark).
+      if (!suppressNextQuestion) {
+        this.applyNextQuestion(out.next_question);
+      }
     } catch (e) {
       console.warn('[survey] detective failed', e);
+      if (!suppressNextQuestion) this.fallbackRandomPick();
     } finally {
       this.agentInFlight.detective -= 1; this.publishInflight();
     }
   }
 
-  private async runInterrogatorTask(baseCtx: PipelineContext): Promise<void> {
-    this.agentInFlight.interrogator += 1; this.publishInflight();
-    try {
-      const out: InterrogatorOutput = await runInterrogator(this.opts.adapter, baseCtx);
-      this.applyInterrogatorOutput(out);
-    } catch (e) {
-      console.warn('[survey] interrogator failed, falling back to random pool pick', e);
-      this.fallbackRandomPick();
-    } finally {
-      this.agentInFlight.interrogator -= 1; this.publishInflight();
-    }
-  }
-
-  private applyInterrogatorOutput(out: InterrogatorOutput): void {
-    const chosenId = out.next_question.node_id;
+  private applyNextQuestion(nq: DetectiveOutput['next_question']): void {
+    const chosenId = nq.node_id;
     const node = getNode(chosenId);
     const inBasket = node && !this.state.asked_node_ids.includes(chosenId)
       && !this.state.queue.some((q) => q.node_id === chosenId);
@@ -764,10 +774,10 @@ export class SurveyEngine {
       this.fallbackRandomPick();
       return;
     }
-    const preamble = (out.next_question.preamble ?? '').trim();
+    const preamble = (nq.preamble ?? '').trim();
     const optionsOverride =
-      node.f === 'choice' && out.next_question.options_override && out.next_question.options_override.length > 0
-        ? out.next_question.options_override
+      node.f === 'choice' && nq.options_override && nq.options_override.length > 0
+        ? nq.options_override
         : undefined;
     this.enqueueDirect(
       chosenId,
@@ -912,28 +922,7 @@ function mergeHypotheses(existing: Hypothesis[], updates: Hypothesis[]): Hypothe
   return Array.from(byId.values());
 }
 
-/** Engine-side pruning of stale low-confidence hypotheses. Runs after
- *  each detective output. The detective herself never sees this — she
- *  has finite working memory and the engine quietly forgets dead leads
- *  for her, exactly like a real detective who stops chasing a suspect
- *  she hasn't gotten a hit on in three rounds.
- *
- *  Rule: hypothesis is auto-refuted if
- *    - status is 'inferred' or 'testing'
- *    - confidence < 0.3
- *    - none of its supporting_picks are in the last 3 user picks
- */
-function pruneStaleHypotheses(inv: Investigation, picksLog: PickEvent[]): Investigation {
-  const STALE_WINDOW = 3;
-  const recent = new Set(picksLog.slice(-STALE_WINDOW).map((p) => p.node_id));
-  let changed = false;
-  const updated = inv.hypotheses.map((h) => {
-    if (h.status !== 'inferred' && h.status !== 'testing') return h;
-    if (h.confidence >= 0.3) return h;
-    const hasRecentSupport = h.supporting_picks.some((id) => recent.has(id));
-    if (hasRecentSupport) return h;
-    changed = true;
-    return { ...h, status: 'refuted' as const };
-  });
-  return changed ? { ...inv, hypotheses: updated } : inv;
-}
+// Engine-side hypothesis pruning removed. The detective now persists
+// its full board across the whole survey — the scratchpad
+// (detective_log) carries continuity, and stale hypotheses are
+// information (a refuted lead is a useful constraint), not noise.
