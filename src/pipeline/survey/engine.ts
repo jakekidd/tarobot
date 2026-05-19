@@ -216,9 +216,16 @@ export class SurveyEngine {
         postOpenerCount + this.state.queue.length >= interrogatorWatermark;
       this.spawnPipeline(pick, suppressInterrogator);
 
-      // Did this answer just exhaust the question budget? If so, the
-      // user has nothing left to answer — transition to shaman.
-      if (postOpenerCount >= cap && this.state.queue.length === 0) {
+      // Transition to shaman when there's nothing more to ask. Two
+      // independent triggers, OR'd:
+      //   - hard cap reached AND queue empty (normal close);
+      //   - queue empty AND no pipelines in flight AND we're past the
+      //     starter pool's worth of post-opener picks (stall close —
+      //     guards against async timing leaving the queue dry under cap).
+      const queueEmpty = this.state.queue.length === 0;
+      const capReached = postOpenerCount >= cap;
+      const stalled = queueEmpty && this.pipelinesInFlight === 0 && postOpenerCount >= STARTER_SEED_COUNT;
+      if (queueEmpty && (capReached || stalled)) {
         this.beginShamanStage();
       }
     }
@@ -642,8 +649,21 @@ export class SurveyEngine {
       this.pipelinesInFlight -= 1;
       this.publishInflight();
       this.refreshThinking();
+      this.maybeTriggerShamanOnStall();
       this.emit();
     });
+  }
+
+  /** When the last pipeline drains and the queue is still empty, we've
+   *  stalled below cap. Trigger shaman so the survey can close instead
+   *  of leaving the user staring at an empty screen. */
+  private maybeTriggerShamanOnStall(): void {
+    if (this.state.stage !== 'questions') return;
+    if (this.state.queue.length > 0) return;
+    if (this.pipelinesInFlight > 0) return;
+    const postOpenerCount = this.countPostOpenerPicks();
+    if (postOpenerCount < STARTER_SEED_COUNT) return;
+    this.beginShamanStage();
   }
 
   private async runPipeline(pick: PickEvent, suppressInterrogator: boolean): Promise<void> {

@@ -339,6 +339,16 @@ a:hover { text-decoration: underline; }
   color: var(--color-danger);
 }
 
+.name-step__hint {
+  margin-top: 0.5rem;
+  text-align: center;
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  letter-spacing: 0.06em;
+  color: var(--fg-muted);
+  font-style: italic;
+}
+
 .text-input--narrow {
   width: 4.5em;
   padding: 0.5rem 0.4rem;

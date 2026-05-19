@@ -1,27 +1,26 @@
-// Name input — the one free-text moment in the survey. Includes a
-// duplicate-name guard against existing local sessions.
+// Name input — the one free-text moment in the survey. If the typed
+// name matches an existing Person, Survey.tsx surfaces the
+// RESUME / START FRESH modal AFTER submission. This form just collects.
 
 import { useState } from 'react';
 
 type Props = {
   onSubmit: (name: string) => void;
-  /** Set of existing names (lowercase) to flag as duplicates. */
-  existingNames: Set<string>;
+  /** Lowercase names already in storage. Used only for a soft visual
+   *  hint — submission is never blocked. The modal handles confirmation. */
+  existingNames?: Set<string>;
 };
 
 export function NameForm({ onSubmit, existingNames }: Props) {
   const [draft, setDraft] = useState('');
-  const [error, setError] = useState<string | null>(null);
 
   function submit() {
     const trimmed = draft.trim();
     if (!trimmed) return;
-    if (existingNames.has(trimmed.toLowerCase())) {
-      setError('name already used');
-      return;
-    }
     onSubmit(trimmed);
   }
+
+  const isKnown = !!existingNames?.has(draft.trim().toLowerCase());
 
   return (
     <div className="name-step">
@@ -33,17 +32,13 @@ export function NameForm({ onSubmit, existingNames }: Props) {
         }}
       >
         <input
-          className={`text-input text-input--ghost ${error ? 'text-input--error' : ''}`}
+          className="text-input text-input--ghost"
           value={draft}
-          onChange={(e) => {
-            setDraft(e.target.value);
-            if (error) setError(null);
-          }}
+          onChange={(e) => setDraft(e.target.value)}
           placeholder="your name"
           autoFocus
           autoCapitalize="words"
           autoComplete="given-name"
-          aria-invalid={error !== null}
         />
         <button
           type="submit"
@@ -53,7 +48,11 @@ export function NameForm({ onSubmit, existingNames }: Props) {
           enter
         </button>
       </form>
-      {error && <div className="name-step__error" role="alert">{error}</div>}
+      {isKnown && (
+        <div className="name-step__hint" aria-live="polite">
+          i recognize this name. i'll ask you to confirm.
+        </div>
+      )}
     </div>
   );
 }
