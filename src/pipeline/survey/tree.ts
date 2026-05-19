@@ -102,6 +102,18 @@ export function validateTree(tree: DialogueTree): void {
     }
   }
 
+  if (!Array.isArray(tree.pillars)) {
+    throw new Error('tree: pillars[] missing — required since v0.7.0');
+  }
+  for (const pillar of tree.pillars) {
+    if (!nodeIds.has(pillar)) {
+      throw new Error(`tree: pillars[] contains '${pillar}' but no such node exists`);
+    }
+    if (tree.openers.includes(pillar)) {
+      throw new Error(`tree: '${pillar}' appears in BOTH openers[] and pillars[] — must be one or the other`);
+    }
+  }
+
   for (const [id, node] of Object.entries(tree.nodes)) {
     if (!node.topic) {
       throw new Error(`tree: node '${id}' is missing a topic`);
@@ -203,10 +215,11 @@ export function getNode(node_id: string): TreeNode | null {
   return TREE.nodes[node_id] ?? null;
 }
 
-/** Every node id that's NOT in openers — these make up the investigator's pool. */
+/** Every node id that's NOT an opener AND NOT a Pillar — the random
+ *  pool the queue draws from for non-Pillar slots. */
 export function getPoolNodeIds(): string[] {
-  const openerSet = new Set(TREE.openers);
-  return Object.keys(TREE.nodes).filter((id) => !openerSet.has(id));
+  const reserved = new Set([...TREE.openers, ...TREE.pillars]);
+  return Object.keys(TREE.nodes).filter((id) => !reserved.has(id));
 }
 
 export function getTopics(): string[] {
@@ -219,6 +232,12 @@ export function getNodesByTopic(topic: string): string[] {
 
 export function getOpeners(): string[] {
   return TREE.openers.slice();
+}
+
+/** The static 6 Pillar questions, in order. Asked immediately after
+ *  openers complete. Pipeline DOES fire on Pillar answers. */
+export function getPillars(): string[] {
+  return TREE.pillars.slice();
 }
 
 export function getInterp(key: string): string | undefined {

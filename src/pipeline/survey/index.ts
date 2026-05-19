@@ -19,6 +19,7 @@ export {
   renderQuestion,
   getNode,
   getOpeners,
+  getPillars,
   getPoolNodeIds,
   getTopics,
   getNodesByTopic,
@@ -36,7 +37,6 @@ export { derivePhase, phaseFromTurns } from './phase';
 export type {
   AnswerFormat,
   ActiveThread,
-  BasketItem,
   CastMember,
   Choice,
   CloseReason,

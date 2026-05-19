@@ -12,7 +12,7 @@ export const PHASE_ORDER: Phase[] = ['A', 'B', 'C', 'D', 'E'];
 // Question formats. `multi` was dropped — collapsed to `choice` (single
 // select). `binary` ALWAYS resolves to [yes, no, sometimes] regardless
 // of the node's `a` field; investigator can't alter binary options.
-export type AnswerFormat = 'text' | 'date' | 'choice' | 'binary' | 'matrix' | 'intent';
+export type AnswerFormat = 'text' | 'date' | 'choice' | 'binary' | 'matrix' | 'intent' | 'relationship_pick';
 
 /** [answer_text] | [answer_text, comment]. Comment is shown inline after pick. */
 export type AnswerTuple = [string] | [string, string];
@@ -24,14 +24,25 @@ export type TreeNode = {
   f: AnswerFormat;
   a?: AnswerTuple[];
   axes?: [[string, string], [string, string]];
+  /** Decoder hook: a short note to the detective explaining what this
+   *  question is REALLY probing for. Separate from per-answer `interp`
+   *  (which is post-hoc interpretation). The probe primes the detective
+   *  before the answer arrives — author intent loaded into the prompt. */
+  probe?: string;
 };
 
 export type DialogueTree = {
   v: string;
   /** Ordered list of topic ids the editor groups nodes by. */
   topics: string[];
-  /** Openers (in order) — always run first; not investigator-picked. */
+  /** Openers (in order) — always run first; deterministic identity gathers
+   *  (name, birthday, intent). Pipeline does NOT fire on opener answers. */
   openers: string[];
+  /** Pillar questions (in order). Always asked, in this order, immediately
+   *  after the openers. Pipeline DOES fire on Pillar answers. These are
+   *  the structural backbone of every survey — broad-coverage probes the
+   *  detective is guaranteed to see. */
+  pillars: string[];
   nodes: Record<string, TreeNode>;
   interp: Record<string, string>;
 };
@@ -265,21 +276,15 @@ export type BehavioralSignals = {
 // agent runs, so each subsequent agent sees the latest profile +
 // investigation.
 
-/** What the Interrogator picks from. */
-export type BasketItem = {
-  id: string;
-  text: string;
-  format: AnswerFormat;
-  topic: string;
-  default_options: string[];      // empty for text/date/matrix
-};
+// BasketItem removed — the detective no longer picks questions. The
+// queue is pre-rolled and the detective edits queued items in place.
 
 export type PipelineContext = {
   /** 1-based turn number — counts post-opener picks only. */
   index: number;
   /** Text of the just-answered question (post-substitution). */
   question: string;
-  /** Options actually shown to the user (post-interrogator override). */
+  /** Options actually shown to the user (post-detective-edit). */
   options_shown: string[];
   /** The user's pick. */
   answer: string | string[];
@@ -292,8 +297,6 @@ export type PipelineContext = {
   history: PickEvent[];
   /** Questions currently queued AFTER this one (head=next to ask). */
   queue: QueueItem[];
-  /** The basket of available unasked questions — what the Interrogator picks from. */
-  basket: BasketItem[];
   /** Observer-only: when present, replaces `history`-tail-focus with a
    *  multi-turn window. Set by the engine on observer fire turns
    *  (every OBSERVER_INTERVAL post-opener picks). */
@@ -341,12 +344,15 @@ export type DetectiveOutput = {
    *  the load-bearing facts about this person. REPLACES prior on each
    *  call. Surfaced to seer.directorIntro as the spine of the brief. */
   current_understanding: string[];
-  /** The next question to ask. Folds in the old Interrogator's output. */
-  next_question: {
-    node_id: string;
+  /** Edits to upcoming queue items. Each edit references a queue index
+   *  (0 = the very next question). The detective doesn't pick questions
+   *  any more — it personalizes them. Edits are clipped to the sliding
+   *  window the detective is shown (typically next 5). */
+  queue_edits: Array<{
+    index: number;
     preamble?: string;
     options_override?: string[];
-  };
+  }>;
   /** Private to engine logs — 2-3 sentences on what's now believed. */
   reasoning: string;
 };

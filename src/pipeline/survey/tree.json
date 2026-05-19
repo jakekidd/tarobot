@@ -1,5 +1,5 @@
 {
-  "v": "0.6.1",
+  "v": "0.7.0",
   "_doc": {
     "shape": "flat pool of questions, no graph. each node has a `topic` (one of `topics`) and lives in that topic group in the editor. `openers` (in order) run first; everything else is investigator-pickable.",
     "answer_tuple": "[answer_text] | [answer_text, comment]. comment is shown inline after the user picks that answer.",
@@ -12,6 +12,15 @@
   "topics": ["intake", "state", "relational", "self", "decisions", "projective", "shadow", "meta"],
 
   "openers": ["name", "birthday", "intent"],
+
+  "pillars": [
+    "decision_style",
+    "key_person",
+    "perceived_as",
+    "value_most",
+    "head_loudest",
+    "used_to_be"
+  ],
 
   "nodes": {
     "name": {
@@ -28,6 +37,72 @@
       "topic": "intake",
       "q": "do you have a question for the cards?",
       "f": "intent"
+    },
+
+    "key_person": {
+      "topic": "relational",
+      "q": "who is the most important person in your life?",
+      "f": "relationship_pick",
+      "probe": "anchor of their relational world. detective: register this person as the central CastMember. their absence or distance from later answers is data."
+    },
+    "perceived_as": {
+      "topic": "self",
+      "q": "how do you think others perceive you?",
+      "f": "choice",
+      "probe": "self-image vs social-mirror. each option indexes a different relational wound or defense. detective: use this to read the user's tone in later answers, not to label them.",
+      "a": [
+        ["too much"],
+        ["not enough"],
+        ["as the role i play"],
+        ["misunderstood"],
+        ["more put together than i am"],
+        ["i've stopped checking"]
+      ]
+    },
+    "value_most": {
+      "topic": "self",
+      "q": "which of these do you value most?",
+      "f": "choice",
+      "probe": "what they will sacrifice OTHERS for. abstract priorities collapse the rest of the survey. detective: this is the spine — read every later answer through this lens.",
+      "a": [
+        ["love"],
+        ["freedom"],
+        ["wisdom"],
+        ["beauty"],
+        ["mastery"],
+        ["power"]
+      ]
+    },
+    "head_loudest": {
+      "topic": "state",
+      "q": "what's loudest in your head right now?",
+      "f": "choice",
+      "probe": "where the user's attention lives. past = retrospective (regret OR something to honor). present = the live moment (a choice or what's already underway). future = forward gaze (anxiety OR longing). detective: pick the valence from texture in later answers, not from the option alone.",
+      "a": [
+        ["past"],
+        ["present"],
+        ["future"]
+      ]
+    },
+    "used_to_be": {
+      "topic": "self",
+      "q": "what's something you used to think you'd be, but aren't?",
+      "f": "choice",
+      "probe": "gap between expected-self and actual-self. surfaces identity drift, timeline pressure, unmet trajectory. detective: this often co-signs with key_person and value_most — read it as the FORK the user is sitting at.",
+      "a": [
+        ["married / partnered"],
+        ["a parent"],
+        ["somewhere else"],
+        ["healed by now"],
+        ["more sure of myself"],
+        ["none of these come close"]
+      ]
+    },
+    "with_whom_unsaid": {
+      "topic": "relational",
+      "q": "with whom have you left the most unsaid?",
+      "f": "relationship_pick",
+      "probe": "identifies the unresolved relational anchor. detective: register the person, register the silence as load-bearing."
     },
 
     "body_feel": {
@@ -190,11 +265,11 @@
       "topic": "self",
       "q": "how do you make decisions?",
       "f": "choice",
+      "probe": "operational style. mind = deliberate / analytic. heart = emotional / valuational. gut = intuitive / felt. distinguishes how the user reaches certainty; the answer biases how the seer should frame the closing read.",
       "a": [
-        ["gut"],
-        ["logic"],
-        ["ask around"],
-        ["avoid them"]
+        ["mind"],
+        ["heart"],
+        ["gut"]
       ]
     },
     "fault_attribution": {

@@ -25,13 +25,13 @@ import { publishDebug } from '../../debug/debugBus';
 import {
   getNode,
   getOpeners,
+  getPillars,
   getPoolNodeIds,
   renderQuestion,
   TREE,
 } from './tree';
 import { derivePhase } from './phase';
 import type {
-  BasketItem,
   CastMember,
   EngineListener,
   EngineState,
@@ -63,16 +63,18 @@ export type EngineOpts = {
     prior_intentions: string[];
     prior_session_summary?: string;
   };
-  /** How many post-opener questions the survey runs. Default 20.
-   *  After this many answers, no more interrogator runs fire, and the
-   *  next user submit triggers the shaman step. */
-  question_cap?: number;
 };
 
 const OPENER_NODE_IDS = new Set<string>(getOpeners());
 
-export const STARTER_SEED_COUNT = 6;
-const DEFAULT_QUESTION_CAP = 20;
+/** Returning-user lite mode draws exactly this many random pool questions
+ *  (dedup'd against prior history). No Pillars on returning visits. */
+export const RETURNING_LITE_COUNT = 6;
+/** New-user surveys queue this many random pool questions after the 6
+ *  Pillars. Total post-opener question count = 6 + 14 = 20. */
+const RANDOM_POOL_COUNT = 14;
+/** Back-compat alias for callsites that still reference the old name. */
+export const STARTER_SEED_COUNT = RETURNING_LITE_COUNT;
 
 /** Observer fires every N post-opener picks. On turns where it doesn't
  *  fire, only detective + interrogator run. Observer's payload then
@@ -197,42 +199,29 @@ export class SurveyEngine {
 
     // Routing rule:
     //   - mid-opener-chain → walk to next opener; NO pipeline (openers
-    //     don't trigger AI work — they're just data intake).
-    //   - end of openers → seed the starter pool. NO pipeline yet.
-    //   - post-opener answer → spawn the 3-agent pipeline UNLESS we
-    //     just hit the question cap (in which case spawn observer +
-    //     detective only — the interrogator's job is done since the
-    //     queue is fully populated).
-    //   - if this answer was the LAST one (cap hit + queue now empty),
-    //     transition to shaman_thinking and fire the shaman.
+    //     don't trigger AI work — deterministic identity gathers).
+    //   - end of openers → pre-roll the post-opener queue (Pillars +
+    //     random pool). NO pipeline yet.
+    //   - post-opener answer → spawn the pipeline. Detective is now an
+    //     editor: it doesn't add questions, it edits options on the
+    //     queue items the user hasn't reached yet.
+    //   - if this answer drained the queue (and no pipelines pending),
+    //     transition to awaiting_intention (IntentConfirm UI).
     if (OPENER_NODE_IDS.has(head.node_id)) {
       const enqueued = this.enqueueNextOpener(head.node_id);
       if (!enqueued) {
-        this.seedStarterPool();
+        this.seedPostOpenerQueue();
       }
     } else {
-      // Post-opener pipeline. Interrogator suppressed cap−6 turns out so
-      // the existing starter-pool seeds (STARTER_SEED_COUNT) carry the
-      // final stretch without piling on new questions the user won't
-      // reach. Past that watermark we still run Observer + Detective —
-      // we just stop appending to the queue.
-      const postOpenerCount = this.countPostOpenerPicks();
-      const cap = this.questionCap();
-      const interrogatorWatermark = cap - STARTER_SEED_COUNT;
-      const suppressInterrogator =
-        postOpenerCount + this.state.queue.length >= interrogatorWatermark;
-      this.spawnPipeline(pick, suppressInterrogator);
+      this.spawnPipeline(pick);
 
-      // Transition to shaman when there's nothing more to ask. Two
-      // independent triggers, OR'd:
-      //   - hard cap reached AND queue empty (normal close);
-      //   - queue empty AND no pipelines in flight AND we're past the
-      //     starter pool's worth of post-opener picks (stall close —
-      //     guards against async timing leaving the queue dry under cap).
+      // Transition to IntentConfirm when there's nothing more to ask.
+      // With the queue pre-rolled at fixed size, this fires naturally
+      // when the user has consumed every question. No cap watermark
+      // needed; queue exhaustion IS the close trigger.
+      const postOpenerCount = this.countPostOpenerPicks();
       const queueEmpty = this.state.queue.length === 0;
-      const capReached = postOpenerCount >= cap;
-      const stalled = queueEmpty && this.pipelinesInFlight === 0 && postOpenerCount >= STARTER_SEED_COUNT;
-      if (queueEmpty && (capReached || stalled)) {
+      if (queueEmpty && postOpenerCount > 0) {
         this.beginIntentionStage();
       }
     }
@@ -246,13 +235,7 @@ export class SurveyEngine {
     return this.state.picks_log.filter((p) => !OPENER_NODE_IDS.has(p.node_id)).length;
   }
 
-  private questionCap(): number {
-    if (this.opts.question_cap !== undefined) return this.opts.question_cap;
-    // Returning users only do a lite refresh: 6 dedup'd pool Qs and then
-    // straight to IntentConfirm. Detective is skipped entirely for them,
-    // so the seeded pool IS the survey.
-    return this.state.is_returning_user ? STARTER_SEED_COUNT : DEFAULT_QUESTION_CAP;
-  }
+  // questionCap removed — queue exhaustion is the close trigger now.
 
   // ─── End-of-survey stages ────────────────────────────
 
@@ -353,7 +336,7 @@ export class SurveyEngine {
       prior_session_summary: match.display_summary,
     });
     this.clearOpenersFromQueue();
-    if (!this.starterSeedFired) this.seedStarterPool();
+    if (!this.starterSeedFired) this.seedPostOpenerQueue();
     this.emit();
   }
 
@@ -542,22 +525,37 @@ export class SurveyEngine {
     });
   }
 
-  /** Pick STARTER_SEED_COUNT random pool nodes and append them to the
-   *  queue. Idempotent — only fires once per session. */
-  private seedStarterPool(): void {
+  /** Pre-roll the post-opener queue. New users get the 6 Pillars (in
+   *  order) followed by 14 random pool draws. Returning users get a
+   *  lite-mode 6 random pool draws only (dedup'd against prior history).
+   *  Idempotent — only fires once per session. */
+  private seedPostOpenerQueue(): void {
     if (this.starterSeedFired) return;
     this.starterSeedFired = true;
+
     const priorAnswered = new Set(this.state.prior_answered_node_ids);
-    const pool = getPoolNodeIds().filter(
-      (id) => !this.state.asked_node_ids.includes(id) && !priorAnswered.has(id),
-    );
-    const shuffled = [...pool];
-    for (let i = shuffled.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [shuffled[i], shuffled[j]] = [shuffled[j]!, shuffled[i]!];
+
+    if (this.state.is_returning_user) {
+      // Lite mode: 6 random pool draws, dedup'd against prior visits.
+      const pool = getPoolNodeIds().filter(
+        (id) => !this.state.asked_node_ids.includes(id) && !priorAnswered.has(id),
+      );
+      const shuffled = shuffleInPlace([...pool]).slice(0, 6);
+      for (const id of shuffled) {
+        this.enqueueDirect(id, null, null);
+      }
+      return;
     }
-    const picks = shuffled.slice(0, STARTER_SEED_COUNT);
-    for (const id of picks) {
+
+    // First-visit flow: Pillars in order + 14 random pool draws.
+    for (const id of getPillars()) {
+      this.enqueueDirect(id, null, null);
+    }
+    const pool = getPoolNodeIds().filter(
+      (id) => !this.state.asked_node_ids.includes(id),
+    );
+    const shuffled = shuffleInPlace([...pool]).slice(0, RANDOM_POOL_COUNT);
+    for (const id of shuffled) {
       this.enqueueDirect(id, null, null);
     }
   }
@@ -622,53 +620,36 @@ export class SurveyEngine {
   // Observer → Detective → Interrogator serially. Each agent gets a
   // PipelineContext mutated in-place by the previous one. Every stage
   // updates engine state the moment it finishes — the UI sees profile
-  // updates after observer, investigation updates after detective,
-  // queue grows after interrogator.
+  // updates after observer, investigation + queue edits after detective.
+  //
+  // (basket removed — the detective no longer picks questions. The
+  // queue is pre-rolled at openers-end via seedPostOpenerQueue.)
 
-  private buildBasket(): BasketItem[] {
-    const priorAnswered = new Set(this.state.prior_answered_node_ids);
-    return getPoolNodeIds()
-      .filter((id) => !this.state.asked_node_ids.includes(id))
-      .filter((id) => !this.state.queue.some((q) => q.node_id === id))
-      .filter((id) => !priorAnswered.has(id))
-      .map((id) => {
-        const n = getNode(id)!;
-        return {
-          id,
-          text: n.q,
-          format: n.f,
-          topic: n.topic,
-          default_options: n.a ? n.a.map((t) => t[0]) : [],
-        };
-      });
-  }
-
-  private spawnPipeline(pick: PickEvent, suppressInterrogator = false): void {
+  private spawnPipeline(pick: PickEvent): void {
     this.pipelinesInFlight += 1;
     this.publishInflight();
     this.refreshThinking();
-    void this.runPipeline(pick, suppressInterrogator).finally(() => {
+    void this.runPipeline(pick).finally(() => {
       this.pipelinesInFlight -= 1;
       this.publishInflight();
       this.refreshThinking();
-      this.maybeTriggerShamanOnStall();
+      this.maybeTriggerIntentionOnStall();
       this.emit();
     });
   }
 
-  /** When the last pipeline drains and the queue is still empty, we've
-   *  stalled below cap. Trigger shaman so the survey can close instead
-   *  of leaving the user staring at an empty screen. */
-  private maybeTriggerShamanOnStall(): void {
+  /** Belt-and-suspenders close trigger. If async pipelines complete AFTER
+   *  the user has consumed every queue item, this fires the intention
+   *  stage. Mirrors the inline check in submitAnswer. */
+  private maybeTriggerIntentionOnStall(): void {
     if (this.state.stage !== 'questions') return;
     if (this.state.queue.length > 0) return;
     if (this.pipelinesInFlight > 0) return;
-    const postOpenerCount = this.countPostOpenerPicks();
-    if (postOpenerCount < STARTER_SEED_COUNT) return;
+    if (this.countPostOpenerPicks() === 0) return;
     this.beginIntentionStage();
   }
 
-  private async runPipeline(pick: PickEvent, suppressInterrogator: boolean): Promise<void> {
+  private async runPipeline(pick: PickEvent): Promise<void> {
     // Each pipeline takes ONE snapshot at fire-time. All agents read this
     // SAME snapshot in parallel. Cross-agent updates (this pipeline's
     // observer output → detective context, etc.) DO NOT propagate within
@@ -694,7 +675,6 @@ export class SurveyEngine {
       investigation: this.state.investigation,
       history: this.state.picks_log,
       queue: this.state.queue,
-      basket: this.buildBasket(),
     };
 
     // Observer fires every OBSERVER_INTERVAL post-opener picks. On the
@@ -709,10 +689,10 @@ export class SurveyEngine {
 
     if (observerThisTurn) tasks.push(this.runObserverTask(baseCtx));
     // Returning users skip detective entirely — the seeded 6 questions
-    // ARE the survey, no need to pick more or run hypothesis work. Their
-    // profile already exists; observer's profile pass is enough.
+    // ARE the survey, no need to run hypothesis or queue-editing work.
+    // Their profile already exists; observer's profile pass is enough.
     if (!this.state.is_returning_user) {
-      tasks.push(this.runDetectiveTask(baseCtx, suppressInterrogator));
+      tasks.push(this.runDetectiveTask(baseCtx));
     }
 
     await Promise.allSettled(tasks);
@@ -738,7 +718,7 @@ export class SurveyEngine {
     }
   }
 
-  private async runDetectiveTask(baseCtx: PipelineContext, suppressNextQuestion: boolean): Promise<void> {
+  private async runDetectiveTask(baseCtx: PipelineContext): Promise<void> {
     this.agentInFlight.detective += 1; this.publishInflight();
     try {
       const out: DetectiveOutput = await runDetective(this.opts.adapter, {
@@ -749,62 +729,29 @@ export class SurveyEngine {
       // Hypotheses never auto-prune — the detective's full board persists
       // across the whole survey, per design.
       const nextInvestigation = applyDetectiveOutput(this.state.investigation, out);
-      // Append this turn's scratchpad to the log, capped at DETECTIVE_LOG_CAP
-      // most-recent entries (the detective sees these next call).
       const nextLog = out.private_thoughts && out.private_thoughts.trim().length > 0
         ? [...this.state.detective_log, out.private_thoughts.trim()].slice(-DETECTIVE_LOG_CAP)
         : this.state.detective_log;
-      // current_understanding REPLACES the prior on each call. Detective
-      // is the sole author; engine just stores. Filter empties.
       const nextUnderstanding = (out.current_understanding ?? [])
         .map((c) => c.trim())
         .filter((c) => c.length > 0)
         .slice(0, 3);
+      // Apply queue_edits to UPCOMING queue items. Each edit references a
+      // queue index (0 = next to be asked); only items still ahead of the
+      // user get modified. Edits that miss the window are silently dropped.
+      const nextQueue = applyQueueEdits(this.state.queue, out.queue_edits ?? []);
       this.setState({
         investigation: nextInvestigation,
         detective_log: nextLog,
         current_understanding: nextUnderstanding,
+        queue: nextQueue,
       });
       this.emit();
-      // Apply next_question — unless suppressed (past cap−SEED watermark).
-      if (!suppressNextQuestion) {
-        this.applyNextQuestion(out.next_question);
-      }
     } catch (e) {
       console.warn('[survey] detective failed', e);
-      if (!suppressNextQuestion) this.fallbackRandomPick();
     } finally {
       this.agentInFlight.detective -= 1; this.publishInflight();
     }
-  }
-
-  private applyNextQuestion(nq: DetectiveOutput['next_question']): void {
-    const chosenId = nq.node_id;
-    const node = getNode(chosenId);
-    const inBasket = node && !this.state.asked_node_ids.includes(chosenId)
-      && !this.state.queue.some((q) => q.node_id === chosenId);
-    if (!inBasket) {
-      this.fallbackRandomPick();
-      return;
-    }
-    const preamble = (nq.preamble ?? '').trim();
-    const optionsOverride =
-      node.f === 'choice' && nq.options_override && nq.options_override.length > 0
-        ? nq.options_override
-        : undefined;
-    this.enqueueDirect(
-      chosenId,
-      null,
-      preamble.length > 0 ? preamble : null,
-      optionsOverride,
-    );
-  }
-
-  private fallbackRandomPick(): void {
-    const basket = this.buildBasket();
-    if (basket.length === 0) return;
-    const pick = basket[Math.floor(Math.random() * basket.length)]!;
-    this.enqueueDirect(pick.id, null, null);
   }
 
   // Old finalize() was removed — the close path now runs through
@@ -835,6 +782,44 @@ function mapBirthTime(ans: string): 'morning' | 'afternoon_evening' | 'overnight
   if (ans.includes('afternoon')) return 'afternoon_evening';
   if (ans.includes('overnight')) return 'overnight';
   return 'unknown';
+}
+
+/** Fisher-Yates in-place shuffle. */
+function shuffleInPlace<T>(arr: T[]): T[] {
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j]!, arr[i]!];
+  }
+  return arr;
+}
+
+/** Apply detective queue_edits to upcoming queue items. Edits reference
+ *  queue indices (0 = next). Edits past the queue length are dropped.
+ *  Per edit: optional preamble override, optional options_override for
+ *  choice-format nodes. Returns a new queue (never mutates input). */
+function applyQueueEdits(
+  queue: QueueItem[],
+  edits: Array<{ index: number; preamble?: string; options_override?: string[] }>,
+): QueueItem[] {
+  if (edits.length === 0) return queue;
+  const next = queue.slice();
+  for (const edit of edits) {
+    if (edit.index < 0 || edit.index >= next.length) continue;
+    const item = next[edit.index];
+    if (!item) continue;
+    const node = getNode(item.node_id);
+    const preamble = edit.preamble?.trim();
+    const optionsOverride =
+      node && node.f === 'choice' && edit.options_override && edit.options_override.length > 0
+        ? edit.options_override
+        : undefined;
+    next[edit.index] = {
+      ...item,
+      preamble: preamble && preamble.length > 0 ? preamble : item.preamble,
+      options_override: optionsOverride ?? item.options_override,
+    };
+  }
+  return next;
 }
 
 /** Merge observer output into profile — append notes by section,

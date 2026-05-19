@@ -4,6 +4,7 @@
 // visible and easy to tune.
 
 import type { PipelineContext } from '../types';
+import { getNode as getNodeFromCtx } from '../tree';
 
 type Stage = 'observer' | 'detective';
 
@@ -60,25 +61,35 @@ export function buildAgentPayload(ctx: PipelineContext, stage: Stage) {
       };
     }
     case 'detective': {
-      // Detective is now the combined investigator + question-picker.
-      // Gets profile + investigation + history + basket + queue (so it
-      // doesn't double-pick something already queued) + its own running
-      // scratchpad + the current_understanding it's been maintaining.
-      // Carries the user's stated `initial_intention` if any.
+      // Detective is now the combined investigator + queue editor. It
+      // does NOT pick questions (the queue is pre-rolled at survey start
+      // with 6 Pillars + 14 random pool draws). What it CAN do is edit
+      // upcoming queue items — change options, inject a guess — within
+      // a sliding window. Internal node IDs are deliberately hidden;
+      // questions appear by text + position only.
+      const DETECTIVE_QUEUE_WINDOW = 5;
+      const queueWindow = ctx.queue.slice(0, DETECTIVE_QUEUE_WINDOW).map((q, i) => {
+        const node = q.node_id ? getNodeFromCtx(q.node_id) : null;
+        return {
+          index: i,
+          question: node ? node.q : '(question text not resolved)',
+          probe: node?.probe,
+          format: node?.f,
+          current_options: q.options_override
+            ?? (node?.a ? node.a.map((t) => t[0]) : undefined),
+          preamble: q.preamble,
+        };
+      });
       return {
         this_turn,
         profile,
         investigation,
         history,
-        queue_upcoming: ctx.queue.map((q) => ({
-          node_id: q.node_id,
-          preamble: q.preamble,
-        })),
-        basket: ctx.basket,
+        queue_upcoming: queueWindow,
         detective_log: ctx.detective_log ?? [],
         current_understanding: ctx.current_understanding ?? [],
         instruction:
-          'spend at least half the response in private_thoughts (think out loud). update investigation by changes only. revise current_understanding (≤3 claims). pick next_question from basket; inject a guess only at hypothesis confidence ≥0.6.',
+          'spend at least half the response in private_thoughts (think out loud). update investigation by CHANGES ONLY. revise current_understanding (≤3 claims). emit queue_edits for any of the upcoming questions (indices 0..N-1) whose options should be personalized; index 0 is the very next question. inject a guess only at hypothesis confidence ≥0.6.',
       };
     }
   }

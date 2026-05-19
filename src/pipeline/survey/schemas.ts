@@ -111,12 +111,15 @@ export const DetectiveOutputSchema = z.object({
    *  prior and either keeps, edits, or rewrites. Surfaced to the
    *  seer's directorIntro as the spine of the prose_brief. */
   current_understanding: z.array(z.string().max(200)).max(3),
-  /** The next question the survey asks. node_id must be in the basket. */
-  next_question: z.object({
-    node_id: z.string(),
+  /** Edits to upcoming queue items. The detective no longer picks
+   *  questions — it personalizes them. Each edit references a queue
+   *  index (0 = the next question to be asked). Edits to indices
+   *  past the sliding window or already-consumed are silently dropped. */
+  queue_edits: z.array(z.object({
+    index: z.number().int().min(0),
     preamble: z.string().optional(),
     options_override: z.array(z.string()).optional(),
-  }),
+  })).max(8),
   reasoning: z.string(),
 });
 
