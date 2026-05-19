@@ -17,9 +17,6 @@ import { TarobotScene } from './ui/scene/TarobotScene';
 import { buildMarisolDemoSeer } from './pipeline/seer';
 import { AnthropicAdapter } from './pipeline/survey';
 import { createClaudeClient } from './pipeline/claude';
-import { Jade } from './jade/Jade';
-import { useSecretSequence } from './jade/useSecretSequence';
-import './jade/jade.css';
 import './ui/pipeline.css';
 import { Debug } from './debug/Debug';
 import { DebugQueue } from './debug/DebugQueue';
@@ -34,7 +31,6 @@ type Phase =
   | { kind: 'settings' }
   | { kind: 'survey'; session: Session }
   | { kind: 'reading'; session: Session; seer: Seer }
-  | { kind: 'jade' }
   | { kind: 'pipeline' };
 
 export function App() {
@@ -42,7 +38,6 @@ export function App() {
   const [phase, setPhase] = useState<Phase>(() =>
     loadApiKey() ? { kind: 'menu' } : { kind: 'key' },
   );
-  const { unlocked: jadeUnlocked } = useSecretSequence();
 
   // Debug overlay toggle — persists between sessions.
   const [debugVisible, setDebugVisible] = useState<boolean>(() => loadDebugVisible());
@@ -105,16 +100,6 @@ export function App() {
           >
             debug
           </button>
-          {jadeUnlocked && phase.kind !== 'jade' && (
-            <button
-              type="button"
-              className="jade-unlock-chip"
-              onClick={() => setPhase({ kind: 'jade' })}
-              title="open jade — survey tree editor"
-            >
-              jade
-            </button>
-          )}
           {phase.kind !== 'pipeline' && (
             <button
               type="button"
@@ -127,7 +112,7 @@ export function App() {
           )}
         </div>
         <div className="app__topbar-actions">
-          {phase.kind !== 'menu' && phase.kind !== 'key' && phase.kind !== 'jade' && phase.kind !== 'pipeline' && (
+          {phase.kind !== 'menu' && phase.kind !== 'key' && phase.kind !== 'pipeline' && (
             <button className="btn btn--quiet" onClick={goMenu}>
               exit
             </button>
@@ -178,8 +163,6 @@ export function App() {
               onExit={goMenu}
             />
           )}
-
-          {phase.kind === 'jade' && <Jade onExit={goMenu} />}
 
           {phase.kind === 'pipeline' && <Pipeline onBack={goMenu} />}
         </main>

@@ -14,7 +14,6 @@
 //   tarobot:people
 //   tarobot:active_session
 //   tarobot:settings
-//   tarobot:jade:tree    (owned by src/jade/storage.ts)
 
 import type { EngineState, SurveyProfile } from './pipeline/survey';
 import type { PersonaId } from './pipeline';

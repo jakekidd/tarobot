@@ -2,7 +2,6 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { App } from './App';
 import { attachGestureGuard } from './ui/sound/sound';
-import { applyJadeOverrideAtBoot } from './jade/storage';
 import { installDebugCounters } from './debug/install';
 import './index.css';
 
@@ -14,9 +13,11 @@ if (!root) throw new Error('root element not found');
 // (browser auto-suspends the context).
 attachGestureGuard();
 
-// If the user has been editing the dialogue tree in Jade, make the live
-// survey use her local copy from the very first mount.
-applyJadeOverrideAtBoot();
+// One-time cleanup of the legacy Jade-editor localStorage entry. The
+// in-app survey editor is gone; SURVEY.md on GitHub is the source of
+// truth now. Safe to call every boot — the key simply won't exist for
+// most users.
+try { localStorage.removeItem('tarobot:jade:tree'); } catch { /* ignore */ }
 
 // Wire console.error + global-error listeners → debug overlay counters.
 installDebugCounters();

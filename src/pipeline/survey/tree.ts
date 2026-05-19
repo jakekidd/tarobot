@@ -19,13 +19,14 @@ import { substituteOrBlank, substituteOrNull } from './substitution';
 
 const BUNDLED_TREE: DialogueTree = parseSurveyMd(surveyMdSource);
 
-// The active tree. Defaults to the bundled SURVEY.md (validated at
-// module load — loud failure if the markdown is broken). `setActiveTree`
-// is retained for the Jade live-edit codepath but the engine no longer
-// applies overrides — see jade/storage.ts.
+// The active tree. Sourced from SURVEY.md (validated at module load —
+// loud failure if the markdown is broken).
 //
-// `let` not `const`: ES module live bindings mean importers of `TREE`
-// transparently see the new value after a swap.
+// `setActiveTree` is retained as an explicit override seam (handy for
+// e2e bot fixtures and test harnesses) but no production caller sets it
+// anymore — the in-app live editor that used to depend on it has been
+// removed. `let` not `const`: ES module live bindings mean importers of
+// `TREE` transparently see the new value after a swap.
 export let TREE: DialogueTree = (() => {
   validateTree(BUNDLED_TREE);
   return BUNDLED_TREE;

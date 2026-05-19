@@ -8,7 +8,7 @@
   left: 0.75rem;
   /* sits just below the navbar (which is ~2.4rem tall) */
   top: 3rem;
-  z-index: 150;                  /* above CRT (10–13), below jade (200) */
+  z-index: 150;                  /* above CRT (10–13), below modals (200) */
   background: rgba(5, 3, 12, 0.88);
   border: 1px solid rgba(179, 136, 255, 0.45);
   color: #e8e0ff;

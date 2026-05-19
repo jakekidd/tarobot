@@ -65,7 +65,7 @@ pnpm build
 
 ## Layout
 
-- `src/App.tsx` — phase machine (key / menu / survey / reading / jade / pipeline).
+- `src/App.tsx` — phase machine (key / menu / survey / reading / pipeline).
 - `src/pipeline/` — Node-portable cognition. Engines, prompts, schemas,
   static data (cards, spreads, personas, the survey doc). The product.
 - `src/pipeline/survey/SURVEY.md` — the survey questions.
