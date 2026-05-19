@@ -255,26 +255,22 @@ const SURVEY_DIAGRAM = `flowchart TD
   start([survey start]) --> openers
   subgraph openers["Openers · no AI"]
     direction LR
-    o1["${BOX('name')}"] --> o2["${BOX('birthday')}"] --> o3["${BOX('has_question?')}"]
+    o1["${BOX('name')}"] --> o2["${BOX('birthday')}"] --> o3["${BOX('birth_time')}"] --> o4["${BOX('intent<br/><i>question sandwich, part 1</i>')}"]
   end
   openers --> seed
-  seed[/"${BOX(`seed ${STARTER_SEED_COUNT} random pool<br/>questions into queue`)}"/]
+  seed[/"${BOX(`seed ${STARTER_SEED_COUNT} random pool<br/>questions into queue<br/>(dedup'd vs prior visits)`)}"/]
   seed --> ans["${BOX('user answers a<br/>question')}"]
 
   ans -->|"${IO('PickEvent', '{node_id, answer, latency_ms}')}"| snapshot[/"${BOX('snapshot ctx<br/>at pipeline start')}"/]
   snapshot -->|"${IO('PipelineContext + recent_picks', 'every 3rd turn only<br/>(metabolize window)')}"| obs["${AGENT('Observer', 'cloud')}"]
-  snapshot -->|"${IO('PipelineContext', 'every turn')}"| det["${AGENT('Detective', 'cloud')}"]
-  snapshot -->|"${IO('PipelineContext', 'every turn<br/>suppressed past cap−${STARTER_SEED_COUNT}')}"| int["${AGENT('Interrogator', 'local')}"]
+  snapshot -->|"${IO('PipelineContext + detective_log', 'every turn (non-returning)<br/>next_question suppressed past cap−${STARTER_SEED_COUNT}')}"| det["${AGENT('Detective', 'cloud')}"]
   obs -->|"${IO('ObserverOutput', '{notes_to_append, cast_updates}<br/>→ profile')}"| applyO[/"${BOX('apply to profile')}"/]
-  det -->|"${IO('DetectiveOutput', '{hypothesis_updates, choice_update,<br/>contradictions, hooks, posture,<br/>intention_guess?}<br/>→ investigation')}"| applyD[/"${BOX('apply to investigation')}"/]
-  int -->|"${IO('InterrogatorOutput', '{next_question: {node_id, preamble?,<br/>options_override?}}<br/>→ queue')}"| applyI[/"${BOX('append 1 to queue')}"/]
-  applyI --> ans
-  applyO --> ans
+  det -->|"${IO('DetectiveOutput', '{hypothesis_updates, choice_update,<br/>contradictions, hooks, posture,<br/>private_thoughts, next_question}<br/>→ investigation, log, queue')}"| applyD[/"${BOX('apply to investigation<br/>+ detective_log<br/>+ next_question → queue')}"/]
   applyD --> ans
+  applyO --> ans
 
-  ans -. "cap reached" .-> shaman["${AGENT('Shaman', 'cloud')}"]
-  shaman -->|"${IO('ShamanOutput', '{intentions: 4 strings}')}"| picker[/"${BOX('4 intention<br/>suggestions')}"/]
-  picker --> userPick["${BOX('user picks /<br/>writes intention')}"]
+  ans -. "cap reached" .-> intentConfirm["${BOX('IntentConfirm UI<br/><i>question sandwich, part 2</i>')}"]
+  intentConfirm --> userPick["${BOX('user types final<br/>intention (≥10 chars)')}"]
 
   userPick -->|"${IO('intention', 'string (user vernacular)')}"| augur1["${AGENT('Augur · Outline', 'cloud')}"]
   augur1 -->|"${IO('Outcome[]', '{id, label}  · 2–4 entries')}"| augur2["${AGENT('Augur · Fill ×N', 'cloud')}"]
@@ -287,10 +283,9 @@ const SURVEY_DIAGRAM = `flowchart TD
   classDef io         fill:#0a0418,stroke:#564a78,color:#cfc4f0,font-style:italic;
   classDef terminal   fill:#1a0a2e,stroke:#22d3ee,color:#cffafe,stroke-width:1.2px;
 
-  class int local;
-  class obs,det,shaman,augur1,augur2 cloud;
-  class ans,o1,o2,o3,userPick userAction;
-  class seed,picker,outcomes,snapshot,applyO,applyD,applyI io;
+  class obs,det,augur1,augur2 cloud;
+  class ans,o1,o2,o3,o4,userPick,intentConfirm userAction;
+  class seed,outcomes,snapshot,applyO,applyD io;
   class start,seerStart terminal;
 `;
 
