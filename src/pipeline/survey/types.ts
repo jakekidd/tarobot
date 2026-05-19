@@ -76,6 +76,14 @@ export type CastMember = {
    *  relationship_pick "who specifically?" follow-up. The detective is
    *  instructed to avoid drafting probes that target this person. */
   off_limits?: boolean;
+  /** Pronouns the user picked (or smart-detection inferred from kin
+   *  terms like "mom" / "dad"). Independently toggleable. */
+  pronouns?: { subjective: 'he' | 'they' | 'she'; objective: 'him' | 'them' | 'her' };
+  /** Visual accent color (CSS hex string) for ALL-CAPS rendering of the
+   *  person's name in the survey + the reading. Either picked by the
+   *  user via the 3 gender-color quick-picks, or randomly assigned and
+   *  rerolled via the dice. */
+  color?: string;
 };
 
 export type Choice = {

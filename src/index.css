@@ -422,12 +422,20 @@ a:hover { text-decoration: underline; }
   letter-spacing: 0.04em;
 }
 
+/* ─── Disable font ligatures on text inputs ─────────────
+   (VT323/IM Fell etc. were collapsing "ff" → a single ligature glyph.
+   Keep typed input glyph-equivalent to what the user pressed.) */
+input, textarea {
+  font-variant-ligatures: none;
+  font-feature-settings: "liga" 0, "calt" 0;
+}
+
 /* ─── Relationship-pick form ──────────────────────────── */
 
 .rel-pick {
   display: flex;
   flex-direction: column;
-  gap: 0.65rem;
+  gap: 0.7rem;
   width: min(44rem, calc(100vw - 4rem));
   margin: 0 auto;
 }
@@ -437,7 +445,7 @@ a:hover { text-decoration: underline; }
   flex-wrap: wrap;
   gap: 0.4rem;
   justify-content: center;
-  padding: 0.2rem 0;
+  padding: 0.2rem 0 0.4rem;
 }
 
 .rel-pick__chip {
@@ -459,29 +467,113 @@ a:hover { text-decoration: underline; }
   color: rgba(226, 83, 110, 0.85);
 }
 
-.rel-pick__categories {
+.rel-pick__grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 0.4rem;
-  list-style: none;
-  padding: 0;
-  margin: 0;
+  gap: 0.5rem;
 }
-.rel-pick__categories li { margin: 0; }
+.rel-pick__column {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+.rel-pick__column li { margin: 0; }
 
 .rel-pick__category {
+  width: 100%;
+  font-family: var(--font-mono);
   font-size: 1rem;
-  padding: 0.6rem 1.1rem;
-  min-height: 2.6rem;
-  justify-content: center;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
   text-align: center;
+  padding: 0.7rem 0.9rem;
+  background-color: #4a1f88;
+  color: #f2ecff;
+  border: 1px solid #4a1f88;
+  border-radius: 0;
+  cursor: pointer;
+  min-height: 3rem;
+  transition: filter 0.1s, transform 0.06s;
+}
+.rel-pick__category:hover { filter: brightness(1.12); }
+.rel-pick__category:active { transform: translateY(1px); }
+
+.rel-pick__someone-else {
+  font-family: var(--font-mono);
+  font-size: 0.9rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  background: transparent;
+  color: var(--fg-muted);
+  border: 1px dashed var(--line);
+  padding: 0.55rem 0.9rem;
+  cursor: pointer;
+  width: 100%;
+}
+.rel-pick__someone-else:hover { color: var(--accent); border-color: var(--accent); }
+
+.rel-pick__sub-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+.rel-pick__sub-scroll {
+  position: relative;
+  max-height: 16rem;
+  overflow-y: auto;
+  border: 1px solid var(--line);
+  background: rgba(10, 4, 24, 0.4);
+}
+.rel-pick__sub-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.rel-pick__sub-list li {
+  margin: 0;
+  border-bottom: 1px solid rgba(124, 58, 237, 0.15);
+}
+.rel-pick__sub-list li:last-child { border-bottom: none; }
+.rel-pick__sub-item {
+  width: 100%;
+  background: transparent;
+  border: none;
+  color: var(--fg);
+  font-family: var(--font-mono);
+  font-size: 0.95rem;
+  letter-spacing: 0.08em;
+  padding: 0.6rem 1rem;
+  text-align: left;
+  cursor: pointer;
+}
+.rel-pick__sub-item:hover { background: rgba(124, 58, 237, 0.15); color: var(--accent); }
+.rel-pick__scroll-hint {
+  position: sticky;
+  bottom: 0;
+  padding: 0.25rem 0.5rem;
+  text-align: center;
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  color: var(--fg-muted);
+  background: linear-gradient(to top, rgba(10, 4, 24, 0.95), rgba(10, 4, 24, 0));
+  pointer-events: none;
 }
 
 .rel-pick__details {
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: 0.6rem;
   padding: 0.5rem 0;
+  align-items: stretch;
+  text-align: left;
 }
 
 .rel-pick__details-head {
@@ -509,6 +601,104 @@ a:hover { text-decoration: underline; }
 }
 .rel-pick__details-back:hover { color: var(--accent); }
 
+.rel-pick__name-input {
+  width: 100%;
+  text-align: center;
+  font-size: 1.1rem;
+}
+
+.rel-pick__sensing {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 0.4rem;
+  font-family: var(--font-mono);
+  font-style: italic;
+  font-size: 0.95rem;
+  color: var(--fg-muted);
+  padding: 0.1rem 0;
+}
+.rel-pick__sensing-name {
+  font-style: normal;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  font-weight: 500;
+}
+
+.rel-pick__row {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+.rel-pick__row-label {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--fg-muted);
+  min-width: 4.5rem;
+}
+
+.rel-pick__pronoun-group {
+  display: inline-flex;
+  gap: 0.25rem;
+}
+.rel-pick__pronoun {
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  padding: 0.3rem 0.6rem;
+  background: transparent;
+  color: var(--fg-muted);
+  border: 1px solid var(--line);
+  cursor: pointer;
+  border-radius: 0;
+  min-width: 3rem;
+}
+.rel-pick__pronoun:hover { color: var(--fg); border-color: var(--line-strong); }
+.rel-pick__pronoun--on {
+  color: var(--fg);
+  background: var(--violet-soft);
+  border-color: var(--accent);
+}
+
+.rel-pick__gender-group {
+  display: inline-flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+.rel-pick__gender-dot {
+  width: 1.6rem;
+  height: 1.6rem;
+  border: 2px solid transparent;
+  cursor: pointer;
+  padding: 0;
+  border-radius: 50%;
+  transition: transform 0.1s;
+}
+.rel-pick__gender-dot:hover { transform: scale(1.1); }
+.rel-pick__gender-dot--on {
+  border-color: var(--fg);
+  box-shadow: 0 0 0 2px var(--color-black), 0 0 12px currentColor;
+}
+
+.rel-pick__dice {
+  width: 1.8rem;
+  height: 1.8rem;
+  background: var(--color-white);
+  color: var(--color-black);
+  border: 1px solid var(--color-white);
+  font-size: 1.2rem;
+  cursor: pointer;
+  padding: 0;
+  font-family: var(--font-mono);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.rel-pick__dice:hover { filter: brightness(0.85); }
+
 .rel-pick__off-limits {
   display: flex;
   align-items: center;
@@ -517,24 +707,11 @@ a:hover { text-decoration: underline; }
   font-size: 0.85rem;
   color: var(--fg-muted);
   cursor: pointer;
+  justify-content: center;
 }
 .rel-pick__off-limits input { cursor: pointer; }
 
-.rel-pick__commit { align-self: flex-end; min-width: 8rem; }
-
-.rel-pick__skip {
-  align-self: center;
-  background: transparent;
-  border: none;
-  color: var(--fg-muted);
-  font-family: var(--font-mono);
-  font-size: 0.8rem;
-  font-style: italic;
-  cursor: pointer;
-  padding: 0.3rem 0;
-  letter-spacing: 0.04em;
-}
-.rel-pick__skip:hover { color: var(--accent); }
+.rel-pick__commit { align-self: center; min-width: 10rem; margin-top: 0.3rem; }
 
 .text-input--narrow {
   width: 4.5em;

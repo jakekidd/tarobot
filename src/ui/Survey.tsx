@@ -320,7 +320,6 @@ export function Survey({ apiKey, session, onComplete }: Props) {
             <RelationshipPickForm
               cast={state.profile.cast}
               onSubmit={(encoded) => void submitAnswer(encoded)}
-              onSkip={() => void submitAnswer('skip')}
             />
           )}
 

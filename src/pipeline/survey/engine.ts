@@ -476,25 +476,28 @@ export class SurveyEngine {
   }
 
   /** Process a relationship_pick answer: parse the JSON payload and
-   *  upsert the CastMember on the profile with the off_limits flag. */
+   *  upsert the CastMember on the profile (off_limits, pronouns, color). */
   private applyRelationshipPick(node_id: string, rawAnswer: string): void {
-    // 'skip' is a sentinel emitted by the (skip this question) button.
-    // No cast update; the pick itself is already recorded in picks_log.
-    if (rawAnswer === 'skip') return;
-    let parsed: { category?: string; name?: string; off_limits?: boolean };
+    let parsed: {
+      category?: string;
+      name?: string;
+      off_limits?: boolean;
+      pronouns?: { subjective: 'he' | 'they' | 'she'; objective: 'him' | 'them' | 'her' };
+      color?: string;
+    };
     try {
       parsed = JSON.parse(rawAnswer);
     } catch {
-      // If the answer isn't valid JSON (shouldn't happen given UI),
-      // record it as-is — the picks_log already has the text.
       return;
     }
     const name = (parsed.name ?? '').trim();
     if (!name) return;
     const offLimits = !!parsed.off_limits;
-    const role = parsed.category && parsed.category !== 'existing' && parsed.category !== 'write-in'
+    const role = parsed.category && parsed.category !== 'existing'
       ? parsed.category
       : undefined;
+    const pronouns = parsed.pronouns;
+    const color = parsed.color;
 
     const existing = this.state.profile.cast.find(
       (m) => m.label.trim().toLowerCase() === name.toLowerCase(),
@@ -510,6 +513,8 @@ export class SurveyEngine {
                 ? m.supporting_picks
                 : [...m.supporting_picks, node_id],
               off_limits: offLimits || !!m.off_limits,
+              pronouns: pronouns ?? m.pronouns,
+              color: color ?? m.color,
             }
           : m,
       );
@@ -520,6 +525,8 @@ export class SurveyEngine {
         supporting_picks: [node_id],
         confidence: 'high',
         off_limits: offLimits,
+        pronouns,
+        color,
       });
     }
     this.setState({
