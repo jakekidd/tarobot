@@ -7,6 +7,10 @@ export type Impact = {
   /** Click coordinates in viewport (client) pixels. */
   x: number;
   y: number;
+  /** True if the user passed on this question rather than answering. The
+   *  orbiting-cards system renders pass impacts as silver/gray; answers
+   *  render as gold. Default false → gold. */
+  passed?: boolean;
 };
 
 type Listener = (impact: Impact) => void;

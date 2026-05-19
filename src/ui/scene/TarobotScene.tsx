@@ -7,6 +7,7 @@ import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { getAnchor } from './anchorStore';
 import { subscribeImpacts, type Impact as ImpactEvent } from './impactStore';
+import { createOrbitingCards } from './orbitingCards';
 import { subscribeDizzy } from './dizzyStore';
 import { subscribeReaderMode, type ReaderMode } from './readerModeStore';
 import { getTableAnchor } from './tableAnchorStore';
@@ -57,22 +58,10 @@ const PARTICLE_SIZE_PX = 1.5;             // ~1/4 the prior visual size
 const PARTICLE_BURST_VEL = 0.19;          // initial outward velocity (~1/8 of prior burst)
 const PARTICLE_BURST_VEL_JITTER = 0.19;
 
-// ─── Data orbs ────────────────────────────────────────────
-// Each survey/tent answer fires a glowing white sphere at the click point;
-// it floats up to a drifting cloud above/behind Clat. Acts as a visual
-// answer counter — orbs accumulate across the session.
-const ORB_MAX = 60;
-const ORB_RADIUS_PX = 1;                  // ~1/8 of the previous pass — tiny stars, bloom-amplified
-const ORB_TRAVEL_MIN_S = 1.1;
-const ORB_TRAVEL_JITTER_S = 0.7;
-const ORB_DRIFT_RETARGET_MIN_S = 2.0;
-const ORB_DRIFT_RETARGET_JITTER_S = 4.0;
-const ORB_OPACITY_MIN = 0.30;
-const ORB_OPACITY_RANGE = 0.40;           // each orb picks baseOpacity in [MIN, MIN+RANGE]
-const ORB_FLICKER_RATE = 0.10;            // rad/s — full sine cycle ~63s (≈ a minute)
-const ORB_FLICKER_AMP = 0.45;             // how much of baseOpacity modulates (0..1)
-const ORB_REPULSE_RADIUS_PX = 26;
-const ORB_REPULSE_STRENGTH = 220;         // px/s² at zero distance
+// (Data-orbs system removed — replaced by orbiting cards. See
+// ./orbitingCards.ts. Each answer spawns a flat gold/silver card that
+// orbits the turtle behind the visible plane and fades out as it
+// approaches the front of the orbit.)
 
 type ParticleData = {
   theta: Float32Array;
@@ -437,99 +426,18 @@ export function TarobotScene() {
     const particles = new THREE.Points(particleGeom, particleMat);
     particleGroup.add(particles);
 
-    // ─── Data orbs (answer counter cloud) ─────────────────
-    // Persistent glowing white spheres. Spawn at click position, travel up
-    // along an arc, then drift in a cloud above/behind Clat. Shared geom +
-    // material — orbs are visually identical, so no per-orb material clone.
-    const orbGroup = new THREE.Group();
-    scene.add(orbGroup);
-    // Shared geometry (cheap). Materials are PER-ORB so each can flicker on its
-    // own sine phase + carry a unique baseOpacity.
-    const orbGeom = new THREE.SphereGeometry(ORB_RADIUS_PX, 10, 8);
-
-    type OrbPhase = 'travel' | 'drift';
-    type Orb = {
-      mesh: THREE.Mesh;
-      mat: THREE.MeshBasicMaterial;
-      phase: OrbPhase;
-      pos: THREE.Vector3;
-      vel: THREE.Vector3;
-      target: THREE.Vector3;
-      retargetAt: number;
-      // travel-only
-      travelStart: THREE.Vector3;
-      travelDuration: number;
-      travelElapsed: number;
-      arcPeak: THREE.Vector3;
-      // visual variation
-      baseOpacity: number;
-      flickerPhase: number;
-    };
-    const orbs: Orb[] = [];
-
-    function pickCloudPoint(out: THREE.Vector3): void {
-      const a = getAnchor();
-      const cx = a ? a.x - viewportW / 2 : 0;
-      const cy = a ? viewportH / 2 - a.y : 0;
-      const w = a ? a.width : 220;
-      // Cloud: above Clat, roughly centered on the head, with horizontal spread.
-      const angle = (Math.random() - 0.5) * Math.PI * 0.75;  // -67.5°..+67.5° from straight up
-      const r = w * (0.55 + Math.random() * 0.85);
-      const offX = Math.sin(angle) * r;
-      const offY = Math.cos(angle) * r * 0.85 + w * 0.25;     // bias toward above
-      const offZ = -10 - Math.random() * 20;                  // behind Clat plane (z=0)
-      out.set(cx + offX, cy + offY, offZ);
-    }
+    // ─── Orbiting cards (answer counter) ──────────────────
+    // Each answer/pass fires a flat card that orbits the turtle on a
+    // horizontal plane behind the camera-facing side. Self-contained in
+    // ./orbitingCards.ts; we forward impact events into it.
+    const orbitingCards = createOrbitingCards({
+      scene,
+      getAnchor,
+      getViewport: () => ({ w: viewportW, h: viewportH }),
+    });
 
     const unsubscribeImpacts = subscribeImpacts((evt: ImpactEvent) => {
-      // Convert client coords → scene coords (center origin, y up).
-      const sx = evt.x - viewportW / 2;
-      const sy = viewportH / 2 - evt.y;
-
-      // Recycle the oldest orb if at cap.
-      if (orbs.length >= ORB_MAX) {
-        const old = orbs.shift()!;
-        orbGroup.remove(old.mesh);
-        old.mat.dispose();
-      }
-
-      const baseOpacity = ORB_OPACITY_MIN + Math.random() * ORB_OPACITY_RANGE;
-      const mat = new THREE.MeshBasicMaterial({
-        color: 0xffffff,
-        transparent: true,
-        opacity: baseOpacity,
-        blending: THREE.AdditiveBlending,
-        depthWrite: false,
-      });
-      const mesh = new THREE.Mesh(orbGeom, mat);
-      mesh.position.set(sx, sy, -5);
-      orbGroup.add(mesh);
-
-      const target = new THREE.Vector3();
-      pickCloudPoint(target);
-
-      // Bezier control point: above the midline by a chunk, biased toward target x.
-      const arcPeak = new THREE.Vector3(
-        sx + (target.x - sx) * 0.55,
-        Math.max(sy, target.y) + 60 + Math.random() * 80,
-        (target.z - 5) / 2,
-      );
-
-      orbs.push({
-        mesh,
-        mat,
-        phase: 'travel',
-        pos: new THREE.Vector3(sx, sy, -5),
-        vel: new THREE.Vector3(),
-        target,
-        retargetAt: 0,
-        travelStart: new THREE.Vector3(sx, sy, -5),
-        travelDuration: ORB_TRAVEL_MIN_S + Math.random() * ORB_TRAVEL_JITTER_S,
-        travelElapsed: 0,
-        arcPeak,
-        baseOpacity,
-        flickerPhase: Math.random() * Math.PI * 2,
-      });
+      orbitingCards.spawnCard(!!evt.passed, evt.x, evt.y);
     });
 
     // ─── Perspective layer (table + cards) ───────────────
@@ -901,7 +809,6 @@ export function TarobotScene() {
 
     const start = performance.now();
     let lastFrameMs = start;
-    const _orbTmpA = new THREE.Vector3();
 
     const animate = () => {
       if (!mounted) return;
@@ -1067,77 +974,8 @@ export function TarobotScene() {
       particleGeom.attributes.position.needsUpdate = true;
       particleGeom.attributes.color.needsUpdate = true;
 
-      // ── Data orbs: travel-up arc, drift in a cloud, repel each other ──
-      const orbTmp = _orbTmpA;
-      // Pass 1: integrate per-orb motion (travel or drift) and flicker.
-      for (const orb of orbs) {
-        if (orb.phase === 'travel') {
-          orb.travelElapsed += dt;
-          const u = Math.min(1, orb.travelElapsed / orb.travelDuration);
-          // Quadratic bezier: travelStart → arcPeak → target.
-          const oneMinusU = 1 - u;
-          orb.pos.set(
-            oneMinusU * oneMinusU * orb.travelStart.x + 2 * oneMinusU * u * orb.arcPeak.x + u * u * orb.target.x,
-            oneMinusU * oneMinusU * orb.travelStart.y + 2 * oneMinusU * u * orb.arcPeak.y + u * u * orb.target.y,
-            oneMinusU * oneMinusU * orb.travelStart.z + 2 * oneMinusU * u * orb.arcPeak.z + u * u * orb.target.z,
-          );
-          if (u >= 1) {
-            orb.phase = 'drift';
-            orb.vel.set(0, 0, 0);
-            orb.retargetAt = t + ORB_DRIFT_RETARGET_MIN_S + Math.random() * ORB_DRIFT_RETARGET_JITTER_S;
-          }
-        } else {
-          if (t >= orb.retargetAt) {
-            pickCloudPoint(orb.target);
-            orb.retargetAt = t + ORB_DRIFT_RETARGET_MIN_S + Math.random() * ORB_DRIFT_RETARGET_JITTER_S;
-          }
-          // Spring toward target with damping + small per-frame noise.
-          orbTmp.subVectors(orb.target, orb.pos).multiplyScalar(1.6);
-          orb.vel.x = orb.vel.x * 0.90 + orbTmp.x * dt;
-          orb.vel.y = orb.vel.y * 0.90 + orbTmp.y * dt;
-          orb.vel.z = orb.vel.z * 0.90 + orbTmp.z * dt;
-          orb.vel.x += (Math.random() - 0.5) * 8 * dt;
-          orb.vel.y += (Math.random() - 0.5) * 8 * dt;
-        }
-        // Slow per-orb sine flicker — modulates baseOpacity, never reaches zero.
-        const flick = 1 - ORB_FLICKER_AMP + ORB_FLICKER_AMP * (0.5 + 0.5 * Math.sin(t * ORB_FLICKER_RATE + orb.flickerPhase));
-        orb.mat.opacity = orb.baseOpacity * flick;
-      }
-
-      // Pass 2: pairwise repulsion between drift-phase orbs. Tiny stars don't
-      // like sharing a pixel — pushes them apart when they crowd.
-      for (let i = 0; i < orbs.length; i++) {
-        const a = orbs[i]!;
-        if (a.phase !== 'drift') continue;
-        for (let j = i + 1; j < orbs.length; j++) {
-          const b = orbs[j]!;
-          if (b.phase !== 'drift') continue;
-          const dx = a.pos.x - b.pos.x;
-          const dy = a.pos.y - b.pos.y;
-          const distSq = dx * dx + dy * dy;
-          if (distSq >= ORB_REPULSE_RADIUS_PX * ORB_REPULSE_RADIUS_PX) continue;
-          const dist = Math.max(1, Math.sqrt(distSq));
-          // Force falls off linearly to zero at the repulse radius.
-          const falloff = 1 - dist / ORB_REPULSE_RADIUS_PX;
-          const f = (ORB_REPULSE_STRENGTH * falloff) / dist;
-          const ax = dx * f * dt;
-          const ay = dy * f * dt;
-          a.vel.x += ax;
-          a.vel.y += ay;
-          b.vel.x -= ax;
-          b.vel.y -= ay;
-        }
-      }
-
-      // Pass 3: integrate velocity for drift-phase orbs and commit mesh positions.
-      for (const orb of orbs) {
-        if (orb.phase === 'drift') {
-          orb.pos.x += orb.vel.x * dt;
-          orb.pos.y += orb.vel.y * dt;
-          orb.pos.z += orb.vel.z * dt;
-        }
-        orb.mesh.position.copy(orb.pos);
-      }
+      // ── Orbiting cards: physics-based answer counter ──
+      orbitingCards.update(dt);
 
       // ── Card hover: raycast against face-down pickable cards ──
       let hoveredSlot: SlotName | null = null;
@@ -1302,12 +1140,7 @@ export function TarobotScene() {
       clearDebug('card.ref');
       unregisterPicker(pickAt);
       mascot.dispose();
-      for (const orb of orbs) {
-        orbGroup.remove(orb.mesh);
-        orb.mat.dispose();
-      }
-      orbs.length = 0;
-      orbGeom.dispose();
+      orbitingCards.dispose();
       eyeGeom.dispose();
       leftEye.mat.dispose();
       rightEye.mat.dispose();
