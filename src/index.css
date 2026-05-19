@@ -556,6 +556,52 @@ a:hover { text-decoration: underline; }
   font-size: 1rem;
 }
 
+/* ── Menu entry choreography ─────────────────────────────────
+   Dialogue stage starts as a thin horizontal line and expands to its
+   full pre-allocated width; the dialogue text inside gets a turtle-green
+   tint so it ties to the mascot's gradient skin. Buttons fade + slide
+   in from below in sequence (delays driven from Menu.tsx).
+*/
+.menu__dialogue-wrap {
+  /* Clip the dialogue stage so it can "open" from a center line. */
+  overflow: hidden;
+  /* Same width as .dialogue-stage so we can expand the *content* via
+     scaleX, while the wrapper stays full-width for layout. */
+  width: min(64ch, calc(100vw - 4rem));
+  display: flex;
+  justify-content: center;
+}
+.menu__dialogue-wrap > * {
+  transform: scaleX(0);
+  transform-origin: center;
+  transition: transform 320ms cubic-bezier(0.22, 1, 0.36, 1);
+  width: 100%;
+}
+.menu__dialogue-wrap.is-open > * {
+  transform: scaleX(1);
+}
+/* Turtle-green dialogue copy on the menu. Scoped via .menu__dialogue-wrap
+   so other dialogues (Survey / Reading) stay on their default color. */
+.menu__dialogue-wrap .dialogue-text,
+.menu__dialogue-wrap .dialogue-caret {
+  color: #6dff8a;
+  text-shadow: 0 0 12px rgba(109, 255, 138, 0.35);
+}
+
+.menu__btn {
+  opacity: 0;
+  transform: translateY(8px);
+  transition:
+    opacity 280ms ease-out,
+    transform 280ms cubic-bezier(0.22, 1, 0.36, 1);
+  pointer-events: none;
+}
+.menu__btn.is-visible {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+
 /* ─── Resume / profile list ───────────────────────────── */
 
 .screen--resume {
