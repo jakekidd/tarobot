@@ -192,6 +192,11 @@ export function parseSurveyMd(source: string): DialogueTree {
     q: 'when were you born? the day, month, and year. time and location optional.',
     f: 'date',
   };
+  nodes.relationship = {
+    topic: 'intake',
+    q: 'how would you describe your relationship status?',
+    f: 'relationship_status',
+  };
   nodes.intent = {
     topic: 'intake',
     q: 'do you have a question for the cards?',
@@ -201,7 +206,7 @@ export function parseSurveyMd(source: string): DialogueTree {
   return {
     v: 'survey-md@1',
     topics: Array.from(topicSet),
-    openers: ['name', 'birthday', 'intent'],
+    openers: ['name', 'birthday', 'relationship', 'intent'],
     pillars,
     nodes,
   };

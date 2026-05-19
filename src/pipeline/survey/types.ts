@@ -12,7 +12,27 @@ export const PHASE_ORDER: Phase[] = ['A', 'B', 'C', 'D', 'E'];
 // Question formats. `multi` was dropped — collapsed to `choice` (single
 // select). `binary` ALWAYS resolves to [yes, no, sometimes] regardless
 // of the node's `a` field; investigator can't alter binary options.
-export type AnswerFormat = 'text' | 'date' | 'choice' | 'binary' | 'matrix' | 'intent' | 'relationship_pick';
+export type AnswerFormat = 'text' | 'date' | 'choice' | 'binary' | 'matrix' | 'intent' | 'relationship_pick' | 'relationship_status';
+
+/** Six tasteful, broadly-inclusive buckets for the relationship-status
+ *  opener. Order is load-bearing: "single" first so the answer doesn't
+ *  feel ranked; "prefer not to say" last so it's an opt-out, not a flag. */
+export type RelationshipStatus =
+  | 'single'
+  | 'dating'
+  | 'in a relationship'
+  | 'married'
+  | 'it\'s complicated'
+  | 'prefer not to say';
+
+export const RELATIONSHIP_STATUS_OPTIONS: RelationshipStatus[] = [
+  'single',
+  'dating',
+  'in a relationship',
+  'married',
+  "it's complicated",
+  'prefer not to say',
+];
 
 /** [answer_text] | [answer_text, comment]. Comment is shown inline after pick. */
 export type AnswerTuple = [string] | [string, string];
@@ -136,6 +156,11 @@ export type SurveyProfile = {
   birth_card: { number: number; name: string } | null;
   age_bracket: string | null;
   birth_time_bracket: 'morning' | 'afternoon_evening' | 'overnight' | 'unknown' | null;
+  /** Relationship status captured at the start of the survey as a
+   *  derived signal — branches a lot of plausible forks for the seer
+   *  (partnership stakes, identity stakes, family/care stakes). null
+   *  when the user picks "prefer not to say". */
+  relationship_status: RelationshipStatus | null;
   /** The user's question for the cards, captured at the start of the
    *  survey (the "intent" opener). Null when the user pressed "I DON'T
    *  KNOW". At survey close, the IntentConfirm UI uses this to either

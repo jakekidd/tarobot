@@ -358,6 +358,75 @@ a:hover { text-decoration: underline; }
   text-shadow: 0 0 8px rgba(226, 83, 110, 0.35);
 }
 
+/* ─── Gag question (the 13th-question turtle interlude) ──── */
+
+.survey__dialogue-host--gag .dialogue-text,
+.survey__dialogue-host--gag .dialogue-caret,
+.survey__dialogue-host--gag .dialogue-measure {
+  color: #6dff8a;
+  text-shadow: 0 0 12px rgba(109, 255, 138, 0.35);
+}
+
+.gag {
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+  width: 100%;
+}
+.gag__buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.gag__input {
+  margin-top: 0.4rem;
+  border-color: rgba(109, 255, 138, 0.55);
+  color: #6dff8a;
+}
+.gag__input:focus {
+  border-color: #6dff8a;
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(109, 255, 138, 0.25);
+}
+
+.btn--gag {
+  background-color: rgba(58, 154, 74, 0.18);
+  border: 1px solid rgba(109, 255, 138, 0.55);
+  color: #6dff8a;
+  font-family: var(--font-mono);
+  letter-spacing: 0.32em;
+  text-transform: uppercase;
+  text-align: center;
+  padding: 0.7rem 1.2rem;
+}
+.btn--gag:hover:not(:disabled) {
+  background-color: rgba(58, 154, 74, 0.28);
+  border-color: #6dff8a;
+  text-shadow: 0 0 8px rgba(109, 255, 138, 0.5);
+}
+
+/* CAT button — single-line height clips the second span; clicking
+   toggles .is-expanded which grows the height and reveals it. */
+.btn--gag-cat {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  overflow: hidden;
+  height: 2.6rem;                 /* one line of padded text */
+  transition: height 320ms cubic-bezier(0.22, 1, 0.36, 1);
+  padding: 0.7rem 1.2rem;
+}
+.btn--gag-cat.is-expanded {
+  height: 4.6rem;                 /* second line visible */
+}
+.btn--gag-cat__line {
+  display: block;
+  white-space: nowrap;
+}
+.btn--gag-cat__line--two {
+  margin-top: 0.2rem;
+}
+
 /* I DON'T KNOW big button — same shape/size as a MultipleChoice option,
    but filled red. Sits in the .choice-list slot. */
 .intent-form-list { list-style: none; padding: 0; margin: 0; }

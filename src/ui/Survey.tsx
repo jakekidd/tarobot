@@ -21,6 +21,8 @@ import { Spinner } from './Spinner';
 import { BirthdayForm } from './survey/BirthdayForm';
 import { NameForm } from './survey/NameForm';
 import { IntentForm } from './survey/IntentForm';
+import { RelationshipStatusForm } from './survey/RelationshipStatusForm';
+import { GagQuestion } from './survey/GagQuestion';
 import { IntentConfirm } from './survey/IntentConfirm';
 import { RelationshipPickForm } from './survey/RelationshipPickForm';
 import { useSurveyEngine } from './survey/useSurveyEngine';
@@ -223,6 +225,23 @@ export function Survey({ apiKey, session, onComplete }: Props) {
   const stage = state.stage;
   const isAwaitingIntention = stage === 'awaiting_intention';
   const isCompiling = stage === 'compiling';
+
+  // Gag interlude — interrupt exactly once, when the user has answered
+  // 12 post-opener questions and a 13th is queued. Pure UI; the engine
+  // is unaware. `gagShown` flips after the user clicks/types-and-dismisses,
+  // and from there the queued 13th renders normally.
+  const [gagShown, setGagShown] = useState(false);
+  const postOpenerCount = useMemo(
+    () => state.picks_log.filter((p) =>
+      !['name', 'birthday', 'relationship', 'intent'].includes(p.node_id),
+    ).length,
+    [state.picks_log],
+  );
+  const showGag =
+    !gagShown
+    && postOpenerCount === 12
+    && stage === 'questions'
+    && currentQuestion !== null;
   const showReady =
     stage === 'questions' &&
     state.picks_log.length >= READY_BUTTON_MIN_TURNS &&
@@ -245,6 +264,10 @@ export function Survey({ apiKey, session, onComplete }: Props) {
   } else if (isCompiling) {
     dialogText = 'the seer is preparing.';
     dialogKey = 'compiling';
+  } else if (showGag) {
+    // Gag dialogue: NO question mark per spec. green color via host class.
+    dialogText = 'which is the best animal';
+    dialogKey = 'gag-animal';
   } else if (currentQuestion) {
     dialogText = currentQuestion.preamble
       ? `${currentQuestion.preamble.toLowerCase()}\n${currentQuestion.text.toLowerCase()}`
@@ -272,7 +295,13 @@ export function Survey({ apiKey, session, onComplete }: Props) {
     <div className="screen screen--survey">
       <Reader isSpeaking={speaking} />
 
-      <div className={isIntentMoment ? 'survey__dialogue-host survey__dialogue-host--intent' : 'survey__dialogue-host'}>
+      <div className={
+        showGag
+          ? 'survey__dialogue-host survey__dialogue-host--gag'
+          : isIntentMoment
+            ? 'survey__dialogue-host survey__dialogue-host--intent'
+            : 'survey__dialogue-host'
+      }>
         <Dialogue
           key={dialogKey}
           text={dialogText}
@@ -282,18 +311,22 @@ export function Survey({ apiKey, session, onComplete }: Props) {
 
       <div className="ui-frame ui-frame--survey">
         <div className="ui-frame__choices">
-          {!modalOpen && currentQuestion?.format === 'text' && (
+          {showGag && (
+            <GagQuestion onDismiss={() => setGagShown(true)} />
+          )}
+
+          {!showGag && !modalOpen && currentQuestion?.format === 'text' && (
             <NameForm
               existingNames={existingNames}
               onSubmit={(name) => void handleNameSubmit(name)}
             />
           )}
 
-          {!modalOpen && currentQuestion?.format === 'date' && (
+          {!showGag && !modalOpen && currentQuestion?.format === 'date' && (
             <BirthdayForm onSubmit={(iso) => void submitAnswer(iso)} />
           )}
 
-          {!modalOpen && currentQuestion?.format === 'matrix' && currentQuestion.axes && (
+          {!showGag && !modalOpen && currentQuestion?.format === 'matrix' && currentQuestion.axes && (
             <Matrix2x2Choice
               key={currentQuestion.node_id}
               axes={{ x: currentQuestion.axes[0], y: currentQuestion.axes[1] }}
@@ -302,7 +335,7 @@ export function Survey({ apiKey, session, onComplete }: Props) {
             />
           )}
 
-          {!modalOpen && currentQuestion &&
+          {!showGag && !modalOpen && currentQuestion &&
             (currentQuestion.format === 'choice' || currentQuestion.format === 'binary') && (
             <MultipleChoice
               key={currentQuestion.node_id}
@@ -312,11 +345,15 @@ export function Survey({ apiKey, session, onComplete }: Props) {
             />
           )}
 
-          {!modalOpen && currentQuestion?.format === 'intent' && (
+          {!showGag && !modalOpen && currentQuestion?.format === 'relationship_status' && (
+            <RelationshipStatusForm onPick={(v) => void submitAnswer(v)} />
+          )}
+
+          {!showGag && !modalOpen && currentQuestion?.format === 'intent' && (
             <IntentForm onDontKnow={() => void submitAnswer('')} />
           )}
 
-          {!modalOpen && currentQuestion?.format === 'relationship_pick' && (
+          {!showGag && !modalOpen && currentQuestion?.format === 'relationship_pick' && (
             <RelationshipPickForm
               cast={state.profile.cast}
               onSubmit={(encoded) => void submitAnswer(encoded)}
@@ -347,10 +384,11 @@ export function Survey({ apiKey, session, onComplete }: Props) {
         </div>
       </div>
 
-      {!modalOpen && stage === 'questions' && currentQuestion
+      {!showGag && !modalOpen && stage === 'questions' && currentQuestion
         && currentQuestion.format !== 'text'
         && currentQuestion.format !== 'date'
         && currentQuestion.format !== 'relationship_pick'
+        && currentQuestion.format !== 'relationship_status'
         && (
         <div className="survey__chat-slot">
           <ChatInput

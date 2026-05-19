@@ -29,6 +29,26 @@ delete from here.
 
 ## just-deferred (most recent first)
 
+### floating agent-readouts debug panel
+Right-side floating display of each agent's most-recent output (observer,
+detective, augur, director, actor). Use case: watch what the detective is
+producing turn-by-turn during a survey without bouncing to the Pipeline
+page. Layout: stacked panels along the right edge, each panel ~280px wide,
+scrollable, showing the last call's input + output for one agent. Wire to
+the existing `publishDebug` bus and gate behind the existing debug toggle.
+
+### walkthrough + v0.0.2 release
+End-to-end walkthrough of the full survey → reading flow. Verify:
+- save threshold behaves correctly (no localStorage litter before threshold)
+- returning-user RESUME / START FRESH paths both work
+- relationship_pick carries cast (pronouns + color + off_limits) through
+  to the reading
+- IntentConfirm sandwich closes the survey cleanly
+- Seer constructor receives `surveySynthesis` and uses it as the spine of
+  `prose_brief`
+- four-card spread plays through with no regression
+After verified, tag `v0.0.2` and bump `version` in `package.json`.
+
 ### warning-that-lands as a first-class concept
 The seer's value-prop includes warning-that-lands: a specific blindspot
 or pitfall named with weight, not a generic caution. Today this is

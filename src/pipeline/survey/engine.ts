@@ -408,6 +408,7 @@ export class SurveyEngine {
       birth_card: null,
       age_bracket: null,
       birth_time_bracket: null,
+      relationship_status: null,
       initial_intention: null,
       sections: {
         identity: [], state: [], relational: [],
@@ -465,6 +466,7 @@ export class SurveyEngine {
       case 'name':         return profile.name.trim().length > 0;
       case 'birthday':     return profile.birthday !== null;
       case 'birth_time':   return profile.birth_time_bracket !== null;
+      case 'relationship': return profile.relationship_status !== null;
       // intent opener: satisfied once the user has answered it ONCE
       // (initial_intention may legitimately be null when they pressed
       // "I DON'T KNOW"). We track that they answered via picks_log /
@@ -565,6 +567,14 @@ export class SurveyEngine {
     }
     if (node_id === 'birth_time') {
       this.setState({ profile: { ...this.state.profile, birth_time_bracket: mapBirthTime(ans) } });
+      return false;
+    }
+    if (node_id === 'relationship') {
+      // "prefer not to say" maps to null so downstream consumers can
+      // treat it the same as "we don't know" instead of as a value.
+      const v = ans.trim().toLowerCase();
+      const stored = v === 'prefer not to say' ? null : (v as SurveyProfile['relationship_status']);
+      this.setState({ profile: { ...this.state.profile, relationship_status: stored } });
       return false;
     }
     if (node_id === 'intent') {
