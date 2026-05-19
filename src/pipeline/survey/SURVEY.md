@@ -109,17 +109,17 @@ Options:
   - present
   - future
 
-### What's something you used to think you'd be, but aren't?
+### What does your life not have enough of?
 
 Format: choice
-Probe: gap between expected-self and actual-self. surfaces identity drift, timeline pressure, unmet trajectory. detective: this often co-signs with the relational anchor and core value — read it as the FORK the user is sitting at.
+Probe: felt deprivation as values indicator - somatic answers (touch, quiet) skew raw; ego answers (recognition, risk) cross-reference the relational anchor; meaning flags a values-behavior gap; time often masks avoidance. detective: touch is the one people hesitate on - weight it heavily and read it against the relational anchor first.
 Options:
-  - married / partnered
-  - a parent
-  - somewhere else
-  - healed by now
-  - more sure of myself
-  - none of these come close
+  - time
+  - quiet
+  - touch
+  - meaning
+  - risk
+  - recognition
 
 ---
 
