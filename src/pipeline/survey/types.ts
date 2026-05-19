@@ -72,6 +72,10 @@ export type CastMember = {
   likely_role?: string;
   supporting_picks: string[];
   confidence: 'low' | 'medium' | 'high';
+  /** Set when the user explicitly flags a person as off-limits via the
+   *  relationship_pick "who specifically?" follow-up. The detective is
+   *  instructed to avoid drafting probes that target this person. */
+  off_limits?: boolean;
 };
 
 export type Choice = {

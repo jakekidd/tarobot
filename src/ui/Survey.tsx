@@ -22,6 +22,7 @@ import { BirthdayForm } from './survey/BirthdayForm';
 import { NameForm } from './survey/NameForm';
 import { IntentForm } from './survey/IntentForm';
 import { IntentConfirm } from './survey/IntentConfirm';
+import { RelationshipPickForm } from './survey/RelationshipPickForm';
 import { useSurveyEngine } from './survey/useSurveyEngine';
 import { ReturningUserModal } from './survey/ReturningUserModal';
 import { downloadTranscript, persistLog } from './survey/transcript';
@@ -315,6 +316,14 @@ export function Survey({ apiKey, session, onComplete }: Props) {
             <IntentForm onDontKnow={() => void submitAnswer('')} />
           )}
 
+          {!modalOpen && currentQuestion?.format === 'relationship_pick' && (
+            <RelationshipPickForm
+              cast={state.profile.cast}
+              onSubmit={(encoded) => void submitAnswer(encoded)}
+              onSkip={() => void submitAnswer('skip')}
+            />
+          )}
+
           {isCompiling && (
             <div className="ui-frame__waiting"><Spinner label="preparing" /></div>
           )}
@@ -339,7 +348,11 @@ export function Survey({ apiKey, session, onComplete }: Props) {
         </div>
       </div>
 
-      {!modalOpen && stage === 'questions' && currentQuestion && currentQuestion.format !== 'text' && currentQuestion.format !== 'date' && (
+      {!modalOpen && stage === 'questions' && currentQuestion
+        && currentQuestion.format !== 'text'
+        && currentQuestion.format !== 'date'
+        && currentQuestion.format !== 'relationship_pick'
+        && (
         <div className="survey__chat-slot">
           <ChatInput
             placeholder={

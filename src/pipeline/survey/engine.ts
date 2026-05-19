@@ -193,6 +193,12 @@ export class SurveyEngine {
     // Populate profile if this was an opener.
     this.applyOpenerDataIfRelevant(head.node_id, answer);
 
+    // Process relationship_pick answers: parse the structured JSON
+    // payload and add/update the CastMember on the profile.
+    if (node.f === 'relationship_pick' && typeof answer === 'string') {
+      this.applyRelationshipPick(head.node_id, answer);
+    }
+
     this.setState({
       phase: derivePhase(this.state.phase, this.state.picks_log.length, false),
     });
@@ -467,6 +473,58 @@ export class SurveyEngine {
       case 'intent':       return false;
       default:             return false;
     }
+  }
+
+  /** Process a relationship_pick answer: parse the JSON payload and
+   *  upsert the CastMember on the profile with the off_limits flag. */
+  private applyRelationshipPick(node_id: string, rawAnswer: string): void {
+    // 'skip' is a sentinel emitted by the (skip this question) button.
+    // No cast update; the pick itself is already recorded in picks_log.
+    if (rawAnswer === 'skip') return;
+    let parsed: { category?: string; name?: string; off_limits?: boolean };
+    try {
+      parsed = JSON.parse(rawAnswer);
+    } catch {
+      // If the answer isn't valid JSON (shouldn't happen given UI),
+      // record it as-is — the picks_log already has the text.
+      return;
+    }
+    const name = (parsed.name ?? '').trim();
+    if (!name) return;
+    const offLimits = !!parsed.off_limits;
+    const role = parsed.category && parsed.category !== 'existing' && parsed.category !== 'write-in'
+      ? parsed.category
+      : undefined;
+
+    const existing = this.state.profile.cast.find(
+      (m) => m.label.trim().toLowerCase() === name.toLowerCase(),
+    );
+    let nextCast = this.state.profile.cast.slice();
+    if (existing) {
+      nextCast = nextCast.map((m) =>
+        m === existing
+          ? {
+              ...m,
+              likely_role: role ?? m.likely_role,
+              supporting_picks: m.supporting_picks.includes(node_id)
+                ? m.supporting_picks
+                : [...m.supporting_picks, node_id],
+              off_limits: offLimits || !!m.off_limits,
+            }
+          : m,
+      );
+    } else {
+      nextCast.push({
+        label: name,
+        likely_role: role,
+        supporting_picks: [node_id],
+        confidence: 'high',
+        off_limits: offLimits,
+      });
+    }
+    this.setState({
+      profile: { ...this.state.profile, cast: nextCast },
+    });
   }
 
   /** Apply opener data to profile. Auto-detect of returning users moved

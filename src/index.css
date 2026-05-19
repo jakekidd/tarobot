@@ -422,6 +422,120 @@ a:hover { text-decoration: underline; }
   letter-spacing: 0.04em;
 }
 
+/* ─── Relationship-pick form ──────────────────────────── */
+
+.rel-pick {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  width: min(44rem, calc(100vw - 4rem));
+  margin: 0 auto;
+}
+
+.rel-pick__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  justify-content: center;
+  padding: 0.2rem 0;
+}
+
+.rel-pick__chip {
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  letter-spacing: 0.18em;
+  text-transform: lowercase;
+  padding: 0.35rem 0.85rem;
+  background: rgba(124, 58, 237, 0.18);
+  color: var(--fg);
+  border: 1px solid var(--line-strong);
+  cursor: pointer;
+  border-radius: 0;
+  transition: filter 0.1s;
+}
+.rel-pick__chip:hover { filter: brightness(1.2); }
+.rel-pick__chip--off-limits {
+  border-color: rgba(226, 83, 110, 0.6);
+  color: rgba(226, 83, 110, 0.85);
+}
+
+.rel-pick__categories {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.4rem;
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.rel-pick__categories li { margin: 0; }
+
+.rel-pick__category {
+  font-size: 1rem;
+  padding: 0.6rem 1.1rem;
+  min-height: 2.6rem;
+  justify-content: center;
+  text-align: center;
+}
+
+.rel-pick__details {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.5rem 0;
+}
+
+.rel-pick__details-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.rel-pick__details-category {
+  font-family: var(--font-mono);
+  font-size: 0.95rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+.rel-pick__details-back {
+  background: transparent;
+  border: none;
+  color: var(--fg-muted);
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  cursor: pointer;
+  padding: 0;
+}
+.rel-pick__details-back:hover { color: var(--accent); }
+
+.rel-pick__off-limits {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  color: var(--fg-muted);
+  cursor: pointer;
+}
+.rel-pick__off-limits input { cursor: pointer; }
+
+.rel-pick__commit { align-self: flex-end; min-width: 8rem; }
+
+.rel-pick__skip {
+  align-self: center;
+  background: transparent;
+  border: none;
+  color: var(--fg-muted);
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  font-style: italic;
+  cursor: pointer;
+  padding: 0.3rem 0;
+  letter-spacing: 0.04em;
+}
+.rel-pick__skip:hover { color: var(--accent); }
+
 .text-input--narrow {
   width: 4.5em;
   padding: 0.5rem 0.4rem;
