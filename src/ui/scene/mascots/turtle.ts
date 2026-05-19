@@ -30,9 +30,9 @@ const TURTLE_SCALE = 2.0;              // 2× larger than the anchor footprint
 // as he wanders through world space). Two greens lerped by a sine of
 // position.y + uTime; speed and band density tunable here.
 const GRADIENT_DARK = new THREE.Color(0x0a3818);   // deep moss
-const GRADIENT_LIGHT = new THREE.Color(0x6dff8a);  // bright neon green
+const GRADIENT_LIGHT = new THREE.Color(0x3a9a4a);  // medium green — peak no longer triggers bloom blowout
 const GRADIENT_BAND_FREQ = 4.0;     // bands per unit of local Y — higher = tighter stripes
-const GRADIENT_SPEED = 1.5;         // rad/sec — flow speed of the wave
+const GRADIENT_SPEED = 0.375;       // rad/sec — slow flow (¼ of the original 1.5)
 // Push back in local Z. With group.scale=2 and the rig's ~100 px/unit
 // scale on top, Z_OFFSET=-1.0 puts him ~200 world units behind the
 // rig anchor — well clear of the camera's near plane (at z=99.9) even
