@@ -78,41 +78,41 @@ const SURVEY_AGENTS: AgentSpec[] = [
   {
     id: 'observer',
     name: 'Observer',
-    runtime: 'local',
-    call_pattern: 'serial — stage 1 of post-answer pipeline',
-    input_type: 'PipelineContext',
+    runtime: 'cloud',
+    call_pattern: 'parallel — fires every 3rd post-opener pick. Metabolizes a window of recent picks (size 3) at once.',
+    input_type: 'PipelineContext (+ recent_picks)',
     output_type: 'ObserverOutput',
-    inputs: 'PipelineContext { this_turn, profile, investigation, history }',
+    inputs: 'snapshot at pipeline start + recent_picks (last 3 picks)',
     outputs: 'ObserverOutput { notes_to_append, cast_updates }',
     prompt: OBSERVER_SYSTEM,
     tool_name: OBSERVER_TOOL.name,
-    notes: 'Metabolizes one answer into profile section notes + cast updates. Deliberately light on rules — flexible by design.',
+    notes: 'Cloud (Sonnet) because cross-turn observation needs quality reasoning. Fires sparsely — each fire catches up multiple turns.',
   },
   {
     id: 'detective',
     name: 'Detective',
-    runtime: 'local',
-    call_pattern: 'serial — stage 2 of post-answer pipeline (after Observer)',
+    runtime: 'cloud',
+    call_pattern: 'parallel — fires every post-answer pipeline alongside Observer + Interrogator. Sees the snapshot ctx, not other agents\' updates.',
     input_type: 'PipelineContext',
     output_type: 'DetectiveOutput',
-    inputs: 'PipelineContext (with profile updated by Observer)',
+    inputs: 'snapshot at pipeline start',
     outputs: 'DetectiveOutput { hypothesis_updates, choice_update, contradictions, hooks, posture, intention_guess? }',
     prompt: DETECTIVE_SYSTEM,
     tool_name: DETECTIVE_TOOL.name,
-    notes: 'Plays Clue. Updates investigation. Drops one optional intention_guess per turn into a write-only stack for the Shaman to consult later.',
+    notes: 'Plays Clue. Drops one optional intention_guess per turn into a write-only stack for the Shaman. Cross-agent context lag is 1 turn (parallel pipeline).',
   },
   {
     id: 'interrogator',
     name: 'Interrogator',
     runtime: 'local',
-    call_pattern: `serial — stage 3 of post-answer pipeline (after Detective). Suppressed past cap−${STARTER_SEED_COUNT} turns (so the starter-pool seeds carry the final stretch).`,
+    call_pattern: `parallel — fires every post-answer pipeline alongside Observer + Detective. Suppressed past cap−${STARTER_SEED_COUNT} turns so starter-pool seeds carry the final stretch.`,
     input_type: 'PipelineContext',
     output_type: 'InterrogatorOutput',
-    inputs: 'PipelineContext (with profile + investigation updated)',
+    inputs: 'snapshot at pipeline start',
     outputs: 'InterrogatorOutput { next_question: { node_id, preamble?, options_override? } }',
     prompt: INTERROGATOR_SYSTEM,
     tool_name: INTERROGATOR_TOOL.name,
-    notes: 'Picks next question from basket. Can rewrite choice options to inject a high-confidence guess (cold reading mechanized). At most one guess per question.',
+    notes: 'Picks next question from basket. Can rewrite choice options to inject a high-confidence guess. Local (Haiku) — mechanical task, latency matters.',
   },
   {
     id: 'shaman',
@@ -289,11 +289,16 @@ const SURVEY_DIAGRAM = `flowchart TD
   seed[/"${BOX(`seed ${STARTER_SEED_COUNT} random pool<br/>questions into queue`)}"/]
   seed --> ans["${BOX('user answers a<br/>question')}"]
 
-  ans -->|"${IO('PickEvent', '{node_id, answer, latency_ms}')}"| obs["${AGENT('Observer', 'local')}"]
-  obs -->|"${IO('ObserverOutput', '{notes_to_append, cast_updates}')}"| det["${AGENT('Detective', 'local')}"]
-  det -->|"${IO('DetectiveOutput', '{hypothesis_updates, choice_update,<br/>contradictions, hooks, posture,<br/>intention_guess?}')}"| int["${AGENT('Interrogator', 'local')}"]
-  int -- "suppressed past cap−${STARTER_SEED_COUNT}<br/>when still active:<br/>InterrogatorOutput<br/>{next_question: {node_id, preamble?,<br/>options_override?}}" --> appendQ[/"${BOX('append 1 to queue')}"/]
-  appendQ --> ans
+  ans -->|"${IO('PickEvent', '{node_id, answer, latency_ms}')}"| snapshot[/"${BOX('snapshot ctx<br/>at pipeline start')}"/]
+  snapshot -->|"${IO('PipelineContext + recent_picks', 'every 3rd turn only<br/>(metabolize window)')}"| obs["${AGENT('Observer', 'cloud')}"]
+  snapshot -->|"${IO('PipelineContext', 'every turn')}"| det["${AGENT('Detective', 'cloud')}"]
+  snapshot -->|"${IO('PipelineContext', 'every turn<br/>suppressed past cap−${STARTER_SEED_COUNT}')}"| int["${AGENT('Interrogator', 'local')}"]
+  obs -->|"${IO('ObserverOutput', '{notes_to_append, cast_updates}<br/>→ profile')}"| applyO[/"${BOX('apply to profile')}"/]
+  det -->|"${IO('DetectiveOutput', '{hypothesis_updates, choice_update,<br/>contradictions, hooks, posture,<br/>intention_guess?}<br/>→ investigation')}"| applyD[/"${BOX('apply to investigation')}"/]
+  int -->|"${IO('InterrogatorOutput', '{next_question: {node_id, preamble?,<br/>options_override?}}<br/>→ queue')}"| applyI[/"${BOX('append 1 to queue')}"/]
+  applyI --> ans
+  applyO --> ans
+  applyD --> ans
 
   ans -. "cap reached" .-> shaman["${AGENT('Shaman', 'cloud')}"]
   shaman -->|"${IO('ShamanOutput', '{intentions: 4 strings}')}"| picker[/"${BOX('4 intention<br/>suggestions')}"/]
@@ -310,10 +315,10 @@ const SURVEY_DIAGRAM = `flowchart TD
   classDef io         fill:#0a0418,stroke:#564a78,color:#cfc4f0,font-style:italic;
   classDef terminal   fill:#1a0a2e,stroke:#22d3ee,color:#cffafe,stroke-width:1.2px;
 
-  class obs,det,int local;
-  class shaman,augur1,augur2 cloud;
+  class int local;
+  class obs,det,shaman,augur1,augur2 cloud;
   class ans,o1,o2,o3,userPick userAction;
-  class seed,picker,appendQ,outcomes io;
+  class seed,picker,outcomes,snapshot,applyO,applyD,applyI io;
   class start,seerStart terminal;
 `;
 
