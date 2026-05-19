@@ -431,16 +431,16 @@ a:hover { text-decoration: underline; }
    but filled red. Sits in the .choice-list slot. */
 .intent-form-list { list-style: none; padding: 0; margin: 0; }
 
-.intent-form__dont-know-big {
+.intent-form__not-yet-big {
   font-family: var(--font-mono);
   font-size: 1.15rem;
   letter-spacing: 0.32em;
   text-transform: uppercase;
   padding: 0.7rem 1.4rem;
-  background-color: #6a1722;              /* darker shade of --color-danger */
+  background-color: #4a1f88;              /* brand violet, darker shade */
   background-image: none;
-  color: #fde2e6;
-  border: 1px solid #6a1722;
+  color: #f2ecff;
+  border: 1px solid #4a1f88;
   border-radius: 0;
   cursor: pointer;
   text-align: center;
@@ -450,10 +450,10 @@ a:hover { text-decoration: underline; }
   display: flex;
   align-items: center;
   justify-content: center;
-  text-shadow: 0 0 8px rgba(226, 83, 110, 0.6);
+  text-shadow: 0 0 8px rgba(124, 58, 237, 0.6);
 }
-.intent-form__dont-know-big:hover { filter: brightness(1.18); }
-.intent-form__dont-know-big:active { transform: translateY(1px); }
+.intent-form__not-yet-big:hover { filter: brightness(1.18); }
+.intent-form__not-yet-big:active { transform: translateY(1px); }
 
 .intent-confirm {
   display: flex;

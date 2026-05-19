@@ -1,22 +1,23 @@
-// IntentForm — only renders the "I DON'T KNOW" big-button in the
-// MultipleChoice slot. Typing the actual question happens via the
-// persistent ChatInput at the bottom of the survey screen, which is
-// wired to submitAnswer for the intent question.
+// IntentForm — renders the "NOT YET" big-button in the MultipleChoice
+// slot. Typing the actual question happens via the persistent
+// ChatInput which sits ABOVE this button in the survey UI's intent
+// state (text entry first, button second per UI convention for the
+// intent sandwich).
 
 type Props = {
-  onDontKnow: () => void;
+  onNotYet: () => void;
 };
 
-export function IntentForm({ onDontKnow }: Props) {
+export function IntentForm({ onNotYet }: Props) {
   return (
     <ul className="choice-list intent-form-list">
       <li>
         <button
           type="button"
-          className="intent-form__dont-know-big"
-          onClick={onDontKnow}
+          className="intent-form__not-yet-big"
+          onClick={onNotYet}
         >
-          I DON'T KNOW
+          NOT YET
         </button>
       </li>
     </ul>

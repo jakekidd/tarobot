@@ -361,7 +361,7 @@ export function Survey({ apiKey, session, onComplete }: Props) {
           )}
 
           {!showGag && !modalOpen && currentQuestion?.format === 'intent' && (
-            <IntentForm onDontKnow={() => void submitAnswer('')} />
+            <IntentForm onNotYet={() => void submitAnswer('')} />
           )}
 
           {!showGag && !modalOpen && currentQuestion?.format === 'relationship_pick' && (
