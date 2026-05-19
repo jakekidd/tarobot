@@ -2264,6 +2264,42 @@ input, textarea {
   margin-bottom: 0.6rem;
 }
 
+/* ─── Undo chevron ─────────────────────────────────────
+   Sits top-left of the survey screen, BELOW the topbar. Anchored
+   away from the choices block on purpose — fat-thumb-resistant. One
+   click rewinds the engine to its pre-most-recent-pick snapshot.
+   Hidden when no snapshot is available; disabled while thinking. */
+.survey__undo {
+  position: fixed;
+  top: 3.4rem;             /* clears the ~2.4rem topbar + a hair */
+  left: 0.9rem;
+  z-index: 40;             /* above CRT (10-13), below modals (200) */
+  width: 2.4rem;
+  height: 2.4rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-mono);
+  font-size: 1.8rem;
+  line-height: 1;
+  background: rgba(15, 8, 30, 0.7);
+  color: var(--fg-muted);
+  border: 1px solid rgba(179, 136, 255, 0.4);
+  border-radius: 0;
+  cursor: pointer;
+  transition: color 0.1s, border-color 0.1s, transform 0.06s;
+  padding: 0 0 0.2rem 0;   /* nudge chevron glyph optical center */
+}
+.survey__undo:hover:not(:disabled) {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+.survey__undo:active:not(:disabled) { transform: translateY(1px); }
+.survey__undo:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
 /* ─── Returning-user modal ────────────────────────────── */
 .returning-modal {
   position: fixed;

@@ -57,7 +57,7 @@ type Props = {
 };
 
 export function Survey({ apiKey, session, onComplete }: Props) {
-  const { state, currentQuestion, submitAnswer, submitIntention, skipAhead, seer, engine } = useSurveyEngine({
+  const { state, currentQuestion, submitAnswer, submitIntention, skipAhead, canUndo, undo, seer, engine } = useSurveyEngine({
     apiKey,
     sessionId: session.id,
   });
@@ -301,6 +301,25 @@ export function Survey({ apiKey, session, onComplete }: Props) {
   return (
     <div className="screen screen--survey">
       <Reader isSpeaking={speaking} />
+
+      {/* Undo chevron — top-left, anchored away from the choices block
+          so the user can't fat-thumb it. Renders only when there's a
+          snapshot to restore AND the engine isn't mid-think. */}
+      {canUndo && (
+        <button
+          type="button"
+          className="survey__undo"
+          onClick={() => {
+            setSensing(null);  // clear sensing overlay if active
+            undo();
+          }}
+          disabled={state.thinking}
+          title="undo last answer"
+          aria-label="undo last answer"
+        >
+          ‹
+        </button>
+      )}
 
       <div className={
         showGag

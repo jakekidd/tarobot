@@ -35,6 +35,11 @@ type SurveyHook = {
   /** User picked or wrote in their intention. */
   submitIntention: (text: string) => void;
   skipAhead: () => void;
+  /** True iff one-level undo is available. Drives chevron visibility. */
+  canUndo: boolean;
+  /** Restore the engine to its pre-most-recent-pick snapshot. Aborts
+   *  any in-flight AI work logically (their results get dropped). */
+  undo: () => void;
   /** Pre-built Seer once stage === 'reading_ready'. null until then. */
   seer: Seer | null;
   /** Direct engine handle for actions that don't fit the small wrapper
@@ -84,6 +89,10 @@ export function useSurveyEngine(opts: Options): SurveyHook {
   }, [engine]);
 
   const currentQuestion = state.closed ? null : engine.getCurrentQuestion();
+  // canUndo is engine-internal (not on EngineState) but it changes
+  // exactly when state changes — engine.emit() runs after every
+  // mutation that toggles previousState. Read it here, render uses it.
+  const canUndo = engine.canUndo();
 
   return {
     state,
@@ -91,6 +100,8 @@ export function useSurveyEngine(opts: Options): SurveyHook {
     submitAnswer: (a) => submitAnswerRef.current(a),
     submitIntention: (t) => submitIntentionRef.current(t),
     skipAhead: () => skipAheadRef.current(),
+    canUndo,
+    undo: () => engine.undo(),
     seer,
     engine,
   };

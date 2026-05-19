@@ -102,6 +102,18 @@ export class SurveyEngine {
   /** Per-agent in-flight counts. Published to debug bus per change. */
   private agentInFlight = { observer: 0, detective: 0 };
   private starterSeedFired = false;
+  /** Snapshot of the engine state captured RIGHT BEFORE the most recent
+   *  pick was processed. `undo()` restores this. Cleared after restore.
+   *  One-level only — covers the "oops" case, not arbitrary rewind. */
+  private previousState: EngineState | null = null;
+  /** Monotonic counter that increments on every pick AND on every undo.
+   *  Pipelines capture their epoch when spawned; on completion they
+   *  check that the engine is still at the same epoch — if not, the
+   *  pipeline's results are silently dropped (it was reasoning about a
+   *  state that no longer exists). This is how we cut in-flight AI
+   *  work loose after an undo without needing AbortController plumbing
+   *  all the way through the adapter. */
+  private pickEpoch = 0;
 
   constructor(opts: EngineOpts) {
     this.opts = opts;
@@ -134,12 +146,37 @@ export class SurveyEngine {
     return !this.state.closed && this.state.queue.length === 0 && this.pipelinesInFlight > 0;
   }
 
+  /** True iff there's a captured snapshot to undo back to. Drives the
+   *  visibility of the UI's undo chevron. */
+  canUndo(): boolean {
+    return this.previousState !== null && !this.state.closed;
+  }
+
+  /** Restore the most recent snapshot. Cuts any in-flight AI work loose
+   *  by bumping the pick epoch — pipelines that complete after this
+   *  will check epoch parity and drop their results. One-level only;
+   *  after undo, `canUndo()` returns false until the next pick. */
+  undo(): void {
+    if (!this.previousState) return;
+    this.state = this.previousState;
+    this.previousState = null;
+    this.pickEpoch += 1;
+    this.refreshThinking();
+    this.emit();
+  }
+
   async submitAnswer(answer: string | string[]): Promise<void> {
     if (this.state.closed) return;
     const head = this.state.queue[0];
     if (!head) return;
     const node = getNode(head.node_id);
     if (!node) return;
+
+    // Snapshot for undo. Capture BEFORE any mutation so undo restores
+    // the exact pre-pick state. Deep clone via JSON to avoid sharing
+    // nested refs (profile.cast, investigation.hypotheses, etc).
+    this.previousState = JSON.parse(JSON.stringify(this.state)) as EngineState;
+    this.pickEpoch += 1;
 
     const renderedAt = this.currentRenderedAt || Date.now();
     const answeredAt = Date.now();
@@ -262,6 +299,11 @@ export class SurveyEngine {
     const cleaned = text.trim();
     if (!cleaned) return;
     if (this.state.stage !== 'awaiting_intention') return;
+
+    // Snapshot for undo — covers the IntentConfirm screen too.
+    // Restoring this snapshot puts the user back in awaiting_intention.
+    this.previousState = JSON.parse(JSON.stringify(this.state)) as EngineState;
+    this.pickEpoch += 1;
 
     this.setState({
       chosen_intention: cleaned,
@@ -774,6 +816,7 @@ export class SurveyEngine {
   }
 
   private async runObserverTask(baseCtx: PipelineContext): Promise<void> {
+    const spawnEpoch = this.pickEpoch;
     this.agentInFlight.observer += 1; this.publishInflight();
     try {
       // Observer payload carries `recent_picks` = last OBSERVER_WINDOW
@@ -784,6 +827,10 @@ export class SurveyEngine {
         ...baseCtx,
         recent_picks: recentPicks,
       });
+      // Stale-result drop: an undo (or a subsequent pick) bumps pickEpoch.
+      // If the engine has moved on since this task was spawned, the
+      // observer was reasoning about a now-rolled-back state — drop.
+      if (spawnEpoch !== this.pickEpoch) return;
       this.setState({ profile: applyObserverOutput(this.state.profile, out) });
       this.emit();
     } catch (e) {
@@ -794,6 +841,7 @@ export class SurveyEngine {
   }
 
   private async runDetectiveTask(baseCtx: PipelineContext): Promise<void> {
+    const spawnEpoch = this.pickEpoch;
     this.agentInFlight.detective += 1; this.publishInflight();
     try {
       const out: DetectiveOutput = await runDetective(this.opts.adapter, {
@@ -801,6 +849,8 @@ export class SurveyEngine {
         detective_log: this.state.detective_log,
         current_understanding: this.state.current_understanding,
       });
+      // Stale-result drop: see observer comment above.
+      if (spawnEpoch !== this.pickEpoch) return;
       // Hypotheses never auto-prune — the detective's full board persists
       // across the whole survey, per design.
       const nextInvestigation = applyDetectiveOutput(this.state.investigation, out);
