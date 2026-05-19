@@ -29,6 +29,56 @@ delete from here.
 
 ## just-deferred (most recent first)
 
+### relationship_pick: poly relationships + marriages (multi-person)
+Many users will have more than one CastMember in the same relationship
+slot — two parents, multiple partners, three siblings. Today the form
+is one-shot per question. Add (+) on the who-specifically screen that
+commits the current person AND immediately re-opens for another. A
+(−) removes the most-recent addition before final submit. All members
+in the batch tag as the same role. Submit becomes an ARRAY of
+CastMember additions, not one. Cast hot-select chips already cover
+the re-pick-existing case; this fills the gap for NEW additions in
+the same answer.
+
+Implementation sketch:
+- form state grows `additions: NewPerson[]`
+- "+" appends current draft to additions, resets the form fields
+- "−" pops most-recent addition
+- final submit serializes the full list
+- `applyRelationshipPick` in engine.ts handles array input
+
+### relationship_pick: sibling older / younger / same-age sub-select
+When the user picks `sibling`, surface a tiny follow-up tag: *older /
+younger / same-age / multiple*. Stored as a free `role_detail` field
+on CastMember. Detective sees it as context; the seer can leverage
+the texture without ever needing to ask later. Doesn't apply to other
+categories — sibling is the one where age-order is load-bearing.
+
+### expanded color label palette
+Current dice draws from 10 colors. For multi-cast / poly surveys, that
+isn't enough variation. Curate ~24-30 distinct visually-separable
+hues, optionally grouped into bands so the random dice can avoid two
+adjacent hues for adjacent cast members. The two reserved bands stay
+reserved (purple/violet/indigo for the user's name; turquoise/cyan/
+teal for the seer's "I/me"). Color is a NAME LABEL only — no gender
+semantics.
+
+### algorithmic pronoun-reference coloring (no LLM)
+When the seer's reading text mentions a CastMember by name, color the
+name in their accent. Subsequent pronoun references ("she", "he",
+"them") within the same beat get color-spanned too, resolved by a
+heuristic antecedent matcher (NOT an LLM call):
+- Walk the text tokenized
+- Track most-recently-mentioned named entity per pronoun set
+- When a pronoun appears, find the nearest preceding name whose
+  pronouns match (subjective OR objective)
+- Color-span the pronoun in that name's color
+- No match → leave uncolored
+Operates on the RAW beat text before the typewriter renders. Lives
+in `src/ui/dialogue/pronounResolver.ts` (new) or alongside
+highlightNames.tsx. Imperfect on long ambiguous chains, fine for
+short beats with explicit named cast. Pure regex + state machine.
+
 ### relationship_pick: sub-options under a category
 The "someone else" sub-list works, but the user has flagged that some
 categories (especially `friend`) really want their own sub-pick:
