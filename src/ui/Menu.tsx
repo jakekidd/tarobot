@@ -33,16 +33,17 @@ export function Menu({ onBegin, onReadDemo, onOpenResume, onSettings }: Props) {
   const [visibleButtons, setVisibleButtons] = useState(0);
 
   // Stable list of buttons so the index → delay mapping is deterministic.
+  // RESUME is always rendered now; it's disabled when there are no prior
+  // profiles (rather than hidden) so the cascade timing is constant
+  // regardless of whether the user has any saved sessions.
   const buttons = useMemo(() => {
-    const out: Array<{ key: string; label: string; cls: string; onClick: () => void }> = [
-      { key: 'begin', label: 'BEGIN', cls: 'btn btn--primary btn--menu', onClick: onBegin },
+    const noResume = resumeCount === 0;
+    return [
+      { key: 'begin',    label: 'BEGIN',     cls: 'btn btn--primary btn--menu', onClick: onBegin,      disabledByState: false },
+      { key: 'resume',   label: 'RESUME',    cls: 'btn btn--primary btn--menu', onClick: onOpenResume, disabledByState: noResume },
+      { key: 'demo',     label: 'READ DEMO', cls: 'btn btn--ghost btn--menu',   onClick: onReadDemo,   disabledByState: false },
+      { key: 'settings', label: 'SETTINGS',  cls: 'btn btn--ghost btn--menu',   onClick: onSettings,   disabledByState: false },
     ];
-    if (resumeCount > 0) {
-      out.push({ key: 'resume', label: 'RESUME', cls: 'btn btn--primary btn--menu', onClick: onOpenResume });
-    }
-    out.push({ key: 'demo',     label: 'READ DEMO', cls: 'btn btn--ghost btn--menu', onClick: onReadDemo });
-    out.push({ key: 'settings', label: 'SETTINGS',  cls: 'btn btn--ghost btn--menu', onClick: onSettings });
-    return out;
   }, [resumeCount, onBegin, onOpenResume, onReadDemo, onSettings]);
 
   useEffect(() => { chime(); }, []);
@@ -76,17 +77,20 @@ export function Menu({ onBegin, onReadDemo, onOpenResume, onSettings }: Props) {
       </div>
 
       <div className="menu__choices">
-        {buttons.map((b, i) => (
-          <button
-            key={b.key}
-            className={`${b.cls} menu__btn ${i < visibleButtons ? 'is-visible' : ''}`}
-            onClick={b.onClick}
-            disabled={i >= visibleButtons}
-            tabIndex={i < visibleButtons ? 0 : -1}
-          >
-            {b.label}
-          </button>
-        ))}
+        {buttons.map((b, i) => {
+          const cascaded = i < visibleButtons;
+          if (!cascaded) return null;          // not yet revealed — render nothing (no animation)
+          return (
+            <button
+              key={b.key}
+              className={b.cls}
+              onClick={b.onClick}
+              disabled={b.disabledByState}
+            >
+              {b.label}
+            </button>
+          );
+        })}
       </div>
 
       <p className="menu__consent">

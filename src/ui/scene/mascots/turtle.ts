@@ -21,7 +21,6 @@ import type { Mascot, MascotContext } from './types';
 
 const ASSET_URL = '/mascots/turtle/scene.gltf';
 const EYE_COLOR = 0xfff7e0;            // warm white — pops inside the silhouette
-const PUPIL_COLOR = 0x000000;          // pitch black — dot pupils on top of the glow
 const EYE_MESH_NAME = 'Object_38';     // the smaller skinned mesh in the gltf
 const ANIMATION_TIME_SCALE = 0.2;      // 5× slower than native — calm paddle
 const TURTLE_SCALE = 2.0;              // 2× larger than the anchor footprint
@@ -72,13 +71,6 @@ const DEBUG_ROT_STEP = 0.1;
 const ENTRY_DELAY = 0.6;      // seconds — wait for stars to be visible
 const ENTRY_DURATION = 0.9;   // seconds — warp animation itself
 
-// Pupils — approximate eye positions in tiltGroup-local frame, found
-// from the eye mesh's bbox after the BASE_ROTATION flip. Two small
-// black spheres drawn through the head silhouette so they always read.
-const PUPIL_RADIUS = 0.014;
-const PUPIL_LEFT_POS = new THREE.Vector3(-0.045, -0.015, 0.45);
-const PUPIL_RIGHT_POS = new THREE.Vector3(0.030, -0.015, 0.45);
-
 export function createTurtleMascot(): Mascot {
   const group = new THREE.Group();
   group.visible = false;
@@ -100,23 +92,6 @@ export function createTurtleMascot(): Mascot {
     color: EYE_COLOR,
     depthTest: false,
   });
-
-  // Pupils — black dots layered on top of the eye glow. depthTest=false
-  // and even higher renderOrder than the eyes so they always paint last.
-  const pupilMat = new THREE.MeshBasicMaterial({
-    color: PUPIL_COLOR,
-    depthTest: false,
-  });
-  const pupilGeom = new THREE.SphereGeometry(PUPIL_RADIUS, 12, 8);
-  const pupilLeft = new THREE.Mesh(pupilGeom, pupilMat);
-  const pupilRight = new THREE.Mesh(pupilGeom, pupilMat);
-  pupilLeft.position.copy(PUPIL_LEFT_POS);
-  pupilRight.position.copy(PUPIL_RIGHT_POS);
-  pupilLeft.renderOrder = 20;
-  pupilRight.renderOrder = 20;
-  pupilLeft.frustumCulled = false;
-  pupilRight.frustumCulled = false;
-  tiltGroup.add(pupilLeft, pupilRight);
 
   // Body skin — MeshBasicMaterial patched via onBeforeCompile so we get
   // built-in skinning vertex chunks for free, then override the
@@ -170,9 +145,7 @@ export function createTurtleMascot(): Mascot {
   let firstSeenT = -1;
 
   const mixer: { value: THREE.AnimationMixer | null } = { value: null };
-  const disposables: Array<{ dispose: () => void }> = [
-    eyeMat, bodyMat, pupilMat, pupilGeom,
-  ];
+  const disposables: Array<{ dispose: () => void }> = [eyeMat, bodyMat];
 
   function publishRotation(): void {
     publishDebug('turtle.rotX', formatRot(liveRotation.x));

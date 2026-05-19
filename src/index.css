@@ -664,20 +664,6 @@ a:hover { text-decoration: underline; }
   text-shadow: 0 0 12px rgba(109, 255, 138, 0.35);
 }
 
-.menu__btn {
-  opacity: 0;
-  transform: translateY(8px);
-  transition:
-    opacity 280ms ease-out,
-    transform 280ms cubic-bezier(0.22, 1, 0.36, 1);
-  pointer-events: none;
-}
-.menu__btn.is-visible {
-  opacity: 1;
-  transform: translateY(0);
-  pointer-events: auto;
-}
-
 /* ─── Resume / profile list ───────────────────────────── */
 
 .screen--resume {
