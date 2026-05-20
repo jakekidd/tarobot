@@ -298,10 +298,10 @@ const SURVEY_DIAGRAM = `flowchart TD
   seed --> ans["${BOX('user answers a<br/>question')}"]
 
   ans -->|"${IO('PickEvent', '{node_id, answer,<br/>latency_ms, initial_pick,<br/>interaction_count}')}"| snapshot[/"${BOX('1 · snapshot prev state<br/>(for undo)<br/>2 · bump pickEpoch')}"/]
-  snapshot --> seeder[/"${BOX('algorithmic seeder<br/>(deterministic, no LLM):<br/>Inversions probe →<br/>tentative[] hypotheses<br/>+ age existing seeds')}"/]
-  seeder --> fanOut[("◀ pipeline fan-out ▶")]
-  fanOut ==>|"${IO('ObserverInput', 'profile template +<br/>profile.body + Q&amp;A history +<br/>side-channel telemetry +<br/>investigation board')}"| obs["${AGENT('Observer', 'cloud')}"]
-  fanOut ==>|"${IO('DetectiveInput', 'snapshot + investigation +<br/>current story + private_thoughts')}"| det["${AGENT('Detective', 'cloud')}"]
+  snapshot --> seeder[/"${BOX('algorithmic seeder<br/>(deterministic, no LLM):<br/>Inversions probe →<br/>fresh tentative hypotheses<br/>+ age existing seeds')}"/]
+  seeder --> fanOut(["◀ pipeline fan-out ▶"])
+  fanOut ==>|"${IO('ObserverInput', 'profile template + profile.body<br/>+ Q-and-A history<br/>+ side-channel telemetry<br/>+ investigation board')}"| obs["${AGENT('Observer', 'cloud')}"]
+  fanOut ==>|"${IO('DetectiveInput', 'snapshot + investigation<br/>+ current story<br/>+ private_thoughts')}"| det["${AGENT('Detective', 'cloud')}"]
   obs -->|"${IO('ObserverOutput', '{profile_body, hooks, edges,<br/>side_channel, cast_notes_updates,<br/>hypothesis_ladder_moves}')}"| applyO[/"${BOX('apply: rewrite body,<br/>merge cast notes,<br/>route ladder moves')}"/]
   det -->|"${IO('DetectiveOutput', '{new_hypotheses,<br/>hypothesis_ladder_moves,<br/>story_updates, private_thoughts}')}"| applyD[/"${BOX('apply: add hyps,<br/>merge story,<br/>route ladder moves')}"/]
   applyO --> ans
@@ -314,7 +314,7 @@ const SURVEY_DIAGRAM = `flowchart TD
   reaper -->|"${IO('intention + story + heldProbes', '')}"| augur1["${AGENT('Augur · Outline', 'cloud')}"]
   augur1 -->|"${IO('Outcome[]', '{id, label}  · 2–4 entries')}"| augur2["${AGENT('Augur · Fill ×N', 'cloud')}"]
   augur2 -->|"${IO('Outcome[]', '{id, label, document}<br/>document: markdown prose')}"| outcomes[/"${BOX('outcome documents')}"/]
-  outcomes ==>|"${IO('SeerOpts', '{profile, story,<br/>heldProbes, investigation,<br/>intention, drawn, outcomes}')}"| seerStart[("new SeerEngine<br/>→ see below")]
+  outcomes ==>|"${IO('SeerOpts', 'profile + story + heldProbes<br/>+ investigation + intention<br/>+ drawn + outcomes')}"| seerStart[("new SeerEngine<br/>→ see below")]
 
   classDef local      fill:#0b2a30,stroke:#22d3ee,color:#a5f3fc,stroke-width:1.2px;
   classDef cloud      fill:#1a0a2e,stroke:#7c3aed,color:#e8e0ff,stroke-width:1.2px;
@@ -350,9 +350,9 @@ const SEER_DIAGRAM = `flowchart TD
   chatReply --> awaitFlip
 
   awaitFlip -. "4th flip done" .-> dClose["${AGENT('directorClosing', 'cloud')}"]
-  dClose --> closingGate[("◀ closing fan-out ▶")]
-  closingGate ==>|"${IO('ClosingActorInput', '{profile, prose_brief, revealed,<br/>chat_history, closing intent}')}"| aClose["${AGENT('actorClosing', 'local')}"]
-  closingGate ==>|"${IO('MantraInput', '{profile, story, intention,<br/>revealed, chat, closing_takeaway}')}"| mantra["${AGENT('Mantra', 'cloud')}"]
+  dClose --> closingGate(["◀ closing fan-out ▶"])
+  closingGate ==>|"${IO('ClosingActorInput', 'profile + prose_brief + revealed<br/>+ chat_history + closing intent')}"| aClose["${AGENT('actorClosing', 'local')}"]
+  closingGate ==>|"${IO('MantraInput', 'profile + story + intention<br/>+ revealed + chat<br/>+ closing_takeaway')}"| mantra["${AGENT('Mantra', 'cloud')}"]
   aClose -->|"${IO('Monologue', '{text 1–2 sentences, low-volume}')}"| done([reading complete])
   mantra -->|"${IO('string', '≤120 chars, lowercase,<br/>no markdown, no emoji<br/>(printable on ticker tape)')}"| done
 
