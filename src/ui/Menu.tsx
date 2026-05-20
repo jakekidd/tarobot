@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Reader } from './reader/Reader';
 import { Dialogue } from './dialogue/Dialogue';
 import { chime } from './sound/sound';
+import { useAmbientTrack } from './sound/useAmbientTrack';
 import { listPeople } from '../storage';
 
 type Props = {
@@ -47,6 +48,13 @@ export function Menu({ onBegin, onReadDemo, onOpenResume, onSettings }: Props) {
   }, [resumeCount, onBegin, onOpenResume, onReadDemo, onSettings]);
 
   useEffect(() => { chime(); }, []);
+
+  // Ambient bed for the menu: kalimba "two rooms over" + celeste "across
+  // the parking lot through a tape machine". Two loops of coprime length
+  // (90s and 75s) so they drift in and out of phase over time. Menu-only:
+  // mount/unmount handles start/stop; soundOn toggle respected at mount.
+  useAmbientTrack('/audio/kalimba-distant.mp3', 0.32);
+  useAmbientTrack('/audio/celeste-distant.mp3', 0.22);
 
   // Schedule the cascade. Each timer just flips a flag; CSS handles the
   // actual visual expand/fade. Cancelled on unmount.
