@@ -36,6 +36,7 @@ import type {
   EngineListener,
   EngineState,
   Hypothesis,
+  HypothesisLadder,
   Investigation,
   Note,
   ObserverOutput,
@@ -207,6 +208,12 @@ export class SurveyEngine {
       answered_at: answeredAt,
       latency_ms: latencyMs,
       revisions: 0,
+      // Side-channel telemetry. Phase K wires UI capture of
+      // interaction_count + initial_pick — until then we default to
+      // 1 (one tap, no changes) with initial == final.
+      interaction_count: 1,
+      initial_pick: null,
+      final_pick: answer,
     };
 
     // Defensive: a node should never be picked twice. If we somehow got
@@ -334,7 +341,11 @@ export class SurveyEngine {
           intention: cleaned,
           drawn,
           outcomes,
-          surveySynthesis: this.state.current_understanding,
+          // Transitional: surveySynthesis was the detective's
+          // current_understanding; Phase I rewires the Seer to take
+          // a structured StoryObject. Until then pass an empty array
+          // (degraded — directorIntro's prose_brief loses the spine).
+          surveySynthesis: [],
         });
         return this.seer.ready;
       })
@@ -457,11 +468,19 @@ export class SurveyEngine {
         identity: [], state: [], relational: [],
         self_model: [], decision_context: [], patterns: [],
       },
+      // v2 fields — populated by observer in Phase G+. Body starts as
+      // the profile template scaffold with HTML-comment instructions
+      // (loaded in Phase D); for now an empty string.
+      body: '',
+      hooks: [],
+      edges: [],
+      side_channel: {},
       cast: [],
       ...(opts.returning?.profile_seed ?? {}),
     };
     const startInvestigation: Investigation = {
-      hypotheses: [],
+      hypotheses: { confirmed: [], probable: [], tentative: [], contested: [], refuted: [], held: [] },
+      story: { fork: null, present_pressure: null, past_root: null, stakes: null, hooks: [] },
       choice_draft: null,
       contradictions: [],
       hooks: [],
@@ -488,7 +507,6 @@ export class SurveyEngine {
       prior_intentions: opts.returning?.prior_intentions ?? [],
       prior_session_summary: opts.returning?.prior_session_summary,
       detective_log: [],
-      current_understanding: [],
       queue: openerQueue,
       picks_log: [],
       timing_log: [],
@@ -848,33 +866,24 @@ export class SurveyEngine {
       const out: DetectiveOutput = await runDetective(this.opts.adapter, {
         ...baseCtx,
         detective_log: this.state.detective_log,
-        current_understanding: this.state.current_understanding,
       });
       // Stale-result drop: see observer comment above.
       if (spawnEpoch !== this.pickEpoch) return;
-      // Hypotheses never auto-prune — the detective's full board persists
-      // across the whole survey, per design.
+      // applyDetectiveOutput maintains transitional behavior in Phase C:
+      // - hypothesis_updates / hypothesis_refutes route into the new
+      //   ladder rungs based on status (Phase H rewrites both detective
+      //   prompt + apply path to use the ladder natively).
+      // - current_understanding (legacy field) is silently dropped —
+      //   Phase H emits StoryObject instead and the engine starts
+      //   storing into investigation.story.
+      // - queue_edits stay dropped (bug; guarded re-introduction backlog).
       const nextInvestigation = applyDetectiveOutput(this.state.investigation, out);
       const nextLog = out.private_thoughts && out.private_thoughts.trim().length > 0
         ? [...this.state.detective_log, out.private_thoughts.trim()].slice(-DETECTIVE_LOG_CAP)
         : this.state.detective_log;
-      const nextUnderstanding = (out.current_understanding ?? [])
-        .map((c) => c.trim())
-        .filter((c) => c.length > 0)
-        .slice(0, 3);
-      // queue_edits intentionally NOT applied. The detective still emits
-      // them (schema is unchanged) but the engine drops them on the floor.
-      // Reason: when the detective runs async, by the time its edits land,
-      // the upcoming queue items may already have been advanced or the
-      // detective was reasoning about a snapshot that no longer matches —
-      // resulting in users seeing options that don't fit the question text
-      // they're answering. Cut the feature until we have a guarded
-      // re-apply path (edit only if target node hasn't been advanced past
-      // AND its shape matches what the detective saw). Tracked in TODO.md.
       this.setState({
         investigation: nextInvestigation,
         detective_log: nextLog,
-        current_understanding: nextUnderstanding,
       });
       this.emit();
     } catch (e) {
@@ -962,12 +971,15 @@ function applyObserverOutput(profile: SurveyProfile, out: ObserverOutput): Surve
  *    posture           replace if incoming non-null (last-write-wins)
  */
 function applyDetectiveOutput(inv: Investigation, out: DetectiveOutput): Investigation {
-  let hypotheses = mergeHypotheses(inv.hypotheses, out.hypothesis_updates);
+  // Transitional ladder apply: legacy detective output ships
+  // hypothesis_updates: Hypothesis[] with .status. Route each into a
+  // ladder rung by status. Phase H rewrites both the detective output
+  // schema and this apply path to emit ladder rungs natively (and to
+  // include `contested` + `held`, which legacy status can't express).
+  let hypotheses = applyLadderUpdates(inv.hypotheses, out.hypothesis_updates);
   if (out.hypothesis_refutes.length > 0) {
     const refuted = new Set(out.hypothesis_refutes);
-    hypotheses = hypotheses.map((h) =>
-      refuted.has(h.id) ? { ...h, status: 'refuted' as const } : h,
-    );
+    hypotheses = moveToRefuted(hypotheses, refuted);
   }
   const threadMap = new Map(inv.active_threads.map((t) => [t.thread_id, t]));
   for (const u of out.thread_updates) {
@@ -977,11 +989,71 @@ function applyDetectiveOutput(inv: Investigation, out: DetectiveOutput): Investi
   return {
     ...inv,
     hypotheses,
+    // story is NOT updated by the legacy detective (it emits
+    // current_understanding instead). Phase H detective will emit
+    // StoryObject deltas and this apply path will merge them in.
     choice_draft: pickStrongerChoice(inv.choice_draft, out.choice_update),
     contradictions: unionByKey(inv.contradictions, out.contradictions_found, (c) => c.description.toLowerCase()),
     hooks: unionByKey(inv.hooks, out.hooks_found, (h) => h.description.toLowerCase()),
     active_threads: Array.from(threadMap.values()),
     posture: out.posture ?? inv.posture,
+  };
+}
+
+/** Route each incoming Hypothesis into a ladder rung by its `status`,
+ *  upserting by id and removing it from any other rung it was on.
+ *  Detective `status` → rung map:
+ *    'inferred' | 'testing' → tentative
+ *    'confirmed'            → confirmed
+ *    'refuted'              → refuted
+ *  Numeric confidence ≥ 0.8 elevates 'inferred'/'testing' → probable. */
+function applyLadderUpdates(ladder: HypothesisLadder, updates: Hypothesis[]): HypothesisLadder {
+  if (updates.length === 0) return ladder;
+  let next: HypothesisLadder = { ...ladder };
+  for (const h of updates) {
+    next = removeFromLadder(next, h.id);
+    const rung = rungFor(h);
+    next = { ...next, [rung]: [...next[rung], h] };
+  }
+  return next;
+}
+
+function rungFor(h: Hypothesis): keyof HypothesisLadder {
+  if (h.status === 'confirmed') return 'confirmed';
+  if (h.status === 'refuted') return 'refuted';
+  // 'inferred' or 'testing' → tentative, unless very confident.
+  if (h.confidence >= 0.8) return 'probable';
+  return 'tentative';
+}
+
+function removeFromLadder(ladder: HypothesisLadder, id: string): HypothesisLadder {
+  return {
+    confirmed: ladder.confirmed.filter((h) => h.id !== id),
+    probable: ladder.probable.filter((h) => h.id !== id),
+    tentative: ladder.tentative.filter((h) => h.id !== id),
+    contested: ladder.contested.filter((h) => h.id !== id),
+    refuted: ladder.refuted.filter((h) => h.id !== id),
+    held: ladder.held.filter((h) => h.id !== id),
+  };
+}
+
+function moveToRefuted(ladder: HypothesisLadder, ids: Set<string>): HypothesisLadder {
+  const refutedItems: Hypothesis[] = [];
+  const collect = (rung: Hypothesis[]) => {
+    const keep: Hypothesis[] = [];
+    for (const h of rung) {
+      if (ids.has(h.id)) refutedItems.push({ ...h, status: 'refuted' as const });
+      else keep.push(h);
+    }
+    return keep;
+  };
+  return {
+    confirmed: collect(ladder.confirmed),
+    probable: collect(ladder.probable),
+    tentative: collect(ladder.tentative),
+    contested: collect(ladder.contested),
+    refuted: [...ladder.refuted, ...refutedItems],
+    held: collect(ladder.held),
   };
 }
 
@@ -1019,11 +1091,10 @@ function mergeCast(existing: CastMember[], updates: CastMember[]): CastMember[] 
   return Array.from(byLabel.values());
 }
 
-function mergeHypotheses(existing: Hypothesis[], updates: Hypothesis[]): Hypothesis[] {
-  const byId = new Map(existing.map((h) => [h.id, h]));
-  for (const u of updates) byId.set(u.id, u);
-  return Array.from(byId.values());
-}
+// mergeHypotheses removed — applyLadderUpdates (above) handles the new
+// ladder routing. Phase H rewrites the detective output schema to
+// emit ladder rungs natively; until then the transitional adapter
+// maps legacy `status`-based output into the new shape.
 
 // Engine-side hypothesis pruning removed. The detective now persists
 // its full board across the whole survey — the scratchpad

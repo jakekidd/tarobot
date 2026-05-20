@@ -7,9 +7,25 @@ import type {
   CastEntry, Choice, Highlight, Hunch, Profile, Thread,
 } from '../types';
 import type {
-  EngineState, CastMember, Hook, Hypothesis, ActiveThread, Note,
+  EngineState, CastMember, Hook, Hypothesis, HypothesisLadder, ActiveThread, Note,
   Choice as SurveyChoice,
 } from './types';
+
+/** Flatten the hypothesis ladder into a single array for legacy
+ *  Profile.hunches consumption. Order: confirmed → probable →
+ *  contested → tentative → held → refuted (most-believed first;
+ *  refuted last). Phase I rewires the seer handoff to take the
+ *  ladder directly. */
+function flattenLadder(l: HypothesisLadder): Hypothesis[] {
+  return [
+    ...l.confirmed,
+    ...l.probable,
+    ...l.contested,
+    ...l.tentative,
+    ...l.held,
+    ...l.refuted,
+  ];
+}
 
 export function assembleProfile(state: EngineState, briefSummary: string): Profile {
   return {
@@ -30,7 +46,10 @@ export function assembleProfile(state: EngineState, briefSummary: string): Profi
     candidates: mapCandidates(state.investigation.choice_draft),
     cast: state.profile.cast.map(mapCast),
     threads: state.investigation.active_threads.map(mapThread),
-    hunches: state.investigation.hypotheses.map(mapHunch),
+    // Hypothesis ladder → hunches: flatten all rungs (transitional;
+    // Phase I rewires the seer handoff to take the ladder directly
+    // along with the StoryObject).
+    hunches: flattenLadder(state.investigation.hypotheses).map(mapHunch),
     margin: buildMargin(state),
     cognition_log: buildCognitionLog(state),
     highlights: state.investigation.hooks.map((h, idx) => mapHighlight(h, idx)),

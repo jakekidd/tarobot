@@ -132,6 +132,12 @@ export type CastMember = {
    *  user via the 3 gender-color quick-picks, or randomly assigned and
    *  rerolled via the dice. */
   color?: string;
+  /** Observer-derived freeform commentary about this person's role in
+   *  the user's psychology (separate from identity / pronouns / color).
+   *  Bridges structured identity ("Sam is the brother") with freeform
+   *  meaning ("Sam-mentions carry tension"). Only written when there's
+   *  new evidence about this person. */
+  notes?: string;
 };
 
 export type Choice = {
@@ -150,8 +156,96 @@ export type Hypothesis = {
   description: string;
   supporting_picks: string[];
   contradicting_picks: string[];
-  confidence: number;            // 0-1
+  confidence: number;            // 0-1 (legacy; ladder rung is the load-bearing signal)
   status: 'inferred' | 'testing' | 'confirmed' | 'refuted';
+  /** Turn number when this hypothesis was first seeded onto the board.
+   *  Used by the end-of-survey reaper to sort held[] by durability —
+   *  older = more diagnostically interesting (survived without
+   *  refutation or integration). */
+  generated_at?: number;
+  /** Increments each turn the hypothesis stays in `tentative` or `held`
+   *  without moving up the ladder. Zero for new seeds; bumped by the
+   *  engine on each survey tick. */
+  age_in_turns?: number;
+  /** True iff this hypothesis came from the algorithmic seeder (decoder
+   *  inversions) rather than the detective. The observer treats seeded
+   *  hypotheses as suggestions to integrate / refute, not as facts. */
+  seeded?: boolean;
+};
+
+/** The detective's working board: hypotheses sorted into rungs by their
+ *  current epistemic status. Replaces the legacy single `hypotheses[]`
+ *  array + numeric confidence with a linguistic ladder.
+ *
+ *  - `confirmed`   direct statement + supporting indirect signal(s)
+ *  - `probable`    multiple convergent signals OR one strong one
+ *  - `tentative`   single indirect signal · also where algorithmic
+ *                  seeds land before observer evaluates them
+ *  - `contested`   supporting AND refuting evidence both present —
+ *                  theatrical gold; seer hunts here
+ *  - `refuted`     direct contradiction or strongly counter-evidenced
+ *  - `held`        not integrated AND not refuted; aged in turns;
+ *                  surfaced to seer at end as risky probes (older =
+ *                  more durable)
+ */
+export type HypothesisLadder = {
+  confirmed: Hypothesis[];
+  probable: Hypothesis[];
+  tentative: Hypothesis[];
+  contested: Hypothesis[];
+  refuted: Hypothesis[];
+  held: Hypothesis[];
+};
+
+/** Empty ladder constant. Used for engine init. */
+export const EMPTY_LADDER: HypothesisLadder = {
+  confirmed: [],
+  probable: [],
+  tentative: [],
+  contested: [],
+  refuted: [],
+  held: [],
+};
+
+/** A narrative slice across time, anchored to the user's live fork.
+ *  Built incrementally by the detective across the survey. Its slots
+ *  map directly to card positions in the 4-card diamond:
+ *
+ *    past_root         → past card (top)
+ *    present_pressure  → present card (left/right depending on spread)
+ *    fork.A + fork.B   → the two future cards
+ *
+ *  When no clear fork emerges from the survey, the detective falls
+ *  back to "act on this vs. continue as you are" with the avoided
+ *  thing as present_pressure. */
+export type StoryObject = {
+  fork: {
+    a: string;
+    b: string;
+    /** True iff this is the stasis-as-fork fallback (constructed when
+     *  no clear fork emerged from the survey answers). */
+    is_stasis: boolean;
+  } | null;
+  /** What in their current life makes the fork acute (the unbearable
+   *  thing, in the user's words). */
+  present_pressure: string | null;
+  /** What in their history pre-figures the fork (the unresolved, the
+   *  regret, the pattern). */
+  past_root: string | null;
+  /** What is at risk on each path. Free-form, two short paragraphs. */
+  stakes: { on_a: string; on_b: string } | null;
+  /** Verbatim concrete specifics the seer can echo back — names,
+   *  places, sensory details, phrases the user used. */
+  hooks: string[];
+};
+
+/** Empty StoryObject — initial value before the detective has built anything. */
+export const EMPTY_STORY: StoryObject = {
+  fork: null,
+  present_pressure: null,
+  past_root: null,
+  stakes: null,
+  hooks: [],
 };
 
 export type Contradiction = {
@@ -176,6 +270,22 @@ export type ProfileSections = {
   patterns: Note[];
 };
 
+/** Telemetry-derived "side channel" reads — what the user is
+ *  transmitting they don't know they're transmitting. The observer
+ *  reads these and notes patterns. Each field is a freeform string;
+ *  the observer integrates picks-log telemetry into linguistic
+ *  observations here. */
+export type SideChannel = {
+  /** Latency / hesitation / hover-then-tap patterns. */
+  signals?: string;
+  /** Cross-answer recurring themes / topics. */
+  patterns?: string;
+  /** Contradictions catalog — Q&A pairs that disagree. */
+  contradictions?: string;
+  /** Topics the user sidestepped or hesitated on. */
+  avoidances?: string;
+};
+
 export type SurveyProfile = {
   // Populated deterministically from openers
   name: string;
@@ -198,16 +308,40 @@ export type SurveyProfile = {
   initial_intention: string | null;
 
   // Populated by the Observer
+  /** Legacy structured notes by section. Retained transitionally
+   *  during the v2 refactor — the observer in Phase G will start
+   *  writing `body` (markdown) instead and this field gets dropped. */
   sections: ProfileSections;
+  /** Freeform markdown psychological document the observer rewrites
+   *  every turn (Phase G+). Starts as the materials/templates/profile.md
+   *  scaffold with HTML-comment instructions; observer integrates
+   *  evidence into prose. */
+  body: string;
+  /** Concrete verbatim specifics the seer can echo back uncannily
+   *  (a place, a person's name, a sensory detail, a phrase). */
+  hooks: string[];
+  /** Growth surface — what the user almost-knows about themselves but
+   *  hasn't articulated. Where readings that heal land. */
+  edges: string[];
+  /** Telemetry-derived reads from channels the user didn't know were
+   *  open (latency, hesitation, drift, contradictions, avoidances). */
+  side_channel: SideChannel;
   cast: CastMember[];
 };
 
 /** The "Clue tools" — everything the Detective is actively reasoning
  *  about. Lives separately from Profile (facts about the user) because
- *  this is INFERENCE, not record. The Interrogator reads from here to
- *  pick its next move. */
+ *  this is INFERENCE, not record. */
 export type Investigation = {
-  hypotheses: Hypothesis[];
+  /** Hypothesis board organized into ladder rungs (confirmed / probable /
+   *  tentative / contested / refuted / held). Replaces the legacy
+   *  single `hypotheses[]` array with numeric confidence. */
+  hypotheses: HypothesisLadder;
+  /** The narrative cross-section across time, anchored to the user's
+   *  fork. Detective builds this incrementally. Replaces the legacy
+   *  EngineState.current_understanding (≤3 free-form claims) with a
+   *  structured artifact that maps cleanly onto card positions. */
+  story: StoryObject;
   choice_draft: Choice | null;
   contradictions: Contradiction[];
   hooks: Hook[];
@@ -233,6 +367,17 @@ export type TimingEvent = {
   answered_at: number;
   latency_ms: number;
   revisions: number;           // multi-select toggle count before commit
+  /** Total number of distinct option taps before final submit. 1 = no
+   *  changes; >1 = the user changed their mind mid-question. Side-
+   *  channel signal: high counts on Pillars indicate the question landed. */
+  interaction_count: number;
+  /** First option tapped, even if the user changed before submitting.
+   *  Null when the user submitted on first tap (initial_pick === final_pick)
+   *  OR when format doesn't lend itself (text/date/intent). */
+  initial_pick: string | null;
+  /** Final committed answer — what gets stored in PickEvent.answer too.
+   *  Mirrored here so the timing log is self-contained for analysis. */
+  final_pick: string | string[];
 };
 
 // ─── Queue + threads ────────────────────────────────────
@@ -296,11 +441,11 @@ export type EngineState = {
   /** Detective's running scratchpad — last N `private_thoughts` entries
    *  fed back to the detective on its next call. Capped at DETECTIVE_LOG_CAP. */
   detective_log: string[];
-  /** Detective's compressed synthesis: ≤3 load-bearing claims about the
-   *  user. Updated on EVERY detective call (replaces prior). Read by
-   *  the next detective call AND passed to the seer's directorIntro as
-   *  the spine of the prose_brief. */
-  current_understanding: string[];
+  // current_understanding REMOVED (v2 refactor). Replaced by
+  // Investigation.story (a structured narrative artifact). The
+  // detective in Phase H emits StoryObject instead of free-form claims;
+  // engine ignores any current_understanding the legacy prompt still
+  // tries to emit until Phase H ships.
 
   queue: QueueItem[];
   picks_log: PickEvent[];
@@ -369,10 +514,7 @@ export type PipelineContext = {
   /** Detective-only: the running scratchpad from previous turns'
    *  `private_thoughts`. Most-recent last. */
   detective_log?: string[];
-  /** Detective-only: the current compressed synthesis (≤3 claims) the
-   *  detective is maintaining. Detective sees the prior value and may
-   *  keep / edit / rewrite it on each call. */
-  current_understanding?: string[];
+  // current_understanding REMOVED — see EngineState comment above.
 };
 
 /** Observer outputs profile updates. Kept open-ended on purpose: the

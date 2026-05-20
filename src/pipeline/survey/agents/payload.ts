@@ -88,9 +88,11 @@ export function buildAgentPayload(ctx: PipelineContext, stage: Stage) {
         history,
         queue_upcoming: queueWindow,
         detective_log: ctx.detective_log ?? [],
-        current_understanding: ctx.current_understanding ?? [],
+        // current_understanding dropped in v2 — see types.ts. Detective
+        // prompt still mentions it (legacy); engine ignores any emitted
+        // value. Phase H rewrites prompt + emits StoryObject instead.
         instruction:
-          'spend at least half the response in private_thoughts (think out loud). update investigation by CHANGES ONLY. revise current_understanding (≤3 claims). emit queue_edits for any of the upcoming questions (indices 0..N-1) whose options should be personalized; index 0 is the very next question. inject a guess only at hypothesis confidence ≥0.6.',
+          'spend at least half the response in private_thoughts (think out loud). update investigation by CHANGES ONLY. emit queue_edits for any of the upcoming questions (indices 0..N-1) whose options should be personalized; index 0 is the very next question. inject a guess only at hypothesis confidence ≥0.6.',
       };
     }
   }
@@ -115,8 +117,21 @@ function compactProfile(p: PipelineContext['profile']) {
 }
 
 function compactInvestigation(i: PipelineContext['investigation']) {
+  // Hypothesis ladder: any rung populated → emit the whole ladder so
+  // the detective sees the full board. Empty ladder → undefined.
+  const ladderTotal =
+    i.hypotheses.confirmed.length + i.hypotheses.probable.length +
+    i.hypotheses.tentative.length + i.hypotheses.contested.length +
+    i.hypotheses.refuted.length + i.hypotheses.held.length;
+  // story populated → include it for the detective to extend. Empty
+  // story → undefined.
+  const storyHasContent =
+    i.story.fork !== null || i.story.present_pressure !== null ||
+    i.story.past_root !== null || i.story.stakes !== null ||
+    i.story.hooks.length > 0;
   return {
-    hypotheses: i.hypotheses.length > 0 ? i.hypotheses : undefined,
+    hypotheses: ladderTotal > 0 ? i.hypotheses : undefined,
+    story: storyHasContent ? i.story : undefined,
     choice_draft: i.choice_draft ?? undefined,
     contradictions: i.contradictions.length > 0 ? i.contradictions : undefined,
     hooks: i.hooks.length > 0 ? i.hooks : undefined,
