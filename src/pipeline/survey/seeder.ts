@@ -73,7 +73,7 @@ function matchSingleAnswer(inversionsText: string, lowerAnswer: string): string[
     const match = chunk.match(/^(.+?)\s*(?:=|→|->)\s*(.+)$/);
     if (!match) continue;
     const optionPart = match[1]!.trim().toLowerCase();
-    const claim = match[2]!.trim();
+    const claim = trimTrailingPunctuation(match[2]!.trim());
     // Match: option string's LAST word is usually the actual option
     // label; some lines have a preamble like "strong values invert to
     // corresponding fears — love → ...". Test against last word AND
@@ -87,6 +87,15 @@ function matchSingleAnswer(inversionsText: string, lowerAnswer: string): string[
     }
   }
   return seeds;
+}
+
+/** Strip trailing sentence-end punctuation (`.`, `;`, `!`, `?`) so
+ *  claims read cleanly when embedded in the detective's prose. The
+ *  inversion text often ends a chunk with a period — the parser's
+ *  split-on-[.;]\s+ doesn't strip the terminal period because it
+ *  isn't followed by whitespace. */
+function trimTrailingPunctuation(s: string): string {
+  return s.replace(/[.;!?]+$/, '').trim();
 }
 
 function lastToken(s: string): string {

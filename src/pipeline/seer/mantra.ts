@@ -67,21 +67,25 @@ export async function generateMantra(
 }
 
 /** Strip markdown markers, emoji, surrounding quotes, newlines. Returns
- *  empty string when the result is unusable. */
+ *  empty string when the result is unusable. Order matters: emoji /
+ *  markdown markers are stripped FIRST so surrounding quotes are
+ *  actually at the string boundary by the time the quote-strip runs. */
 export function sanitizeMantra(raw: string): string {
   let s = raw.trim();
-  // Strip surrounding double or single quotes if the model added them.
-  s = s.replace(/^["'`](.*)["'`]$/s, '$1').trim();
-  // Strip leading "mantra:" / "the mantra is" preambles.
-  s = s.replace(/^(mantra|the mantra is|here is the mantra|reading mantra)\s*[:—-]?\s*/i, '');
   // Collapse internal newlines into spaces, then trim again.
   s = s.replace(/\s*\n\s*/g, ' ').trim();
+  // Strip leading "mantra:" / "the mantra is" preambles.
+  s = s.replace(/^(mantra|the mantra is|here is the mantra|reading mantra)\s*[:—-]?\s*/i, '');
   // Strip markdown asterisks and underscores (emphasis markers).
   s = s.replace(/[*_]+/g, '');
   // Strip emoji (broad unicode range — keeps em-dashes and standard
-  // punctuation).
+  // punctuation). Must come BEFORE the quote strip so quotes are
+  // actually at the boundary if the model wrote "...mantra..." 🌙.
   s = s.replace(/\p{Extended_Pictographic}/gu, '');
   s = s.trim();
+  // Strip surrounding double / single / backtick quotes if the model
+  // added them. Run this LAST so it sees the cleaned string.
+  s = s.replace(/^["'`](.*)["'`]$/s, '$1').trim();
   // Hard cap at 120 chars (the prompt asks for ≤100; cap defensively).
   if (s.length > 120) s = s.slice(0, 120).trim();
   return s;

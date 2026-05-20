@@ -1157,3 +1157,19 @@ function removeFromLadder(ladder: HypothesisLadder, id: string): HypothesisLadde
 // its full board across the whole survey — the scratchpad
 // (detective_log) carries continuity, and stale hypotheses are
 // information (a refuted lead is a useful constraint), not noise.
+
+// ─── test-only re-exports ────────────────────────────────
+//
+// The apply helpers are intentionally module-local (no caller outside
+// engine.ts needs them at runtime). Re-export with `__test_` prefix so
+// the unit tests can target them directly without going through
+// engine state machine setup. Production code SHOULD NOT import these.
+
+export {
+  applyObserverOutput as __test_applyObserverOutput,
+  applyDetectiveOutput as __test_applyDetectiveOutput,
+  applyLadderMoves as __test_applyLadderMoves,
+  addNewHypotheses as __test_addNewHypotheses,
+  mergeStoryUpdates as __test_mergeStoryUpdates,
+  removeFromLadder as __test_removeFromLadder,
+};
