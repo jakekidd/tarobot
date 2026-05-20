@@ -119,6 +119,32 @@ a:hover { text-decoration: underline; }
   align-items: center;
 }
 
+/* Audio-suspended indicator. Shows when the browser is blocking audio
+   until first user gesture — quietly hints "tap anywhere" rather than
+   making the user wonder if sound is broken. Pulses subtly. */
+.audio-wake-badge {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--fg-muted, #998aa6);
+  border: 1px solid var(--line, #3a3056);
+  padding: 0.28rem 0.55rem;
+  border-radius: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  cursor: default;
+  animation: audio-wake-pulse 2.4s ease-in-out infinite;
+}
+.audio-wake-badge__hint {
+  opacity: 0.78;
+}
+@keyframes audio-wake-pulse {
+  0%, 100% { opacity: 0.55; }
+  50%      { opacity: 0.95; }
+}
+
 /* Tarobot 3D scene — full-viewport canvas at the very bottom of z. */
 .tarobot-scene {
   position: fixed;

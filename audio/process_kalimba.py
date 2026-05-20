@@ -40,39 +40,24 @@ DURATION_SEC = 90
 
 
 def build_filter_chain() -> str:
-    """Return the ffmpeg -af filter string."""
-    # Notes on parameters:
-    #
-    # volume=0.4
-    #   Drop input gain by ~8dB so loudnorm later doesn't have to compress
-    #   so hard. Kalimba in the source is hot.
-    #
-    # highpass=f=100, lowpass=f=700
-    #   The doorway/wall mask. 700Hz cutoff matches what walls actually
-    #   do to sound — kalimba's percussive transients vanish, the
-    #   sustained low harmonics carry through.
-    #
-    # aecho=0.8:0.85:60|150|310|520:0.4|0.3|0.18|0.1
-    #   Four-tap echo across 60–520ms. Out-gain 0.85 keeps decays from
-    #   piling up. Successive taps decay 0.4 → 0.1 = ~10dB drop tail.
-    #   This is fake reverb but it sounds like reflections, not slap-back.
-    #
-    # loudnorm=I=-28:LRA=11:TP=-3
-    #   Two-pass loudnorm is better but we're one-shot. I=-28 LUFS is
-    #   ambient-music quiet. LRA=11 lets dynamics breathe. TP=-3 dBTP
-    #   ceiling so no peaks clip on phones.
-    #
-    # afade=in:d=1, areverse + afade=in:d=1.5 + areverse for fade-out
-    #   ffmpeg has no afade=out=duration in this position without knowing
-    #   the total file length, but afade=t=out:st=N:d=M would need N=88.5
-    #   for a 1.5s tail. Just hard-code it since DURATION_SEC is known.
+    """Return the ffmpeg -af filter string. Tuned for 'further away' than v1:
+    lower lowpass (more wall absorption), longer reverb tail, quieter overall.
+    """
     fade_out_start = DURATION_SEC - 1.5
     return ",".join([
-        "volume=0.4",
+        "volume=0.35",
         "highpass=f=100",
-        "lowpass=f=700",
-        "aecho=0.8:0.85:60|150|310|520:0.4|0.3|0.18|0.1",
-        "loudnorm=I=-28:LRA=11:TP=-3",
+        # 500Hz cutoff — even more wall-muffled than v1's 700Hz. Kalimba's
+        # transients are gone, only low harmonic body remains.
+        "lowpass=f=500",
+        # 5-tap echo with longer late tap (820ms) — sounds like the source
+        # is across a bigger room, not just two walls away.
+        "aecho=0.78:0.86:80|180|360|580|820:0.4|0.3|0.22|0.14|0.08",
+        # Smear the reverb tail's high content again so the wet signal is
+        # even less detailed than the dry.
+        "lowpass=f=400",
+        # I=-32 LUFS — 4dB quieter than v1. Sits well below dialogue.
+        "loudnorm=I=-32:LRA=11:TP=-3",
         "afade=t=in:st=0:d=1.0",
         f"afade=t=out:st={fade_out_start:.2f}:d=1.5",
     ])

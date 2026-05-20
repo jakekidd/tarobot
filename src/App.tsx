@@ -23,6 +23,7 @@ import { DebugQueue } from './debug/DebugQueue';
 import { loadDebugVisible, saveDebugVisible } from './debug/visibilityStorage';
 import { publishDebug } from './debug/debugBus';
 import './debug/debug.css';
+import { AudioWakeBadge } from './ui/sound/AudioWakeBadge';
 
 type Phase =
   | { kind: 'key' }
@@ -117,6 +118,7 @@ export function App() {
           )}
         </div>
         <div className="app__topbar-actions">
+          <AudioWakeBadge />
           {phase.kind !== 'menu' && phase.kind !== 'key' && phase.kind !== 'pipeline' && (
             <button className="btn btn--quiet" onClick={goMenu}>
               exit

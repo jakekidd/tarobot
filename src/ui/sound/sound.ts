@@ -26,6 +26,8 @@
 //      false sense of "playing"; better to silently drop until the next
 //      gesture wakes things back up.
 
+import { fireAudioWake } from './audioWake';
+
 let ctx: AudioContext | null = null;
 let master: GainNode | null = null;
 let lastBlipAt = 0;
@@ -76,6 +78,9 @@ export function attachGestureGuard(): void {
     if (ctx && ctx.state === 'suspended') {
       ctx.resume().catch(() => {});
     }
+    // Broadcast: HTML audio.play() also becomes allowed at this point.
+    // Ambient tracks subscribed via onAudioWake will start their loops.
+    fireAudioWake();
   };
 
   // Pointer + touch + key + mouse — every browser fires at least one of

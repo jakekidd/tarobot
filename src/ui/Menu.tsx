@@ -49,10 +49,9 @@ export function Menu({ onBegin, onReadDemo, onOpenResume, onSettings }: Props) {
 
   useEffect(() => { chime(); }, []);
 
-  // Ambient bed for the menu: kalimba "two rooms over", quiet enough to
-  // sit under the greeting dialogue. The celeste layer lives in the
-  // survey instead — different room, different vibe.
-  useAmbientTrack('/audio/kalimba-distant.mp3', 0.17);
+  // Ambient bed for the menu: kalimba, mixed quiet enough to sit well
+  // under the greeting dialogue without competing.
+  useAmbientTrack('/audio/kalimba-distant.mp3', 0.11);
 
   // Schedule the cascade. Each timer just flips a flag; CSS handles the
   // actual visual expand/fade. Cancelled on unmount.
