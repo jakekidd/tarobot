@@ -69,11 +69,12 @@ export type IntroDirectorInput = {
   intention: string;
   surveyHistory: PickEvent[];
   outcomes: Outcome[];
-  /** Compressed synthesis the survey's detective maintained: ≤3 claims
-   *  capturing what's load-bearing about this person. Forms the SPINE
-   *  of the prose_brief the director writes. May be empty for visits
-   *  that closed early or where the detective didn't commit synthesis. */
-  surveySynthesis?: string[];
+  /** The narrative cross-section the survey's detective built. Forms
+   *  the SPINE of the prose_brief — the director writes around the
+   *  fork / present_pressure / past_root / stakes slots, weaving
+   *  picks + cast + hooks around them. May be null when the survey
+   *  closed before the detective committed a story. */
+  story?: import('../survey').StoryObject | null;
 };
 
 // ─── Per-card director (prepares the Set the seer inhabits) ─────
@@ -270,6 +271,18 @@ export type ClosingDirectorInput = {
   outcomes: Outcome[];
   revealed: RevealedSlot[];
   chat_history: ChatMessage[];
+  /** The detective's StoryObject — same one the intro director read.
+   *  Closing director uses past_root / present_pressure / fork.a /
+   *  fork.b to shape the takeaway: the lens the user carries out is
+   *  about their RELATIONSHIP to the fork, not advice. */
+  story?: import('../survey').StoryObject | null;
+  /** Hypotheses that survived the survey without integration or
+   *  refutation, sorted by age_in_turns DESC. The closing director
+   *  MAY take a risky swing at one as the loaded probe at the end
+   *  ("there's something you haven't said about X — i'm guessing it's
+   *  because Y"). Optional theatrical move. Older probes are more
+   *  durable; the first item is the most diagnostically interesting. */
+  heldProbes?: import('../survey').Hypothesis[];
 };
 
 export type ClosingActorInput = {

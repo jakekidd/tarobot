@@ -371,8 +371,14 @@ export class SurveyEngine {
       profile,
       intention: cleaned,
       surveyHistory: this.state.picks_log,
+      story: this.state.investigation.story,
     })
       .then((outcomes) => {
+        // Reaper: held hypotheses sorted by age_in_turns DESC. The
+        // closing director gets these as risky probes — older = more
+        // durable (survived without integration or refutation).
+        const heldProbes = [...this.state.investigation.hypotheses.held]
+          .sort((a, b) => (b.age_in_turns ?? 0) - (a.age_in_turns ?? 0));
         this.seer = new Seer({
           adapter: this.opts.adapter,
           profile,
@@ -380,11 +386,9 @@ export class SurveyEngine {
           intention: cleaned,
           drawn,
           outcomes,
-          // Transitional: surveySynthesis was the detective's
-          // current_understanding; Phase I rewires the Seer to take
-          // a structured StoryObject. Until then pass an empty array
-          // (degraded — directorIntro's prose_brief loses the spine).
-          surveySynthesis: [],
+          story: this.state.investigation.story,
+          heldProbes,
+          investigation: this.state.investigation,
         });
         return this.seer.ready;
       })

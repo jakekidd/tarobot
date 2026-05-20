@@ -78,11 +78,14 @@ export async function directorIntro(
     margin: input.profile.margin,
     highlights: input.profile.highlights,
     intention: input.intention,
-    // The survey's detective compressed its synthesis into ≤3 claims.
-    // Treat these as the SPINE of the brief — the load-bearing facts.
-    // Survey history is below for cross-reference; synthesis is the
-    // through-line.
-    survey_synthesis: input.surveySynthesis ?? [],
+    // The detective's StoryObject — the narrative cross-section across
+    // time the user is standing inside. Treat as the SPINE of the brief:
+    // fork (two future paths) / present_pressure (what's acute) /
+    // past_root (what pre-figures it) / stakes (what's at risk each
+    // way) / hooks (concrete specifics). The four cards in the spread
+    // will land on these slots. Null when the survey didn't commit one
+    // — reconstruct from picks in that case.
+    story: input.story ?? null,
     survey_history: input.surveyHistory.map((p) => ({
       question: p.question_text,
       options: p.options_shown,
@@ -123,6 +126,22 @@ export async function directorClosing(
     hunches: input.profile.hunches,
     margin: input.profile.margin,
     prose_brief: input.prose_brief,
+    // The detective's StoryObject — same spine the intro read.
+    // Closing director uses fork / present_pressure / past_root to
+    // shape the takeaway: a lens about the user's RELATIONSHIP to the
+    // fork, not advice.
+    story: input.story ?? null,
+    // Hypotheses that survived the survey unintegrated and unrefuted.
+    // Sorted by age_in_turns DESC — older = more durable. The
+    // closing director MAY take a risky swing at the first one
+    // ("there's something you haven't said about X — i'm guessing
+    // it's Y"). Loaded theatrical move; deploy when the evidence
+    // supports it.
+    held_probes: (input.heldProbes ?? []).slice(0, 5).map((h) => ({
+      claim: h.description,
+      age_in_turns: h.age_in_turns ?? 0,
+      seeded: !!h.seeded,
+    })),
     outcomes: input.outcomes.map((o) => ({ id: o.id, label: o.label, document: o.document })),
     revealed: input.revealed.map((r) => ({
       position_id: r.position_id,
@@ -132,7 +151,7 @@ export async function directorClosing(
     })),
     chat_history: input.chat_history,
     instruction:
-      'emit ONE ClosingIntent — a structural takeaway, not a recap. mirror, not oracle. you may name an outcome by its label if a beat sharpened it; you may not pick one.',
+      'emit ONE ClosingIntent — a structural takeaway, not a recap. mirror, not oracle. you may name an outcome by its label if a beat sharpened it; you may not pick one. you may take ONE risky swing at a held_probe in the takeaway if the reading earned it.',
   };
 
   return adapter.invoke<ClosingIntent>(

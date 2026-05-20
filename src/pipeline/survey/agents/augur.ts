@@ -17,12 +17,17 @@ import {
 } from '../prompts/augur';
 import type { Outcome } from '../../seer/types';
 import type { Profile } from '../../types';
-import type { PickEvent } from '../types';
+import type { PickEvent, StoryObject } from '../types';
 
 export type AugurInput = {
   profile: Profile;
   intention: string;
   surveyHistory: PickEvent[];
+  /** The narrative cross-section the survey's detective built. When
+   *  present, outcomes branch off story.fork. story also carries
+   *  present_pressure + past_root + stakes which enrich the fill stage's
+   *  document specificity. Null when the detective didn't commit one. */
+  story?: StoryObject | null;
 };
 
 /** Two-stage run. Returns Outcome[] ready to seed the Seer. */
@@ -35,12 +40,19 @@ export async function runAugur(
     name: input.profile.identity?.name ?? 'the user',
     sun_sign: input.profile.identity?.sun_sign,
     intention: input.intention,
+    // When the detective built a StoryObject, outcomes naturally branch
+    // off story.fork. If story.fork is the stasis-as-fork fallback
+    // (is_stasis=true), outcomes are "act on this" vs. "continue as
+    // you are" — and the augur should still produce 2-4 outcomes by
+    // splitting each side into texture variants.
+    story_fork: input.story?.fork ?? null,
+    story_present_pressure: input.story?.present_pressure ?? null,
     survey_history_compact: input.surveyHistory.map((p) => ({
       question: p.question_text,
       answer: p.answer,
     })),
     instruction:
-      'name 2-4 outcomes this intention question opens onto. id + label only. no prose. use the user\'s name in labels.',
+      'name 2-4 outcomes this intention question opens onto. when story_fork is non-null, anchor outcomes on its two branches (a and b). id + label only. no prose. use the user\'s name in labels.',
   };
 
   const outline = await adapter.invoke<{
@@ -72,6 +84,18 @@ export async function runAugur(
       highlights: input.profile.highlights,
       margin: input.profile.margin,
       intention: input.intention,
+      // Story slots enrich the fill — present_pressure / past_root /
+      // stakes give the writer the texture they need to ground the
+      // outcome document in this specific user's situation.
+      story: input.story
+        ? {
+            fork: input.story.fork,
+            present_pressure: input.story.present_pressure,
+            past_root: input.story.past_root,
+            stakes: input.story.stakes,
+            hooks: input.story.hooks,
+          }
+        : null,
       survey_history: input.surveyHistory.map((p) => ({
         question: p.question_text,
         options: p.options_shown,

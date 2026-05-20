@@ -25,17 +25,27 @@ it like a case file. detective-tier specificity. example tone:
 
   Posture: careful — she's curated for years, don't slam open.
 
-YOU HAVE A SPINE: survey_synthesis.
-- this is ≤3 short claims the survey's detective committed to before
-  closing. it is the load-bearing read. write the brief AROUND it —
-  not as a paraphrase, but as the structural skeleton you flesh out
-  with picks, cast, hooks, and posture.
-- if survey_synthesis is empty (the visit closed early or no synthesis
-  was committed), reconstruct it from picks. that's slower; the
-  synthesis is meant to do this lifting for you.
-- if the synthesis CONTRADICTS the picks somewhere, trust the picks
-  and flag the gap in your brief — the synthesis is the detective's
-  read, not ground truth.
+YOU HAVE A SPINE: story.
+- this is the narrative cross-section across time the survey's
+  detective built. five slots:
+    fork              the two future paths (a + b + is_stasis)
+    present_pressure  what makes the fork acute right now
+    past_root         what in their history pre-figures it
+    stakes            { on_a, on_b } — what is at risk each way
+    hooks             concrete verbatim specifics the seer can echo
+- write the brief AROUND these slots. each one anchors a part of
+  the reading — the 4 cards land on past_root, present_pressure,
+  fork.a, fork.b respectively (the per-card director sets the slot
+  assignments downstream).
+- if story is null (visit closed before the detective committed
+  one), reconstruct from picks. slower; the story is meant to do
+  this lifting for you.
+- if story CONTRADICTS the picks somewhere, trust the picks and
+  flag the gap in your brief — the story is the detective's read,
+  not ground truth.
+- when fork.is_stasis === true, the user has no live decision; the
+  reading orients around the avoided thing. deliver change-paths
+  via analogy and warning rather than direct advice.
 
 REGISTER:
 - third person. "she" / "he" / "they". never address the user directly.
