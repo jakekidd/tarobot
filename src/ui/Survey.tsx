@@ -284,7 +284,11 @@ export function Survey({ apiKey, session, onComplete }: Props) {
     dialogText = 'wait. let me look at you.';
     dialogKey = 'returning-check';
   } else if (isAwaitingIntention) {
-    dialogText = "finally. what answers dost thou seek from the oracle, traveler?";
+    // Dialogue carries the prompt for IntentConfirm now — the form below
+    // is just the input + confirm button (no duplicate text).
+    dialogText = state.profile.initial_intention
+      ? "the question you arrived with. is it still the one?"
+      : "do you have a question for the cards now?";
     dialogKey = 'intention';
   } else if (isCompiling) {
     dialogText = 'the seer is preparing.';

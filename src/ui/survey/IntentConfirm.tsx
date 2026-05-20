@@ -37,11 +37,6 @@ export function IntentConfirm({ initialIntention, onSubmit }: Props) {
 
   return (
     <div className="intent-confirm">
-      <p className="intent-confirm__prompt">
-        {hasInitial
-          ? "the question you arrived with. is it still the one?"
-          : "do you have a question for the cards now?"}
-      </p>
       <form
         className="intent-confirm__form"
         onSubmit={(e) => {
