@@ -124,6 +124,23 @@ export type Profile = {
   // the ONLY thing persona reads about who this person is
   brief: string;                  // 3-6 sentences, natural prose, <500 words
 
+  // ── Observer-produced texture (forwarded by assembleProfile) ──
+  // The survey observer agent writes these end-of-survey. The seer's
+  // director consumes them as adjunct context to the structural story
+  // and hypothesis ladder — the observer fields carry HOW the subject
+  // comes across, the gap between performed and lived self, the wound
+  // behind the value. Optional so callers that build Profile manually
+  // (e.g. read demo) don't need to populate them.
+  observer_body?: string;         // 9-section markdown psychological doc
+  observer_hooks?: string[];      // verbatim phrases the seer can echo
+  observer_edges?: string[];      // growth surface — what the subject almost-knows
+  observer_side_channel?: {
+    signals?: string;
+    patterns?: string;
+    contradictions?: string;
+    avoidances?: string;
+  };
+
   ready_to_close: boolean;        // cognition raises when target is solid
   version: number;                // bumps each profile update
 };

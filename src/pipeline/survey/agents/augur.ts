@@ -42,7 +42,7 @@ export async function runAugur(
 ): Promise<Outcome[]> {
   // ── Stage 1: outline ──
   const outlinePayload = {
-    name: input.profile.identity?.name ?? 'the user',
+    name: input.profile.identity?.name ?? 'the subject',
     sun_sign: input.profile.identity?.sun_sign,
     intention: input.intention,
     // When the detective built a StoryObject, outcomes naturally branch
@@ -61,7 +61,7 @@ export async function runAugur(
       answer: p.answer,
     })),
     instruction:
-      'name 2-4 outcomes this intention question opens onto. when story_fork is non-null, anchor outcomes on its two branches (a and b). consider held_probes — an outcome that touches one is a high-leverage cold read. id + label only. no prose. use the user\'s name in labels.',
+      'name 2-4 outcomes this intention question opens onto. when story_fork is non-null, anchor outcomes on its two branches (a and b). consider held_probes — an outcome that touches one is a high-leverage cold read. id + label only. no prose. use the subject\'s name in labels.',
   };
 
   const outline = await adapter.invoke<{
@@ -86,7 +86,7 @@ export async function runAugur(
   const fillPromises = outline.outcomes.map(async (entry) => {
     const fillPayload = {
       outcome: entry,
-      name: input.profile.identity?.name ?? 'the user',
+      name: input.profile.identity?.name ?? 'the subject',
       identity: input.profile.identity,
       cast: input.profile.cast,
       hunches: input.profile.hunches,

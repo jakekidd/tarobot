@@ -35,7 +35,7 @@ export async function generateMantra(
   input: MantraInput,
 ): Promise<string> {
   const payload = {
-    name: input.profile.identity?.name ?? 'the user',
+    name: input.profile.identity?.name ?? 'the subject',
     profile_identity: input.profile.identity,
     cast: input.profile.cast,
     intention: input.intention,

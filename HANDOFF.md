@@ -37,23 +37,16 @@ The Augur runs at survey close (cognition+deep tier, cloud) to write the 2-4 out
 
 ---
 
-## ⚠ The critical gap I didn't fix
+## The critical gap (CLOSED, was the headline issue)
 
-**The Observer's output is not reaching the Seer's director.**
+Previously: Observer wrote `profile.body / hooks / edges / side_channel` to engine state but `assembleProfile()` dropped all of it — none of the Observer's psychological texture ever reached the Seer's director. **Fixed as of the same commit cycle as this doc.**
 
-The Observer writes `profile.body` (psychological prose), `profile.hooks`, `profile.edges`, `profile.side_channel` to `SurveyProfile` in engine state. At survey close, `assembleProfile()` in `src/pipeline/survey/profile-assembly.ts` builds a `Profile` for the Seer — but that function **does not carry `body`, `hooks` (the SurveyProfile.hooks), `edges`, or `side_channel` forward**. The Seer's director prompts read `profile.identity`, `profile.cast`, `profile.hunches`, `profile.margin`, `profile.highlights` — none of which include the observer's writing.
+- `Profile` type extended with `observer_body / observer_hooks / observer_edges / observer_side_channel` (optional fields).
+- `assembleProfile` forwards them from `state.profile`.
+- All three director payload builders (intro / per-card / closing) include them.
+- All three director prompts (`materials/prompts/seer/director-{intro,per-card,closing}.md`) now describe the new fields, with closing director told that `observer_edges` is the closing-mantra material.
 
-So today: the observer can produce beautiful prose about who the user is, and *none of it shows up in the reading.* The Seer reads from the **Detective's** story + ladder + cast, plus the algorithmic hooks/side_channel I just wired (because those go through state.profile but also are extracted from picks_log directly).
-
-**Why this matters:** the whole reason for the observer is to give the Seer rich psychological depth beyond what the story structure provides. The story is mechanical (fork/past_root/present_pressure). The profile.body was supposed to carry *texture* — how they come across, the gap between performed and lived self, what they almost-know. Right now that texture is being written and discarded.
-
-**To fix** (next major work):
-1. Extend `Profile` type (`src/pipeline/types.ts:94`) with `body?: string`, `hooks?: string[]`, `edges?: string[]`, `side_channel?: SideChannel`. Optional so existing code keeps working.
-2. Update `assembleProfile` (`src/pipeline/survey/profile-assembly.ts:30`) to forward those fields from `state.profile`.
-3. Update **director payload builders** in `src/pipeline/seer/agents/director.ts` (3 functions: `directorPerCard`, `directorIntro`, `directorClosing`) to include `profile.body`, `profile.hooks`, etc. in the LLM payload.
-4. Update **director prompts** in `materials/prompts/seer/director-{intro,per-card,closing}.md` to tell the director these fields exist and how to use them. Important: don't blow up the existing prompts; the director already weaves story + hunches well. The body/hooks should be *adjunct texture* — used when echoing specific lines or grounding the user's emotional register, not replacing the spine.
-
-This is the highest-leverage thing left to do. ~2-3 hours of work but spans 4-5 files. **Once landed, the Seer reads from the full case file.**
+Verify after a real survey: dump `state.profile.body` and check it shows up in the per-card / intro director payloads.
 
 ---
 

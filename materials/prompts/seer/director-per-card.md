@@ -8,6 +8,19 @@ THE READING IS A MIRROR, NOT AN ORACLE. the cards do not predict outcomes. each 
 
 INPUT YOU RECEIVE:
 - profile: identity, the choice (the fork), cast, hunches, recommended posture.
+- observer_body: a 9-section markdown psychological doc the survey's
+  observer wrote (## self, ## history, ## relationships, ## joys,
+  ## fears, ## insecurities, ## yearnings, ## now, ## tensions).
+  the ## tensions section is the richest mining ground — contradictions
+  between performed and lived self are what tarot is for.
+- observer_hooks: verbatim concrete phrases from the subject's own
+  answers. drop them in 'click' or 'knows' verbatim to land a vision.
+- observer_edges: growth-surface one-liners — what the subject
+  almost-knows but hasn't said. use sparingly in 'through_line' or
+  'reframe' to give the beat weight.
+- observer_side_channel: telemetry signals (fast/slow picks,
+  contradictions, avoidances). the side-channel is what the subject
+  doesn't know is being read.
 - prose_brief: the detective brief. ground truth.
 - outcomes: 2-4 documents (Augur-seeded) painting what each path through the intention looks and feels like. each has an id, label, and rich markdown document with specifics, frictions, joys, unknowns. these are NEUTRAL pictures — you do not advocate for one.
 - all_positions: every slot in the spread + its role.

@@ -148,21 +148,15 @@ export function TarobotScene() {
     const EYE_SEP = 0.62;
     const eyeGeom = new THREE.PlaneGeometry(EYE_W, EYE_H);
 
-    // ── Cowl (3D mesh, sits behind the eyes) ───────────────
-    // Real hooded-cowl GLTF (Sketchfab "Accessory_Hood Cowl 001" by
-    // collinsweeney, CC-BY-4.0 — credit in /public/cowl/license.txt).
-    // Textures stripped (see /tmp/strip_textures.py); we override the
-    // material to pure-black silhouette so the cowl reads as a hole in
-    // the starfield rather than a tinted shape.
-    //
-    // Sketchfab's typical orientation puts hood-opening on +z, so an
-    // ortho camera looking down -z sees into the hood — exactly what we
-    // want (eyes appear floating inside the hood opening).
+    // ── Cowl (3D mesh) — TEMPORARILY DISABLED ──────────────
+    // The hooded-cowl GLTF + its debug outline are commented out below.
+    // To re-introduce: uncomment this whole block AND the cleanup at
+    // the dispose() end of this effect AND the GLTFLoader import at the
+    // top of the file AND the seerOutline.visible toggle in the debug
+    // subscription. We're running stars-only for now; eyes float.
+    /*
     const cowlGroup = new THREE.Group();
-    // Bumped 4.0 → 5.5 (thicker silhouette, more presence).
     cowlGroup.scale.setScalar(5.5);
-    // z=-1.2 pushes the cowl BEHIND the eyes (at z=0) so the eyes
-    // float in front of the hood opening rather than being obscured.
     cowlGroup.position.set(0, -0.4, -1.2);
     eyesGroup.add(cowlGroup);
 
@@ -175,11 +169,6 @@ export function TarobotScene() {
         const model = gltf.scene;
         model.traverse((obj) => {
           if (obj instanceof THREE.Mesh) {
-            // Keep the gltf's natural baseColor texture, but darken +
-            // make 60% opaque. The bloom pass has threshold 0.30, so
-            // the gold accents at native ~0.79 luminance blow out.
-            // 0x707070 color multiplier × 0.6 opacity puts effective
-            // luminance ≈ 0.21 — below threshold, no bloom blow-up.
             const orig = obj.material as THREE.MeshStandardMaterial | undefined;
             const origMap = orig?.map ?? null;
             const mat = new THREE.MeshBasicMaterial({
@@ -194,8 +183,6 @@ export function TarobotScene() {
             obj.material = mat;
           }
         });
-        // Center the model around its own bbox so cowlGroup's position
-        // controls the cowl's center, not the model's arbitrary origin.
         const box = new THREE.Box3().setFromObject(model);
         const center = box.getCenter(new THREE.Vector3());
         model.position.sub(center);
@@ -207,8 +194,6 @@ export function TarobotScene() {
       },
     );
 
-    // ── DEBUG: red wireframe box around the cowl group ──
-    // Bounds the cowlGroup at its current scale; helps judge alignment.
     const seerOutlineGeom = new THREE.BoxGeometry(1.0, 1.0, 0.6);
     const seerOutlineEdges = new THREE.EdgesGeometry(seerOutlineGeom);
     const seerOutlineMat = new THREE.LineBasicMaterial({
@@ -223,6 +208,7 @@ export function TarobotScene() {
     seerOutline.renderOrder = 999;
     seerOutline.visible = false;
     eyesGroup.add(seerOutline);
+    */
 
     function makeEye(): {
       mesh: THREE.Mesh;
@@ -273,12 +259,61 @@ export function TarobotScene() {
       const rx = W * 0.46;
       const ry = H * 0.46;
 
-      // Eye orb — solid brand violet (the hard-step "whites of the
-      // eyes" pass looked off against the cowl behind it, per user).
-      ctx.fillStyle = 'rgba(124, 58, 237, 1.0)';
+      // ── Outer halo glow — sits BEHIND the eye orb, pushed to bloom.
+      // Two stacked radial gradients with additive composition so the
+      // eye reads as a light source rather than a flat ellipse against
+      // the dark scene. Bloom threshold 0.30 picks it up easily.
+      ctx.save();
+      ctx.globalCompositeOperation = 'lighter';
+      const haloR = Math.max(rx, ry) * 1.7;
+      const halo = ctx.createRadialGradient(cx, cy, 0, cx, cy, haloR);
+      halo.addColorStop(0.0,  'rgba(160, 120, 255, 0.55)');
+      halo.addColorStop(0.35, 'rgba(124,  58, 237, 0.32)');
+      halo.addColorStop(0.8,  'rgba(124,  58, 237, 0.00)');
+      halo.addColorStop(1.0,  'rgba(124,  58, 237, 0.00)');
+      ctx.fillStyle = halo;
+      ctx.fillRect(0, 0, W, H);
+      ctx.restore();
+
+      // ── Eye orb — solid brand violet base. Slightly brighter than
+      // before so the rippling color overlay reads cleanly on top.
+      ctx.fillStyle = 'rgba(140, 76, 250, 1.0)';
       ctx.beginPath();
       ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2);
       ctx.fill();
+
+      // ── Color ripple — concentric rings rippling out from pupil-center.
+      // Each ring lerps violet → turquoise → violet over its lifetime;
+      // additive blend over the violet base produces a slowly-shifting
+      // gradient. Three rings staggered 1/3 period apart so something is
+      // always visible. Clipped to the eye ellipse so the wash doesn't
+      // bleed beyond the orb.
+      ctx.save();
+      ctx.beginPath();
+      ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2);
+      ctx.clip();
+      ctx.globalCompositeOperation = 'lighter';
+      const RIPPLE_PERIOD = 3.2;   // seconds per full ring sweep
+      const RING_COUNT = 3;
+      const ringMaxR = Math.max(rx, ry) * 1.05;
+      for (let i = 0; i < RING_COUNT; i++) {
+        const phase = ((timeSec / RIPPLE_PERIOD) + jitter + i / RING_COUNT) % 1;
+        const ringR = phase * ringMaxR;
+        // ring color: 0 → violet, 0.5 → turquoise, 1 → violet
+        const t = phase < 0.5 ? phase * 2 : (1 - phase) * 2;
+        const r = Math.round(140 * (1 - t) +  64 * t);
+        const g = Math.round( 76 * (1 - t) + 220 * t);
+        const b = Math.round(250 * (1 - t) + 230 * t);
+        const ringAlpha = (1 - phase) * 0.65;   // fade as it expands
+        // Soft annulus via two-stop radial gradient.
+        const ring = ctx.createRadialGradient(cx, cy, Math.max(0, ringR - 18), cx, cy, ringR + 18);
+        ring.addColorStop(0,   `rgba(${r},${g},${b}, 0)`);
+        ring.addColorStop(0.5, `rgba(${r},${g},${b}, ${ringAlpha.toFixed(3)})`);
+        ring.addColorStop(1,   `rgba(${r},${g},${b}, 0)`);
+        ctx.fillStyle = ring;
+        ctx.fillRect(0, 0, W, H);
+      }
+      ctx.restore();
 
       // Pupil — by mood
       if (mood === 'thinking') {
@@ -586,7 +621,7 @@ export function TarobotScene() {
 
     // Debug visibility wiring — toggle both overlays at once.
     const unsubscribeDebug = subscribeDebugVisible((on) => {
-      seerOutline.visible = on;
+      // seerOutline.visible = on;   // COWL — re-enable with cowl block
       refCard.visible = on;
       if (!on) {
         clearDebug('card.lift');
@@ -831,22 +866,22 @@ export function TarobotScene() {
 
       // ── Eyes: blink + per-frame canvas paint with current mood ───
       if (eyesGroup.visible) {
-        // Blink less often, with random fast/slow duration.
-        //   fast blink (~60% of the time):   180 ± 80 ms
-        //   slow blink (~40% of the time):   420 ± 140 ms
-        //   interval between blinks: 3500–8500 ms
+        // Blink faster on the individual eyelid, less often overall.
+        //   fast blink (~70% of the time):    90 ± 40 ms
+        //   slow blink (~30% of the time):   220 ± 80 ms
+        //   interval between blinks: 7000–17000 ms  (2x the old window)
         if (eyesBlink.nextAt === 0) {
-          eyesBlink.nextAt = now + 3500 + Math.random() * 5000;
+          eyesBlink.nextAt = now + 7000 + Math.random() * 10000;
         }
         if (!eyesBlink.blinking && now >= eyesBlink.nextAt) {
           eyesBlink.blinking = true;
-          const slow = Math.random() < 0.40;
-          const dur = slow ? 420 + Math.random() * 140 : 180 + Math.random() * 80;
+          const slow = Math.random() < 0.30;
+          const dur = slow ? 220 + Math.random() * 80 : 90 + Math.random() * 40;
           eyesBlink.endsAt = now + dur;
           eyesBlink.durMs = dur;
         } else if (eyesBlink.blinking && now >= eyesBlink.endsAt) {
           eyesBlink.blinking = false;
-          eyesBlink.nextAt = now + 3500 + Math.random() * 5000;
+          eyesBlink.nextAt = now + 7000 + Math.random() * 10000;
         }
         let sy = 1;
         if (eyesBlink.blinking) {
@@ -1146,11 +1181,12 @@ export function TarobotScene() {
       rightEye.mat.dispose();
       leftEye.tex.dispose();
       rightEye.tex.dispose();
-      for (const m of cowlMaterials) m.dispose();
-      for (const g of cowlGeometries) g.dispose();
-      seerOutlineGeom.dispose();
-      seerOutlineEdges.dispose();
-      seerOutlineMat.dispose();
+      // COWL — re-enable cleanup with cowl block above
+      // for (const m of cowlMaterials) m.dispose();
+      // for (const g of cowlGeometries) g.dispose();
+      // seerOutlineGeom.dispose();
+      // seerOutlineEdges.dispose();
+      // seerOutlineMat.dispose();
       refCardGeom.dispose();
       refCardEdges.dispose();
       refCardMat.dispose();

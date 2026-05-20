@@ -74,7 +74,7 @@ export function buildAgentPayload(ctx: PipelineContext, stage: Stage) {
         investigation,
         tentative_seeds: tentativeSeeds,
         instruction:
-          'rewrite profile.body integrating this turn\'s evidence. update hooks/edges/side_channel. note any cast members whose role in the user\'s psychology changed this turn. walk through tentative_seeds AND any older tentative items — emit hypothesis_ladder_moves where evidence supports a rung change. when supporting AND refuting evidence both exist, move to "contested" — the seer hunts there.',
+          'rewrite profile.body integrating this turn\'s evidence. update hooks/edges/side_channel. note any cast members whose role in the subject\'s psychology changed this turn. walk through tentative_seeds AND any older tentative items — emit hypothesis_ladder_moves where evidence supports a rung change. when supporting AND refuting evidence both exist, move to "contested" — the seer hunts there.',
       };
     }
     case 'observer-final': {
@@ -104,7 +104,7 @@ export function buildAgentPayload(ctx: PipelineContext, stage: Stage) {
         investigation,
         tentative_seeds: [],
         instruction:
-          'FINAL SYNTHESIS PASS. you have seen every answer the user gave. this is your last chance to revise profile.body before the seer reads it. priorities, in order: (1) RE-EVALUATE Q1-5 with full survey context — early answers are typically curated; what the user said about themselves in Q1-5 should now be read THROUGH everything that came after. integrate. revise. (2) populate ## tensions — Q&A pairs that disagree, performed-self vs lived-self mismatches. THIS is the seer\'s richest mining ground; don\'t leave it empty. (3) the LIVING DOCUMENT discipline still applies — rewrite, don\'t append. ALSO: leave hypothesis_ladder_moves empty (detective is done), leave cast_notes_updates empty unless you have NEW evidence the per-turn passes missed. hooks/edges/side_channel are now engine-extracted; emit empty arrays for them.',
+          'FINAL SYNTHESIS PASS. you have seen every answer the subject gave. this is your last chance to revise profile.body before the seer reads it. priorities, in order: (1) RE-EVALUATE Q1-5 with full survey context — early answers are typically curated; what the subject said about themselves in Q1-5 should now be read THROUGH everything that came after. integrate. revise. (2) populate ## tensions — Q&A pairs that disagree, performed-self vs lived-self mismatches. THIS is the seer\'s richest mining ground; don\'t leave it empty. (3) the LIVING DOCUMENT discipline still applies — rewrite, don\'t append. ALSO: leave hypothesis_ladder_moves empty (detective is done), leave cast_notes_updates empty unless you have NEW evidence the per-turn passes missed. hooks/edges/side_channel are now engine-extracted; emit empty arrays for them.',
       };
     }
     case 'detective': {

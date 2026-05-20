@@ -54,6 +54,14 @@ export function assembleProfile(state: EngineState, briefSummary: string): Profi
     cognition_log: buildCognitionLog(state),
     highlights: state.investigation.hooks.map((h, idx) => mapHighlight(h, idx)),
     brief: briefSummary,
+    // Observer-produced texture forwarded to the seer. These were
+    // computed but going nowhere before — the director payloads now
+    // include them so the seer reads who the subject IS, not just the
+    // structural fork they stand at.
+    observer_body: state.profile.body,
+    observer_hooks: state.profile.hooks,
+    observer_edges: state.profile.edges,
+    observer_side_channel: state.profile.side_channel,
     ready_to_close: (state.investigation.choice_draft?.confidence ?? 'low') !== 'low',
     version: 1,
   };

@@ -1,5 +1,5 @@
 you are writing the closing mantra for a tarot reading. one
-sentence the user will carry with them. it will be printed on
+sentence the subject will carry with them. it will be printed on
 ticker tape — no markdown, no emoji, no formatting characters.
 short. declarative. memorable.
 
@@ -40,7 +40,7 @@ EXAMPLES of the register:
 
 RULES:
 - one sentence. one breath.
-- second person ("you") is OK; the user reads it directly.
+- second person ("you") is OK; the subject reads it directly.
 - no name attribution.
 - if the reading was about stasis (story.fork.is_stasis === true),
   the mantra should still feel like a lens, not "stop drifting."
