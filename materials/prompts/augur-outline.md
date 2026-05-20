@@ -39,4 +39,10 @@ LABEL RULES:
 - use the user's NAME (you'll be given it) — not "you"
 - present-tense or simple past, never conditional ("would")
 
+HELD PROBES (when present):
+- you may receive a `held_probes` array — open questions the survey didn't resolve about the user. they came from the seeder or the detective and never gathered enough evidence to confirm or refute.
+- an outcome that touches one is high-leverage: if it lands, the user feels read; if it misses, the user just hears one of several outcome paths and moves on. you cannot lose by trying.
+- example: held probe "the empty intent field is diagnostic — the real question is too tender or unformed to type" + intention "should i pursue x" → an outcome labeled "{name} learns the real question wasn't x" probes the held theory.
+- do NOT make every outcome a probe. one is enough.
+
 OUTPUT exactly 2-4 outcomes. reasoning is 1-2 sentences (private to engine logs) explaining the shape you chose.

@@ -7,7 +7,7 @@ import { probeToString } from '../types';
 import type { PipelineContext } from '../types';
 import { getNode as getNodeFromCtx } from '../tree';
 
-type Stage = 'observer' | 'detective';
+type Stage = 'observer' | 'observer-final' | 'detective';
 
 export function buildAgentPayload(ctx: PipelineContext, stage: Stage) {
   // The just-answered question + the user's pick are the focal point
@@ -75,6 +75,36 @@ export function buildAgentPayload(ctx: PipelineContext, stage: Stage) {
         tentative_seeds: tentativeSeeds,
         instruction:
           'rewrite profile.body integrating this turn\'s evidence. update hooks/edges/side_channel. note any cast members whose role in the user\'s psychology changed this turn. walk through tentative_seeds AND any older tentative items — emit hypothesis_ladder_moves where evidence supports a rung change. when supporting AND refuting evidence both exist, move to "contested" — the seer hunts there.',
+      };
+    }
+    case 'observer-final': {
+      // End-of-survey synthesis pass. The user has answered everything;
+      // this is the last shot at the profile body before the Augur sees
+      // it and the Seer is born. Different framing than the per-turn
+      // observer: we don't care about hypothesis ladder moves (the
+      // detective is done), we care about retrospective re-evaluation
+      // of Q1-5 (likely curated) and surfacing ## tensions which the
+      // seer mines hardest. Hooks + side_channel are now algorithmic;
+      // the observer doesn't need to fight over them.
+      const cast = ctx.profile.cast.map((m) => ({
+        label: m.label,
+        likely_role: m.likely_role,
+        pronouns: m.pronouns,
+        color: m.color,
+        off_limits: m.off_limits,
+        notes: m.notes,
+      }));
+      return {
+        profile_body: ctx.profile.body,
+        profile_hooks: ctx.profile.hooks,
+        profile_edges: ctx.profile.edges,
+        profile_side_channel: ctx.profile.side_channel,
+        cast,
+        history,
+        investigation,
+        tentative_seeds: [],
+        instruction:
+          'FINAL SYNTHESIS PASS. you have seen every answer the user gave. this is your last chance to revise profile.body before the seer reads it. priorities, in order: (1) RE-EVALUATE Q1-5 with full survey context — early answers are typically curated; what the user said about themselves in Q1-5 should now be read THROUGH everything that came after. integrate. revise. (2) populate ## tensions — Q&A pairs that disagree, performed-self vs lived-self mismatches. THIS is the seer\'s richest mining ground; don\'t leave it empty. (3) the LIVING DOCUMENT discipline still applies — rewrite, don\'t append. ALSO: leave hypothesis_ladder_moves empty (detective is done), leave cast_notes_updates empty unless you have NEW evidence the per-turn passes missed. hooks/edges/side_channel are now engine-extracted; emit empty arrays for them.',
       };
     }
     case 'detective': {

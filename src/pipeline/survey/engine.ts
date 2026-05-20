@@ -12,7 +12,8 @@
 // See docs/SURVEY_PIPELINE.md for design rationale.
 
 import type { LLMAdapter } from '../llm/adapter';
-import { runObserver } from './agents/observer';
+import { runFinalObserver, runObserver } from './agents/observer';
+import { extractHooks, extractSideChannel } from './algoExtract';
 import { runDetective } from './agents/detective';
 import { runAugur } from './agents/augur';
 import { Seer } from '../seer';
@@ -354,31 +355,39 @@ export class SurveyEngine {
 
     this.setState({
       chosen_intention: cleaned,
-      stage: 'compiling',         // covers Augur + Seer-construction loading
+      stage: 'compiling',         // covers final observer + Augur + Seer-construction loading
       thinking: true,
     });
     this.emit();
 
-    // Deterministic identity record from the closed survey state.
-    const profile = assembleProfile(this.state, '');
     const drawn = drawForSpread(FOUR_CARD_DIAMOND);
 
-    // Augur runs FIRST (~5-7s, opus×N for outcome fills). When it
-    // resolves, we instantiate Seer with the outcomes — Seer's own
-    // intro pipeline (~3s) then runs to fill state.intro. UI loading
-    // is a single 'compiling' phase covering both.
-    void runAugur(this.opts.adapter, {
-      profile,
-      intention: cleaned,
-      surveyHistory: this.state.picks_log,
-      story: this.state.investigation.story,
-    })
-      .then((outcomes) => {
-        // Reaper: held hypotheses sorted by age_in_turns DESC. The
-        // closing director gets these as risky probes — older = more
-        // durable (survived without integration or refutation).
+    // End-of-survey compile sequence:
+    //   1. final observer synthesis pass — one last shot at profile.body
+    //      with full Q&A context (revise Q1-5, populate ## tensions).
+    //   2. algorithmic extraction — overwrite profile.hooks +
+    //      profile.side_channel from picks_log + timing_log. Replaces
+    //      the unreliable per-turn LLM emission with deterministic data.
+    //   3. assemble Profile snapshot for Augur + Seer (must happen
+    //      AFTER 1 and 2 so the final state lands).
+    //   4. Augur (~5-7s) → outcomes. Held probes from the reaper get
+    //      passed so the augur can write probe-outcomes.
+    //   5. Seer.ready — its intro pipeline runs (~3s) in the same UI
+    //      'compiling' window.
+    void (async () => {
+      try {
+        await this.runFinalObserverPass();
+        this.applyAlgoExtraction();
+        const profile = assembleProfile(this.state, '');
         const heldProbes = [...this.state.investigation.hypotheses.held]
           .sort((a, b) => (b.age_in_turns ?? 0) - (a.age_in_turns ?? 0));
+        const outcomes = await runAugur(this.opts.adapter, {
+          profile,
+          intention: cleaned,
+          surveyHistory: this.state.picks_log,
+          story: this.state.investigation.story,
+          heldProbes,
+        });
         this.seer = new Seer({
           adapter: this.opts.adapter,
           profile,
@@ -390,9 +399,7 @@ export class SurveyEngine {
           heldProbes,
           investigation: this.state.investigation,
         });
-        return this.seer.ready;
-      })
-      .then(() => {
+        await this.seer.ready;
         this.setState({
           closed: true,
           close_reason: 'cap',
@@ -400,12 +407,53 @@ export class SurveyEngine {
           thinking: false,
         });
         this.emit();
-      })
-      .catch((err) => {
-        console.warn('[survey] augur+seer pipeline failed', err);
+      } catch (err) {
+        console.warn('[survey] compile pipeline failed', err);
         this.setState({ thinking: false });
         this.emit();
-      });
+      }
+    })();
+  }
+
+  /** Final synthesis observer pass. Fires once at survey close before
+   *  Augur runs. Different framing than per-turn observer — full Q&A
+   *  history visible, instruction to re-evaluate Q1-5 and populate
+   *  ## tensions. Returning users in lite mode skip this. */
+  private async runFinalObserverPass(): Promise<void> {
+    if (this.state.is_returning_user) return;
+    try {
+      const baseCtx: PipelineContext = {
+        index: this.state.picks_log.length,
+        question: '(final synthesis pass — no current turn)',
+        options_shown: [],
+        answer: '',
+        profile: this.state.profile,
+        investigation: this.state.investigation,
+        history: this.state.picks_log,
+        queue: this.state.queue,
+      };
+      const out = await runFinalObserver(this.opts.adapter, baseCtx);
+      const nextProfile = applyObserverOutput(this.state.profile, out);
+      this.setState({ profile: nextProfile });
+    } catch (e) {
+      console.warn('[survey] final observer pass failed', e);
+    }
+  }
+
+  /** Run algorithmic extraction over picks_log + timing_log and
+   *  overwrite profile.hooks + profile.side_channel with the results.
+   *  Deterministic; cheap; replaces the LLM's unreliable emission for
+   *  these fields. */
+  private applyAlgoExtraction(): void {
+    const hooks = extractHooks(this.state.picks_log);
+    const sideChannel = extractSideChannel(this.state.timing_log, this.state.picks_log);
+    this.setState({
+      profile: {
+        ...this.state.profile,
+        hooks,
+        side_channel: sideChannel,
+      },
+    });
   }
 
   /** Exposed to App once stage === 'reading_ready'. App routes to the
@@ -997,10 +1045,35 @@ const REQUIRED_PROFILE_SECTIONS = [
   'fears', 'insecurities', 'yearnings', 'now', 'tensions',
 ] as const;
 
-function profileBodyHasAllSections(body: string): boolean {
-  return REQUIRED_PROFILE_SECTIONS.every((s) =>
-    new RegExp(`^##\\s+${s}\\b`, 'mi').test(body),
-  );
+/** Parse a body into a map of section_name → content. Splits on `## name`
+ *  headers; content is everything until the next `## ` or EOF. */
+function splitBodyIntoSections(body: string): Map<string, string> {
+  const out = new Map<string, string>();
+  const re = /^##\s+(\S+)\s*\n([\s\S]*?)(?=^##\s+|$(?![\r\n]))/gm;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(body)) !== null) {
+    out.set(m[1]!.toLowerCase(), m[2] ?? '');
+  }
+  return out;
+}
+
+/** Merge the observer's new body with the prior body section-by-section.
+ *  For each required section: prefer new's content if non-empty, else
+ *  fall back to prior. This prevents a single bad observer turn (drops
+ *  ## tensions entirely) from wiping the whole document. Always emits
+ *  all 9 headers in canonical order. */
+function mergeBodySections(prior: string, next: string): string {
+  const priorSections = splitBodyIntoSections(prior);
+  const nextSections = splitBodyIntoSections(next);
+  const lines: string[] = ['# Profile', ''];
+  for (const section of REQUIRED_PROFILE_SECTIONS) {
+    const nextContent = (nextSections.get(section) ?? '').trim();
+    const priorContent = (priorSections.get(section) ?? '').trim();
+    const content = nextContent || priorContent;
+    lines.push(`## ${section}`, '');
+    if (content) lines.push(content, '');
+  }
+  return lines.join('\n');
 }
 
 function applyObserverOutput(profile: SurveyProfile, out: ObserverOutput): SurveyProfile {
@@ -1009,17 +1082,16 @@ function applyObserverOutput(profile: SurveyProfile, out: ObserverOutput): Surve
     const notes = castNotesByLabel.get(m.label);
     return notes !== undefined ? { ...m, notes } : m;
   });
-  const nextBody = profileBodyHasAllSections(out.profile_body)
-    ? out.profile_body
-    : profile.body;
-  if (nextBody !== out.profile_body) {
-    console.warn(
-      '[observer] profile_body rewrite dropped one or more required ## sections — keeping prior body.',
-    );
-  }
+  // Section-by-section merge — the observer can drop a section in a
+  // given turn without wiping it from the doc. Earlier turns' content
+  // for that section persists until the observer overwrites it.
+  const nextBody = mergeBodySections(profile.body, out.profile_body);
   return {
     ...profile,
     body: nextBody,
+    // Hooks / edges / side_channel are STILL replaced. End-of-survey
+    // algorithmic extraction overrides hooks + side_channel afterward,
+    // so any per-turn observer noise here gets stomped on the way out.
     hooks: out.hooks,
     edges: out.edges,
     side_channel: out.side_channel,

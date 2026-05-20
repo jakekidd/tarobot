@@ -17,7 +17,7 @@ import {
 } from '../prompts/augur';
 import type { Outcome } from '../../seer/types';
 import type { Profile } from '../../types';
-import type { PickEvent, StoryObject } from '../types';
+import type { Hypothesis, PickEvent, StoryObject } from '../types';
 
 export type AugurInput = {
   profile: Profile;
@@ -28,6 +28,11 @@ export type AugurInput = {
    *  present_pressure + past_root + stakes which enrich the fill stage's
    *  document specificity. Null when the detective didn't commit one. */
   story?: StoryObject | null;
+  /** Held hypotheses from the reaper — open questions about the user
+   *  the survey ran out of evidence to confirm or refute. An outcome
+   *  that probes one of these is high-leverage. Sorted by age DESC by
+   *  the caller (older = more durable = more interesting). */
+  heldProbes?: Hypothesis[];
 };
 
 /** Two-stage run. Returns Outcome[] ready to seed the Seer. */
@@ -47,12 +52,16 @@ export async function runAugur(
     // splitting each side into texture variants.
     story_fork: input.story?.fork ?? null,
     story_present_pressure: input.story?.present_pressure ?? null,
+    // Held probes — open questions the survey didn't resolve. An outcome
+    // can probe one of these (high-leverage cold read). Cap at 6 most-
+    // durable (age-sorted by caller).
+    held_probes: (input.heldProbes ?? []).slice(0, 6).map((h) => h.description),
     survey_history_compact: input.surveyHistory.map((p) => ({
       question: p.question_text,
       answer: p.answer,
     })),
     instruction:
-      'name 2-4 outcomes this intention question opens onto. when story_fork is non-null, anchor outcomes on its two branches (a and b). id + label only. no prose. use the user\'s name in labels.',
+      'name 2-4 outcomes this intention question opens onto. when story_fork is non-null, anchor outcomes on its two branches (a and b). consider held_probes — an outcome that touches one is a high-leverage cold read. id + label only. no prose. use the user\'s name in labels.',
   };
 
   const outline = await adapter.invoke<{
@@ -96,6 +105,7 @@ export async function runAugur(
             hooks: input.story.hooks,
           }
         : null,
+      held_probes: (input.heldProbes ?? []).map((h) => h.description),
       survey_history: input.surveyHistory.map((p) => ({
         question: p.question_text,
         options: p.options_shown,

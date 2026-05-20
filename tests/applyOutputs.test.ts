@@ -122,25 +122,29 @@ describe('applyObserverOutput', () => {
     expect(next.body).not.toBe(profile.body);  // not the original scaffold
   });
 
-  it('FALLS BACK to prior body when emitted body is missing required ## sections', () => {
-    // Distinct prior body so the assertion proves we kept it, not the broken one.
+  it('MERGES sections — preserves prior content for sections the new body dropped', () => {
+    // Prior body has content in ## self AND ## tensions.
     const priorBody = [
       '# Profile',
-      'PRIOR-MARKER',
-      '## self', '## history', '## relationships', '## joys',
-      '## fears', '## insecurities', '## yearnings', '## now', '## tensions',
+      '## self',
+      'PRIOR-SELF-NOTE',
+      '## history', '## relationships', '## joys',
+      '## fears', '## insecurities', '## yearnings', '## now',
+      '## tensions',
+      'PRIOR-TENSIONS-NOTE',
     ].join('\n\n');
     const profile = { ...emptyProfile(), body: priorBody };
-    // Emit body that drops ## tensions and ## now — broken scaffold.
-    const broken = [
+    // New body has fresh content for ## self but DROPS ## tensions entirely.
+    const partial = [
       '# Profile',
-      'BROKEN-MARKER',
-      '## self', '## history', '## relationships', '## joys',
-      '## fears', '## insecurities', '## yearnings',
-      // ## now and ## tensions missing
+      '## self',
+      'NEW-SELF-NOTE',
+      '## history', '## relationships', '## joys',
+      '## fears', '## insecurities', '## yearnings', '## now',
+      // ## tensions missing entirely
     ].join('\n\n');
     const out: ObserverOutput = {
-      profile_body: broken,
+      profile_body: partial,
       hooks: [],
       edges: [],
       side_channel: {},
@@ -149,9 +153,15 @@ describe('applyObserverOutput', () => {
       reasoning: '',
     };
     const next = __test_applyObserverOutput(profile, out);
-    expect(next.body).toBe(priorBody);          // kept the prior shape-correct body
-    expect(next.body).toContain('PRIOR-MARKER');
-    expect(next.body).not.toContain('BROKEN-MARKER');
+    // ## self: new content wins (model wrote something this turn).
+    expect(next.body).toContain('NEW-SELF-NOTE');
+    expect(next.body).not.toContain('PRIOR-SELF-NOTE');
+    // ## tensions: prior content survives (new body dropped the section).
+    expect(next.body).toContain('PRIOR-TENSIONS-NOTE');
+    // All 9 required headers still present in canonical order.
+    for (const s of ['self', 'history', 'relationships', 'joys', 'fears', 'insecurities', 'yearnings', 'now', 'tensions']) {
+      expect(next.body).toMatch(new RegExp(`^##\\s+${s}\\b`, 'm'));
+    }
   });
 
   it('REPLACES hooks / edges / side_channel arrays (no merge)', () => {
