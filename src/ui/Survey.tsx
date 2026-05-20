@@ -46,6 +46,7 @@ import type { Seer } from '../pipeline/seer';
 import type { SurveyProfile } from '../pipeline/survey';
 import { publishDebug, clearDebug } from '../debug/debugBus';
 import { ChatInput } from './ChatInput';
+import { UndoIcon } from './icons/UndoIcon';
 
 const READY_BUTTON_MIN_TURNS = 6;
 
@@ -317,7 +318,7 @@ export function Survey({ apiKey, session, onComplete }: Props) {
           title="undo last answer"
           aria-label="undo last answer"
         >
-          ‹
+          <UndoIcon size="1.4rem" />
         </button>
       )}
 
