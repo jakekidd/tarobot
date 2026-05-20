@@ -23,6 +23,8 @@ import { DebugQueue } from './debug/DebugQueue';
 import { loadDebugVisible, saveDebugVisible } from './debug/visibilityStorage';
 import { publishDebug } from './debug/debugBus';
 import './debug/debug.css';
+import { WarpDemo } from './ui/transition/WarpDemo';
+import './ui/transition/warp-demo.css';
 
 type Phase =
   | { kind: 'key' }
@@ -34,6 +36,14 @@ type Phase =
   | { kind: 'pipeline' };
 
 export function App() {
+  // Sandbox hook — ?scene=warp-demo short-circuits the rest of the app
+  // and mounts the standalone warp transition demo. Hidden by design;
+  // not a navigable phase. Strips the param on exit.
+  const [showWarpDemo, setShowWarpDemo] = useState<boolean>(
+    () => typeof window !== 'undefined'
+      && new URLSearchParams(window.location.search).get('scene') === 'warp-demo',
+  );
+
   const [apiKey, setApiKey] = useState<string | null>(() => loadApiKey());
   const [phase, setPhase] = useState<Phase>(() =>
     loadApiKey() ? { kind: 'menu' } : { kind: 'key' },
@@ -81,6 +91,21 @@ export function App() {
     // and on each subsequent save), so identity persists across visits.
     clearActiveSession();
     setPhase({ kind: 'reading', session, seer });
+  }
+
+  // Sandbox short-circuit. After every hook above has run, decide whether
+  // to render the standalone warp demo instead of the normal app shell.
+  if (showWarpDemo) {
+    return (
+      <WarpDemo
+        onExit={() => {
+          const url = new URL(window.location.href);
+          url.searchParams.delete('scene');
+          window.history.replaceState({}, '', url.toString());
+          setShowWarpDemo(false);
+        }}
+      />
+    );
   }
 
   return (

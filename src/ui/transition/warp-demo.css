@@ -1,0 +1,67 @@
+/* Warp demo — fullscreen black stage. CRT overlay + topbar are bypassed
+   by App.tsx for this route so the visual is uncontaminated. */
+
+.warp-demo {
+  position: fixed;
+  inset: 0;
+  background: #000;
+  color: #d8d4ff;
+  font-family: var(--font-mono);
+  z-index: 100;
+  overflow: hidden;
+}
+
+.warp-demo__exit {
+  position: absolute;
+  top: 1rem;
+  left: 1rem;
+  z-index: 110;
+  background: transparent;
+  color: rgba(216, 212, 255, 0.6);
+  border: 1px solid rgba(216, 212, 255, 0.18);
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  padding: 0.4rem 0.7rem;
+  cursor: pointer;
+}
+.warp-demo__exit:hover {
+  color: #d8d4ff;
+  border-color: rgba(216, 212, 255, 0.5);
+}
+
+.warp-demo__hud {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  z-index: 110;
+  text-align: right;
+  font-size: 0.7rem;
+  letter-spacing: 0.18em;
+  color: rgba(216, 212, 255, 0.45);
+}
+.warp-demo__phase {
+  text-transform: uppercase;
+  color: rgba(216, 212, 255, 0.75);
+}
+.warp-demo__hint {
+  margin-top: 0.3rem;
+  font-size: 0.6rem;
+  letter-spacing: 0.15em;
+  opacity: 0.55;
+}
+
+.warp-demo__stage {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.warp-demo__placeholder {
+  font-size: 0.8rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  opacity: 0.35;
+}
