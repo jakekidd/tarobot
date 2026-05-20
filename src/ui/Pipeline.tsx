@@ -34,6 +34,7 @@ import {
   AUGUR_OUTLINE_TOOL,
   AUGUR_FILL_SYSTEM,
 } from '../pipeline/survey/prompts/augur';
+import { MANTRA_SYSTEM } from '../pipeline/seer/mantra';
 
 import {
   PER_CARD_DIRECTOR_SYSTEM,
@@ -84,30 +85,42 @@ type AgentSpec = {
 
 const SURVEY_AGENTS: AgentSpec[] = [
   {
+    id: 'seeder',
+    name: 'Algorithmic Seeder',
+    runtime: 'local',
+    call_pattern: 'synchronous, deterministic — fires before every post-opener pipeline. No LLM call. Reads the answered node\'s Inversions probe and drops hypothesis seeds into investigation.hypotheses.tentative[].',
+    input_type: 'TreeNode + answer + turn_n',
+    output_type: 'Hypothesis[]',
+    inputs: 'answered node (Surface/Inversions/Watch-for probe blocks) + user answer + current turn',
+    outputs: 'Hypothesis[] pushed into investigation.hypotheses.tentative[]; ages existing tentative/held items by 1 turn',
+    prompt: '(no prompt — pure TypeScript function in src/pipeline/survey/seeder.ts)',
+    notes: 'Zero LLM cost. Deterministic. Gives the Observer a board to work with on every turn instead of starting from scratch.',
+  },
+  {
     id: 'observer',
     name: 'Observer',
     runtime: 'cloud',
-    call_pattern: 'parallel — fires every 3rd post-opener pick. Metabolizes a window of recent picks (size 3) at once.',
-    input_type: 'PipelineContext (+ recent_picks)',
+    call_pattern: 'parallel — fires every post-opener pick (returning users skip in lite mode). Rewrites the whole profile.body each turn.',
+    input_type: 'ObserverInput',
     output_type: 'ObserverOutput',
-    inputs: 'snapshot at pipeline start + recent_picks (last 3 picks)',
-    outputs: 'ObserverOutput { notes_to_append, cast_updates }',
+    inputs: 'profile template + current profile.body + full Q&A history + latest Q&A + side-channel telemetry + investigation board + fresh tentative seeds',
+    outputs: 'ObserverOutput { profile_body (full rewrite), hooks, edges, side_channel, cast_notes_updates, hypothesis_ladder_moves }',
     prompt: OBSERVER_SYSTEM,
     tool_name: OBSERVER_TOOL.name,
-    notes: 'Cloud (Sonnet) because cross-turn observation needs quality reasoning. Fires sparsely — each fire catches up multiple turns.',
+    notes: 'Profiler with explicit speculation authority. Profile is a living document, not a notes-bin. Routes hypotheses between ladder rungs (confirmed/probable/tentative/contested/refuted/held). Re-evaluates curated early answers as later evidence accumulates.',
   },
   {
     id: 'detective',
     name: 'Detective',
     runtime: 'cloud',
-    call_pattern: `parallel — fires every post-answer pipeline. Combines the old detective + interrogator: updates investigation AND picks next_question. Suppressed at cap−${STARTER_SEED_COUNT} (next_question only; investigation update keeps firing).`,
-    input_type: 'PipelineContext (+ detective_log)',
+    call_pattern: 'parallel — fires every post-opener pick (returning users skip in lite mode). Runs alongside Observer; both operate on the same pre-pipeline snapshot.',
+    input_type: 'DetectiveInput',
     output_type: 'DetectiveOutput',
-    inputs: 'snapshot at pipeline start + detective_log (last 8 private_thoughts entries)',
-    outputs: 'DetectiveOutput { hypothesis_updates, choice_update, contradictions, hooks, posture, private_thoughts, next_question }',
+    inputs: 'snapshot at pipeline start + investigation board (full ladder) + current story',
+    outputs: 'DetectiveOutput { new_hypotheses, hypothesis_ladder_moves, story_updates, private_thoughts }',
     prompt: DETECTIVE_SYSTEM,
     tool_name: DETECTIVE_TOOL.name,
-    notes: 'Opus. Spends ≥half its response writing out a private scratchpad (private_thoughts) that the engine keeps and feeds back on the next call. Hypotheses persist; nothing is pruned.',
+    notes: 'Builds the StoryObject incrementally: fork (or stasis-as-fork fallback), present_pressure, past_root, stakes, hooks. private_thoughts is a scratchpad fed back on the next call. No queue_edits (cut earlier; tracked in TODO).',
   },
   {
     id: 'augur-outline',
@@ -116,11 +129,11 @@ const SURVEY_AGENTS: AgentSpec[] = [
     call_pattern: 'blocking — once after intention is picked',
     input_type: 'AugurOutlineInput',
     output_type: 'Outcome[] (id + label only)',
-    inputs: 'profile + intention + survey history (compact)',
+    inputs: 'profile + story + intention + survey history (compact)',
     outputs: 'Array<{ id, label }> (2–4 outcomes named)',
     prompt: AUGUR_OUTLINE_SYSTEM,
     tool_name: AUGUR_OUTLINE_TOOL.name,
-    notes: 'Decides outcome SHAPE (binary / ternary / open). Names each outcome. No prose.',
+    notes: 'Decides outcome SHAPE (binary / ternary / open). Outcomes branch off story.fork. Names each outcome. No prose.',
   },
   {
     id: 'augur-fill',
@@ -129,7 +142,7 @@ const SURVEY_AGENTS: AgentSpec[] = [
     call_pattern: 'parallel fan-out — N invocations (one per outline entry)',
     input_type: 'AugurFillInput',
     output_type: 'string (markdown document)',
-    inputs: 'profile + intention + survey history + ONE outcome (id + label)',
+    inputs: 'profile + story + intention + survey history + ONE outcome (id + label)',
     outputs: 'string (freely-written markdown; ~2000 tokens)',
     prompt: AUGUR_FILL_SYSTEM,
     tool_name: '(freeform, no tool)',
@@ -145,11 +158,11 @@ const SEER_AGENTS: AgentSpec[] = [
     call_pattern: 'serial — fires once in SeerEngine constructor (stage 1 of intro)',
     input_type: 'IntroDirectorInput',
     output_type: 'string (prose_brief)',
-    inputs: 'profile + intention + surveyHistory + outcomes',
+    inputs: 'profile + story + heldProbes + investigation + intention + surveyHistory + outcomes',
     outputs: 'string (prose_brief — the detective brief the seer reads silently)',
     prompt: INTRO_DIRECTOR_SYSTEM,
     tool_name: INTRO_DIRECTOR_TOOL.name,
-    notes: 'Writes the prose brief that all subsequent per-card / closing director calls reuse. Orients across outcomes; never advocates.',
+    notes: 'Writes the prose brief that all subsequent per-card / closing director calls reuse. StoryObject is the spine: past_root → present_pressure → fork. Orients across outcomes; never advocates.',
   },
   {
     id: 'actor-intro',
@@ -171,11 +184,11 @@ const SEER_AGENTS: AgentSpec[] = [
     call_pattern: 'speculative fan-out — fires per face-down slot per round (4 → 3 → 2 → 1)',
     input_type: 'PerCardDirectorInput',
     output_type: 'Set',
-    inputs: 'profile + prose_brief + outcomes + slot card + revealed_history + chat_history',
+    inputs: 'profile + prose_brief + outcomes + slot card + slot meaning (story-mapped) + revealed_history + chat_history',
     outputs: 'Set { click, attending, intent, knows, uncertainty, through_line, reframe? }',
     prompt: PER_CARD_DIRECTOR_SYSTEM,
     tool_name: PER_CARD_DIRECTOR_TOOL.name,
-    notes: 'Picks one outcome this card sharpens; embeds a specific from it into the Set. Actor never reads outcomes — visions land via the Set.',
+    notes: 'Story slots map to card positions: top = past_root, bottom = present_pressure, left = fork.a, right = fork.b. Picks one outcome this card sharpens; embeds a specific from it into the Set. Actor never reads outcomes — visions land via the Set.',
   },
   {
     id: 'actor-percard',
@@ -210,24 +223,37 @@ const SEER_AGENTS: AgentSpec[] = [
     call_pattern: 'serial — fires after the 4th card is voiced (stage 1 of outro)',
     input_type: 'ClosingDirectorInput',
     output_type: 'ClosingIntent',
-    inputs: 'profile + prose_brief + outcomes + revealed (all 4 beats) + chat_history',
+    inputs: 'profile + prose_brief + outcomes + heldProbes + revealed (all 4 beats) + chat_history',
     outputs: 'ClosingIntent { takeaway, director_notes }',
     prompt: CLOSING_DIRECTOR_SYSTEM,
     tool_name: CLOSING_DIRECTOR_TOOL.name,
-    notes: 'Plans the structural takeaway. Mirror, not oracle. May name an outcome but never picks one.',
+    notes: 'Plans the structural takeaway. Mirror, not oracle. May take a risky swing at a held probe (oldest first). May name an outcome but never picks one.',
   },
   {
     id: 'actor-closing',
     name: 'actorClosing',
     runtime: 'local',
-    call_pattern: 'serial — fires after directorClosing (stage 2 of outro)',
+    call_pattern: 'parallel with mantra — fires after directorClosing (stage 2 of outro). Voiced by the seer.',
     input_type: 'ClosingActorInput',
     output_type: 'Monologue',
     inputs: 'profile + prose_brief + revealed + chat_history + closing intent',
     outputs: 'Monologue { 1–2 sentences, low-volume }',
     prompt: CLOSING_ACTOR_SYSTEM,
     tool_name: CLOSING_ACTOR_TOOL.name,
-    notes: 'The line the participant carries home. Drops the voice.',
+    notes: 'The line the participant carries home. Drops the voice. Runs concurrently with the mantra agent — same input (closing director\'s takeaway), different output shape.',
+  },
+  {
+    id: 'mantra',
+    name: 'Mantra',
+    runtime: 'cloud',
+    call_pattern: 'parallel with actorClosing — fires after directorClosing. Distinct compression of the same takeaway.',
+    input_type: 'MantraInput',
+    output_type: 'string (sanitized one-liner)',
+    inputs: 'profile + story + intention + revealed + chat + closing_takeaway',
+    outputs: 'string (≤120 chars, lowercase, no markdown, no emoji, no surrounding quotes)',
+    prompt: MANTRA_SYSTEM,
+    tool_name: '(freeform, no tool)',
+    notes: 'Ticker-tape-printable. Tighter, more portable form of the closing director\'s takeaway — same shape, smaller form. Rendered in Reading.tsx after the outro typewriter completes. Sanitizer strips emoji/markdown/preambles/surrounding quotes defensively.',
   },
 ];
 
@@ -263,53 +289,58 @@ const IO = (typeName: string, fields: string) =>
 
 const SURVEY_DIAGRAM = `flowchart TD
   start([survey start]) --> openers
-  subgraph openers["Openers · no AI"]
+  subgraph openers["Openers · no AI · no profile mutations"]
     direction LR
-    o1["${BOX('name')}"] --> o2["${BOX('birthday')}"] --> o3["${BOX('birth_time')}"] --> o4["${BOX('intent<br/><i>question sandwich, part 1</i>')}"]
+    o1["${BOX('name')}"] --> o2["${BOX('birthday')}"] --> o3["${BOX('relationship_pick')}"] --> o4["${BOX('intent<br/><i>question sandwich, part 1</i>')}"]
   end
   openers --> seed
-  seed[/"${BOX(`seed ${STARTER_SEED_COUNT} random pool<br/>questions into queue<br/>(dedup'd vs prior visits)`)}"/]
+  seed[/"${BOX(`seed Pillars (~8) +<br/>${STARTER_SEED_COUNT} random pool draws<br/>into queue (dedup'd<br/>vs prior visits)`)}"/]
   seed --> ans["${BOX('user answers a<br/>question')}"]
 
-  ans -->|"${IO('PickEvent', '{node_id, answer, latency_ms}')}"| snapshot[/"${BOX('snapshot ctx<br/>at pipeline start')}"/]
-  snapshot -->|"${IO('PipelineContext + recent_picks', 'every 3rd turn only<br/>(metabolize window)')}"| obs["${AGENT('Observer', 'cloud')}"]
-  snapshot -->|"${IO('PipelineContext + detective_log', 'every turn (non-returning)<br/>next_question suppressed past cap−${STARTER_SEED_COUNT}')}"| det["${AGENT('Detective', 'cloud')}"]
-  obs -->|"${IO('ObserverOutput', '{notes_to_append, cast_updates}<br/>→ profile')}"| applyO[/"${BOX('apply to profile')}"/]
-  det -->|"${IO('DetectiveOutput', '{hypothesis_updates, choice_update,<br/>contradictions, hooks, posture,<br/>private_thoughts, next_question}<br/>→ investigation, log, queue')}"| applyD[/"${BOX('apply to investigation<br/>+ detective_log<br/>+ next_question → queue')}"/]
-  applyD --> ans
+  ans -->|"${IO('PickEvent', '{node_id, answer,<br/>latency_ms, initial_pick,<br/>interaction_count}')}"| snapshot[/"${BOX('1 · snapshot prev state<br/>(for undo)<br/>2 · bump pickEpoch')}"/]
+  snapshot --> seeder[/"${BOX('algorithmic seeder<br/>(deterministic, no LLM):<br/>Inversions probe →<br/>tentative[] hypotheses<br/>+ age existing seeds')}"/]
+  seeder --> fanOut[("◀ pipeline fan-out ▶")]
+  fanOut ==>|"${IO('ObserverInput', 'profile template +<br/>profile.body + Q&amp;A history +<br/>side-channel telemetry +<br/>investigation board')}"| obs["${AGENT('Observer', 'cloud')}"]
+  fanOut ==>|"${IO('DetectiveInput', 'snapshot + investigation +<br/>current story + private_thoughts')}"| det["${AGENT('Detective', 'cloud')}"]
+  obs -->|"${IO('ObserverOutput', '{profile_body, hooks, edges,<br/>side_channel, cast_notes_updates,<br/>hypothesis_ladder_moves}')}"| applyO[/"${BOX('apply: rewrite body,<br/>merge cast notes,<br/>route ladder moves')}"/]
+  det -->|"${IO('DetectiveOutput', '{new_hypotheses,<br/>hypothesis_ladder_moves,<br/>story_updates, private_thoughts}')}"| applyD[/"${BOX('apply: add hyps,<br/>merge story,<br/>route ladder moves')}"/]
   applyO --> ans
+  applyD --> ans
 
   ans -. "cap reached" .-> intentConfirm["${BOX('IntentConfirm UI<br/><i>question sandwich, part 2</i>')}"]
   intentConfirm --> userPick["${BOX('user types final<br/>intention (≥10 chars)')}"]
 
-  userPick -->|"${IO('intention', 'string (user vernacular)')}"| augur1["${AGENT('Augur · Outline', 'cloud')}"]
+  userPick --> reaper[/"${BOX('reaper:<br/>held[] sorted by<br/>age_in_turns DESC')}"/]
+  reaper -->|"${IO('intention + story + heldProbes', '')}"| augur1["${AGENT('Augur · Outline', 'cloud')}"]
   augur1 -->|"${IO('Outcome[]', '{id, label}  · 2–4 entries')}"| augur2["${AGENT('Augur · Fill ×N', 'cloud')}"]
   augur2 -->|"${IO('Outcome[]', '{id, label, document}<br/>document: markdown prose')}"| outcomes[/"${BOX('outcome documents')}"/]
-  outcomes ==> seerStart[("new SeerEngine<br/>→ see below")]
+  outcomes ==>|"${IO('SeerOpts', '{profile, story,<br/>heldProbes, investigation,<br/>intention, drawn, outcomes}')}"| seerStart[("new SeerEngine<br/>→ see below")]
 
   classDef local      fill:#0b2a30,stroke:#22d3ee,color:#a5f3fc,stroke-width:1.2px;
   classDef cloud      fill:#1a0a2e,stroke:#7c3aed,color:#e8e0ff,stroke-width:1.2px;
   classDef userAction fill:#2a0b14,stroke:#e2536e,color:#fde2e6,stroke-width:1.2px;
   classDef io         fill:#0a0418,stroke:#564a78,color:#cfc4f0,font-style:italic;
   classDef terminal   fill:#1a0a2e,stroke:#22d3ee,color:#cffafe,stroke-width:1.2px;
+  classDef gate       fill:#0a1a30,stroke:#fbbf24,color:#fde68a,stroke-width:1.6px;
 
   class obs,det,augur1,augur2 cloud;
   class ans,o1,o2,o3,o4,userPick,intentConfirm userAction;
-  class seed,outcomes,snapshot,applyO,applyD io;
+  class seed,outcomes,snapshot,seeder,applyO,applyD,reaper io;
   class start,seerStart terminal;
+  class fanOut gate;
 `;
 
 const SEER_DIAGRAM = `flowchart TD
-  seerStart[("new SeerEngine<br/>{profile, intention, history,<br/>drawn, outcomes}")]
-  seerStart -->|"${IO('IntroDirectorInput', '{profile, intention,<br/>surveyHistory, outcomes}')}"| dIntro["${AGENT('directorIntro', 'cloud')}"]
-  dIntro -->|"${IO('prose_brief', 'string (detective brief,<br/>read silently by all<br/>subsequent director calls)')}"| aIntro["${AGENT('actorIntro', 'local')}"]
+  seerStart[("new SeerEngine<br/>{profile, story, heldProbes,<br/>investigation, intention,<br/>drawn, outcomes}")]
+  seerStart -->|"${IO('IntroDirectorInput', '{profile, story, heldProbes,<br/>intention, surveyHistory, outcomes}')}"| dIntro["${AGENT('directorIntro', 'cloud')}"]
+  dIntro -->|"${IO('prose_brief', 'string (detective brief,<br/>spine = past_root →<br/>present_pressure → fork)')}"| aIntro["${AGENT('actorIntro', 'local')}"]
   aIntro -->|"${IO('Monologue', '{text ≤14 words}')}"| ready((seer.ready resolves))
   ready --> enterBtn["${BOX('user clicks<br/>ENTER')}"]
   enterBtn --> introBeat[/"${BOX('intro delivered')}"/]
   introBeat --> awaitFlip["${BOX('user flips<br/>a card')}"]
 
-  awaitFlip -->|"${IO('PerCardDirectorInput', '{profile, prose_brief, outcomes,<br/>this_slot card, revealed_history,<br/>chat_history}  × all face-down slots')}"| fanOut["${AGENT('directorPerCard ×N', 'cloud')}"]
-  fanOut -->|"${IO('Set', '{click, attending, intent, knows,<br/>uncertainty, through_line, reframe?}<br/>(cached per slot)')}"| persona["${AGENT('actorPerCard', 'local')}"]
+  awaitFlip -->|"${IO('PerCardDirectorInput', '{profile, prose_brief, outcomes,<br/>this_slot card, slot_meaning,<br/>revealed_history, chat_history}<br/>× each face-down slot')}"| fanOutSeer["${AGENT('directorPerCard ×N', 'cloud')}"]
+  fanOutSeer -->|"${IO('Set', '{click, attending, intent, knows,<br/>uncertainty, through_line, reframe?}<br/>(cached per slot)')}"| persona["${AGENT('actorPerCard', 'local')}"]
   persona -->|"${IO('Monologue', '{text 2–4 sentences,<br/>prompt_to_user?}')}"| beat[/"${BOX('beat delivered')}"/]
   beat --> awaitFlip
 
@@ -319,20 +350,25 @@ const SEER_DIAGRAM = `flowchart TD
   chatReply --> awaitFlip
 
   awaitFlip -. "4th flip done" .-> dClose["${AGENT('directorClosing', 'cloud')}"]
-  dClose -->|"${IO('ClosingIntent', '{takeaway, director_notes}')}"| aClose["${AGENT('actorClosing', 'local')}"]
+  dClose --> closingGate[("◀ closing fan-out ▶")]
+  closingGate ==>|"${IO('ClosingActorInput', '{profile, prose_brief, revealed,<br/>chat_history, closing intent}')}"| aClose["${AGENT('actorClosing', 'local')}"]
+  closingGate ==>|"${IO('MantraInput', '{profile, story, intention,<br/>revealed, chat, closing_takeaway}')}"| mantra["${AGENT('Mantra', 'cloud')}"]
   aClose -->|"${IO('Monologue', '{text 1–2 sentences, low-volume}')}"| done([reading complete])
+  mantra -->|"${IO('string', '≤120 chars, lowercase,<br/>no markdown, no emoji<br/>(printable on ticker tape)')}"| done
 
   classDef local      fill:#0b2a30,stroke:#22d3ee,color:#a5f3fc,stroke-width:1.2px;
   classDef cloud      fill:#1a0a2e,stroke:#7c3aed,color:#e8e0ff,stroke-width:1.2px;
   classDef userAction fill:#2a0b14,stroke:#e2536e,color:#fde2e6,stroke-width:1.2px;
   classDef io         fill:#0a0418,stroke:#564a78,color:#cfc4f0,font-style:italic;
   classDef terminal   fill:#1a0a2e,stroke:#22d3ee,color:#cffafe,stroke-width:1.2px;
+  classDef gate       fill:#0a1a30,stroke:#fbbf24,color:#fde68a,stroke-width:1.6px;
 
-  class dIntro,fanOut,dClose cloud;
+  class dIntro,fanOutSeer,dClose,mantra cloud;
   class aIntro,persona,actorChat,aClose local;
   class enterBtn,awaitFlip,chat userAction;
   class introBeat,beat,chatReply io;
   class seerStart,done,ready terminal;
+  class closingGate gate;
 `;
 
 // ── Component ───────────────────────────────────────────────
