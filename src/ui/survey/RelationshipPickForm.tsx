@@ -6,13 +6,26 @@
 //      members appear as quick-pick chips above the grid.
 //   2. PICK_SUBCATEGORY (only if "someone else" picked) — a scrollable
 //      list of role options (boss / mentor / therapist / etc).
-//   3. WHO_SPECIFICALLY — name input + pronoun toggles + gender / accent
-//      color + off-limits + confirm.
+//   3. WHO_SPECIFICALLY — name input flanked by [color][input][dice].
+//      Pronouns sit unlabeled in the top-right (same row as category).
+//      ← CHANGE / CONFIRM as twin bottom buttons.
 //
-// Smart auto-detection: if the user types a recognizable kin term
-// (mom / dad / mama / papa / ...) the gender + pronouns auto-populate
-// — UNLESS the user has already picked manually. Once they touch a
-// control by hand, auto-detect stops overriding.
+// Behaviors on the WHO screen:
+//   - Color square click → reroll just the color.
+//   - Dice square click  → reroll name (from gender-matched bank) AND
+//                          color. Does NOT mark name as autofilled.
+//   - Pronouns click → for parent + HIM/HER, IF input is empty or
+//                      previously autofilled, sets name to dad/mom and
+//                      marks isAutofilled=true.
+//   - Input focus when isAutofilled → clear input + isAutofilled=false
+//                      (DEX behavior — tapping to edit means start
+//                      fresh).
+//   - Typing → clears isAutofilled. Kin-term auto-detection still
+//     suggests pronouns inline.
+//
+// Placeholder shows two random names from the bank (one masc + one fem)
+// picked once on entry to the WHO screen; for parent / sibling, kin
+// shorthand prefixes them ("mom, dad, Atlas, Iris, …").
 
 import { useEffect, useRef, useState } from 'react';
 import type { CastMember } from '../../pipeline/survey';
@@ -21,6 +34,8 @@ import {
   randomAccent,
   type Pronouns,
 } from './relationshipHelpers';
+import { randomName, MASC_NAMES, FEM_NAMES } from './nameBanks';
+import { DiceIcon } from '../icons/DiceIcon';
 
 type FamilyCategory =
   | 'parent' | 'sibling' | 'child'
@@ -37,12 +52,6 @@ type PickedCategory = FamilyCategory | SomeoneElseSubcat | 'existing';
 type Props = {
   cast: CastMember[];
   onSubmit: (encoded: string) => void;
-  /** Fires with the live typed name + the color it should render in
-   *  whenever the user is on the "who specifically?" screen with a
-   *  name partial. Survey lifts this into the mascot's dialogue box
-   *  so the line `i'm sensing... a [NAME]` appears voiced from the
-   *  turtle, not from a form-internal preview. Fires null when the
-   *  user isn't on the who screen or the input is empty. */
   onSensingChange?: (state: { name: string; color: string } | null) => void;
 };
 
@@ -55,10 +64,6 @@ const OTHER: { id: FamilyCategory; label: string }[] = [
   { id: 'partner', label: 'partner' },
   { id: 'friend',  label: 'friend' },
 ];
-// Sub-list ordered by likely relational charge: ex / cousin / friend variants
-// first (these were lifted from the main grid per user feedback), then the
-// broader social roles. The scrollable container makes the list length
-// inexpensive — anything that's genuinely a recognized role can go here.
 const SOMEONE_ELSE: SomeoneElseSubcat[] = [
   'ex', 'cousin', 'best friend', 'childhood friend',
   'boss', 'colleague', 'mentor', 'therapist', 'teacher', 'coach',
@@ -66,43 +71,63 @@ const SOMEONE_ELSE: SomeoneElseSubcat[] = [
   'group chat friend', 'online friend', 'someone i used to know',
 ];
 
+/** Pick a fresh pair (one masc + one fem) for the placeholder suggestions
+ *  every time the WHO screen mounts. The names rotate per question so
+ *  the user sees variety. */
+function pickSuggestionPair(): { a: string; b: string } {
+  const a = MASC_NAMES[Math.floor(Math.random() * MASC_NAMES.length)]!;
+  const b = FEM_NAMES[Math.floor(Math.random() * FEM_NAMES.length)]!;
+  return { a, b };
+}
+
 export function RelationshipPickForm({ cast, onSubmit, onSensingChange }: Props) {
   const [mode, setMode] = useState<'category' | 'someone-else' | 'who'>('category');
   const [picked, setPicked] = useState<PickedCategory | null>(null);
   const [name, setName] = useState('');
+  const [isAutofilled, setIsAutofilled] = useState(false);
   const [pronouns, setPronouns] = useState<Pronouns | null>(null);
   const [pronounsTouched, setPronounsTouched] = useState(false);
   const [accent, setAccent] = useState<string>(() => randomAccent());
   const [offLimits, setOffLimits] = useState(false);
   const accentInitialRef = useRef(false);
+  const [suggestionPair, setSuggestionPair] = useState<{ a: string; b: string }>(
+    () => pickSuggestionPair(),
+  );
 
-  // Reseed the accent once when the user lands on the "who" screen — gives
-  // them a fresh hue per person. After that, only the dice changes it.
+  // Reseed both accent + suggestion-pair once when the user lands on
+  // the WHO screen. Fresh hue + fresh names per person.
   useEffect(() => {
     if (mode === 'who' && !accentInitialRef.current) {
       accentInitialRef.current = true;
       setAccent(randomAccent());
+      setSuggestionPair(pickSuggestionPair());
     }
     if (mode !== 'who') {
       accentInitialRef.current = false;
     }
   }, [mode]);
 
-  // Smart auto-detection from kin terms — applied inline on input change
-  // so it doesn't run as a setState-in-effect. Only fires when the user
-  // hasn't explicitly toggled the pronouns. Detection now suggests
-  // pronouns only — color is dice-driven (purple + turquoise are
-  // reserved for the user and the seer, so they can't be relation
-  // accents anymore).
+  // Inline kin-term detection (mom / dad / mama / papa …) suggests
+  // pronouns when user types. Color is dice-only.
   function handleNameChange(next: string) {
     setName(next);
+    setIsAutofilled(false);
     const detected = detectKinTerm(next);
     if (!detected) return;
     if (!pronounsTouched) setPronouns(detected);
   }
 
-  // Publish sensing state to the parent (so it can render the live
-  // "i'm sensing... a [NAME]" line in the mascot's dialogue box).
+  // DEX-style clear: tapping the input clears autofilled content so the
+  // user can immediately type their own value. Manually-typed content
+  // never triggers this — only the kin-term-default autofill.
+  function handleInputFocus() {
+    if (isAutofilled) {
+      setName('');
+      setIsAutofilled(false);
+    }
+  }
+
+  // Publish sensing state to the parent (mascot dialogue line).
   useEffect(() => {
     if (!onSensingChange) return;
     if (mode === 'who' && name.trim().length > 0) {
@@ -137,21 +162,37 @@ export function RelationshipPickForm({ cast, onSubmit, onSensingChange }: Props)
     setMode('category');
     setPicked(null);
     setName('');
+    setIsAutofilled(false);
     setPronouns(null);
     setPronounsTouched(false);
     setOffLimits(false);
   }
 
+  // Pronoun pick. ALSO triggers kin-term autofill for parent + him/her
+  // when input is empty or was previously autofilled.
   function setPronounObjective(o: 'him' | 'them' | 'her') {
-    // Derive subjective from objective (him → he, her → she, them → they).
-    // We only collect objective from the user — keeps the row to one set
-    // of buttons. The subjective slot is still on the CastMember for
-    // downstream voice rendering ("he handled it" vs "she handled it").
     setPronounsTouched(true);
     setPronouns({ subjective: defaultSubjective(o), objective: o });
+
+    // Kin-term autofill — parent category only, him/her only.
+    if (picked === 'parent' && (o === 'him' || o === 'her')) {
+      if (name.trim().length === 0 || isAutofilled) {
+        setName(o === 'him' ? 'dad' : 'mom');
+        setIsAutofilled(true);
+      }
+    }
   }
 
-  function rerollAccent() {
+  function rerollColor() {
+    setAccent((prev) => randomAccent(prev));
+  }
+
+  function rollDice() {
+    // Roll name from the gender-matched bank (combined if no pronoun
+    // picked yet). Dice is an EXPLICIT user choice → not isAutofilled.
+    const nextName = randomName(pronouns?.objective ?? null, name);
+    setName(nextName);
+    setIsAutofilled(false);
     setAccent((prev) => randomAccent(prev));
   }
 
@@ -166,6 +207,11 @@ export function RelationshipPickForm({ cast, onSubmit, onSensingChange }: Props)
       color: accent,
     }));
   }
+
+  // Compose the placeholder: kin shorthand (if applicable) + two
+  // random names + ellipsis. Names are stable across renders within
+  // a WHO visit (lifetime-scoped via state).
+  const placeholder = composePlaceholder(picked, suggestionPair);
 
   return (
     <div className="rel-pick">
@@ -263,35 +309,10 @@ export function RelationshipPickForm({ cast, onSubmit, onSensingChange }: Props)
           className="rel-pick__details"
           onSubmit={(e) => { e.preventDefault(); submit(); }}
         >
-          <div className="rel-pick__details-head">
+          {/* TOP ROW: category label left · pronouns right (unlabeled, bigger) */}
+          <div className="rel-pick__top-row">
             <span className="rel-pick__details-category">{picked}</span>
-            <button
-              type="button"
-              className="rel-pick__details-back"
-              onClick={backToCategory}
-            >
-              ← change
-            </button>
-          </div>
-
-          <input
-            className="text-input text-input--ghost rel-pick__name-input"
-            value={name}
-            onChange={(e) => handleNameChange(e.target.value)}
-            placeholder={namePlaceholder(picked)}
-            autoFocus
-            autoComplete="off"
-            spellCheck={false}
-          />
-
-          {/* "i'm sensing... a [NAME]" is rendered upstream in the
-              mascot's dialogue box (Survey.tsx subscribes via
-              onSensingChange) so the cat appears to voice the guess
-              rather than the form previewing it inline. */}
-
-          <div className="rel-pick__row">
-            <span className="rel-pick__row-label">pronouns</span>
-            <div className="rel-pick__pronoun-group">
+            <div className="rel-pick__pronoun-group rel-pick__pronoun-group--big">
               {(['him', 'them', 'her'] as const).map((o) => (
                 <button
                   key={o}
@@ -305,29 +326,35 @@ export function RelationshipPickForm({ cast, onSubmit, onSensingChange }: Props)
             </div>
           </div>
 
-          <div className="rel-pick__row">
-            <span className="rel-pick__row-label">color</span>
-            <div className="rel-pick__gender-group">
-              {/* Current accent (preview) + dice to reroll. The 3
-                  gender-dot quick-picks were removed: purple is
-                  reserved for the user's own name, turquoise for the
-                  seer's first-person — so they can't be relation
-                  colors. Random palette excludes both hue bands. */}
-              <span
-                className="rel-pick__accent-preview"
-                style={{ background: accent }}
-                aria-label="current name color"
-              />
-              <button
-                type="button"
-                className="rel-pick__dice"
-                onClick={rerollAccent}
-                aria-label="roll a random color"
-                title="reroll the color"
-              >
-                ⚀
-              </button>
-            </div>
+          {/* INPUT ROW: color square (clickable) · name input · dice square */}
+          <div className="rel-pick__input-row">
+            <button
+              type="button"
+              className="rel-pick__color-square"
+              style={{ background: accent }}
+              onClick={rerollColor}
+              aria-label="reroll name color"
+              title="click to reroll the color"
+            />
+            <input
+              className="rel-pick__name-input"
+              value={name}
+              onChange={(e) => handleNameChange(e.target.value)}
+              onFocus={handleInputFocus}
+              placeholder={placeholder}
+              autoFocus
+              autoComplete="off"
+              spellCheck={false}
+            />
+            <button
+              type="button"
+              className="rel-pick__dice-square"
+              onClick={rollDice}
+              aria-label="roll a random name and color"
+              title="roll a random name and color"
+            >
+              <DiceIcon size="1.4rem" />
+            </button>
           </div>
 
           <label className="rel-pick__off-limits">
@@ -339,25 +366,37 @@ export function RelationshipPickForm({ cast, onSubmit, onSensingChange }: Props)
             <span>off-limits — don't ask me about them later</span>
           </label>
 
-          <button
-            type="submit"
-            className="btn btn--primary btn--menu rel-pick__commit"
-            disabled={!name.trim()}
-          >
-            confirm
-          </button>
+          {/* BOTTOM ROW: ← CHANGE (ghost, left) · CONFIRM (filled, right) */}
+          <div className="rel-pick__bottom-row">
+            <button
+              type="button"
+              className="btn btn--ghost btn--menu rel-pick__change-btn"
+              onClick={backToCategory}
+            >
+              ← CHANGE
+            </button>
+            <button
+              type="submit"
+              className="btn btn--primary btn--menu rel-pick__commit"
+              disabled={!name.trim()}
+            >
+              CONFIRM
+            </button>
+          </div>
         </form>
       )}
     </div>
   );
 }
 
-function namePlaceholder(c: PickedCategory): string {
-  if (c === 'parent') return 'mom, dad, …';
-  if (c === 'sibling') return 'their name, or "sis" / "bro"';
-  if (c === 'ex' || c === 'partner') return 'their name';
-  if (c === 'someone i used to know') return 'their name (or just a tag)';
-  return 'their name';
+function composePlaceholder(
+  picked: PickedCategory | null,
+  pair: { a: string; b: string },
+): string {
+  if (picked === 'parent') return `mom, dad, ${pair.a}, ${pair.b}, …`;
+  if (picked === 'sibling') return `sis, bro, ${pair.a}, ${pair.b}, …`;
+  if (picked === 'someone i used to know') return `${pair.a}, ${pair.b}, or just a tag, …`;
+  return `${pair.a}, ${pair.b}, …`;
 }
 
 function defaultSubjective(o: 'him' | 'them' | 'her'): 'he' | 'they' | 'she' {
@@ -365,4 +404,3 @@ function defaultSubjective(o: 'him' | 'them' | 'her'): 'he' | 'they' | 'she' {
   if (o === 'her') return 'she';
   return 'they';
 }
-

@@ -643,26 +643,31 @@ input, textarea {
 .rel-pick__details {
   display: flex;
   flex-direction: column;
-  gap: 0.6rem;
+  gap: 0.7rem;
   padding: 0.5rem 0;
   align-items: stretch;
   text-align: left;
 }
 
-.rel-pick__details-head {
+/* Top row of the WHO screen: category label left, pronouns right.
+   Pronouns are unlabeled here (the label PRONOUNS is dropped in the
+   new layout — the buttons are big enough to read on their own). */
+.rel-pick__top-row {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   justify-content: space-between;
+  gap: 0.8rem;
 }
 
 .rel-pick__details-category {
   font-family: var(--font-mono);
-  font-size: 0.95rem;
-  letter-spacing: 0.18em;
+  font-size: 1rem;
+  letter-spacing: 0.2em;
   text-transform: uppercase;
   color: var(--accent);
 }
 
+/* Legacy back-link (still used by the "someone else" sub-list header). */
 .rel-pick__details-back {
   background: transparent;
   border: none;
@@ -674,10 +679,84 @@ input, textarea {
 }
 .rel-pick__details-back:hover { color: var(--accent); }
 
+/* Input row: [color square][name input][dice square] flush as one bar.
+   The squares are the same height as the input so they tile cleanly. */
+.rel-pick__input-row {
+  display: flex;
+  align-items: stretch;
+  height: 2.8rem;
+}
+
+.rel-pick__color-square,
+.rel-pick__dice-square {
+  width: 2.8rem;
+  flex: 0 0 2.8rem;
+  border: 1px solid var(--line-strong);
+  cursor: pointer;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: filter 0.1s, transform 0.06s, border-color 0.1s;
+}
+.rel-pick__color-square {
+  /* background is set inline to the current accent color */
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.3);
+}
+.rel-pick__color-square:hover {
+  filter: brightness(1.12);
+  border-color: var(--fg);
+}
+.rel-pick__dice-square {
+  background: var(--color-black);
+  color: #e5d9ff;
+  border-color: var(--line-strong);
+}
+.rel-pick__dice-square:hover {
+  color: #ffffff;
+  border-color: var(--accent);
+  filter: brightness(1.15);
+}
+.rel-pick__color-square:active,
+.rel-pick__dice-square:active {
+  transform: translateY(1px);
+}
+
 .rel-pick__name-input {
-  width: 100%;
+  flex: 1;
+  min-width: 0;
+  /* Join flush with the squares — remove side borders, keep top/bottom. */
+  border-left: none;
+  border-right: none;
   text-align: center;
   font-size: 1.1rem;
+  background: transparent;
+  color: var(--fg);
+  border-top: 1px solid var(--line-strong);
+  border-bottom: 1px solid var(--line-strong);
+  font-family: var(--font-mono);
+  padding: 0 0.6rem;
+}
+.rel-pick__name-input::placeholder {
+  color: var(--fg-muted);
+  opacity: 0.85;
+}
+.rel-pick__name-input:focus {
+  outline: none;
+  border-top-color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+
+/* Bottom row: ← CHANGE (ghost, left) and CONFIRM (filled, right), equal width. */
+.rel-pick__bottom-row {
+  display: flex;
+  gap: 0.6rem;
+  margin-top: 0.2rem;
+}
+.rel-pick__change-btn,
+.rel-pick__commit {
+  flex: 1;
+  margin: 0;
 }
 
 /* .rel-pick__sensing inline preview removed — the "i'm sensing..." line
@@ -721,6 +800,14 @@ input, textarea {
   color: var(--fg);
   background: var(--violet-soft);
   border-color: var(--accent);
+}
+
+/* The bigger variant used in the top-right of the WHO screen, where
+   pronouns are unlabeled and need to read as the primary control. */
+.rel-pick__pronoun-group--big .rel-pick__pronoun {
+  font-size: 1rem;
+  padding: 0.5rem 0.85rem;
+  min-width: 3.4rem;
 }
 
 .rel-pick__gender-group {
