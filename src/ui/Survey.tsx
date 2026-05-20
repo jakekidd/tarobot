@@ -524,6 +524,7 @@ function cloneProfile(p: SurveyProfile): SurveyProfile {
  *  visual frame as the normal Dialogue — but bypasses the typewriter
  *  (instant render) so the [NAME] reflects keystrokes in real time. */
 function SensingLine({ name, color }: { name: string; color: string }) {
+  const article = /^[aeiou]/i.test(name.trim()) ? 'an' : 'a';
   return (
     <div
       className="dialogue-stage dialogue-stage--instant"
@@ -531,7 +532,7 @@ function SensingLine({ name, color }: { name: string; color: string }) {
       aria-live="polite"
     >
       <span className="dialogue-text dialogue-text--instant">
-        {"i'm sensing... a "}
+        {`i'm sensing... ${article} `}
         <span
           className="sensing-name"
           style={{ color }}

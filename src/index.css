@@ -661,10 +661,11 @@ input, textarea {
 
 .rel-pick__details-category {
   font-family: var(--font-mono);
-  font-size: 1rem;
+  font-size: 1.15rem;
   letter-spacing: 0.2em;
   text-transform: uppercase;
   color: var(--accent);
+  align-self: center;
 }
 
 /* Legacy back-link (still used by the "someone else" sub-list header). */
@@ -747,16 +748,23 @@ input, textarea {
   border-bottom-color: var(--accent);
 }
 
-/* Bottom row: ← CHANGE (ghost, left) and CONFIRM (filled, right), equal width. */
+/* Bottom row: ← CHANGE (ghost, left) and CONFIRM (filled, right), equal width.
+   `flex: 1 1 0` + `min-width: 0` forces strict equal-width regardless of label
+   content (the leading ← in CHANGE used to nudge it wider). box-sizing keeps
+   the 1px border from making one button taller than the other. */
 .rel-pick__bottom-row {
   display: flex;
   gap: 0.6rem;
   margin-top: 0.2rem;
+  align-items: stretch;
 }
 .rel-pick__change-btn,
 .rel-pick__commit {
-  flex: 1;
+  flex: 1 1 0;
+  min-width: 0;
   margin: 0;
+  box-sizing: border-box;
+  text-align: center;
 }
 
 /* .rel-pick__sensing inline preview removed — the "i'm sensing..." line
