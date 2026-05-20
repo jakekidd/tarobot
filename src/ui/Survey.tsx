@@ -48,6 +48,8 @@ import type { SurveyProfile } from '../pipeline/survey';
 import { publishDebug, clearDebug } from '../debug/debugBus';
 import { ChatInput } from './ChatInput';
 import { UndoIcon } from './icons/UndoIcon';
+import { setCardsActive } from './scene/cardsScopeStore';
+import { fireBurnCard } from './scene/burnCardStore';
 
 const READY_BUTTON_MIN_TURNS = 6;
 
@@ -66,6 +68,14 @@ export function Survey({ apiKey, session, onComplete }: Props) {
 
   const [speaking, setSpeaking] = useState(false);
   const persistedFor = useRef<string | null>(null);
+
+  // Orbiting-cards scope: this subsystem is global (mounted in App via
+  // TarobotScene) but should ONLY render cards while a survey is active.
+  // Toggle on mount/unmount — cards fade out gracefully on unmount.
+  useEffect(() => {
+    setCardsActive(true);
+    return () => { setCardsActive(false); };
+  }, []);
 
   // Snapshot existing known names for the soft "this name exists" hint
   // on the NameForm. Live name-match (which fires the modal) happens on
@@ -313,6 +323,7 @@ export function Survey({ apiKey, session, onComplete }: Props) {
           className="survey__undo"
           onClick={() => {
             setSensing(null);  // clear sensing overlay if active
+            fireBurnCard();    // burn the most recent orbiting card
             undo();
           }}
           disabled={state.thinking}

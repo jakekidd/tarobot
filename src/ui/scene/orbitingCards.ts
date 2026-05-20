@@ -1,50 +1,69 @@
-// Orbiting cards — replaces the old "data orbs" answer counter.
+// Orbiting cards — visual answer counter.
 //
-// Each survey answer spawns a flat card mesh that orbits the turtle on
-// a roughly horizontal plane behind the camera-facing side. Cards travel
-// behind the turtle (visible) and clip out toward the front (where they
-// would otherwise blind the dialogue box). Real rigid-body rotation
-// (constant angular velocity per axis in a vacuum) gives natural tilt
-// and wiggle without canned animation curves.
+// Each survey pick spawns a flat card that orbits the turtle on a roughly
+// horizontal plane. Cards fade as they cross in front of the turtle (so
+// they don't block the dialogue), come back into full visibility off to
+// the sides and behind. Rigid-body rotation (constant angular velocity
+// per axis in a vacuum) gives natural tilt.
+//
+// Lifecycle: cards live as long as the survey is active. When scope flips
+// inactive (Survey unmounts), all live cards fade out smoothly and the
+// system goes quiet. When an undo fires, the MOST RECENT card breaks off
+// its orbit, flies up-left toward the camera, and shatters into drifting
+// shards.
 //
 // Spawn flow:
 //   - User picks an answer → impactStore.fireImpact({x, y, passed})
-//   - TarobotScene wires the subscriber to call `spawnCard(passed)`
-//   - The cards module manages all positions / rotations / lifetimes
+//   - TarobotScene forwards into spawnCard()
+//   - Module manages positions / rotations / lifetimes
+//
+// Burn flow:
+//   - User taps undo → Survey.tsx → burnCardStore.fireBurnCard()
+//   - Module pulls the newest card, runs burn sequence
 
 import * as THREE from 'three';
+import { getCardsActive, subscribeCardsActive } from './cardsScopeStore';
+import { subscribeBurnCard } from './burnCardStore';
 
-const CARD_W_PX        = 26;     // card width  (≈ tarot 0.6 aspect)
-const CARD_H_PX        = 44;     // card height
-const CARD_THICKNESS   = 0.4;    // boxgeom z thickness — gives bevel-ish edge
-const CARD_CAP         = 80;     // hard cap on simultaneous cards
+const CARD_W_PX        = 26;
+const CARD_H_PX        = 44;
+const CARD_THICKNESS   = 0.4;
+const CARD_CAP         = 80;
 const ORBIT_RADIUS_MIN_PX  = 110;
 const ORBIT_RADIUS_JITTER  = 70;
-const ORBIT_HEIGHT_RANGE   = 60; // vertical spread on the orbit plane (small tilt)
+const ORBIT_HEIGHT_RANGE   = 60;
 const ORBIT_PERIOD_MIN_S   = 18;
 const ORBIT_PERIOD_JITTER  = 12;
-const SPIN_RANGE_RAD_S     = 0.6; // per-axis spin speed range (radians/sec)
-const SPAWN_RISE_S         = 1.3; // ramp from click-y to orbit-y
-const SPAWN_ALPHA_S        = 0.4; // fade-in time
+const SPIN_RANGE_RAD_S     = 0.6;
+const SPAWN_RISE_S         = 1.3;
+const SPAWN_ALPHA_S        = 0.4;
+// Cap final alpha — keeps cards from looking "shiny" / too solid. The
+// originals were full-opacity gold which read as plasticky; sub-1 alpha
+// makes them feel like scene atmosphere instead.
+const MAX_ALPHA            = 0.72;
+// When scope flips inactive (user leaves survey), cards fade out over
+// this window before being disposed.
+const SCOPE_FADE_OUT_S     = 0.55;
 
-// Gold and silver palettes. Gold is the answer counter; silver is "pass".
-// Picked to be visible against the deep-violet starfield but NOT bright
-// enough to blow out bloom or compete with the dialogue.
-const GOLD_FACE_HEX   = 0xb8923f;
-const GOLD_EDGE_HEX   = 0x6a4f1f;
-const SILVER_FACE_HEX = 0x9aa0aa;
-const SILVER_EDGE_HEX = 0x4a4d54;
+// Burn-on-undo timing
+const BURN_FLY_S           = 0.7;     // card lerps from orbit to upper-left target
+const SHARDS_PER_BURN      = 11;      // randomized triangle count
+const SHARD_LIFE_MIN_S     = 1.3;
+const SHARD_LIFE_JITTER_S  = 0.7;
+
+type BurnPhase = 'none' | 'flying' | 'done';
 
 type CardInternal = {
   group: THREE.Group;
   faceMat: THREE.MeshBasicMaterial;
   edgeMat: THREE.MeshBasicMaterial;
-  // orbit parameterization
+  baseColor: THREE.Color;     // for shards on burn
+  // orbit
   radius: number;
   yOnPlane: number;
   theta: number;
-  omegaTheta: number;   // orbital angular velocity (radians/sec)
-  // self-spin (rigid body in vacuum: constant angular velocity, no torque)
+  omegaTheta: number;
+  // self-spin
   spinX: number;
   spinY: number;
   spinZ: number;
@@ -52,6 +71,25 @@ type CardInternal = {
   age: number;
   spawnX: number;
   spawnY: number;
+  // scope-fade
+  fadingOut: boolean;
+  fadeOutAge: number;
+  // burn
+  burnPhase: BurnPhase;
+  burnAge: number;
+  burnFromPos: THREE.Vector3;
+  burnToPos: THREE.Vector3;
+  burnFromRot: THREE.Euler;
+};
+
+type Shard = {
+  mesh: THREE.Mesh;
+  geom: THREE.BufferGeometry;
+  mat: THREE.MeshBasicMaterial;
+  velocity: THREE.Vector3;
+  angVel: THREE.Vector3;
+  age: number;
+  maxLife: number;
 };
 
 export type OrbitingCardsHandle = {
@@ -63,9 +101,9 @@ export type OrbitingCardsHandle = {
 type AnchorRect = { x: number; y: number; width: number; height: number } | null;
 
 /**
- * Create the orbiting-cards system. Spawns cards on demand; calls update()
- * per frame to advance physics + visibility. The system mounts a single
- * THREE.Group into the provided scene; dispose() tears it all down.
+ * Create the orbiting-cards system. Spawns cards on demand, runs update()
+ * per frame to advance physics + visibility. Mounts a single THREE.Group
+ * into the provided scene; dispose() tears everything down.
  */
 export function createOrbitingCards(args: {
   scene: THREE.Scene;
@@ -77,17 +115,29 @@ export function createOrbitingCards(args: {
   const root = new THREE.Group();
   scene.add(root);
 
-  // Single shared face + edge geometry. Materials per-card so each can
-  // fade in independently. BoxGeometry gives the card a thin extruded
-  // depth so the edge color reads as a different sliver of light from
-  // the face — cheap shading without lights.
+  // Separate group for burn-effect shards so they can be culled / cleared
+  // without touching the orbiting cards above them.
+  const burnRoot = new THREE.Group();
+  scene.add(burnRoot);
+
   const cardGeom = new THREE.BoxGeometry(CARD_W_PX, CARD_H_PX, CARD_THICKNESS);
 
   const cards: CardInternal[] = [];
+  const shards: Shard[] = [];
 
-  function spawnCard(passed: boolean, clickX: number, clickY: number): void {
+  // Color wheel: pick from the full HSL hue range, muted saturation, mid
+  // lightness. Avoids the metallic-gold "shiny" feel the user pushed back
+  // on while giving each card its own identity in the orbit.
+  function pickHueColor(): THREE.Color {
+    const hue = Math.random();
+    const sat = 0.42 + Math.random() * 0.22;     // 0.42–0.64 — muted
+    const lit = 0.5 + Math.random() * 0.1;       // 0.5–0.6
+    return new THREE.Color().setHSL(hue, sat, lit);
+  }
+
+  function spawnCard(_passed: boolean, clickX: number, clickY: number): void {
+    if (!getCardsActive()) return;
     const vp = getViewport();
-    // Recycle oldest if at cap.
     if (cards.length >= CARD_CAP) {
       const old = cards.shift()!;
       root.remove(old.group);
@@ -95,21 +145,21 @@ export function createOrbitingCards(args: {
       old.edgeMat.dispose();
     }
 
+    const baseColor = pickHueColor();
+    const edgeColor = baseColor.clone().multiplyScalar(0.45);
+
     const faceMat = new THREE.MeshBasicMaterial({
-      color: passed ? SILVER_FACE_HEX : GOLD_FACE_HEX,
-      transparent: true,
-      opacity: 0,            // fade in via update()
-      depthWrite: false,     // avoid z-fighting between cards
-    });
-    const edgeMat = new THREE.MeshBasicMaterial({
-      color: passed ? SILVER_EDGE_HEX : GOLD_EDGE_HEX,
+      color: baseColor.getHex(),
       transparent: true,
       opacity: 0,
       depthWrite: false,
     });
-    // BoxGeometry has 6 face-groups (one per side). Faces 0,1 are the
-    // long sides; 2,3 are top/bottom; 4,5 are the broad card faces.
-    // We give the broad faces faceMat and the four edges edgeMat.
+    const edgeMat = new THREE.MeshBasicMaterial({
+      color: edgeColor.getHex(),
+      transparent: true,
+      opacity: 0,
+      depthWrite: false,
+    });
     const mats = [edgeMat, edgeMat, edgeMat, edgeMat, faceMat, faceMat];
     const mesh = new THREE.Mesh(cardGeom, mats);
     const group = new THREE.Group();
@@ -122,18 +172,21 @@ export function createOrbitingCards(args: {
 
     const radius = ORBIT_RADIUS_MIN_PX + Math.random() * ORBIT_RADIUS_JITTER;
     const yOnPlane = (Math.random() - 0.5) * ORBIT_HEIGHT_RANGE;
-    // Start orbit angle so each card enters from the left half of the
-    // back arc, then sweeps right. The back arc spans π/2 → 3π/2 (in our
-    // convention θ=0 is the front; π is the back); we randomize within
-    // the LEFT quarter of the back arc.
-    const theta = Math.PI * (0.55 + Math.random() * 0.25);
+    // Uniform random over [0, 2π] — cards distribute evenly around the
+    // turtle from the moment they spawn. (The original code clustered
+    // them into the back-left quarter, which made the orbit look uneven
+    // as they accumulated.)
+    const theta = Math.random() * Math.PI * 2;
     const periodS = ORBIT_PERIOD_MIN_S + Math.random() * ORBIT_PERIOD_JITTER;
-    const omegaTheta = (Math.PI * 2) / periodS; // positive → CCW from above
+    // Random orbit direction so cards don't all sweep the same way.
+    const sign = Math.random() < 0.5 ? -1 : 1;
+    const omegaTheta = sign * ((Math.PI * 2) / periodS);
 
     cards.push({
       group,
       faceMat,
       edgeMat,
+      baseColor,
       radius,
       yOnPlane,
       theta,
@@ -144,32 +197,180 @@ export function createOrbitingCards(args: {
       age: 0,
       spawnX: sceneX,
       spawnY: sceneY,
+      fadingOut: false,
+      fadeOutAge: 0,
+      burnPhase: 'none',
+      burnAge: 0,
+      burnFromPos: new THREE.Vector3(),
+      burnToPos: new THREE.Vector3(),
+      burnFromRot: new THREE.Euler(),
     });
   }
+
+  // ─── burn animation ─────────────────────────────────────────
+
+  function startBurn(c: CardInternal): void {
+    if (c.burnPhase !== 'none') return;
+    const vp = getViewport();
+    // Target: upper-left of viewport, pulled forward in Z so the card sits
+    // visibly in front of the turtle as it dissolves.
+    const targetX = -vp.w * 0.32;
+    const targetY = vp.h * 0.32;
+    const targetZ = 60;
+    c.burnPhase = 'flying';
+    c.burnAge = 0;
+    c.burnFromPos.copy(c.group.position);
+    c.burnToPos.set(targetX, targetY, targetZ);
+    c.burnFromRot.copy(c.group.rotation);
+  }
+
+  function disposeCard(c: CardInternal): void {
+    root.remove(c.group);
+    c.faceMat.dispose();
+    c.edgeMat.dispose();
+  }
+
+  function spawnShardsAt(origin: THREE.Vector3, baseColor: THREE.Color): void {
+    for (let i = 0; i < SHARDS_PER_BURN; i++) {
+      const w = CARD_W_PX * (0.2 + Math.random() * 0.35);
+      const h = CARD_H_PX * (0.18 + Math.random() * 0.32);
+      // Three random vertices in a small box centered on origin — random
+      // triangle, asymmetric on purpose. Indices are implicit for a single
+      // unindexed triangle.
+      const verts = new Float32Array([
+        (Math.random() - 0.5) * w, (Math.random() - 0.5) * h, 0,
+        (Math.random() - 0.5) * w, (Math.random() - 0.5) * h, 0,
+        (Math.random() - 0.5) * w, (Math.random() - 0.5) * h, 0,
+      ]);
+      const geom = new THREE.BufferGeometry();
+      geom.setAttribute('position', new THREE.BufferAttribute(verts, 3));
+
+      // Start color: blend the card's base color toward ember orange so the
+      // shatter reads as a burn rather than a confetti spray.
+      const ember = new THREE.Color(1.0, 0.55, 0.05);
+      const startColor = baseColor.clone().lerp(ember, 0.7);
+      const mat = new THREE.MeshBasicMaterial({
+        color: startColor.getHex(),
+        transparent: true,
+        opacity: 1,
+        side: THREE.DoubleSide,
+        depthWrite: false,
+      });
+      const mesh = new THREE.Mesh(geom, mat);
+      mesh.position.copy(origin);
+      mesh.position.x += (Math.random() - 0.5) * 14;
+      mesh.position.y += (Math.random() - 0.5) * 14;
+      burnRoot.add(mesh);
+      shards.push({
+        mesh, geom, mat,
+        velocity: new THREE.Vector3(
+          (Math.random() - 0.5) * 70,
+          30 + Math.random() * 55,          // strong upward bias
+          (Math.random() - 0.5) * 30,
+        ),
+        angVel: new THREE.Vector3(
+          (Math.random() - 0.5) * 7,
+          (Math.random() - 0.5) * 7,
+          (Math.random() - 0.5) * 7,
+        ),
+        age: 0,
+        maxLife: SHARD_LIFE_MIN_S + Math.random() * SHARD_LIFE_JITTER_S,
+      });
+    }
+  }
+
+  function updateShards(dt: number): void {
+    for (let i = shards.length - 1; i >= 0; i--) {
+      const s = shards[i]!;
+      s.age += dt;
+      const t = s.age / s.maxLife;
+      if (t >= 1) {
+        burnRoot.remove(s.mesh);
+        s.geom.dispose();
+        s.mat.dispose();
+        shards.splice(i, 1);
+        continue;
+      }
+      s.mesh.position.x += s.velocity.x * dt;
+      s.mesh.position.y += s.velocity.y * dt;
+      s.mesh.position.z += s.velocity.z * dt;
+      // Damp velocity so shards drift to a slow rise.
+      s.velocity.multiplyScalar(0.985);
+      // Add a tiny upward buoyancy late in life so the trail keeps drifting
+      // up even as horizontal momentum dies.
+      s.velocity.y += 6 * dt;
+      s.mesh.rotation.x += s.angVel.x * dt;
+      s.mesh.rotation.y += s.angVel.y * dt;
+      s.mesh.rotation.z += s.angVel.z * dt;
+      // Shrink + fade together
+      const sc = Math.max(0, 1 - t);
+      s.mesh.scale.set(sc, sc, sc);
+      s.mat.opacity = Math.max(0, 1 - t * 0.92);
+      // Color: ember → ash (warm orange → dim warm gray)
+      const r = THREE.MathUtils.lerp(1.0, 0.42, t);
+      const g = THREE.MathUtils.lerp(0.55, 0.38, t);
+      const b = THREE.MathUtils.lerp(0.05, 0.34, t);
+      s.mat.color.setRGB(r, g, b);
+    }
+  }
+
+  // ─── main update ────────────────────────────────────────────
 
   function update(dt: number): void {
     const anchor = getAnchor();
     const vp = getViewport();
     const cx = anchor ? anchor.x - vp.w / 2 : 0;
     const cy = anchor ? vp.h / 2 - anchor.y : 0;
-    // Orbit center sits at the turtle's anchor. Slight downward bias so
-    // the orbit ring crosses the turtle's torso rather than its head.
     const ccy = cy - (anchor ? anchor.height * 0.1 : 0);
 
-    for (const c of cards) {
+    for (let i = cards.length - 1; i >= 0; i--) {
+      const c = cards[i]!;
       c.age += dt;
 
-      // Orbital position. Plane = (cos θ * radius, ccy + yOnPlane, sin θ * radius * Z_SCALE).
-      // Z_SCALE < 1 squashes the orbit into a flatter ellipse so the back
-      // arc reads cleanly. cos θ → x position; sin θ → z (depth).
+      // ── burn-flying branch overrides normal orbit ────────────
+      if (c.burnPhase === 'flying') {
+        c.burnAge += dt;
+        const t = Math.min(1, c.burnAge / BURN_FLY_S);
+        const eased = 1 - Math.pow(1 - t, 3);
+        c.group.position.lerpVectors(c.burnFromPos, c.burnToPos, eased);
+        // Rotate to face camera (zero out the tumble) as it flies.
+        c.group.rotation.x = c.burnFromRot.x * (1 - eased);
+        c.group.rotation.y = c.burnFromRot.y * (1 - eased);
+        c.group.rotation.z = c.burnFromRot.z * (1 - eased);
+        // Stay fully visible during the flight — this is the moment.
+        c.faceMat.opacity = MAX_ALPHA;
+        c.edgeMat.opacity = MAX_ALPHA;
+        if (t >= 1) {
+          // Shatter and remove the card.
+          spawnShardsAt(c.group.position, c.baseColor);
+          disposeCard(c);
+          cards.splice(i, 1);
+        }
+        continue;
+      }
+
+      // ── scope fade-out: dispose smoothly when survey unmounts ─
+      if (c.fadingOut) {
+        c.fadeOutAge += dt;
+        const t = Math.min(1, c.fadeOutAge / SCOPE_FADE_OUT_S);
+        const a = (1 - t) * MAX_ALPHA;
+        c.faceMat.opacity = a;
+        c.edgeMat.opacity = a;
+        if (t >= 1) {
+          disposeCard(c);
+          cards.splice(i, 1);
+        }
+        continue;
+      }
+
+      // ── normal orbital update ───────────────────────────────
       c.theta += c.omegaTheta * dt;
-      const Z_SCALE = 1.4;          // > 1 makes the back arc deeper (more dramatic)
+      const Z_SCALE = 1.4;
       const orbitX = Math.cos(c.theta) * c.radius;
       const orbitZ = Math.sin(c.theta) * c.radius * Z_SCALE;
 
-      // Spawn anim: rise from click position to orbit position over SPAWN_RISE_S.
       const riseT = Math.min(1, c.age / SPAWN_RISE_S);
-      const ease = 1 - Math.pow(1 - riseT, 3); // ease-out cubic
+      const ease = 1 - Math.pow(1 - riseT, 3);
       const targetX = cx + orbitX;
       const targetY = ccy + c.yOnPlane;
       const targetZ = orbitZ;
@@ -179,40 +380,72 @@ export function createOrbitingCards(args: {
         -10 + (targetZ - (-10)) * ease,
       );
 
-      // Rigid-body rotation in vacuum: pure constant angular velocity.
       c.group.rotation.x += c.spinX * dt;
       c.group.rotation.y += c.spinY * dt;
       c.group.rotation.z += c.spinZ * dt;
 
-      // Visibility — fade out across the FRONT half of the orbit so cards
-      // don't fly through the dialogue. sin(θ) tells us depth: positive
-      // = front (toward camera), negative = back. We hide cards in the
-      // front quarter.
+      // Visibility by turtle-relative angle:
+      //   sin(theta) > 0  →  card is in FRONT of turtle (between turtle
+      //                      and camera), would block dialogue. Fade
+      //                      progressively to 10% alpha at the front-
+      //                      center (sin = 1).
+      //   sin(theta) ≤ 0  →  card is to the side / behind. Fully visible.
       const sinT = Math.sin(c.theta);
-      // Map sinT ∈ [-1, +1] → visibility. visible when sinT < 0 (back),
-      // fade when sinT > 0.2, fully hidden by sinT > 0.6.
-      let visAlpha = 1;
-      if (sinT > 0.2) {
-        visAlpha = Math.max(0, 1 - (sinT - 0.2) / 0.4);
-      }
+      const angleAlpha = sinT > 0 ? (1 - 0.9 * sinT) : 1;
 
       const fadeIn = Math.min(1, c.age / SPAWN_ALPHA_S);
-      const alpha = visAlpha * fadeIn;
+      const alpha = MAX_ALPHA * angleAlpha * fadeIn;
       c.faceMat.opacity = alpha;
       c.edgeMat.opacity = alpha;
       c.group.visible = alpha > 0.01;
     }
+
+    updateShards(dt);
   }
 
+  // ─── outside wiring: scope + burn subscriptions ─────────────
+
+  const unsubScope = subscribeCardsActive((active) => {
+    if (active) return;
+    // Scope going inactive: fade out every live, non-burning card.
+    for (const c of cards) {
+      if (c.burnPhase === 'none') {
+        c.fadingOut = true;
+        c.fadeOutAge = 0;
+      }
+    }
+  });
+
+  const unsubBurn = subscribeBurnCard(() => {
+    // Burn the most-recently-spawned card that isn't already burning or
+    // fading. If none exists, no-op.
+    for (let i = cards.length - 1; i >= 0; i--) {
+      const c = cards[i]!;
+      if (c.burnPhase === 'none' && !c.fadingOut) {
+        startBurn(c);
+        return;
+      }
+    }
+  });
+
   function dispose(): void {
+    unsubScope();
+    unsubBurn();
     for (const c of cards) {
       root.remove(c.group);
       c.faceMat.dispose();
       c.edgeMat.dispose();
     }
     cards.length = 0;
+    for (const s of shards) {
+      burnRoot.remove(s.mesh);
+      s.geom.dispose();
+      s.mat.dispose();
+    }
+    shards.length = 0;
     cardGeom.dispose();
     scene.remove(root);
+    scene.remove(burnRoot);
   }
 
   return { spawnCard, update, dispose };
