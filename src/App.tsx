@@ -24,6 +24,10 @@ import { loadDebugVisible, saveDebugVisible } from './debug/visibilityStorage';
 import { publishDebug } from './debug/debugBus';
 import './debug/debug.css';
 import { AudioWakeBadge } from './ui/sound/AudioWakeBadge';
+import {
+  subscribeMascotDisintegrateComplete,
+  triggerMascotDisintegrate,
+} from './ui/scene/disintegrateStore';
 
 type Phase =
   | { kind: 'key' }
@@ -69,16 +73,23 @@ export function App() {
   }
 
   /** Skip survey: synthesize a session and route straight into the
-   *  reading with a hand-authored brief and intro. */
+   *  reading with a hand-authored brief and intro. Triggers the same
+   *  mascot disintegration as the survey path so the turtle is gone
+   *  by the time the reading fly-in starts. No goodbye dialogue — the
+   *  read demo is dev/showcase only, not a full booth experience. */
   function startReadDemo() {
     if (!apiKey) return;
-    const s: Session = { ...newSession(), phase: 'tent' };
-    const adapter = new AnthropicAdapter(createClaudeClient(apiKey));
-    setPhase({
-      kind: 'reading',
-      session: s,
-      seer: buildMarisolDemoSeer(adapter),
+    const unsub = subscribeMascotDisintegrateComplete(() => {
+      unsub();
+      const s: Session = { ...newSession(), phase: 'tent' };
+      const adapter = new AnthropicAdapter(createClaudeClient(apiKey));
+      setPhase({
+        kind: 'reading',
+        session: s,
+        seer: buildMarisolDemoSeer(adapter),
+      });
     });
+    triggerMascotDisintegrate();
   }
 
   function onSurveyComplete(session: Session, seer: Seer) {

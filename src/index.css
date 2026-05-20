@@ -486,27 +486,50 @@ a:hover { text-decoration: underline; }
   flex-direction: column;
   align-items: stretch;
   gap: 0.6rem;
-  width: min(42rem, calc(100vw - 4rem));
+  width: min(50rem, calc(100vw - 3rem));
   margin: 0 auto;
 }
 
-.intent-confirm__prompt {
-  margin: 0;
+/* The wrapped ChatInput inside IntentConfirm: bigger than its usual
+   reading-side appearance, centered, with the typed text shimmering
+   along a turquoise gradient. Placeholder + hint stay neutral. */
+.intent-confirm .reading__chat {
+  max-width: none;          /* override the 64ch cap inherited from reading */
+}
+.intent-confirm .reading__chat-input {
+  font-size: 1.4rem;
+  padding: 0.95rem 1.4rem;
   text-align: center;
-  font-family: var(--font-mono);
-  color: var(--color-danger);
-  font-size: 1rem;
-  line-height: 1.45;
-  letter-spacing: 0.04em;
-  text-shadow: 0 0 8px rgba(226, 83, 110, 0.35);
+  letter-spacing: 0.02em;
+  caret-color: #5eead4;
+  /* Color fallback drives the placeholder (which inherits color);
+     -webkit-text-fill-color renders typed text via the gradient. */
+  color: var(--fg-faint);
+  -webkit-text-fill-color: transparent;
+  background-image:
+    linear-gradient(rgba(10, 4, 24, 0.92), rgba(10, 4, 24, 0.92)),
+    linear-gradient(90deg,
+      #4cd6c4 0%,
+      #a7f3d0 25%,
+      #5eead4 50%,
+      #a7f3d0 75%,
+      #4cd6c4 100%);
+  background-clip: padding-box, text;
+  -webkit-background-clip: padding-box, text;
+  background-size: auto, 220% auto;
+  animation: intent-shimmer 3.4s linear infinite;
 }
-
-.intent-confirm__form {
-  display: flex;
-  gap: 0.6rem;
+.intent-confirm .reading__chat-input::placeholder {
+  -webkit-text-fill-color: var(--fg-faint);
+  font-style: italic;
 }
-
-.intent-confirm__input { flex: 1; }
+.intent-confirm .reading__chat-send {
+  width: 3rem;
+  height: 3rem;
+}
+@keyframes intent-shimmer {
+  to { background-position: 0 0, -220% 0; }
+}
 
 .intent-confirm__nudge {
   text-align: center;

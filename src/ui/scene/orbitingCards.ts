@@ -58,11 +58,20 @@ type CardInternal = {
   faceMat: THREE.MeshBasicMaterial;
   edgeMat: THREE.MeshBasicMaterial;
   baseColor: THREE.Color;     // for shards on burn
-  // orbit
+  // orbit — each card has its OWN tilted plane so the cluster distributes
+  // out of the strict horizontal band the original used.
   radius: number;
   yOnPlane: number;
   theta: number;
   omegaTheta: number;
+  // tiltAxisX/Z + tiltAngle define rotation applied to the canonical
+  // XZ-orbit position. Axis is a unit vector in the XZ plane; angle is
+  // ±~0.7 rad. The result is each card orbits on a uniquely tilted disc
+  // around the anchor — vertical spread comes from this rather than
+  // a fixed yOnPlane band.
+  tiltAxisX: number;
+  tiltAxisZ: number;
+  tiltAngle: number;
   // self-spin
   spinX: number;
   spinY: number;
@@ -173,14 +182,20 @@ export function createOrbitingCards(args: {
     const radius = ORBIT_RADIUS_MIN_PX + Math.random() * ORBIT_RADIUS_JITTER;
     const yOnPlane = (Math.random() - 0.5) * ORBIT_HEIGHT_RANGE;
     // Uniform random over [0, 2π] — cards distribute evenly around the
-    // turtle from the moment they spawn. (The original code clustered
-    // them into the back-left quarter, which made the orbit look uneven
-    // as they accumulated.)
+    // turtle from the moment they spawn.
     const theta = Math.random() * Math.PI * 2;
     const periodS = ORBIT_PERIOD_MIN_S + Math.random() * ORBIT_PERIOD_JITTER;
     // Random orbit direction so cards don't all sweep the same way.
     const sign = Math.random() < 0.5 ? -1 : 1;
     const omegaTheta = sign * ((Math.PI * 2) / periodS);
+    // Tilted orbit plane per card. Each card's plane is rotated around a
+    // random horizontal axis (in XZ) by ±~0.7 rad. Result: cards distribute
+    // through a sphere-ish cluster around the anchor instead of clustering
+    // on a single horizontal band that clipped at screen edges.
+    const tiltAxisTheta = Math.random() * Math.PI * 2;
+    const tiltAxisX = Math.cos(tiltAxisTheta);
+    const tiltAxisZ = Math.sin(tiltAxisTheta);
+    const tiltAngle = (Math.random() - 0.5) * 1.4;   // ±0.7 rad ≈ ±40°
 
     cards.push({
       group,
@@ -191,6 +206,9 @@ export function createOrbitingCards(args: {
       yOnPlane,
       theta,
       omegaTheta,
+      tiltAxisX,
+      tiltAxisZ,
+      tiltAngle,
       spinX: (Math.random() - 0.5) * SPIN_RANGE_RAD_S,
       spinY: (Math.random() - 0.5) * SPIN_RANGE_RAD_S,
       spinZ: (Math.random() - 0.5) * SPIN_RANGE_RAD_S,
@@ -365,15 +383,38 @@ export function createOrbitingCards(args: {
 
       // ── normal orbital update ───────────────────────────────
       c.theta += c.omegaTheta * dt;
+      // Canonical orbit position on the XZ plane.
       const Z_SCALE = 1.4;
-      const orbitX = Math.cos(c.theta) * c.radius;
-      const orbitZ = Math.sin(c.theta) * c.radius * Z_SCALE;
+      let pX = Math.cos(c.theta) * c.radius;
+      let pY = c.yOnPlane;
+      let pZ = Math.sin(c.theta) * c.radius * Z_SCALE;
+      // Rotate around the per-card tilt axis (in XZ). Uses Rodrigues'
+      // formula with the axis confined to XZ (zero Y component) so the
+      // closed-form simplifies — k×v reduces to (-kZ*pY, kZ*pX − kX*pZ, kX*pY)
+      // and k·v = kX*pX + kZ*pZ.
+      if (c.tiltAngle !== 0) {
+        const ax = c.tiltAxisX;
+        const az = c.tiltAxisZ;
+        const ang = c.tiltAngle;
+        const cosA = Math.cos(ang);
+        const sinA = Math.sin(ang);
+        const dot = ax * pX + az * pZ;     // k · v
+        // k × v
+        const cx_ = -az * pY;
+        const cy_ = az * pX - ax * pZ;
+        const cz_ = ax * pY;
+        const oneMinusCos = 1 - cosA;
+        const rotX = pX * cosA + cx_ * sinA + ax * dot * oneMinusCos;
+        const rotY = pY * cosA + cy_ * sinA;                            // k.y === 0
+        const rotZ = pZ * cosA + cz_ * sinA + az * dot * oneMinusCos;
+        pX = rotX; pY = rotY; pZ = rotZ;
+      }
 
       const riseT = Math.min(1, c.age / SPAWN_RISE_S);
       const ease = 1 - Math.pow(1 - riseT, 3);
-      const targetX = cx + orbitX;
-      const targetY = ccy + c.yOnPlane;
-      const targetZ = orbitZ;
+      const targetX = cx + pX;
+      const targetY = ccy + pY;
+      const targetZ = pZ;
       c.group.position.set(
         c.spawnX + (targetX - c.spawnX) * ease,
         c.spawnY + (targetY - c.spawnY) * ease,
@@ -384,14 +425,16 @@ export function createOrbitingCards(args: {
       c.group.rotation.y += c.spinY * dt;
       c.group.rotation.z += c.spinZ * dt;
 
-      // Visibility by turtle-relative angle:
-      //   sin(theta) > 0  →  card is in FRONT of turtle (between turtle
-      //                      and camera), would block dialogue. Fade
-      //                      progressively to 10% alpha at the front-
-      //                      center (sin = 1).
-      //   sin(theta) ≤ 0  →  card is to the side / behind. Fully visible.
-      const sinT = Math.sin(c.theta);
-      const angleAlpha = sinT > 0 ? (1 - 0.9 * sinT) : 1;
+      // Visibility by rotated Z:
+      //   pZ > 0  →  card is between the camera and the anchor (in front
+      //              of the turtle from camera POV). Fade progressively
+      //              to 10% alpha at front-most.
+      //   pZ ≤ 0  →  card is to the side / behind. Fully visible.
+      // Normalized to the orbit's max Z reach so the curve is consistent
+      // across radii.
+      const maxZ = c.radius * Z_SCALE;
+      const zNorm = Math.max(-1, Math.min(1, pZ / maxZ));
+      const angleAlpha = zNorm > 0 ? (1 - 0.9 * zNorm) : 1;
 
       const fadeIn = Math.min(1, c.age / SPAWN_ALPHA_S);
       const alpha = MAX_ALPHA * angleAlpha * fadeIn;
