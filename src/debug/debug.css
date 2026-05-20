@@ -216,9 +216,26 @@
   font-size: 0.65rem;
   color: #b388ff;
 }
+.agent-activity__copy {
+  background: transparent;
+  border: 1px solid rgba(124, 58, 237, 0.4);
+  color: #b388ff;
+  font-family: var(--font-mono, monospace);
+  font-size: 0.6rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  padding: 0.18rem 0.45rem;
+  cursor: pointer;
+  margin-left: 0.5rem;
+}
+.agent-activity__copy:hover {
+  border-color: rgba(124, 58, 237, 0.85);
+  color: #e8e0ff;
+}
 .agent-activity__sub {
   font-size: 0.6rem;
   color: #6b5a8a;
+  margin-left: auto;
 }
 .agent-activity__body {
   overflow-y: auto;

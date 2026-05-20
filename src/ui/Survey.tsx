@@ -46,6 +46,7 @@ import { findPeopleMatchingName, pickReturnLine, type ReturningMatch } from '../
 import type { Seer } from '../pipeline/seer';
 import type { SurveyProfile } from '../pipeline/survey';
 import { publishDebug, clearDebug } from '../debug/debugBus';
+import { publishSurveyState } from '../debug/surveyStateBus';
 import { ChatInput } from './ChatInput';
 import { UndoIcon } from './icons/UndoIcon';
 import { setCardsActive } from './scene/cardsScopeStore';
@@ -257,7 +258,11 @@ export function Survey({ apiKey, session, onComplete }: Props) {
     publishDebug('survey.queue', state.queue.map((q) => q.node_id).join(','));
     publishDebug('survey.asked', state.asked_node_ids.join(','));
     publishDebug('survey.person', personIdState ?? '');
-  }, [state.thinking, state.picks_log.length, state.queue, state.asked_node_ids, personIdState]);
+    publishSurveyState(state);
+  }, [state, state.thinking, state.picks_log.length, state.queue, state.asked_node_ids, personIdState]);
+
+  // Clear the bus snapshot when Survey unmounts.
+  useEffect(() => () => publishSurveyState(null), []);
   useEffect(() => () => {
     clearDebug('survey.thinking');
     clearDebug('survey.picks');

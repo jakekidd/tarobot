@@ -196,10 +196,10 @@ export function App() {
 
       <Debug visible={debugVisible} />
       <DebugQueue visible={debugVisible && phase.kind === 'survey'} />
-      {/* Live agent activity stream — always-visible during reading and
-          when debug is on. Gives concrete visibility into "what's the
-          seer preparing", which would otherwise be a black box. */}
-      <AgentActivity alwaysVisible={debugVisible || phase.kind === 'reading'} />
+      {/* Live agent activity stream — debug-only. Toggled via the debug
+          chip in the topbar so it doesn't crowd the actual UI during
+          normal use. */}
+      {debugVisible && <AgentActivity />}
     </div>
   );
 }
