@@ -105,11 +105,25 @@ export function WarpDemo({ onExit }: { onExit: () => void }) {
         <div className="warp-demo__hint">space = skip · r = restart · esc = exit</div>
       </div>
 
-      {/* Three.js scene — bare skeleton with debug helpers. Star
-          shader / turtle / disintegrate FX layer in here next. */}
+      {/* Three.js scene — bare skeleton with debug helpers + phase-
+          aware placeholder behavior. Real star shader / turtle /
+          disintegrate FX layer in here in subsequent steps. */}
       <div className="warp-demo__stage">
-        <WarpScene />
+        <WarpScene phase={phase} phaseStartMs={phaseStartMs} />
       </div>
+
+      {/* DOM overlays for phases where a non-3d effect is the right
+          tool. Both keyed on phase so React handles mount/unmount. */}
+      {phase === 'whiteout' && <div className="warp-demo__whiteout" />}
+      {phase === 'queue' && (
+        <div className="warp-demo__queue">
+          <div className="warp-demo__queue-line">you are #347 in line.</div>
+          <div className="warp-demo__queue-sub">
+            the seer will see you in approximately 47 minutes.
+          </div>
+          <div className="warp-demo__queue-hint">press r to replay</div>
+        </div>
+      )}
 
       <WarpDebug phase={phase} phaseStartMs={phaseStartMs} />
     </div>

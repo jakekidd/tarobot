@@ -145,3 +145,60 @@
 .warp-debug__line-t { color: rgba(216, 212, 255, 0.35); flex-shrink: 0; }
 .warp-debug__line-p { color: rgba(167, 139, 250, 0.7); flex-shrink: 0; }
 .warp-debug__line-m { overflow: hidden; text-overflow: ellipsis; }
+
+/* ── Whiteout phase overlay ────────────────────────────── */
+/* Hard white that fades to transparent (revealing the black canvas
+   underneath) over the phase duration. Acts as the "moment of dread"
+   silence between disintegrate and queue. */
+.warp-demo__whiteout {
+  position: absolute;
+  inset: 0;
+  z-index: 105;
+  background: #fff;
+  animation: warp-whiteout 1.5s ease-out forwards;
+  pointer-events: none;
+}
+@keyframes warp-whiteout {
+  0%   { opacity: 1; }
+  20%  { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+/* ── Queue mock overlay ────────────────────────────────── */
+.warp-demo__queue {
+  position: absolute;
+  inset: 0;
+  z-index: 104;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.7rem;
+  font-family: var(--font-mono);
+  color: rgba(216, 212, 255, 0.9);
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  text-align: center;
+  animation: warp-queue-fade-in 700ms ease-out both;
+  pointer-events: none;
+}
+@keyframes warp-queue-fade-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.warp-demo__queue-line {
+  font-size: 1.4rem;
+  color: #d8d4ff;
+  text-shadow: 0 0 16px rgba(167, 139, 250, 0.4);
+}
+.warp-demo__queue-sub {
+  font-size: 0.8rem;
+  color: rgba(216, 212, 255, 0.55);
+  letter-spacing: 0.2em;
+}
+.warp-demo__queue-hint {
+  margin-top: 2.5rem;
+  font-size: 0.55rem;
+  letter-spacing: 0.32em;
+  color: rgba(216, 212, 255, 0.3);
+}
