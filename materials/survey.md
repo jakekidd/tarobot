@@ -23,23 +23,29 @@ A few rules so the parser doesn't bite you:
   form on returning visits.
 - The **first** entry under each section is labelled `Template`. The
   parser skips templates. They exist to show the schema.
-- **Pillars** is the structural backbone. The 6 questions here are
-  asked in this order at the start of every survey (after name /
-  birthday / intent, which live in code because they have special UI).
-  Order matters. Move questions to reorder.
-- **Pool** is the random pool. The engine draws 14 questions from here
-  per first-time visit (or 6 dedup'd against the user's history for
-  returning visits). Order doesn't matter inside the pool.
+- **Pillars** is the structural backbone. The questions here are asked
+  in this order at the start of every survey (after name / birthday /
+  intent, which live in code because they have special UI). Order
+  matters. Move questions to reorder.
+- **Pool** is the random pool. The engine draws N questions from here
+  per first-time visit (currently 12; dedup'd 6 for returning visits).
+  Order doesn't matter inside the pool.
 - Fields per question:
-  - `Format`: one of `choice` | `binary` | `matrix` | `relationship_pick`.
-    (Openers `text` / `date` / `intent` are code-only.)
-  - `Probe`: a one-line note to the detective explaining what this
-    question REALLY tests for. Optional but encouraged — empty probes
-    leave the detective guessing. Authors who skip this are leaving
-    intelligence on the table.
+  - `Format`: one of `choice` | `binary` | `matrix` | `fork` |
+    `relationship_pick`. (Openers `text` / `date` / `intent` are
+    code-only.)
+  - `Probe`: a structured decoder hook (optional but encouraged). Lives
+    as an indented block with three sub-fields the parser recognizes:
+      - `Surface`: what the literal answer is about.
+      - `Inversions`: what answers may invert to — the algorithmic
+        seeder reads this to drop hypothesis seeds onto the detective's
+        board.
+      - `Watch for`: cross-history confirmations / complications.
+    Legacy single-line `Probe: ...` still parses (stored as `surface`).
   - `Options`: bullet list of answer choices. Required for `choice`.
     `binary` ignores it (locked to yes / no / sometimes).
     `relationship_pick` ignores it (own UI).
+    `fork` takes pairs in `left | right` format, one per bullet.
     Each option can be followed by `:: comment` — a short line shown
     inline after the user picks that answer.
   - `Axes`: required for `matrix`. Two pairs in `x: a | b` / `y: c | d`
@@ -52,20 +58,56 @@ A few rules so the parser doesn't bite you:
 
 ## Pillars
 
-These are the 6 always-asked questions, in order, post-openers.
+These are the always-asked questions, in order, post-openers. Two
+calibration questions warm the seer up to the user's register, then the
+operational/relational/values arc lands the live fork by position 7.
 
 ### Template
 
 Format: choice
-Probe: a one-line note to the detective about what this question tests.
+Probe:
+  Surface: a one-line note about what the literal answer is about.
+  Inversions: what the answer may invert to / suspect (seeder reads this).
+  Watch for: cross-history confirms or complicates this read.
 Options:
   - first option
   - second option :: optional inline comment
 
+### Have you done this before?
+
+Format: choice
+Probe:
+  Surface: tarot fluency calibration — does the user already speak the language.
+  Inversions: yes = expectations are already shaped, watch for performative familiarity. never = the reading is also an initiation, pace accordingly.
+  Watch for: a "yes" who picks "i don't know" on intent later is likely a believer in flux, not a skeptic.
+Options:
+  - yes — i read tarot
+  - yes — i've had readings
+  - sort of
+  - never
+
+### What's your relationship to the spiritual?
+
+Format: choice
+Probe:
+  Surface: tone calibration for the seer's opening register.
+  Inversions: skeptic = wants the reading to surprise them honestly, suspects the seer wants to convert them; believer = brings cosmology, may project meaning onto generic statements; "it's complicated" = the most diagnostic — usually means they were raised in one frame and have left it without arriving anywhere stable.
+  Watch for: cross-reference with value_most — wisdom-pickers who say "searching" are looking for permission to stop searching.
+Options:
+  - believer
+  - skeptic
+  - spiritual but not religious
+  - searching
+  - not interested
+  - it's complicated
+
 ### How do you make decisions?
 
 Format: choice
-Probe: operational style. mind = deliberate / analytic. heart = emotional / valuational. gut = intuitive / felt. distinguishes how the user reaches certainty; biases how the seer should frame the closing read.
+Probe:
+  Surface: operational style.
+  Inversions: mind = deliberate / analytic — may intellectualize feeling. heart = emotional / valuational — may sacrifice clarity for closeness. gut = intuitive / felt — may not be able to articulate why.
+  Watch for: biases how the seer should frame the closing read — mind-pickers want structure, heart-pickers want resonance, gut-pickers want naming.
 Options:
   - mind
   - heart
@@ -74,12 +116,18 @@ Options:
 ### Who is the most important person in your life?
 
 Format: relationship_pick
-Probe: anchor of their relational world. detective: register this person as the central CastMember. their absence or distance from later answers is data.
+Probe:
+  Surface: relational anchor.
+  Inversions: the user picks the central CastMember. their absence or distance from later answers is data. picking "ex" or "someone i used to know" instead of partner/parent is a tell about where the gravity actually is.
+  Watch for: if this person doesn't reappear in later relational questions, the relationship may be aspirational or strained; if they reappear in shadow or insecurity contexts, the bond is conflicted.
 
 ### How do you think others perceive you?
 
 Format: choice
-Probe: self-image vs social-mirror. each option indexes a different relational wound or defense. detective: use this to read the user's tone in later answers, not to label them.
+Probe:
+  Surface: self-image vs social-mirror gap.
+  Inversions: each option indexes a different relational wound or defense. "too much" = has been told they're overwhelming, edits to be palatable. "not enough" = chronic underestimation, the unseen wound. "as the role i play" = career-identity reduction, often successful + lonely. "more put together than i am" = competence as compensation. "i've stopped checking" = disengaged from the social mirror; either evolved, depressed, or dissociated.
+  Watch for: use to read the user's tone in later answers, not to label them. "i've stopped checking" + low engagement = probe for depression vs evolution.
 Options:
   - too much
   - not enough
@@ -91,28 +139,43 @@ Options:
 ### Which of these do you value most?
 
 Format: choice
-Probe: what they will sacrifice OTHERS for. abstract priorities collapse the rest of the survey. detective: this is the spine — read every later answer through this lens.
+Probe:
+  Surface: what they will sacrifice OTHERS for. abstract priorities collapse the rest of the survey.
+  Inversions: strong values invert to corresponding fears — love → fear of being unlovable / abandoned; freedom → fear of constraint / entrapment; wisdom → fear of being foolish / deceived; beauty → fear of decay / irrelevance / invisibility; security → fear of chaos / things falling apart; power → fear of powerlessness / humiliation. seed the inverted fear as tentative; later answers either confirm or complicate.
+  Watch for: this is the spine — read every later answer through this lens. cross-reference with spiritual_rel (wisdom + searching = different than wisdom + skeptic).
 Options:
   - love
   - freedom
   - wisdom
   - beauty
-  - mastery
+  - security
   - power
 
-### What's loudest in your head right now?
+### Which one is your question right now?
 
-Format: choice
-Probe: where the user's attention lives. past = retrospective (regret OR something to honor). present = the live moment (a choice or what's already underway). future = forward gaze (anxiety OR longing). detective: pick the valence from texture in later answers, not from the option alone.
+Format: fork
+Probe:
+  Surface: the live fork the user is standing inside — both side AND being stuck-between are diagnostic.
+  Inversions: each pick seeds a specific suspicion. bet = there's a leap they keep not taking; hold = there's a leap they keep almost taking. stay = there's an exit they're not letting themselves see; go = there's a commitment they've already psychologically left. fit = there's a part of them their people don't know; break = they've broken out and aren't sure if it was worth it. continue = the trajectory is set but no longer chosen; change = mid-arc collapse of a previous identity. close = they wall up because someone got too close; open = someone is waiting at the wall. resist = the thing they're fighting may be themselves; accept = they've started surrendering, unsure if it's wisdom or giving up. control = systemic dread is masking a local choice; surrender = already-burned, looking for what's worth saving. later = they're about to do something irreversible; now = a window is closing they can feel but not name. silence = there's something specific being unsaid to a specific person; speak = they spoke up recently and aren't sure if it was right. bar (stuck-between) = the most diagnostically loaded — they're not committed to a side, the fork is acute.
+  Watch for: if the user picks the bar (stuck-between), weight the fork as the SPINE of the reading. cross-reference with key_person (whose voice is on either side of this fork).
 Options:
-  - past
-  - present
-  - future
+  - risk | hold
+  - stay | go
+  - fit | break
+  - continue | change
+  - close | open
+  - resist | accept
+  - control | surrender
+  - later | now
+  - silence | speak
 
 ### What does your life not have enough of?
 
 Format: choice
-Probe: felt deprivation as values indicator - somatic answers (touch, quiet) skew raw; ego answers (recognition, risk) cross-reference the relational anchor; meaning flags a values-behavior gap; time often masks avoidance. detective: touch is the one people hesitate on - weight it heavily and read it against the relational anchor first.
+Probe:
+  Surface: felt deprivation as values indicator.
+  Inversions: somatic answers (touch, quiet) skew raw / unmet bodily needs; ego answers (recognition, risk) cross-reference the relational anchor — recognition-pickers often have a key_person whose approval they're chasing; meaning flags a values-behavior gap; time often masks avoidance ("if i only had time, i would —").
+  Watch for: touch is the one people hesitate on — weight it heavily and read it against the relational anchor first. if the user picks meaning AND wisdom on value_most, suspect a values-execution gap (they know what matters but aren't living it).
 Options:
   - time
   - quiet
@@ -125,103 +188,32 @@ Options:
 
 ## Pool
 
-Random draws live here. Group by topic; the parser uses the topic
-heading (`### topic-name`) to tag each question.
+Random draws live here. Group by category; the parser uses the category
+heading (`### category-name`) to tag each question. Categories track the
+9 the observer files under: `self`, `history`, `relationships`, `joys`,
+`fears`, `insecurities`, `yearnings`, `now`, `tensions`. `tensions` is
+observer-derived only — no questions are tagged with it.
 
-### state
+### self
 
 #### Template
 
 Format: choice
-Probe: ...
+Probe:
+  Surface: ...
+  Inversions: ...
+  Watch for: ...
 Options:
   - first option
   - second option
 
-#### Where do you carry the most pain? if you closed your eyes and imagined your pain as heat in your body, where is it hottest?
-
-Format: choice
-Probe: somatic anchor for healing work. detective: this is where the user is HOLDING distress. cross-reference with later answers — if they pick a heart-loaded option here but never mention a person, the pain is internal; if they pick the head and later complain about work, the cognitive load IS the wound.
-Options:
-  - head
-  - back
-  - shoulders
-  - neck
-  - gut
-
-#### Does where you live feel right?
-
-Format: choice
-Options:
-  - yes
-  - for now
-  - no, but i stay :: we'll come back to that.
-
-#### It's late. what are you thinking about right now?
-
-Format: choice
-Options:
-  - someone
-  - something i did
-  - something i didn't do
-  - nothing, i'm asleep :: lucky.
-
-#### Where are you tonight, {name}?
-
-Format: matrix
-Axes:
-  - x: calm | chaotic
-  - y: in head | with people
-Options:
-  - calm + in head
-  - calm + with people
-  - chaotic + in head :: spiraling, in your head. classic.
-  - chaotic + with people
-
-#### What's true right now?
-
-Format: choice
-Options:
-  - something is stuck
-  - something is unsaid
-  - something is ending
-  - something is starting
-  - something is too much
-  - something is finally good
-
-#### What does work feel like — your job, your practice, whatever you call it?
-
-Format: choice
-Options:
-  - meaningful
-  - fine
-  - a slog
-  - undefined :: tell me more.
-
-### relational
-
-#### Template
-
-Format: relationship_pick
-Probe: ...
-
-#### With whom have you left the most unsaid?
-
-Format: relationship_pick
-Probe: identifies the unresolved relational anchor. detective: register the person, register the silence as load-bearing.
-
-#### Who haven't you been honest with lately?
-
-Format: choice
-Options:
-  - someone close
-  - myself
-  - no one comes to mind
-  - too many to count
-
 #### How do most people see you?
 
 Format: choice
+Probe:
+  Surface: how the user thinks they read to others.
+  Inversions: reliable = identity built on dependability; intense = aware they overwhelm; kind = wants kindness reflected back, may be people-pleasing; hard to read = cultivates opacity.
+  Watch for: contrast with perceived_as pillar — match = stable self-image, mismatch = compensation pattern.
 Options:
   - reliable
   - intense
@@ -231,87 +223,36 @@ Options:
 #### And how would you describe yourself?
 
 Format: choice
+Probe:
+  Surface: self-narrative tone.
+  Inversions: "someone who tries" = effort as identity, may be exhausted; "someone tired" = unguarded, possibly recently arrived at this answer; "someone good" = either grounded or performing virtue; "someone working on it" = in motion, growth-oriented.
+  Watch for: contrast with how-most-people-see-you for the gap.
 Options:
   - someone who tries
   - someone tired
   - someone good
   - someone working on it
 
-#### A moment from the last year you'd want a stranger to know.
-
-Format: choice
-Options:
-  - a win
-  - a loss
-  - something funny
-  - something i can't quite explain
-
-#### The version of you your parents know is—
-
-Format: choice
-Options:
-  - accurate
-  - outdated
-  - curated
-  - unknown to them
-
-#### How many people know the real version of you?
-
-Format: choice
-Options:
-  - many
-  - a few
-  - maybe two
-  - just me
-
-#### Are you someone's secret?
-
-Format: binary
-Probe: relational concealment probe. yes = the user is the hidden one. no = nobody is hiding the user. sometimes = situational concealment, often the most revealing answer.
-
-#### Who's in your head tonight?
-
-Format: choice
-Options:
-  - a parent
-  - a partner / ex
-  - a friend
-  - someone i'm avoiding
-
-### self
-
-#### Template
-
-Format: choice
-Probe: ...
-Options:
-  - first option
-  - second option
-
 #### When things go wrong, first instinct?
 
 Format: choice
+Probe:
+  Surface: blame-direction default.
+  Inversions: "my fault" = internalizer, often perfectionist; "their fault" = externalizer, may have boundary issues either way; "nobody's fault" = either evolved or dissociated from agency; "i'll figure it out" = competence as defense.
+  Watch for: cross with do-you-keep-score and pull-away-when.
 Options:
   - it's my fault
   - it's their fault
   - it's nobody's fault
   - i'll figure it out
 
-#### How are you, actually?
-
-Format: matrix
-Axes:
-  - x: honest | performing
-  - y: okay | not okay
-Options:
-  - honest + okay
-  - honest + not okay :: thank you for telling me.
-  - performing + okay
-  - performing + not okay :: i see you.
-
 #### Do you keep score?
 
 Format: choice
+Probe:
+  Surface: accounting of relational debt.
+  Inversions: yes = tracks, often resentful; no = either generous or suppressing resentment that will surface as collapse; "only with the wrong people" = differentiates trust ranges, mature pattern.
+  Watch for: "no" + later mentions of someone-specific = suppressed resentment toward that person.
 Options:
   - yes
   - no :: either generous or suppressing resentment.
@@ -320,108 +261,62 @@ Options:
 #### When did you last change your mind?
 
 Format: choice
+Probe:
+  Surface: epistemic flexibility.
+  Inversions: recently — big = in flux, possibly post-rupture; recently — small = pliable; long time ago = rigid or settled; can't remember = either deeply stable or genuinely closed.
+  Watch for: "can't remember" + "i've stopped checking" on perceived_as = strong rigid-pattern.
 Options:
   - recently — big thing
   - recently — small thing
   - long time ago
   - i can't remember
 
-#### What's different about you, compared to a year ago?
-
-Format: choice
-Options:
-  - i'm softer
-  - i'm harder
-  - i'm clearer
-  - i'm more lost
-  - same person, different problems
-
 #### Do you like yourself?
 
 Format: choice
+Probe:
+  Surface: self-regard baseline.
+  Inversions: "mostly" = grounded; "on good days" = mood-dependent self-image, suspect underlying anxiety/depression; "i'm trying to" = active negotiation, often post-shame; "not really" = unguarded admission, treat tenderly.
+  Watch for: cross with do-most-people-see-you-as-kind — kind self-image + low self-regard is the classic care-giving wound.
 Options:
   - mostly
   - on good days
   - i'm trying to
   - not really
 
-#### Where do you live, in time?
-
-Format: choice
-Options:
-  - mostly the past
-  - mostly the present
-  - mostly the future
-  - i'm scattered
-
 #### What do you protect?
 
 Format: choice
+Probe:
+  Surface: where the boundary energy goes.
+  Inversions: "my time" = exhausted by demands, may be over-functioning; "my heart" = recently hurt or hiding old hurt; "a person" = someone vulnerable in the cast; "a story i tell about myself" = the deepest answer, points to identity-as-defense.
+  Watch for: "a story i tell about myself" + perceived_as as the role i play = the role IS the story.
 Options:
   - my time
   - my heart
   - a person
   - a story i tell about myself
 
-### decisions
-
-#### Template
-
-Format: choice
-Probe: ...
-Options:
-  - first option
-  - second option
-
 #### Something's wrong. you—
 
 Format: choice
+Probe:
+  Surface: distress-response default.
+  Inversions: fix it = action-coper, may suppress affect; sit with it = tolerates discomfort, possibly trained by therapy or experience; ignore it = avoidant or genuinely resilient; talk to someone = relational regulator, suspect a trusted person in cast.
+  Watch for: "fix it" + "my fault" first-instinct = perfectionism. "ignore it" + "i've stopped checking" perceived_as = dissociation.
 Options:
   - fix it
   - sit with it
   - ignore it
   - talk to someone
 
-#### What have you been putting off?
-
-Format: choice
-Options:
-  - a conversation
-  - a decision
-  - a goodbye
-  - something for myself
-
-#### What do you want the cards to say?
-
-Format: choice
-Options:
-  - that i'm right
-  - that it'll be okay
-  - that i should leave
-  - something i'm not expecting
-
-### projective
-
-#### Template
-
-Format: choice
-Probe: ...
-Options:
-  - first option
-  - second option
-
-#### If you weren't doing what you do, you'd be—
-
-Format: choice
-Options:
-  - doing something specific
-  - something different
-  - not sure
-  - anything else
-
 #### Pick a creature. fast.
 
 Format: choice
+Probe:
+  Surface: projective self-identification.
+  Inversions: cat = independent, observant, selectively affectionate; dog = warm, loyalty-prone, may over-give; bird = perspective-keeper, ambivalent about ground; fish = quiet self, perhaps unobserved; bear = self-sufficient + dangerous when poked; with wings = wants flight, suspect escape pattern; with teeth = identifies with threat, possibly weaponizing fear.
+  Watch for: stretch from the conventional reading (e.g. "bear" picked by a small soft person) is the signal — the projection IS the data, not the conventional meaning.
 Options:
   - cat
   - dog
@@ -434,47 +329,214 @@ Options:
 #### Would you rather have a destination with no map, or a map with no destination?
 
 Format: binary
+Probe:
+  Surface: agency style — purpose-with-method vs method-with-purpose.
+  Inversions: yes (destination, no map) = has a goal, lacks process — possibly impulsive or visionary; no (map, no destination) = systems built without clear telos — possibly competent but adrift; sometimes = situational, evades the dichotomy.
+  Watch for: cross with how-do-you-make-decisions (gut = destination-no-map; mind = map-no-destination).
 
 #### You find a door you've never seen. you—
 
 Format: choice
+Probe:
+  Surface: projective for novelty / risk response.
+  Inversions: open it = high openness, may be reckless; knock first = courteous, suspects others' presence; walk past = avoidant, may suppress curiosity; go get someone = co-regulates novelty through people.
+  Watch for: "walk past" + "later" on fork = chronic deferral pattern.
 Options:
   - open it
   - knock first
   - walk past
   - go get someone
 
-#### Is there somewhere else you'd rather be right now?
+### history
+
+#### Template
 
 Format: choice
+Probe:
+  Surface: ...
+  Inversions: ...
+  Watch for: ...
 Options:
-  - somewhere specific
-  - somewhere vague
-  - nowhere
-  - anywhere but here
+  - first option
+  - second option
+
+#### A moment from the last year you'd want a stranger to know.
+
+Format: choice
+Probe:
+  Surface: identity-presentation default — what they want strangers to know.
+  Inversions: a win = forward-leaning, possibly performing competence; a loss = unguarded, possibly recently processed; something funny = uses humor as connection or armor; "something i can't quite explain" = the deepest answer, often grief-adjacent or numinous.
+  Watch for: the picked frame is the user's current public-facing self-story.
+Options:
+  - a win
+  - a loss
+  - something funny
+  - something i can't quite explain
+
+#### The version of you your parents know is—
+
+Format: choice
+Probe:
+  Surface: presented-vs-real self relative to family of origin.
+  Inversions: accurate = continuity, possibly enmeshed; outdated = has changed since they last looked, possibly geographic or value drift; curated = active performance, suspect ongoing approval-seeking or boundary-management; unknown to them = deep separation between presented self and origin, possibly chosen.
+  Watch for: "unknown to them" + perceived_as as the role i play = the role exists in part to keep parents at arm's length.
+Options:
+  - accurate
+  - outdated
+  - curated
+  - unknown to them
+
+#### What's different about you, compared to a year ago?
+
+Format: choice
+Probe:
+  Surface: change-narrative direction.
+  Inversions: softer = has been through something opening; harder = has been through something protective, possibly post-betrayal; clearer = a fork resolved or a value clarified; more lost = mid-rupture or post-rupture; "same person, different problems" = either grounded or stuck.
+  Watch for: "more lost" is a tentative seed for "current fork is acute" — pair with bar-tap on 9-fork.
+Options:
+  - i'm softer
+  - i'm harder
+  - i'm clearer
+  - i'm more lost
+  - same person, different problems
+
+### relationships
+
+#### Template
+
+Format: relationship_pick
+Probe:
+  Surface: ...
+  Inversions: ...
+  Watch for: ...
+
+#### With whom have you left the most unsaid?
+
+Format: relationship_pick
+Probe:
+  Surface: the unresolved relational anchor.
+  Inversions: who they pick is the person the live fork is most likely to circle. register the silence as load-bearing — what's unsaid IS the question for the cards.
+  Watch for: if they pick the same person they picked on key_person, the bond is the question. if it's a different person, there's a triangulation.
+
+#### Are you someone's secret?
+
+Format: binary
+Probe:
+  Surface: relational concealment probe.
+  Inversions: yes = the user is the hidden one — suspect an affair, a stigmatized relationship, an estrangement; no = nobody is hiding the user; sometimes = situational concealment, often the most revealing answer (work / family / public-facing contexts).
+  Watch for: "yes" + "i've stopped checking" perceived_as = chronic invisibility wound.
+
+#### Who's in your head tonight?
+
+Format: choice
+Probe:
+  Surface: live attention to a specific person.
+  Inversions: a parent = unfinished family material, possibly fork-adjacent; a partner / ex = current relational fork; a friend = either a confidant or a recently-frayed bond; someone i'm avoiding = the diagnostic answer — they've named the avoidance.
+  Watch for: "someone i'm avoiding" + with-whom-unsaid pointing to the same person = high-confidence load-bearing silence.
+Options:
+  - a parent
+  - a partner / ex
+  - a friend
+  - someone i'm avoiding
+
+### joys
+
+#### Template
+
+Format: choice
+Probe:
+  Surface: ...
+  Inversions: ...
+  Watch for: ...
+Options:
+  - first option
+  - second option
 
 #### Is there something you make?
 
 Format: choice
+Probe:
+  Surface: creative identity probe.
+  Inversions: "yes — i make" = stable creative practice; "yes but i don't call it that" = humility or impostor pattern, the practice exists but is unclaimed; "not really" = either accurate or self-effacing; "i used to" = creative identity loss, specific kind of grief.
+  Watch for: "i used to" is high-signal — pair with what-have-you-been-putting-off and yearnings probes.
 Options:
   - yes — i make
   - yes but i don't call it that
   - not really
   - i used to
 
-### shadow
+### fears
 
 #### Template
 
 Format: choice
-Probe: ...
+Probe:
+  Surface: ...
+  Inversions: ...
+  Watch for: ...
 Options:
   - first option
   - second option
 
+#### When you're anxious, other people notice it in your—
+
+Format: choice
+Probe:
+  Surface: where anxiety shows externally.
+  Inversions: voice = vocal markers (pitch, speed, halting); hands = physical, harder to mask; eyes = facial micro-expression, the hardest to hide; "they don't notice" = either skilled masker or genuinely externally calm (rare); also possibly socially isolated.
+  Watch for: "they don't notice" + "performing" axis on how-are-you-actually matrix = high-mask pattern.
+Options:
+  - voice
+  - hands
+  - eyes
+  - they don't notice
+
+### insecurities
+
+#### Template
+
+Format: choice
+Probe:
+  Surface: ...
+  Inversions: ...
+  Watch for: ...
+Options:
+  - first option
+  - second option
+
+#### Who haven't you been honest with lately?
+
+Format: choice
+Probe:
+  Surface: dishonesty target.
+  Inversions: someone close = active concealment in a primary bond; myself = self-deception, often the deepest answer; "no one comes to mind" = either grounded or unaware; "too many to count" = exhausted by social performance.
+  Watch for: "myself" + lies-i-tell-myself = high-confidence self-deception pattern. "someone close" + with-whom-unsaid = the same person.
+Options:
+  - someone close
+  - myself
+  - no one comes to mind
+  - too many to count
+
+#### How many people know the real version of you?
+
+Format: choice
+Probe:
+  Surface: depth of relational disclosure.
+  Inversions: many = either trust-rich or self-presented as flat; a few = healthy intimacy ceiling; maybe two = small inner circle, possibly the partner + one friend or family member; just me = isolation, either chosen or chronic.
+  Watch for: "just me" + low engagement = guarded but possibly relieved to be seen here.
+Options:
+  - many
+  - a few
+  - maybe two
+  - just me
+
 #### What do you tell yourself that isn't quite true?
 
 Format: choice
+Probe:
+  Surface: self-deception script.
+  Inversions: "i'm fine" = chronic minimization, often trauma-shaped; "i don't care" = protective indifference, suspect what's actually being defended; "i'll get to it" = procrastination as anxiety regulation; "they understand" = projecting empathy that may not be present, often relational over-investment.
+  Watch for: "they understand" + key_person → that key person may NOT in fact understand, and the user has built around the assumption.
 Options:
   - "i'm fine"
   - "i don't care"
@@ -484,24 +546,23 @@ Options:
 #### When you need to disappear, you—
 
 Format: choice
+Probe:
+  Surface: escape pattern.
+  Inversions: go quiet = withdrawal-in-place; get busy = task-flood as avoidance; sleep = somatic shutdown, possibly depressive; leave = physical exit, possibly geographic.
+  Watch for: "leave" + later geographic probes = recurring escape pattern, may be the fork.
 Options:
   - go quiet
   - get busy
   - sleep
   - leave
 
-#### When you're anxious, other people notice it in your—
-
-Format: choice
-Options:
-  - voice
-  - hands
-  - eyes
-  - they don't notice
-
 #### You pull away when—
 
 Format: choice
+Probe:
+  Surface: trigger for attachment retreat.
+  Inversions: someone gets too close = avoidant attachment pattern; someone disappoints me = punishing-distance pattern; "i feel small" = shame-based withdrawal; "i don't, actually" = either secure attachment or denial.
+  Watch for: "i don't, actually" + low engagement = possibly denial; with high engagement = possibly genuine secure base.
 Options:
   - someone gets too close
   - someone disappoints me
@@ -511,27 +572,174 @@ Options:
 #### The thing you're most proud of and most ashamed of might be the same thing. what is it?
 
 Format: choice
+Probe:
+  Surface: integrated shame-pride node.
+  Inversions: how much i give = caretaking pattern, possibly over-functioning; how much i hold back = restraint as identity, possibly self-protective; how hard i work = productivity-as-worth pattern; how much i need = need-shame, often the deepest answer in this set.
+  Watch for: "how much i need" is the most loaded — pair with what-do-you-protect (often "my heart") and pull-away-when (often "someone gets too close").
 Options:
   - how much i give
   - how much i hold back
   - how hard i work
   - how much i need
 
-### meta
+### yearnings
 
 #### Template
 
 Format: choice
-Probe: ...
+Probe:
+  Surface: ...
+  Inversions: ...
+  Watch for: ...
 Options:
   - first option
   - second option
 
-#### Have you done this before?
+#### What have you been putting off?
 
 Format: choice
+Probe:
+  Surface: avoided action.
+  Inversions: a conversation = relational rupture pending, suspect with-whom-unsaid target; a decision = the live fork; a goodbye = a relationship in its dissolving phase; "something for myself" = self-care collapse, often paired with caretaking patterns.
+  Watch for: "a decision" + bar-tap on fork = the live fork IS this decision.
 Options:
-  - yes — i read tarot
-  - yes — i've had readings
-  - sort of
-  - never
+  - a conversation
+  - a decision
+  - a goodbye
+  - something for myself
+
+#### What do you want the cards to say?
+
+Format: choice
+Probe:
+  Surface: what the user is hoping the seer will license.
+  Inversions: "that i'm right" = wants validation, suspect they're in a conflict and need backup; "that it'll be okay" = wants reassurance, possibly mid-anxiety spike; "that i should leave" = looking for permission, the fork is already decided emotionally; "something i'm not expecting" = open, lower-defended.
+  Watch for: "that i should leave" is a near-tell that the fork is stay/go and the user is already on the go side. read against the 9-fork answer.
+Options:
+  - that i'm right
+  - that it'll be okay
+  - that i should leave
+  - something i'm not expecting
+
+#### If you weren't doing what you do, you'd be—
+
+Format: choice
+Probe:
+  Surface: alt-life imagining.
+  Inversions: "doing something specific" = clear yearning, an alt-life identity exists in their head; "something different" = vague restlessness; "not sure" = either genuinely settled or under-imagined; "anything else" = active dissatisfaction with current work.
+  Watch for: "doing something specific" + value_most-mismatch with current work = the yearning is real and unaddressed.
+Options:
+  - doing something specific
+  - something different
+  - not sure
+  - anything else
+
+#### Is there somewhere else you'd rather be right now?
+
+Format: choice
+Probe:
+  Surface: geographic restlessness.
+  Inversions: somewhere specific = location-based yearning, often someone-shaped; somewhere vague = displacement without target; nowhere = grounded; "anywhere but here" = acute discomfort, possibly fork-adjacent.
+  Watch for: "anywhere but here" is a near-tell for fork acuteness.
+Options:
+  - somewhere specific
+  - somewhere vague
+  - nowhere
+  - anywhere but here
+
+### now
+
+#### Template
+
+Format: choice
+Probe:
+  Surface: ...
+  Inversions: ...
+  Watch for: ...
+Options:
+  - first option
+  - second option
+
+#### Where do you carry the most pain? if you closed your eyes and imagined your pain as heat in your body, where is it hottest?
+
+Format: choice
+Probe:
+  Surface: somatic anchor for healing work — where the user is HOLDING distress.
+  Inversions: head = cognitive load / overthinking; back = chronic-stress carrier; shoulders = duty / care-load weight; neck = controlled fear, often boundary-related; gut = unmetabolized emotional content, anxiety-coded.
+  Watch for: cross with relational answers — head + work-feeling-slog = cognitive overload from job; gut + with-whom-unsaid → that person is emotionally upsetting at a body level.
+Options:
+  - head
+  - back
+  - shoulders
+  - neck
+  - gut
+
+#### Does where you live feel right?
+
+Format: choice
+Probe:
+  Surface: geographic congruence.
+  Inversions: yes = stable; "for now" = transitional, may be pre-move; "no, but i stay" = active mismatch with location, suspect why they stay (job / relationship / money / fear).
+  Watch for: "no, but i stay" is high-signal — pair with would-rather-be and with-whom-unsaid.
+Options:
+  - yes
+  - for now
+  - no, but i stay :: we'll come back to that.
+
+#### It's late. what are you thinking about right now?
+
+Format: choice
+Probe:
+  Surface: nighttime mental load.
+  Inversions: someone = relational rumination; "something i did" = regret; "something i didn't do" = avoidance, possibly the live fork; "nothing, i'm asleep" = either grounded or evasive.
+  Watch for: "something i didn't do" is a near-tell for stasis-as-fork — pair with what-have-you-been-putting-off.
+Options:
+  - someone
+  - something i did
+  - something i didn't do
+  - nothing, i'm asleep :: lucky.
+
+#### Where are you tonight, {name}?
+
+Format: matrix
+Probe:
+  Surface: present-state two-axis read.
+  Inversions: calm + in head = grounded interior; calm + with people = grounded social; chaotic + in head = anxious rumination, the classic spiral; chaotic + with people = overwhelm, possibly conflict-adjacent.
+  Watch for: chaotic + in head + bar-tap on 9-fork = the fork is acute and the user came here looking for purchase.
+Axes:
+  - x: calm | chaotic
+  - y: in head | with people
+Options:
+  - calm + in head
+  - calm + with people
+  - chaotic + in head :: spiraling, in your head. classic.
+  - chaotic + with people
+
+#### What does work feel like — your job, your practice, whatever you call it?
+
+Format: choice
+Probe:
+  Surface: occupational valence.
+  Inversions: meaningful = engaged; fine = either stable or under-invested; "a slog" = strong candidate for the fork (career-shaped); undefined = either between jobs or in identity transition.
+  Watch for: "a slog" + alt-life-doing-something-specific = career-fork. "undefined" + perceived_as as the role i play = identity-without-anchor.
+Options:
+  - meaningful
+  - fine
+  - a slog
+  - undefined :: tell me more.
+
+#### How are you, actually?
+
+Format: matrix
+Probe:
+  Surface: state + honesty two-axis.
+  Inversions: honest + okay = unguarded baseline; honest + not okay = vulnerable, treat tenderly; performing + okay = performance baseline, may be hiding ease; performing + not okay = high mask, the most diagnostically loaded.
+  Watch for: performing + not okay + perceived_as as more put together than i am = sustained masking pattern.
+Axes:
+  - x: honest | performing
+  - y: okay | not okay
+Options:
+  - honest + okay
+  - honest + not okay :: thank you for telling me.
+  - performing + okay
+  - performing + not okay :: i see you.

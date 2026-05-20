@@ -12,7 +12,11 @@ export const PHASE_ORDER: Phase[] = ['A', 'B', 'C', 'D', 'E'];
 // Question formats. `multi` was dropped — collapsed to `choice` (single
 // select). `binary` ALWAYS resolves to [yes, no, sometimes] regardless
 // of the node's `a` field; investigator can't alter binary options.
-export type AnswerFormat = 'text' | 'date' | 'choice' | 'binary' | 'matrix' | 'intent' | 'relationship_pick' | 'relationship_status';
+// `fork` is a 9-row dichotomy picker with three tap zones per row
+// (left / bar-stuck-between / right). Options are stored as `left | right`
+// strings; the ForkChoice UI splits the pipe and the answer encoding
+// uses `"left"` / `"right"` / `"between:left/right"`.
+export type AnswerFormat = 'text' | 'date' | 'choice' | 'binary' | 'matrix' | 'intent' | 'relationship_pick' | 'relationship_status' | 'fork';
 
 /** Six tasteful, broadly-inclusive buckets for the relationship-status
  *  opener. Order is load-bearing: "single" first so the answer doesn't
@@ -37,6 +41,22 @@ export const RELATIONSHIP_STATUS_OPTIONS: RelationshipStatus[] = [
 /** [answer_text] | [answer_text, comment]. Comment is shown inline after pick. */
 export type AnswerTuple = [string] | [string, string];
 
+/** Structured decoder hook attached to a TreeNode's probe field.
+ *
+ *  - `surface`     what the literal answer is about
+ *  - `inversions`  what answers may invert to — read by the algorithmic
+ *                  seeder to drop hypothesis seeds onto the detective's
+ *                  board (e.g. values → fears inversion)
+ *  - `watch_for`   cross-history confirms / complicates
+ *
+ *  All fields optional. Legacy single-line `Probe: text` markdown gets
+ *  parsed into `{ surface: text }`. */
+export type ProbeBlock = {
+  surface?: string;
+  inversions?: string;
+  watch_for?: string;
+};
+
 export type TreeNode = {
   /** Which topic group this node belongs to. Must be one of `tree.topics`. */
   topic: string;
@@ -44,12 +64,21 @@ export type TreeNode = {
   f: AnswerFormat;
   a?: AnswerTuple[];
   axes?: [[string, string], [string, string]];
-  /** Decoder hook: a short note to the detective explaining what this
-   *  question is REALLY probing for. Separate from per-answer `interp`
-   *  (which is post-hoc interpretation). The probe primes the detective
-   *  before the answer arrives — author intent loaded into the prompt. */
-  probe?: string;
+  /** Structured decoder hook (see ProbeBlock). Optional. */
+  probe?: ProbeBlock;
 };
+
+/** Helper: flatten a ProbeBlock to a single string for prompt embedding.
+ *  Returns undefined when the probe is empty. Lines are labelled so the
+ *  consumer LLM can tell which sub-field a sentence came from. */
+export function probeToString(probe?: ProbeBlock): string | undefined {
+  if (!probe) return undefined;
+  const parts: string[] = [];
+  if (probe.surface) parts.push(`surface: ${probe.surface}`);
+  if (probe.inversions) parts.push(`inversions: ${probe.inversions}`);
+  if (probe.watch_for) parts.push(`watch for: ${probe.watch_for}`);
+  return parts.length > 0 ? parts.join('\n') : undefined;
+}
 
 export type DialogueTree = {
   v: string;

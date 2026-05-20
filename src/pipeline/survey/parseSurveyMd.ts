@@ -1,27 +1,33 @@
 // Markdown → DialogueTree parser.
 //
-// The survey is authored in `SURVEY.md` (sibling file). This module converts
+// The survey is authored in `materials/survey.md`. This module converts
 // that markdown into the in-memory DialogueTree shape the engine consumes.
-// The full schema is documented at the top of SURVEY.md itself.
+// The full schema is documented at the top of survey.md itself.
 //
 // Format (recap):
 //   ## Pillars
 //   ### {question text — the heading IS the question}
-//   Format: choice|binary|matrix|relationship_pick
-//   Probe: short note to the detective (optional)
+//   Format: choice|binary|matrix|fork|relationship_pick
+//   Probe:
+//     Surface: ...
+//     Inversions: ...
+//     Watch for: ...
 //   Options:
 //     - first option
 //     - second option :: optional inline comment
 //
 //   ## Pool
-//   ### {topic}
+//   ### {category}
 //   #### {question text}
 //   ... same fields as Pillars ...
+//
+// `fork` format: each option bullet is a `left | right` pair (parser
+// stores the raw `left | right` string; the ForkChoice UI splits the bar).
 //
 // Entries named exactly `Template` (case-insensitive) are skipped — they
 // exist in the doc as schema reference and never load into the engine.
 
-import type { AnswerFormat, DialogueTree, TreeNode } from './types';
+import type { AnswerFormat, DialogueTree, ProbeBlock, TreeNode } from './types';
 
 type ParsedQuestion = {
   id: string;
@@ -39,6 +45,7 @@ const KNOWN_FORMATS: Record<string, AnswerFormat> = {
   matrix: 'matrix',
   intent: 'intent',
   relationship_pick: 'relationship_pick',
+  fork: 'fork',
 };
 
 /** Public entry point. Parses the markdown source, validates structure,
@@ -54,6 +61,7 @@ export function parseSurveyMd(source: string): DialogueTree {
   let current: ParsedQuestion | null = null;
   let optionsMode = false;
   let axesMode = false;
+  let probeMode = false;
 
   function commit() {
     if (current) {
@@ -62,6 +70,7 @@ export function parseSurveyMd(source: string): DialogueTree {
     }
     optionsMode = false;
     axesMode = false;
+    probeMode = false;
   }
 
   for (const raw of lines) {
@@ -79,7 +88,7 @@ export function parseSurveyMd(source: string): DialogueTree {
       continue;
     }
 
-    // Inside Pool: ### {topic-name} is a topic header (no Question, just a label).
+    // Inside Pool: ### {category-name} is a category header (no Question, just a label).
     // Inside Pillars: ### {question heading} is a question.
     const h3 = line.match(/^###\s+(.+?)\s*$/);
     if (h3) {
@@ -96,7 +105,7 @@ export function parseSurveyMd(source: string): DialogueTree {
       continue;
     }
 
-    // #### {question heading} inside Pool topics
+    // #### {question heading} inside Pool categories
     const h4 = line.match(/^####\s+(.+?)\s*$/);
     if (h4) {
       commit();
@@ -109,19 +118,49 @@ export function parseSurveyMd(source: string): DialogueTree {
 
     if (!current) continue;
 
-    // Field rows: `Format: ...`, `Probe: ...`, `Options:`, `Axes:`
+    // Probe-block sub-field: indented `Key: value` lines under a `Probe:`
+    // header. Recognizes `Surface`, `Inversions`, and `Watch for` (with
+    // space). Any other line content exits probe mode.
+    if (probeMode) {
+      const sub = line.match(/^\s+([A-Za-z][A-Za-z ]*?):\s*(.+)$/);
+      if (sub) {
+        const rawKey = sub[1]!.toLowerCase().trim();
+        const key = rawKey.replace(/\s+/g, '_');
+        const val = sub[2]!.trim();
+        const probe = (current.node.probe ?? {}) as ProbeBlock;
+        if (key === 'surface') probe.surface = val;
+        else if (key === 'inversions') probe.inversions = val;
+        else if (key === 'watch_for') probe.watch_for = val;
+        current.node.probe = probe;
+        continue;
+      }
+      // Non-indented or empty → exit probe mode and let the line fall
+      // through to the regular field/bullet/blank handlers below.
+      if (line.trim() && !/^\s/.test(line)) probeMode = false;
+    }
+
+    // Field rows: `Format: ...`, `Probe:` / `Probe: legacy-line`,
+    // `Options:`, `Axes:`. All top-level (no leading whitespace).
     const field = line.match(/^([A-Za-z_]+):\s*(.*)$/);
     if (field) {
       const key = field[1]!.toLowerCase();
       const val = field[2]!.trim();
       optionsMode = false;
       axesMode = false;
+      probeMode = false;
       if (key === 'format') {
         const fmt = KNOWN_FORMATS[val.toLowerCase()];
-        if (!fmt) throw new Error(`SURVEY.md: unknown format '${val}' on question "${current.heading}"`);
+        if (!fmt) throw new Error(`survey.md: unknown format '${val}' on question "${current.heading}"`);
         current.node.f = fmt;
       } else if (key === 'probe') {
-        if (val) current.node.probe = val;
+        if (val) {
+          // Legacy single-line probe — store as surface only.
+          current.node.probe = { surface: val };
+        } else {
+          // Structured probe block — sub-fields land on subsequent indented lines.
+          current.node.probe = current.node.probe ?? {};
+          probeMode = true;
+        }
       } else if (key === 'options') {
         optionsMode = true;
       } else if (key === 'axes') {
@@ -144,7 +183,7 @@ export function parseSurveyMd(source: string): DialogueTree {
           const which = axis[1]!.toLowerCase() as 'x' | 'y';
           const [left, right] = axis[2]!.split('|').map((s) => s.trim());
           if (!left || !right) {
-            throw new Error(`SURVEY.md: axis '${which}' on "${current.heading}" must be 'left | right'`);
+            throw new Error(`survey.md: axis '${which}' on "${current.heading}" must be 'left | right'`);
           }
           const axes = (current.node.axes ?? [['', ''], ['', '']]) as [
             [string, string],
@@ -158,10 +197,13 @@ export function parseSurveyMd(source: string): DialogueTree {
       continue;
     }
 
-    // blank / prose line ends any active bullet block but keeps the question open
+    // blank / prose line ends any active block but keeps the question open
     if (/^\s*$/.test(line)) {
       optionsMode = false;
       axesMode = false;
+      // probeMode does NOT exit on blank line — sub-fields may have
+      // blank gaps between them in some authored styles. Probe mode
+      // exits on next top-level field or section change.
     }
   }
   commit();
@@ -170,7 +212,7 @@ export function parseSurveyMd(source: string): DialogueTree {
   const nodes: Record<string, TreeNode> = {};
   const pillars: string[] = [];
   const topicSet = new Set<string>(['intake']);
-  const usedIds = new Set<string>(['name', 'birthday', 'intent']);
+  const usedIds = new Set<string>(['name', 'birthday', 'relationship', 'intent']);
 
   for (const q of questions) {
     let id = q.id;
@@ -204,7 +246,7 @@ export function parseSurveyMd(source: string): DialogueTree {
   };
 
   return {
-    v: 'survey-md@1',
+    v: 'survey-md@2',
     topics: Array.from(topicSet),
     openers: ['name', 'birthday', 'relationship', 'intent'],
     pillars,
@@ -229,16 +271,19 @@ function startQuestion(heading: string, topic: string, isPillar: boolean): Parse
 }
 
 /** Pillars don't carry an explicit topic in the markdown; the engine
- *  still groups them under conceptual topics so the detective gets a
- *  consistent payload shape. */
+ *  groups them under conceptual topics from the 9-category set so the
+ *  detective gets a consistent payload shape. */
 function topicForPillar(heading: string): string {
   const h = heading.toLowerCase();
+  if (h.includes('done this before')) return 'self';
+  if (h.includes('spiritual')) return 'self';
   if (h.includes('decision')) return 'self';
-  if (h.includes('important person')) return 'relational';
+  if (h.includes('important person')) return 'relationships';
   if (h.includes('perceive')) return 'self';
-  if (h.includes('value')) return 'self';
-  if (h.includes('loudest')) return 'state';
-  if (h.includes("used to think")) return 'self';
+  if (h.includes('value most')) return 'self';
+  if (h.includes('your question right now')) return 'now';
+  if (h.includes('not have enough')) return 'yearnings';
+  if (h.includes("used to think")) return 'yearnings';
   return 'intake';
 }
 

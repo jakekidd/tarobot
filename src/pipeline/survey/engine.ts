@@ -70,9 +70,10 @@ const OPENER_NODE_IDS = new Set<string>(getOpeners());
 /** Returning-user lite mode draws exactly this many random pool questions
  *  (dedup'd against prior history). No Pillars on returning visits. */
 export const RETURNING_LITE_COUNT = 6;
-/** New-user surveys queue this many random pool questions after the 6
- *  Pillars. Total post-opener question count = 6 + 14 = 20. */
-const RANDOM_POOL_COUNT = 14;
+/** New-user surveys queue this many random pool questions after the
+ *  Pillars. Pillar count is currently 8 (tarot_prior + spiritual_rel +
+ *  6 existing), so total post-opener question count = 8 + 12 = 20. */
+const RANDOM_POOL_COUNT = 12;
 /** Back-compat alias for callsites that still reference the old name. */
 export const STARTER_SEED_COUNT = RETURNING_LITE_COUNT;
 

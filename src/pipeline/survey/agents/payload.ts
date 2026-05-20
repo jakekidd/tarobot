@@ -3,6 +3,7 @@
 // different needs — keeping this in one place makes the differences
 // visible and easy to tune.
 
+import { probeToString } from '../types';
 import type { PipelineContext } from '../types';
 import { getNode as getNodeFromCtx } from '../tree';
 
@@ -73,7 +74,7 @@ export function buildAgentPayload(ctx: PipelineContext, stage: Stage) {
         return {
           index: i,
           question: node ? node.q : '(question text not resolved)',
-          probe: node?.probe,
+          probe: probeToString(node?.probe),
           format: node?.f,
           current_options: q.options_override
             ?? (node?.a ? node.a.map((t) => t[0]) : undefined),
