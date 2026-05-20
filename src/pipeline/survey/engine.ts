@@ -1037,60 +1037,90 @@ function applyLadderMoves(
 }
 
 function applyDetectiveOutput(inv: Investigation, out: DetectiveOutput): Investigation {
-  // Transitional ladder apply: legacy detective output ships
-  // hypothesis_updates: Hypothesis[] with .status. Route each into a
-  // ladder rung by status. Phase H rewrites both the detective output
-  // schema and this apply path to emit ladder rungs natively (and to
-  // include `contested` + `held`, which legacy status can't express).
-  let hypotheses = applyLadderUpdates(inv.hypotheses, out.hypothesis_updates);
-  if (out.hypothesis_refutes.length > 0) {
-    const refuted = new Set(out.hypothesis_refutes);
-    hypotheses = moveToRefuted(hypotheses, refuted);
+  // v2 detective: produces new_hypotheses + ladder_moves + story_updates +
+  // private_thoughts. No more legacy hypothesis_updates / refutes /
+  // choice_update / contradictions_found / hooks_found / thread_updates /
+  // posture / current_understanding / queue_edits.
+  let hypotheses = inv.hypotheses;
+  // 1. Add new hypotheses to their starting rungs.
+  if (out.new_hypotheses.length > 0) {
+    hypotheses = addNewHypotheses(hypotheses, out.new_hypotheses);
   }
-  const threadMap = new Map(inv.active_threads.map((t) => [t.thread_id, t]));
-  for (const u of out.thread_updates) {
-    const existing = threadMap.get(u.thread_id);
-    if (existing) threadMap.set(u.thread_id, { ...existing, status: u.status });
+  // 2. Apply ladder moves.
+  if (out.hypothesis_ladder_moves.length > 0) {
+    hypotheses = applyLadderMoves(hypotheses, out.hypothesis_ladder_moves);
   }
+  // 3. Merge story_updates into investigation.story.
+  const story = mergeStoryUpdates(inv.story, out.story_updates);
   return {
     ...inv,
     hypotheses,
-    // story is NOT updated by the legacy detective (it emits
-    // current_understanding instead). Phase H detective will emit
-    // StoryObject deltas and this apply path will merge them in.
-    choice_draft: pickStrongerChoice(inv.choice_draft, out.choice_update),
-    contradictions: unionByKey(inv.contradictions, out.contradictions_found, (c) => c.description.toLowerCase()),
-    hooks: unionByKey(inv.hooks, out.hooks_found, (h) => h.description.toLowerCase()),
-    active_threads: Array.from(threadMap.values()),
-    posture: out.posture ?? inv.posture,
+    story,
   };
 }
 
-/** Route each incoming Hypothesis into a ladder rung by its `status`,
- *  upserting by id and removing it from any other rung it was on.
- *  Detective `status` → rung map:
- *    'inferred' | 'testing' → tentative
- *    'confirmed'            → confirmed
- *    'refuted'              → refuted
- *  Numeric confidence ≥ 0.8 elevates 'inferred'/'testing' → probable. */
-function applyLadderUpdates(ladder: HypothesisLadder, updates: Hypothesis[]): HypothesisLadder {
-  if (updates.length === 0) return ladder;
-  let next: HypothesisLadder = { ...ladder };
-  for (const h of updates) {
-    next = removeFromLadder(next, h.id);
-    const rung = rungFor(h);
-    next = { ...next, [rung]: [...next[rung], h] };
+/** Add new hypotheses surfaced by the detective. Each lands on the
+ *  ladder at `start_at` (default 'tentative'). Stable id → upsert
+ *  semantics: same id already on the board, the new claim replaces
+ *  but rung is preserved. */
+function addNewHypotheses(
+  ladder: HypothesisLadder,
+  news: Array<{ id: string; claim: string; start_at?: 'confirmed' | 'probable' | 'tentative' | 'contested' | 'refuted' | 'held' }>,
+): HypothesisLadder {
+  let next = ladder;
+  for (const n of news) {
+    const startRung = n.start_at ?? 'tentative';
+    // Upsert: if id exists on any rung, update its description; else add fresh.
+    const all = [
+      ...next.confirmed, ...next.probable, ...next.tentative,
+      ...next.contested, ...next.refuted, ...next.held,
+    ];
+    const existing = all.find((h) => h.id === n.id);
+    if (existing) {
+      next = removeFromLadder(next, n.id);
+      const updated: Hypothesis = { ...existing, description: n.claim };
+      next = { ...next, [startRung]: [...next[startRung], updated] };
+    } else {
+      const fresh: Hypothesis = {
+        id: n.id,
+        description: n.claim,
+        supporting_picks: [],
+        contradicting_picks: [],
+        confidence: startRung === 'confirmed' ? 0.9 : startRung === 'probable' ? 0.65 : 0.3,
+        status: startRung === 'confirmed' ? 'confirmed' : startRung === 'refuted' ? 'refuted' : 'inferred',
+        seeded: false,
+        generated_at: 0,
+        age_in_turns: 0,
+      };
+      next = { ...next, [startRung]: [...next[startRung], fresh] };
+    }
   }
   return next;
 }
 
-function rungFor(h: Hypothesis): keyof HypothesisLadder {
-  if (h.status === 'confirmed') return 'confirmed';
-  if (h.status === 'refuted') return 'refuted';
-  // 'inferred' or 'testing' → tentative, unless very confident.
-  if (h.confidence >= 0.8) return 'probable';
-  return 'tentative';
+/** Merge a partial story_updates object into the current story.
+ *  fork / present_pressure / past_root / stakes are REPLACED with
+ *  the incoming value if provided. hooks are APPENDED + deduped. */
+function mergeStoryUpdates(
+  story: NonNullable<Investigation['story']>,
+  updates: DetectiveOutput['story_updates'],
+): NonNullable<Investigation['story']> {
+  const nextHooks = updates.hooks
+    ? Array.from(new Set([...story.hooks, ...updates.hooks]))
+    : story.hooks;
+  return {
+    fork: updates.fork ?? story.fork,
+    present_pressure: updates.present_pressure ?? story.present_pressure,
+    past_root: updates.past_root ?? story.past_root,
+    stakes: updates.stakes ?? story.stakes,
+    hooks: nextHooks,
+  };
 }
+
+// applyLadderUpdates / rungFor / moveToRefuted helpers removed —
+// they were the transitional bridge for the legacy detective output
+// (hypothesis_updates: Hypothesis[] with .status). v2 detective emits
+// new_hypotheses + hypothesis_ladder_moves directly; observer too.
 
 function removeFromLadder(ladder: HypothesisLadder, id: string): HypothesisLadder {
   return {
@@ -1103,53 +1133,10 @@ function removeFromLadder(ladder: HypothesisLadder, id: string): HypothesisLadde
   };
 }
 
-function moveToRefuted(ladder: HypothesisLadder, ids: Set<string>): HypothesisLadder {
-  const refutedItems: Hypothesis[] = [];
-  const collect = (rung: Hypothesis[]) => {
-    const keep: Hypothesis[] = [];
-    for (const h of rung) {
-      if (ids.has(h.id)) refutedItems.push({ ...h, status: 'refuted' as const });
-      else keep.push(h);
-    }
-    return keep;
-  };
-  return {
-    confirmed: collect(ladder.confirmed),
-    probable: collect(ladder.probable),
-    tentative: collect(ladder.tentative),
-    contested: collect(ladder.contested),
-    refuted: [...ladder.refuted, ...refutedItems],
-    held: collect(ladder.held),
-  };
-}
-
-const CONFIDENCE_RANK: Record<'low' | 'medium' | 'high', number> = { low: 1, medium: 2, high: 3 };
-
-/** Choice-draft merge: only replace when incoming is at least as
- *  confident as existing. A late-arriving pipeline whose detective is
- *  LESS confident can't regress an already-strong draft. */
-function pickStrongerChoice(existing: Investigation['choice_draft'], incoming: Investigation['choice_draft']) {
-  if (!incoming) return existing;
-  if (!existing) return incoming;
-  return CONFIDENCE_RANK[incoming.confidence] >= CONFIDENCE_RANK[existing.confidence]
-    ? incoming
-    : existing;
-}
-
-/** Append-with-dedupe. Items with the same key from the existing list
- *  are kept (first-seen wins); only NEW keys from incoming are added. */
-function unionByKey<T>(existing: T[], incoming: T[], key: (t: T) => string): T[] {
-  const seen = new Set(existing.map(key));
-  const out = [...existing];
-  for (const item of incoming) {
-    const k = key(item);
-    if (!seen.has(k)) {
-      out.push(item);
-      seen.add(k);
-    }
-  }
-  return out;
-}
+// moveToRefuted / pickStrongerChoice / unionByKey helpers removed —
+// they served the legacy detective output's hypothesis_refutes,
+// choice_update, contradictions_found, and hooks_found fields. None
+// are emitted by the v2 detective.
 
 // mergeCast removed — the v2 observer doesn't emit full CastMember
 // updates anymore (cast identity is owned by the user via the

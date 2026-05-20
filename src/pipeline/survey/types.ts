@@ -552,34 +552,39 @@ export type ObserverOutput = {
   reasoning: string;
 };
 
-/** Detective updates the Clue tools. Each field is OPTIONAL — only
- *  emit changes. Lists are merged by id where applicable. */
+/** v2 Detective output. The detective collaborates with the observer
+ *  on the hypothesis ladder, AND owns the StoryObject as the narrative
+ *  spine. Both replace legacy fields (hypothesis_updates / refutes,
+ *  choice_update, current_understanding, queue_edits). */
 export type DetectiveOutput = {
-  hypothesis_updates: Hypothesis[];       // adds or replaces by id
-  hypothesis_refutes: string[];           // ids to mark refuted
-  choice_update: Choice | null;           // null = no change
-  contradictions_found: Contradiction[];
-  hooks_found: Hook[];
-  thread_updates: Array<{ thread_id: string; status: ActiveThread['status'] }>;
-  /** null = no change. otherwise overwrites investigation.posture. */
-  posture: 'warm' | 'careful' | 'direct' | null;
+  /** New hypotheses the detective surfaces. Each lands on `tentative`
+   *  by default; specify `start_at` to land elsewhere (e.g., 'probable'
+   *  when the detective has strong convergent evidence already). */
+  new_hypotheses: Array<{
+    id: string;
+    claim: string;
+    start_at?: LadderRung;
+  }>;
+  /** Hypothesis ladder rung transitions — same shape as observer's. */
+  hypothesis_ladder_moves: Array<{
+    id: string;
+    to: LadderRung;
+  }>;
+  /** Partial StoryObject deltas. Detective emits only fields that
+   *  change this turn. Engine merges:
+   *    fork / present_pressure / past_root / stakes  →  REPLACE
+   *    hooks                                          →  APPEND + dedupe */
+  story_updates: {
+    fork?: { a: string; b: string; is_stasis: boolean };
+    present_pressure?: string;
+    past_root?: string;
+    stakes?: { on_a: string; on_b: string };
+    hooks?: string[];
+  };
   /** Private scratchpad the detective writes out. Half-or-more of the
    *  model's response. Appended to engine state's detective_log and
    *  surfaced on subsequent detective calls as continuity. */
   private_thoughts: string;
-  /** Compressed synthesis: ≤3 short claims (each ≤25 words) capturing
-   *  the load-bearing facts about this person. REPLACES prior on each
-   *  call. Surfaced to seer.directorIntro as the spine of the brief. */
-  current_understanding: string[];
-  /** Edits to upcoming queue items. Each edit references a queue index
-   *  (0 = the very next question). The detective doesn't pick questions
-   *  any more — it personalizes them. Edits are clipped to the sliding
-   *  window the detective is shown (typically next 5). */
-  queue_edits: Array<{
-    index: number;
-    preamble?: string;
-    options_override?: string[];
-  }>;
   /** Private to engine logs — 2-3 sentences on what's now believed. */
   reasoning: string;
 };
