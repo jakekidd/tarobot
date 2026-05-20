@@ -2542,6 +2542,86 @@ input, textarea {
 }
 
 /* =====================================================================
+   Fork choice — 9-row dichotomy ladder. Each row has three tap zones:
+   left option (right-aligned), vertical bar (stuck-between), right
+   option (left-aligned). The bar IS a tap target — "stuck between"
+   is the most diagnostically loaded answer for this question.
+   ===================================================================== */
+
+.fork-choice {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  font-family: var(--font-mono);
+  width: 100%;
+  border-top: 1px solid var(--line);
+}
+
+.fork-choice__row {
+  display: grid;
+  grid-template-columns: 1fr 0.5rem 1fr;
+  align-items: stretch;
+  border-bottom: 1px solid var(--line);
+  height: 2.1rem;
+}
+
+.fork-choice__side {
+  background: transparent;
+  color: var(--fg);
+  border: none;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 0.95rem;
+  padding: 0 0.9rem;
+  text-transform: lowercase;
+  letter-spacing: 0.06em;
+  transition: color 0.1s, background 0.1s;
+}
+.fork-choice__side--left  { text-align: right; }
+.fork-choice__side--right { text-align: left; }
+.fork-choice__side:hover:not(:disabled) {
+  color: var(--accent);
+  background: rgba(124, 58, 237, 0.12);
+}
+.fork-choice__side:active:not(:disabled) {
+  background: rgba(124, 58, 237, 0.22);
+}
+.fork-choice__side:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+
+.fork-choice__bar {
+  background: var(--line-strong);
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  transition: background 0.1s;
+}
+.fork-choice__bar:hover:not(:disabled) {
+  background: var(--accent);
+  box-shadow: 0 0 6px rgba(124, 58, 237, 0.6);
+}
+.fork-choice__bar:active:not(:disabled) {
+  background: #b388ff;
+}
+.fork-choice__bar:disabled {
+  cursor: default;
+  opacity: 0.4;
+}
+
+.fork-choice__row--picked .fork-choice__side {
+  color: var(--accent);
+  background: rgba(124, 58, 237, 0.18);
+}
+.fork-choice__row--picked .fork-choice__bar {
+  background: var(--accent);
+}
+
+/* =====================================================================
    Multiple choice — modular layouts
    ===================================================================== */
 

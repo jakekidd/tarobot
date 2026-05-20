@@ -17,6 +17,7 @@ import { Reader } from './reader/Reader';
 import { Dialogue } from './dialogue/Dialogue';
 import { MultipleChoice } from './choices/MultipleChoice';
 import { Matrix2x2Choice } from './choices/Matrix2x2Choice';
+import { ForkChoice } from './choices/ForkChoice';
 import { Spinner } from './Spinner';
 import { BirthdayForm } from './survey/BirthdayForm';
 import { NameForm } from './survey/NameForm';
@@ -408,6 +409,14 @@ export function Survey({ apiKey, session, onComplete }: Props) {
                 />
               </div>
             </>
+          )}
+
+          {!showGag && !modalOpen && currentQuestion?.format === 'fork' && (
+            <ForkChoice
+              key={currentQuestion.node_id}
+              options={currentQuestion.options}
+              onPick={(v) => void submitAnswer(v)}
+            />
           )}
 
           {!showGag && !modalOpen && currentQuestion?.format === 'relationship_status' && (
