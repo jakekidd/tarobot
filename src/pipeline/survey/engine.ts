@@ -31,6 +31,7 @@ import {
   TREE,
 } from './tree';
 import { derivePhase } from './phase';
+import { PROFILE_TEMPLATE_RAW } from './template';
 import type {
   CastMember,
   EngineListener,
@@ -469,9 +470,10 @@ export class SurveyEngine {
         self_model: [], decision_context: [], patterns: [],
       },
       // v2 fields — populated by observer in Phase G+. Body starts as
-      // the profile template scaffold with HTML-comment instructions
-      // (loaded in Phase D); for now an empty string.
-      body: '',
+      // the profile template scaffold from materials/templates/profile.md
+      // with HTML-comment instructions visible — observer reads them
+      // and writes filed observations in their place.
+      body: PROFILE_TEMPLATE_RAW,
       hooks: [],
       edges: [],
       side_channel: {},
