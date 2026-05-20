@@ -6,7 +6,7 @@
 // boundary between the raw markdown and the engine: parses, validates,
 // renders questions with substitution applied.
 
-import surveyMdSource from './SURVEY.md?raw';
+import surveyMdSource from '../../../materials/survey.md?raw';
 import { parseSurveyMd } from './parseSurveyMd';
 import type {
   AnswerFormat,

@@ -7,27 +7,22 @@
 // (per the design — slight favoring of bigender names for the
 // combined bank).
 //
-// Add freely. Each list independent. No collisions to worry about.
+// Source-of-truth lives in materials/names/{masc,fem}.txt — one name
+// per line. Add / remove names there without touching this loader.
 
-export const MASC_NAMES = [
-  'Atlas', 'Cyrus', 'Orion', 'Caspian', 'Silas',
-  'Felix', 'Augustin', 'Cassius', 'Theo', 'Roman',
-  'Magnus', 'Phoenix', 'Sage', 'Linus', 'Casper',
-  'Soren', 'Arlo', 'Wilder', 'Ezra', 'Tobias',
-  'Rune', 'Mateo', 'Idris', 'Cosmo', 'Levi',
-  'Ronin', 'Lior', 'Emery', 'Wren', 'Frederick',
-] as const;
+import MASC_RAW from '../../../materials/names/masc.txt?raw';
+import FEM_RAW from '../../../materials/names/fem.txt?raw';
 
-export const FEM_NAMES = [
-  'Iris', 'Juno', 'Stella', 'Nova', 'Aurora',
-  'Luna', 'Hazel', 'Willa', 'Maeve', 'Cora',
-  'Lyra', 'Astrid', 'Elowen', 'Saoirse', 'Lila',
-  'Ottilie', 'Romy', 'Isolde', 'Cleo', 'Indira',
-  'Mira', 'Calla', 'Vesper', 'Anouk', 'Octavia',
-  'Bea', 'Wren', 'Sage', 'Phoenix', 'Sloane',
-] as const;
+function parseNames(raw: string): string[] {
+  return raw
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0 && !line.startsWith('#'));
+}
 
-export const COMBINED_NAMES = [...MASC_NAMES, ...FEM_NAMES] as const;
+export const MASC_NAMES = parseNames(MASC_RAW);
+export const FEM_NAMES = parseNames(FEM_RAW);
+export const COMBINED_NAMES = [...MASC_NAMES, ...FEM_NAMES];
 
 /** Pick a random name from the appropriate bank. Optional `avoid`
  *  string ensures consecutive dice rolls give a different name. */

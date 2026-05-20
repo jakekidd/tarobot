@@ -4,21 +4,35 @@
 // component types them out, so length is felt. Pick one at random; UI
 // supplies the name (or undefined for anonymous warmth).
 //
-// Iterate the copy freely. The contract is the function signature.
+// Content lives in materials/mascot/return-lines.md and is parsed at
+// boot. Add / remove lines there without touching this file. The loader
+// reads two sections (`## with name` and `## anonymous`) and treats
+// `{name}` as the substitution placeholder.
 
-const TEMPLATES_WITH_NAME = [
-  (name: string) => `${name}. again.`,
-  (name: string) => `${name}. the cards remember you.`,
-  (name: string) => `back so soon, ${name}?`,
-  (name: string) => `${name}. sit. let's see what's new.`,
-];
+import RETURN_LINES_MD from '../../../materials/mascot/return-lines.md?raw';
 
-const TEMPLATES_ANON = [
-  () => `you're back.`,
-  () => `the cards remember you.`,
-  () => `again. good.`,
-  () => `didn't think i'd see you so soon.`,
-];
+type ParsedLines = { withName: string[]; anonymous: string[] };
+
+function parseReturnLines(md: string): ParsedLines {
+  const sections: Record<string, string[]> = { 'with name': [], 'anonymous': [] };
+  let current: string | null = null;
+  for (const raw of md.split('\n')) {
+    const line = raw.trim();
+    if (!line) continue;
+    const h2 = line.match(/^##\s+(.+)$/);
+    if (h2) {
+      const key = h2[1]!.toLowerCase();
+      current = key in sections ? key : null;
+      continue;
+    }
+    if (line.startsWith('#') || line.startsWith('<!--')) continue;  // top header / comments
+    if (!current) continue;
+    sections[current]!.push(line);
+  }
+  return { withName: sections['with name']!, anonymous: sections['anonymous']! };
+}
+
+const { withName: TEMPLATES_WITH_NAME, anonymous: TEMPLATES_ANON } = parseReturnLines(RETURN_LINES_MD);
 
 export const RETURN_LINES = { TEMPLATES_WITH_NAME, TEMPLATES_ANON } as const;
 
@@ -28,9 +42,8 @@ export const RETURN_LINES = { TEMPLATES_WITH_NAME, TEMPLATES_ANON } as const;
 export function pickReturnLine(name?: string): string {
   if (name && name.trim().length > 0) {
     const cleaned = name.trim().toLowerCase();
-    const pick = TEMPLATES_WITH_NAME[Math.floor(Math.random() * TEMPLATES_WITH_NAME.length)]!;
-    return pick(cleaned);
+    const template = TEMPLATES_WITH_NAME[Math.floor(Math.random() * TEMPLATES_WITH_NAME.length)]!;
+    return template.replace(/\{name\}/g, cleaned);
   }
-  const pick = TEMPLATES_ANON[Math.floor(Math.random() * TEMPLATES_ANON.length)]!;
-  return pick();
+  return TEMPLATES_ANON[Math.floor(Math.random() * TEMPLATES_ANON.length)]!;
 }
