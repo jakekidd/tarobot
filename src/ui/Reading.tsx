@@ -451,7 +451,16 @@ function ReadingStage({ state, engine, advanceTick, highlights }: StageProps) {
     );
   }
   if (state.phase === 'done' && state.outro) {
-    return <div className="reading__outro">{state.outro.text}</div>;
+    return (
+      <div className="reading__outro">
+        <div className="reading__outro-text">{state.outro.text}</div>
+        {state.outro.mantra && (
+          <div className="reading__mantra" aria-label="closing mantra">
+            {state.outro.mantra}
+          </div>
+        )}
+      </div>
+    );
   }
   return null;
 }

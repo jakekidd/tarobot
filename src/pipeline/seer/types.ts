@@ -143,6 +143,11 @@ export type Monologue = {
   /** Optional invitation for user response. If non-empty, UI may
    *  surface it as a hint above the chat box. */
   prompt_to_user?: string;
+  /** Closing-only: the post-reading mantra produced by the mantra
+   *  agent. Single declarative line — ticker-tape-printable
+   *  (no markdown, no emoji). Rendered by Reading.tsx after the
+   *  outro typewriter completes. Undefined unless this is an outro. */
+  mantra?: string;
 };
 
 // ─── Closing ───────────────────────────────────────────────────

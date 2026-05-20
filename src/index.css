@@ -1840,6 +1840,26 @@ input, textarea {
   margin-top: 0.4rem;
   text-align: center;
 }
+.reading__outro-text {
+  /* the actor's outro line — typewriter completed */
+  font-style: italic;
+}
+.reading__mantra {
+  /* the ticker-tape-printable closing line. monospace, brand violet
+     accent, all-lowercase, framed like a quiet inscription below the
+     spoken outro. */
+  margin-top: 1.4rem;
+  padding: 0.7rem 1rem;
+  font-family: var(--font-mono);
+  font-style: normal;
+  font-size: 0.95rem;
+  letter-spacing: 0.06em;
+  color: var(--accent);
+  border-top: 1px solid rgba(124, 58, 237, 0.4);
+  border-bottom: 1px solid rgba(124, 58, 237, 0.4);
+  text-align: center;
+  text-shadow: 0 0 8px rgba(124, 58, 237, 0.4);
+}
 .reading__advance {
   color: var(--fg-faint);
   font-size: 0.8rem;

@@ -49,6 +49,7 @@ import type {
   RevealedSlot,
 } from './types';
 import { sanitizeMonologue } from './sanitize';
+import { generateMantra } from './mantra';
 
 /** What Seer needs to inhabit the table. profile is the deterministic
  *  survey-derived identity record; surveyHistory + intention are the
@@ -509,6 +510,20 @@ export class Seer {
         story: this.story,
         heldProbes: this.heldProbes,
       });
+
+      // Closing mantra — fires in parallel with actor outro to hide
+      // latency. The actor outro voices the closing.takeaway in
+      // character; the mantra is a tighter portable line stored on
+      // outro.mantra and rendered post-outro by the UI.
+      const mantraPromise = generateMantra(this.adapter, {
+        profile: this.state.inputs.profile,
+        story: this.story,
+        intention: this.intention,
+        revealed,
+        chat: this.state.chat,
+        closing_takeaway: closing.takeaway,
+      });
+
       this.setState({ awaiting_layer: 'actor' });
       const outro = await actorClosing(this.adapter, this.actor, {
         profile: this.state.inputs.profile,
@@ -517,7 +532,10 @@ export class Seer {
         chat_history: this.state.chat,
         closing,
       });
-      this.setState({ phase: 'outro', outro, awaiting_layer: null });
+      // Await mantra (usually already resolved by the time outro lands).
+      const mantra = await mantraPromise;
+      const outroWithMantra = mantra ? { ...outro, mantra } : outro;
+      this.setState({ phase: 'outro', outro: outroWithMantra, awaiting_layer: null });
     } catch (err) {
       this.setState({
         phase: 'error',
