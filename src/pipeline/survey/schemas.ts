@@ -7,9 +7,6 @@ import { z } from 'zod';
 
 // ─── shared atoms ───────────────────────────────────────
 
-const NoteCategory = z.enum([
-  'observation', 'suspicion', 'gossip_flag', 'confirmed_thread', 'ground_truth',
-]);
 const Confidence = z.enum(['low', 'medium', 'high']);
 const StakesDomain = z.enum(['relational', 'occupational', 'identity', 'geographic', 'unknown']);
 const ThreadStatus = z.enum(['open', 'awaiting_confirm', 'confirmed', 'refuted']);
@@ -17,16 +14,11 @@ const HypothesisStatus = z.enum(['inferred', 'testing', 'confirmed', 'refuted'])
 const ContradictionSeverity = z.enum(['minor', 'notable', 'load_bearing']);
 const HookSource = z.enum(['pass', 'latency_outlier', 'admission', 'multi_select_pattern', 'inferred']);
 const Posture = z.enum(['warm', 'careful', 'direct']);
-const ProfileSectionKey = z.enum([
-  'identity', 'state', 'relational', 'self_model', 'decision_context', 'patterns',
-]);
-
-const CastMember = z.object({
-  label: z.string(),
-  likely_role: z.string().optional(),
-  supporting_picks: z.array(z.string()),
-  confidence: Confidence,
-});
+// NoteCategory + ProfileSectionKey + CastMember Zod schemas dropped
+// with the v2 observer rewrite — they belonged to the legacy
+// notes_to_append + cast_updates output shape. Phase G's observer
+// returns profile_body (markdown) + hooks/edges/side_channel arrays
+// + cast_notes_updates + hypothesis_ladder_moves instead.
 
 const ChoiceShape = z.object({
   fork: z.string(),
@@ -70,16 +62,31 @@ const Hook = z.object({
 });
 
 // ─── Observer ───────────────────────────────────────────
+// v2: observer is a psychological profiler with explicit speculation
+// authority. Returns a FULL rewrite of profile.body markdown each
+// turn, plus updated hooks/edges/side_channel arrays, cast notes,
+// and hypothesis ladder moves.
+
+const LadderRung = z.enum(['confirmed', 'probable', 'tentative', 'contested', 'refuted', 'held']);
 
 export const ObserverOutputSchema = z.object({
-  notes_to_append: z.array(z.object({
-    text: z.string(),
-    section: ProfileSectionKey,
-    category: NoteCategory,
-    confidence: Confidence,
-    source_picks: z.array(z.string()),
+  profile_body: z.string(),
+  hooks: z.array(z.string()),
+  edges: z.array(z.string()),
+  side_channel: z.object({
+    signals: z.string().optional(),
+    patterns: z.string().optional(),
+    contradictions: z.string().optional(),
+    avoidances: z.string().optional(),
+  }),
+  cast_notes_updates: z.array(z.object({
+    label: z.string(),
+    notes: z.string(),
   })),
-  cast_updates: z.array(CastMember),
+  hypothesis_ladder_moves: z.array(z.object({
+    id: z.string(),
+    to: LadderRung,
+  })),
   reasoning: z.string(),
 });
 

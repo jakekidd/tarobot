@@ -38,27 +38,43 @@ export function buildAgentPayload(ctx: PipelineContext, stage: Stage) {
 
   switch (stage) {
     case 'observer': {
-      // Observer fires every Nth turn (engine's OBSERVER_INTERVAL) and
-      // metabolizes a window of recent picks at once. `recent_picks` is
-      // the window; `history` is everything BEFORE that window (older
-      // context, for cross-referencing and de-duping notes).
-      const recent = ctx.recent_picks ?? [];
-      const recentIds = new Set(recent.map((p) => p.node_id));
-      const olderHistory = history.filter((h) => !recentIds.has(h.node_id));
+      // Observer fires every post-opener turn (Phase G+). Payload
+      // gives the observer the FULL profile state (body + hooks +
+      // edges + side_channel + cast notes), the latest turn's Q&A,
+      // every prior turn, the full investigation board (ladder +
+      // story), and any FRESH tentative seeds from this turn's
+      // algorithmic seeder.
+      const profileBody = ctx.profile.body;
+      const profileHooks = ctx.profile.hooks;
+      const profileEdges = ctx.profile.edges;
+      const profileSideChannel = ctx.profile.side_channel;
+      const cast = ctx.profile.cast.map((m) => ({
+        label: m.label,
+        likely_role: m.likely_role,
+        pronouns: m.pronouns,
+        color: m.color,
+        off_limits: m.off_limits,
+        notes: m.notes,
+      }));
+      // tentative seeds added by the algorithmic seeder THIS turn.
+      // We mark them as "fresh" so the observer knows which to walk
+      // through first. (Seeds from prior turns are aged via
+      // age_in_turns and live in investigation.hypotheses.tentative.)
+      const tentativeSeeds = ctx.investigation.hypotheses.tentative.filter(
+        (h) => h.age_in_turns === 0 && h.seeded,
+      );
       return {
-        // Each entry: node_id + question + options + answer + latency.
-        recent_picks: recent.map((p) => ({
-          node_id: p.node_id,
-          question: p.question_text,
-          options: p.options_shown,
-          answer: p.answer,
-          latency_ms: p.latency_ms,
-        })),
-        profile,
+        profile_body: profileBody,
+        profile_hooks: profileHooks,
+        profile_edges: profileEdges,
+        profile_side_channel: profileSideChannel,
+        cast,
+        this_turn,
+        history,
         investigation,
-        history: olderHistory,
+        tentative_seeds: tentativeSeeds,
         instruction:
-          'metabolize the recent_picks window into profile notes + cast updates. file only what is worth filing across these turns.',
+          'rewrite profile.body integrating this turn\'s evidence. update hooks/edges/side_channel. note any cast members whose role in the user\'s psychology changed this turn. walk through tentative_seeds AND any older tentative items — emit hypothesis_ladder_moves where evidence supports a rung change. when supporting AND refuting evidence both exist, move to "contested" — the seer hunts there.',
       };
     }
     case 'detective': {

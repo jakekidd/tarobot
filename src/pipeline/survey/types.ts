@@ -507,27 +507,47 @@ export type PipelineContext = {
   history: PickEvent[];
   /** Questions currently queued AFTER this one (head=next to ask). */
   queue: QueueItem[];
-  /** Observer-only: when present, replaces `history`-tail-focus with a
-   *  multi-turn window. Set by the engine on observer fire turns
-   *  (every OBSERVER_INTERVAL post-opener picks). */
-  recent_picks?: PickEvent[];
+  // recent_picks REMOVED with Phase G — observer fires every turn now
+  // and reads `history` directly. Multi-turn windowing was the legacy
+  // strategy for catching up across sparse observer firings.
   /** Detective-only: the running scratchpad from previous turns'
    *  `private_thoughts`. Most-recent last. */
   detective_log?: string[];
   // current_understanding REMOVED — see EngineState comment above.
 };
 
-/** Observer outputs profile updates. Kept open-ended on purpose: the
- *  Observer chooses what's worth filing, not the schema. */
+/** Ladder rung name. Used by observer's hypothesis_ladder_moves. */
+export type LadderRung = 'confirmed' | 'probable' | 'tentative' | 'contested' | 'refuted' | 'held';
+
+/** Observer outputs the full psychological document rewrite +
+ *  side-channel reads + ladder moves. Fires every turn (Phase G+).
+ *  Replaces the legacy notes_to_append + cast_updates shape. */
 export type ObserverOutput = {
-  notes_to_append: Array<{
-    text: string;
-    section: keyof ProfileSections;
-    category: Note['category'];
-    confidence: 'low' | 'medium' | 'high';
-    source_picks: string[];        // node_ids
+  /** FULL rewrite of profile.body — markdown with the 9 section
+   *  headers populated where evidence supports filing, otherwise
+   *  leaving the instruction comment intact. */
+  profile_body: string;
+  /** Verbatim concrete specifics the seer can echo back. Append-style:
+   *  observer emits the FULL list each turn; engine replaces. */
+  hooks: string[];
+  /** Growth surface — what the user almost-knows. Append-style replace. */
+  edges: string[];
+  /** Telemetry-derived reads. Each field freeform paragraph; engine replaces. */
+  side_channel: SideChannel;
+  /** Per-CastMember notes updates. Each { label, notes } REPLACES the
+   *  matching CastMember's notes. Only emit for people with new
+   *  evidence this turn. */
+  cast_notes_updates: Array<{
+    label: string;
+    notes: string;
   }>;
-  cast_updates: CastMember[];
+  /** Hypothesis ladder transitions. Engine routes each id from its
+   *  current rung to the new rung. Emit only moves (no need to
+   *  re-list items that stayed put). */
+  hypothesis_ladder_moves: Array<{
+    id: string;
+    to: LadderRung;
+  }>;
   /** Private to engine logs — 1-2 sentences on what was filed. */
   reasoning: string;
 };

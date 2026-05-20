@@ -34,13 +34,11 @@ import { derivePhase } from './phase';
 import { PROFILE_TEMPLATE_RAW } from './template';
 import { ageLadderTentativeAndHeld, generateSeeds } from './seeder';
 import type {
-  CastMember,
   EngineListener,
   EngineState,
   Hypothesis,
   HypothesisLadder,
   Investigation,
-  Note,
   ObserverOutput,
   DetectiveOutput,
   PickEvent,
@@ -80,12 +78,10 @@ const RANDOM_POOL_COUNT = 12;
 /** Back-compat alias for callsites that still reference the old name. */
 export const STARTER_SEED_COUNT = RETURNING_LITE_COUNT;
 
-/** Observer fires every N post-opener picks. On turns where it doesn't
- *  fire, only detective + interrogator run. Observer's payload then
- *  carries a window of recent picks (defined by OBSERVER_WINDOW) so it
- *  can metabolize multiple turns at once. */
-const OBSERVER_INTERVAL = 3;
-const OBSERVER_WINDOW = 3;
+// Observer interval / window constants removed — Phase G+ observer
+// fires EVERY post-opener pick. The legacy multi-turn window framing
+// (catch up across the gap) is replaced by every-turn rewriting of
+// the living document.
 /** Detective's running scratchpad. Last N entries are surfaced as
  *  `detective_log` on the next call so the detective has continuity. */
 const DETECTIVE_LOG_CAP = 8;
@@ -857,21 +853,14 @@ export class SurveyEngine {
       queue: this.state.queue,
     };
 
-    // Observer fires every OBSERVER_INTERVAL post-opener picks. On the
-    // turns it fires, payload includes a window of recent picks
-    // (OBSERVER_WINDOW) so it metabolizes multiple turns at once. Skipped
-    // turns mean detective + interrogator run without an observer firing
-    // — observer's next firing will catch up.
-    const postOpenerCount = this.countPostOpenerPicks();
-    const observerThisTurn = postOpenerCount % OBSERVER_INTERVAL === 1;
-
+    // Observer fires EVERY post-opener pick (Phase G+) — the
+    // living-document model means there's no "catch up" need; the
+    // observer rewrites profile.body each turn. Returning users
+    // still skip both observer + detective (lite mode is the seeded
+    // 6 pool questions with no agents).
     const tasks: Promise<unknown>[] = [];
-
-    if (observerThisTurn) tasks.push(this.runObserverTask(baseCtx));
-    // Returning users skip detective entirely — the seeded 6 questions
-    // ARE the survey, no need to run hypothesis or queue-editing work.
-    // Their profile already exists; observer's profile pass is enough.
     if (!this.state.is_returning_user) {
+      tasks.push(this.runObserverTask(baseCtx));
       tasks.push(this.runDetectiveTask(baseCtx));
     }
 
@@ -882,19 +871,22 @@ export class SurveyEngine {
     const spawnEpoch = this.pickEpoch;
     this.agentInFlight.observer += 1; this.publishInflight();
     try {
-      // Observer payload carries `recent_picks` = last OBSERVER_WINDOW
-      // entries of picks_log (snapshot's history). Prompt instructs the
-      // model to file notes for any of those turns worth filing.
-      const recentPicks = baseCtx.history.slice(-OBSERVER_WINDOW);
-      const out: ObserverOutput = await runObserver(this.opts.adapter, {
-        ...baseCtx,
-        recent_picks: recentPicks,
-      });
+      const out: ObserverOutput = await runObserver(this.opts.adapter, baseCtx);
       // Stale-result drop: an undo (or a subsequent pick) bumps pickEpoch.
       // If the engine has moved on since this task was spawned, the
       // observer was reasoning about a now-rolled-back state — drop.
       if (spawnEpoch !== this.pickEpoch) return;
-      this.setState({ profile: applyObserverOutput(this.state.profile, out) });
+      // Profile-side updates (body, hooks, edges, side_channel, cast notes).
+      const nextProfile = applyObserverOutput(this.state.profile, out);
+      // Investigation-side updates (hypothesis ladder moves).
+      const nextHypotheses = applyLadderMoves(this.state.investigation.hypotheses, out.hypothesis_ladder_moves);
+      this.setState({
+        profile: nextProfile,
+        investigation: {
+          ...this.state.investigation,
+          hypotheses: nextHypotheses,
+        },
+      });
       this.emit();
     } catch (e) {
       console.warn('[survey] observer failed', e);
@@ -980,25 +972,30 @@ function shuffleInPlace<T>(arr: T[]): T[] {
 // the engine no longer applies them (see runDetectiveTask). This helper
 // can come back once the re-apply path is guarded against stale edits.
 
-/** Merge observer output into profile — append notes by section,
- *  upsert cast by label. */
+/** Apply v2 observer output to profile.
+ *
+ *  - profile.body is REPLACED with out.profile_body (full rewrite).
+ *  - hooks / edges / side_channel are REPLACED with the observer's
+ *    full-emit arrays (the observer emits the full desired state each
+ *    turn; engine doesn't merge — observer integrates manually).
+ *  - cast notes are merged by label: for each { label, notes } update,
+ *    find the matching CastMember and set its `notes` field.
+ *  - Legacy `sections` field is left untouched (transitional — engine
+ *    doesn't append to it anymore, but old data persists for any
+ *    downstream consumer until cleanup phase). */
 function applyObserverOutput(profile: SurveyProfile, out: ObserverOutput): SurveyProfile {
-  const now = Date.now();
-  const sections = { ...profile.sections };
-  for (const n of out.notes_to_append) {
-    const note: Note = {
-      text: n.text,
-      category: n.category,
-      source_picks: n.source_picks,
-      confidence: n.confidence,
-      created_at: now,
-    };
-    sections[n.section] = [...sections[n.section], note];
-  }
+  const castNotesByLabel = new Map(out.cast_notes_updates.map((u) => [u.label, u.notes]));
+  const nextCast = profile.cast.map((m) => {
+    const notes = castNotesByLabel.get(m.label);
+    return notes !== undefined ? { ...m, notes } : m;
+  });
   return {
     ...profile,
-    sections,
-    cast: mergeCast(profile.cast, out.cast_updates),
+    body: out.profile_body,
+    hooks: out.hooks,
+    edges: out.edges,
+    side_channel: out.side_channel,
+    cast: nextCast,
   };
 }
 
@@ -1014,6 +1011,31 @@ function applyObserverOutput(profile: SurveyProfile, out: ObserverOutput): Surve
  *    active_threads    upsert by thread_id
  *    posture           replace if incoming non-null (last-write-wins)
  */
+/** Apply observer's hypothesis ladder moves to the ladder. Each move
+ *  finds the hypothesis by id across all rungs, removes it from its
+ *  current rung, and pushes it into the target rung. Unknown ids are
+ *  silently dropped (the observer may have hallucinated). */
+function applyLadderMoves(
+  ladder: HypothesisLadder,
+  moves: Array<{ id: string; to: 'confirmed' | 'probable' | 'tentative' | 'contested' | 'refuted' | 'held' }>,
+): HypothesisLadder {
+  if (moves.length === 0) return ladder;
+  let next = ladder;
+  for (const move of moves) {
+    // Find the hypothesis across rungs.
+    const all = [
+      ...next.confirmed, ...next.probable, ...next.tentative,
+      ...next.contested, ...next.refuted, ...next.held,
+    ];
+    const found = all.find((h) => h.id === move.id);
+    if (!found) continue;
+    // Remove from wherever it lives, push to target.
+    next = removeFromLadder(next, move.id);
+    next = { ...next, [move.to]: [...next[move.to], found] };
+  }
+  return next;
+}
+
 function applyDetectiveOutput(inv: Investigation, out: DetectiveOutput): Investigation {
   // Transitional ladder apply: legacy detective output ships
   // hypothesis_updates: Hypothesis[] with .status. Route each into a
@@ -1129,11 +1151,11 @@ function unionByKey<T>(existing: T[], incoming: T[], key: (t: T) => string): T[]
   return out;
 }
 
-function mergeCast(existing: CastMember[], updates: CastMember[]): CastMember[] {
-  const byLabel = new Map(existing.map((c) => [c.label, c]));
-  for (const u of updates) byLabel.set(u.label, u);
-  return Array.from(byLabel.values());
-}
+// mergeCast removed — the v2 observer doesn't emit full CastMember
+// updates anymore (cast identity is owned by the user via the
+// relationship_pick UI). Observer only updates the `notes` field on
+// existing CastMembers; identity / pronouns / color / off_limits are
+// untouched. See applyObserverOutput above.
 
 // mergeHypotheses removed — applyLadderUpdates (above) handles the new
 // ladder routing. Phase H rewrites the detective output schema to
