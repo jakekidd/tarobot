@@ -50,12 +50,23 @@ const GRADIENT_SPEED = 0.375;       // rad/sec — slow flow (¼ of the original
 // continue floating + fading for PARTICLE_LIFE_S more.
 const DISINTEGRATE_PARTICLE_COUNT = 900;
 const DISINTEGRATE_WAVE_S = 1.6;          // toe-to-head sweep time
-const PARTICLE_LIFE_S = 1.8;              // per-particle drift+fade duration
+const PARTICLE_LIFE_S = 1.8;              // per-particle drift+fade duration (disintegrate)
 const PARTICLE_UPWARD_VEL_MIN = 0.25;
 const PARTICLE_UPWARD_VEL_MAX = 0.95;
 const PARTICLE_LATERAL_VEL = 0.45;
 const PARTICLE_GRAVITY = 0.18;            // downward drag — particles slow at peak
 const PARTICLE_BASE_SIZE_PX = 4.5;
+
+// Materialize (reverse-disintegrate) tuning. Particles start at scattered
+// positions, drift to their vertex targets while the dissolve cutoff sweeps
+// up. Body fragments appear toe-to-head as the wave passes.
+const MATERIALIZE_PARTICLE_COUNT = 900;
+const MATERIALIZE_WAVE_S = 1.6;
+const MATERIALIZE_PARTICLE_LIFE_S = 1.1;
+const MATERIALIZE_SCATTER_DIST_MIN = 30;
+const MATERIALIZE_SCATTER_DIST_RANGE = 70;
+const MATERIALIZE_SCATTER_HEIGHT_MIN = 15;
+const MATERIALIZE_SCATTER_HEIGHT_RANGE = 45;
 
 // Wander shape — two incommensurate frequencies so the path never closes.
 // Amplitudes in positionGroup-local units (rig is ~100 px/unit), so
@@ -79,10 +90,10 @@ const TILT_PER_UNIT = 1.0;
 // Debug rotation: arrow-key increment (radians). ~5.7° per press.
 const DEBUG_ROT_STEP = 0.1;
 
-// Entrance: brief delay so the stars settle in first, then a comical
-// warp-in. Total time from menu mount to fully arrived = DELAY + DURATION.
+// Entrance: brief delay so the stars settle in first, then the
+// materialize animation runs (~waveStart + waveDuration ≈ 2.7s).
 const ENTRY_DELAY = 0.6;      // seconds — wait for stars to be visible
-const ENTRY_DURATION = 0.9;   // seconds — warp animation itself
+// (ENTRY_DURATION removed — replaced by MATERIALIZE_WAVE_S + MATERIALIZE_PARTICLE_LIFE_S.)
 
 export function createTurtleMascot(): Mascot {
   const group = new THREE.Group();
@@ -97,10 +108,17 @@ export function createTurtleMascot(): Mascot {
   tiltGroup.position.z = Z_OFFSET;
   group.add(tiltGroup);
 
-  // Disintegrate uniform — shared between body + eye materials. Local-Y
-  // cutoff: any fragment with vLocalPos.y < uDissolveCutoffY is discarded.
-  // Starts at -∞ (whole model visible); ramped to +∞ to fully erase.
+  // Dissolve uniforms — shared between body + eye materials.
+  //   uDissolveCutoffY: local-Y cutoff for the wave.
+  //   uDissolveMode:    0 = disintegrate (frags with y < cutoff get discarded;
+  //                          sweep low→high erases toe-first).
+  //                     1 = materialize (frags with y > cutoff get discarded;
+  //                          sweep low→high reveals toe-first).
+  // Initial state is materialize-invisible: mode=1, cutoff well below minY,
+  // so every fragment has y > cutoff → all discarded → mascot invisible
+  // until startMaterialize() ramps the cutoff up.
   const dissolveUniform = { value: -1e9 };
+  const dissolveModeUniform = { value: 1.0 };
 
   // Eye glow — applied in place of the gltf's eye material so the turtle
   // has visible eyes even when the body uses the original PBR skin.
@@ -112,6 +130,7 @@ export function createTurtleMascot(): Mascot {
   });
   eyeMat.onBeforeCompile = (shader) => {
     shader.uniforms.uDissolveCutoffY = dissolveUniform;
+    shader.uniforms.uDissolveMode = dissolveModeUniform;
     shader.vertexShader = shader.vertexShader
       .replace(
         '#include <common>',
@@ -124,11 +143,11 @@ export function createTurtleMascot(): Mascot {
     shader.fragmentShader = shader.fragmentShader
       .replace(
         '#include <common>',
-        '#include <common>\nuniform float uDissolveCutoffY;\nvarying vec3 vLocalPosEye;',
+        '#include <common>\nuniform float uDissolveCutoffY;\nuniform float uDissolveMode;\nvarying vec3 vLocalPosEye;',
       )
       .replace(
         '#include <color_fragment>',
-        '#include <color_fragment>\nif (vLocalPosEye.y < uDissolveCutoffY) discard;',
+        '#include <color_fragment>\nif (uDissolveMode < 0.5) { if (vLocalPosEye.y < uDissolveCutoffY) discard; } else { if (vLocalPosEye.y > uDissolveCutoffY) discard; }',
       );
   };
 
@@ -164,16 +183,22 @@ export function createTurtleMascot(): Mascot {
          uniform float uBandFreq;
          uniform float uSpeed;
          uniform float uDissolveCutoffY;
+         uniform float uDissolveMode;
          varying vec3 vLocalPos;`,
       )
       .replace(
         '#include <color_fragment>',
         `#include <color_fragment>
-         if (vLocalPos.y < uDissolveCutoffY) discard;
+         if (uDissolveMode < 0.5) {
+           if (vLocalPos.y < uDissolveCutoffY) discard;
+         } else {
+           if (vLocalPos.y > uDissolveCutoffY) discard;
+         }
          float wave = sin(vLocalPos.y * uBandFreq + uTime * uSpeed) * 0.5 + 0.5;
          diffuseColor.rgb = mix(uGradDark, uGradLight, wave);`,
       );
     shader.uniforms.uDissolveCutoffY = dissolveUniform;
+    shader.uniforms.uDissolveMode = dissolveModeUniform;
   };
 
   // Live rotation — starts at BASE_ROTATION, mutated by debug arrow keys.
@@ -182,14 +207,25 @@ export function createTurtleMascot(): Mascot {
   let rootRef: THREE.Object3D | null = null;
   let debugVisible = false;
 
-  // ─── Disintegrate state ─────────────────────────────────
-  // When `disintegrating` flips true, the wander/breath/tilt freeze and
-  // the dissolve uniform ramps from minY to maxY over DISINTEGRATE_WAVE_S.
-  // Particles spawn timed to the wave so the body "erodes" toe-to-head.
+  // ─── Disintegrate / Materialize state ───────────────────
+  // The mascot has two particle effects sharing one pool shape:
+  //   - DISINTEGRATE: vertex positions → outward velocity → drift + fade.
+  //     dissolve mode 0; cutoff sweeps low→high; toe-fragments hide first.
+  //   - MATERIALIZE: scattered origin → vertex target → arrive + fade.
+  //     dissolve mode 1; cutoff sweeps low→high; toe-fragments reveal first.
+  //
+  // ParticleData carries both `origins` (start positions) and (optional)
+  // `targets` (end positions for materialize). Disintegrate uses origins
+  // + velocities; materialize uses origins + targets.
   let disintegrating = false;
   let disintegrateStartT = -1;
   let disintegrateDone = false;
   let disintegrateOnDone: (() => void) | null = null;
+  // Materialize state — runs once on first show, replaces the legacy warp-in.
+  let materializing = false;
+  let materializeStartT = -1;
+  let materializeDone = false;
+  let materializeEndT = -1;            // sets the wander/breath time origin
   type ParticleData = {
     geom: THREE.BufferGeometry;
     mat: THREE.PointsMaterial;
@@ -198,8 +234,9 @@ export function createTurtleMascot(): Mascot {
     colors: Float32Array;
     sizes: Float32Array;
     origins: Float32Array;          // initial XYZ per particle
-    velocities: Float32Array;       // initial XYZ velocity
+    velocities: Float32Array;       // initial XYZ velocity (disintegrate)
     activationT: Float32Array;      // seconds-since-trigger when particle wakes
+    targets: Float32Array | null;   // end positions (materialize); null for disintegrate
     bodyMinY: number;
     bodyMaxY: number;
   };
@@ -370,6 +407,8 @@ export function createTurtleMascot(): Mascot {
     disintegrateStartT = -1;
     disintegrateDone = false;
     disintegrateOnDone = onDone;
+    // Switch dissolve to disintegrate mode (frags below cutoff die).
+    dissolveModeUniform.value = 0;
     if (mixer.value) mixer.value.stopAllAction();
 
     // Sample bind-pose vertices in the turtle's LOCAL space (root). Cap
@@ -457,9 +496,214 @@ export function createTurtleMascot(): Mascot {
     particleData = {
       geom, mat, points,
       positions, colors, sizes, origins, velocities, activationT,
+      targets: null,
       bodyMinY: minY,
       bodyMaxY: maxY,
     };
+  }
+
+  // ─── Materialize (reverse-disintegrate) ────────────────────
+  // Mirror of startDisintegrate: particles start scattered, drift inward
+  // to vertex targets, fade as they arrive. Body fragments appear toe-
+  // to-head as the dissolve cutoff sweeps up (mode 1). Total visual
+  // duration ≈ MATERIALIZE_PARTICLE_LIFE_S + MATERIALIZE_WAVE_S.
+  function startMaterialize(): void {
+    if (materializing || materializeDone || !rootRef) return;
+    materializing = true;
+    materializeStartT = -1;
+    materializeDone = false;
+
+    // Materialize mode + cutoff well BELOW minY → fragments with y > cutoff
+    // are discarded → everything starts invisible. The update ramps cutoff
+    // upward to reveal toe-first.
+    dissolveModeUniform.value = 1.0;
+    dissolveUniform.value = -1e9;
+    group.scale.setScalar(TURTLE_SCALE);
+    group.position.set(0, 0, 0);
+    tiltGroup.rotation.x = 0;
+    tiltGroup.rotation.z = 0;
+
+    const samples = sampleBodyVertices(rootRef);
+    let chosen = samples;
+    if (samples.length > MATERIALIZE_PARTICLE_COUNT) {
+      const step = samples.length / MATERIALIZE_PARTICLE_COUNT;
+      chosen = [];
+      for (let i = 0; i < MATERIALIZE_PARTICLE_COUNT; i++) {
+        chosen.push(samples[Math.floor(i * step)]!);
+      }
+    }
+    const count = chosen.length;
+    if (count === 0) {
+      // No body data — instant finish.
+      dissolveUniform.value = 1e9;
+      materializing = false;
+      materializeDone = true;
+      materializeEndT = 0;
+      return;
+    }
+
+    let minY = +Infinity;
+    let maxY = -Infinity;
+    for (const s of chosen) {
+      if (s.p.y < minY) minY = s.p.y;
+      if (s.p.y > maxY) maxY = s.p.y;
+    }
+    const spanY = Math.max(1e-6, maxY - minY);
+
+    const positions = new Float32Array(count * 3);
+    const colors = new Float32Array(count * 3);
+    const sizes = new Float32Array(count);
+    const origins = new Float32Array(count * 3);
+    const velocities = new Float32Array(count * 3);     // unused for materialize
+    const activationT = new Float32Array(count);
+    const targets = new Float32Array(count * 3);
+
+    for (let i = 0; i < count; i++) {
+      const s = chosen[i]!;
+      const tx = s.p.x, ty = s.p.y, tz = s.p.z;
+      // Scattered origin: random direction in XZ, height offset above target.
+      const ang = Math.random() * Math.PI * 2;
+      const dist = MATERIALIZE_SCATTER_DIST_MIN + Math.random() * MATERIALIZE_SCATTER_DIST_RANGE;
+      const heightOffset = MATERIALIZE_SCATTER_HEIGHT_MIN + Math.random() * MATERIALIZE_SCATTER_HEIGHT_RANGE;
+      const ox = tx + Math.cos(ang) * dist;
+      const oy = ty + heightOffset;
+      const oz = tz + Math.sin(ang) * dist;
+      origins[i * 3 + 0] = ox;
+      origins[i * 3 + 1] = oy;
+      origins[i * 3 + 2] = oz;
+      targets[i * 3 + 0] = tx;
+      targets[i * 3 + 1] = ty;
+      targets[i * 3 + 2] = tz;
+      positions[i * 3 + 0] = ox;
+      positions[i * 3 + 1] = oy;
+      positions[i * 3 + 2] = oz;
+      colors[i * 3 + 0] = 0;
+      colors[i * 3 + 1] = 0;
+      colors[i * 3 + 2] = 0;
+      sizes[i] = 0;
+      // Activation timed so the particle ARRIVES at its target the moment
+      // the wave reveals the body fragment there. waveStart =
+      // PARTICLE_LIFE_S gives the toe particles their full lifetime before
+      // the wave begins. Earliest activation = 0 (toe); latest = wave end.
+      const tY = (ty - minY) / spanY;
+      const arrivalT = MATERIALIZE_PARTICLE_LIFE_S + tY * MATERIALIZE_WAVE_S;
+      activationT[i] = Math.max(0, arrivalT - MATERIALIZE_PARTICLE_LIFE_S)
+        + (Math.random() - 0.5) * 0.05;
+    }
+
+    const geom = new THREE.BufferGeometry();
+    geom.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+    geom.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+    const mat = new THREE.PointsMaterial({
+      size: PARTICLE_BASE_SIZE_PX,
+      sizeAttenuation: false,
+      transparent: true,
+      vertexColors: true,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+    });
+    const points = new THREE.Points(geom, mat);
+    points.frustumCulled = false;
+    rootRef.add(points);
+    particleData = {
+      geom, mat, points,
+      positions, colors, sizes, origins, velocities, activationT,
+      targets,
+      bodyMinY: minY,
+      bodyMaxY: maxY,
+    };
+  }
+
+  function updateMaterialize(ctx: MascotContext): void {
+    if (!materializing || !particleData || !particleData.targets) return;
+    if (materializeStartT < 0) materializeStartT = ctx.t;
+    const elapsed = ctx.t - materializeStartT;
+
+    const pd = particleData;
+    const targets = pd.targets!;
+    const count = pd.activationT.length;
+    const spanY = pd.bodyMaxY - pd.bodyMinY;
+
+    // Wave: cutoff sweeps up from below minY to above maxY. Delayed by
+    // PARTICLE_LIFE_S so the toe particle has time to arrive first.
+    const waveT = (elapsed - MATERIALIZE_PARTICLE_LIFE_S) / MATERIALIZE_WAVE_S;
+    if (waveT < 0) {
+      dissolveUniform.value = pd.bodyMinY - 1;
+    } else if (waveT < 1) {
+      dissolveUniform.value = pd.bodyMinY + waveT * spanY * 1.02;
+    } else {
+      dissolveUniform.value = pd.bodyMaxY + 100;
+    }
+
+    let alive = 0;
+    for (let i = 0; i < count; i++) {
+      const act = pd.activationT[i]!;
+      if (elapsed < act) {
+        pd.colors[i * 3 + 0] = 0;
+        pd.colors[i * 3 + 1] = 0;
+        pd.colors[i * 3 + 2] = 0;
+        continue;
+      }
+      const partAge = elapsed - act;
+      if (partAge >= MATERIALIZE_PARTICLE_LIFE_S) {
+        pd.colors[i * 3 + 0] = 0;
+        pd.colors[i * 3 + 1] = 0;
+        pd.colors[i * 3 + 2] = 0;
+        continue;
+      }
+      alive += 1;
+      const t = partAge / MATERIALIZE_PARTICLE_LIFE_S;
+      // Ease-in-out cubic for organic drift.
+      const eased = t < 0.5
+        ? 4 * t * t * t
+        : 1 - Math.pow(-2 * t + 2, 3) / 2;
+      const ox = pd.origins[i * 3 + 0]!;
+      const oy = pd.origins[i * 3 + 1]!;
+      const oz = pd.origins[i * 3 + 2]!;
+      const tx = targets[i * 3 + 0]!;
+      const ty = targets[i * 3 + 1]!;
+      const tz = targets[i * 3 + 2]!;
+      pd.positions[i * 3 + 0] = ox + (tx - ox) * eased;
+      pd.positions[i * 3 + 1] = oy + (ty - oy) * eased;
+      pd.positions[i * 3 + 2] = oz + (tz - oz) * eased;
+
+      // Color: bright ember at start, settles into the body's green
+      // gradient color near arrival, fades to 0 at arrival (handing off
+      // visibility to the just-revealed body fragment).
+      const ember = Math.max(0, 1 - t * 1.5);
+      const fade = Math.max(0, 1 - Math.pow(t, 1.4));
+      const ly = ty;
+      const wave = Math.sin(ly * GRADIENT_BAND_FREQ) * 0.5 + 0.5;
+      const baseR = GRADIENT_DARK.r * (1 - wave) + GRADIENT_LIGHT.r * wave;
+      const baseG = GRADIENT_DARK.g * (1 - wave) + GRADIENT_LIGHT.g * wave;
+      const baseB = GRADIENT_DARK.b * (1 - wave) + GRADIENT_LIGHT.b * wave;
+      const r = (baseR + ember * (1 - baseR)) * fade;
+      const g = (baseG + ember * (0.9 - baseG)) * fade;
+      const b = (baseB + ember * (0.6 - baseB)) * fade;
+      pd.colors[i * 3 + 0] = Math.max(0, r);
+      pd.colors[i * 3 + 1] = Math.max(0, g);
+      pd.colors[i * 3 + 2] = Math.max(0, b);
+    }
+    pd.geom.attributes.position.needsUpdate = true;
+    pd.geom.attributes.color.needsUpdate = true;
+
+    // Done: wave finished AND no particles still alive.
+    const waveOver = waveT >= 1;
+    if (waveOver && alive === 0) {
+      materializeDone = true;
+      materializing = false;
+      materializeEndT = ctx.t;
+      // Cleanup particle pool.
+      if (rootRef && pd.points.parent === rootRef) rootRef.remove(pd.points);
+      pd.geom.dispose();
+      pd.mat.dispose();
+      particleData = null;
+      // Body fully visible — switch back to disintegrate-mode defaults
+      // so a future disintegration call works straightforwardly (cutoff
+      // well below minY, mode 0).
+      dissolveModeUniform.value = 0;
+      dissolveUniform.value = -1e9;
+    }
   }
 
   function updateDisintegrate(ctx: MascotContext): void {
@@ -546,56 +790,46 @@ export function createTurtleMascot(): Mascot {
 
   function update(ctx: MascotContext): void {
     // Disintegrate branch: once triggered, the wander/breath/tilt freeze
-    // and the dissolve wave + particles take over. Body still renders
-    // (with cutoff discarding lower fragments) until the wave completes.
+    // and the dissolve wave + particles take over.
     if (disintegrating) {
       updateDisintegrate(ctx);
       bodyTimeUniform.value = ctx.t;
       return;
     }
 
-    if (firstSeenT < 0 && group.visible) firstSeenT = ctx.t;
-    const since = firstSeenT >= 0 ? ctx.t - firstSeenT : 0;
-
-    // Pre-entry delay: keep him scaled to 0 (effectively invisible)
-    // while the stars settle in.
-    if (since < ENTRY_DELAY) {
-      group.scale.setScalar(0);
-      return;
-    }
-
-    // Warp-in entrance: comical stretch + overshoot pop.
-    const entryT = (since - ENTRY_DELAY) / ENTRY_DURATION;
-    if (entryT < 1) {
-      const e = easeOutBack(entryT);
-      // Horizontal stretch collapses from 6× to 1 in the first ⅔ of
-      // the warp; vertical stretch starts squashed (0.4) and grows to 1.
-      // The two together read as the turtle "warping out of hyperspace"
-      // before settling into shape.
-      const collapseT = Math.min(entryT * 1.5, 1);
-      const xStretch = THREE.MathUtils.lerp(6, 1, collapseT);
-      const yStretch = THREE.MathUtils.lerp(0.4, 1, collapseT);
-      const sf = Math.max(0, e);
-      group.scale.set(
-        TURTLE_SCALE * sf * xStretch,
-        TURTLE_SCALE * sf * yStretch,
-        TURTLE_SCALE * sf * yStretch,
-      );
-      // No wander or tilt mid-warp; he flies in straight.
-      group.position.set(0, 0, 0);
-      tiltGroup.rotation.x = 0;
-      tiltGroup.rotation.z = 0;
+    // Materialize branch: reverse-disintegrate at first show. Particles
+    // converge to vertex targets while cutoff sweeps up (mode 1).
+    if (materializing) {
+      updateMaterialize(ctx);
       bodyTimeUniform.value = ctx.t;
       if (mixer.value) mixer.value.update(ctx.dt);
       return;
     }
 
-    // Steady state: wander + breath + tilt.
-    const wx = Math.sin(ctx.t * WANDER_X_FREQ) * WANDER_X_AMP;
-    const wy = Math.cos(ctx.t * WANDER_Y_FREQ) * WANDER_Y_AMP;
+    if (firstSeenT < 0 && group.visible) firstSeenT = ctx.t;
+    const since = firstSeenT >= 0 ? ctx.t - firstSeenT : 0;
+
+    // Pre-materialize delay: keep him scaled to 0 (invisible) while the
+    // stars settle in. After ENTRY_DELAY, kick off the materialize and
+    // return; next frame the materialize branch above takes over.
+    if (!materializeDone) {
+      if (since < ENTRY_DELAY) {
+        group.scale.setScalar(0);
+        return;
+      }
+      startMaterialize();
+      return;
+    }
+
+    // Steady state: wander + breath + tilt. Time origin is materializeEndT
+    // so wx/wy both start at sin(0)=0 — no snap from the (0,0,0) end-of-
+    // materialize position into the wander cycle.
+    const wt = ctx.t - materializeEndT;
+    const wx = Math.sin(wt * WANDER_X_FREQ) * WANDER_X_AMP;
+    const wy = Math.sin(wt * WANDER_Y_FREQ) * WANDER_Y_AMP;
     group.position.set(wx, wy, 0);
 
-    const breath = 1 + Math.sin(ctx.t * BREATH_FREQ + 1.7) * BREATH_AMP;
+    const breath = 1 + Math.sin(wt * BREATH_FREQ) * BREATH_AMP;
     group.scale.setScalar(TURTLE_SCALE * breath);
 
     tiltGroup.rotation.x = wy * TILT_PER_UNIT;
@@ -626,7 +860,7 @@ export function createTurtleMascot(): Mascot {
   }
 
   function reset(): void {
-    // Restore from disintegration: clear particles, reset dissolve, replay warp-in.
+    // Restore from disintegration: clear particles, reset dissolve, replay materialize.
     if (particleData) {
       if (particleData.points.parent) particleData.points.parent.remove(particleData.points);
       particleData.geom.dispose();
@@ -637,7 +871,18 @@ export function createTurtleMascot(): Mascot {
     disintegrateStartT = -1;
     disintegrateDone = false;
     disintegrateOnDone = null;
+    materializing = false;
+    materializeStartT = -1;
+    materializeDone = false;
+    materializeEndT = -1;
+    // Start invisible (materialize mode); next show triggers the
+    // toe-to-head reveal.
+    dissolveModeUniform.value = 1.0;
     dissolveUniform.value = -1e9;
+    group.scale.setScalar(0);
+    group.position.set(0, 0, 0);
+    tiltGroup.rotation.x = 0;
+    tiltGroup.rotation.z = 0;
     firstSeenT = -1;
     if (mixerAction) {
       try { mixerAction.reset().play(); } catch { /* mixer already stopped */ }
@@ -652,10 +897,5 @@ function formatRot(r: number): string {
   return `${r.toFixed(3)} (${deg.toFixed(1)}°)`;
 }
 
-// easeOutBack — overshoots slightly past 1 then settles, gives a
-// cartoony pop. c1 = 1.70158 is the canonical "back" coefficient.
-function easeOutBack(x: number): number {
-  const c1 = 1.70158;
-  const c3 = c1 + 1;
-  return 1 + c3 * Math.pow(x - 1, 3) + c1 * Math.pow(x - 1, 2);
-}
+// (easeOutBack removed — was used by the legacy hyperspace warp-in;
+//  the new materialize uses cubic ease-in-out inline.)

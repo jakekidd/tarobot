@@ -872,6 +872,10 @@ export function TarobotScene() {
 
     const start = performance.now();
     let lastFrameMs = start;
+    // Anchor lerp tracker. False on first valid anchor frame so we snap
+    // into position; true thereafter so DOM-level anchor changes
+    // (Menu → Survey moves the Reader element) lerp smoothly.
+    let anchorInitialized = false;
 
     const animate = () => {
       if (!mounted) return;
@@ -954,9 +958,28 @@ export function TarobotScene() {
       }
 
       if (anchor) {
-        positionGroup.position.x = anchor.x - viewportW / 2;
-        positionGroup.position.y = viewportH / 2 - anchor.y;
-        positionGroup.scale.setScalar(anchor.width * zoomScale);
+        // Smooth anchor tracking. The DOM anchor jumps instantly when a
+        // screen swaps (Menu → Survey moves the Reader element up the
+        // layout); without lerping, the mascot + stars snap with it.
+        // Exponential approach at rate ~0.08/frame ≈ half-second settle.
+        const targetX = anchor.x - viewportW / 2;
+        const targetY = viewportH / 2 - anchor.y;
+        const targetScale = anchor.width * zoomScale;
+        // First-frame: snap so we don't drift in from origin.
+        if (!anchorInitialized) {
+          positionGroup.position.x = targetX;
+          positionGroup.position.y = targetY;
+          positionGroup.scale.setScalar(targetScale);
+          anchorInitialized = true;
+        } else {
+          const ANCHOR_LERP_RATE = 0.08;
+          positionGroup.position.x += (targetX - positionGroup.position.x) * ANCHOR_LERP_RATE;
+          positionGroup.position.y += (targetY - positionGroup.position.y) * ANCHOR_LERP_RATE;
+          const curScale = positionGroup.scale.x;
+          positionGroup.scale.setScalar(curScale + (targetScale - curScale) * ANCHOR_LERP_RATE);
+        }
+      } else {
+        anchorInitialized = false;
       }
 
       // ── Mouse hitbox → mascot context ─────────────────────

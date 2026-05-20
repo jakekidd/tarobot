@@ -260,13 +260,13 @@ Options:
 Format: choice
 Probe:
   Surface: epistemic flexibility.
-  Inversions: recently — big = in flux, possibly post-rupture; recently — small = pliable; long time ago = rigid or settled; can't remember = either deeply stable or genuinely closed.
-  Watch for: "can't remember" + "i've stopped checking" on perceived_as = strong rigid-pattern.
+  Inversions: recently — about a person = in flux relationally, possibly post-rupture; recently — about myself = active self-revision, often post-shame or post-loss; long time ago = rigid or settled; afraid to look = either deeply stable or genuinely closed; "i've stopped checking" is the same valence.
+  Watch for: "afraid to look" + "i've stopped checking" on perceived_as = strong rigid-pattern. "about myself" + the proudest+ashamed thing = current integration work.
 Options:
-  - recently — big thing
-  - recently — small thing
-  - long time ago
-  - i can't remember
+  - recently — about a person
+  - recently — about myself
+  - a long time ago
+  - afraid to look
 
 #### Do you like yourself?
 
@@ -369,19 +369,6 @@ Options:
   - a loss
   - something funny
   - something i can't quite explain
-
-#### The version of you your parents know is—
-
-Format: choice
-Probe:
-  Surface: presented-vs-real self relative to family of origin.
-  Inversions: accurate = continuity, possibly enmeshed; outdated = has changed since they last looked, possibly geographic or value drift; curated = active performance, suspect ongoing approval-seeking or boundary-management; unknown to them = deep separation between presented self and origin, possibly chosen.
-  Watch for: "unknown to them" + perceived_as as the role i play = the role exists in part to keep parents at arm's length.
-Options:
-  - accurate
-  - outdated
-  - curated
-  - unknown to them
 
 #### What's different about you, compared to a year ago?
 
@@ -506,13 +493,13 @@ Options:
 Format: choice
 Probe:
   Surface: dishonesty target.
-  Inversions: someone close = active concealment in a primary bond; myself = self-deception, often the deepest answer; "no one comes to mind" = either grounded or unaware; "too many to count" = exhausted by social performance.
-  Watch for: "myself" + lies-i-tell-myself = high-confidence self-deception pattern. "someone close" + with-whom-unsaid = the same person.
+  Inversions: the person i should have told = the bond is active and the silence is acute, name the relationship later; myself = self-deception, often the deepest answer; no one comes to mind = either grounded or unaware; everyone, a little = exhausted by social performance, identity is the lie.
+  Watch for: "myself" + lies-i-tell-myself = high-confidence self-deception pattern. "the person i should have told" + with-whom-unsaid = the same person, look for who.
 Options:
-  - someone close
+  - the person i should have told
   - myself
   - no one comes to mind
-  - too many to count
+  - everyone, a little
 
 #### How many people know the real version of you?
 
@@ -539,19 +526,6 @@ Options:
   - "i don't care"
   - "i'll get to it"
   - "they understand"
-
-#### When you need to disappear, you—
-
-Format: choice
-Probe:
-  Surface: escape pattern.
-  Inversions: go quiet = withdrawal-in-place; get busy = task-flood as avoidance; sleep = somatic shutdown, possibly depressive; leave = physical exit, possibly geographic.
-  Watch for: "leave" + later geographic probes = recurring escape pattern, may be the fork.
-Options:
-  - go quiet
-  - get busy
-  - sleep
-  - leave
 
 #### You pull away when—
 
@@ -630,19 +604,6 @@ Options:
   - something different
   - not sure
   - anything else
-
-#### Is there somewhere else you'd rather be right now?
-
-Format: choice
-Probe:
-  Surface: geographic restlessness.
-  Inversions: somewhere specific = location-based yearning, often someone-shaped; somewhere vague = displacement without target; nowhere = grounded; "anywhere but here" = acute discomfort, possibly fork-adjacent.
-  Watch for: "anywhere but here" is a near-tell for fork acuteness.
-Options:
-  - somewhere specific
-  - somewhere vague
-  - nowhere
-  - anywhere but here
 
 ### now
 
