@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { fireImpact } from '../scene/impactStore';
+import { useChoiceReady } from './useChoiceReady';
 
 type Props = {
   suggestions: string[];
@@ -27,6 +28,7 @@ type PickState = 'idle' | 'picked' | 'unpicked';
  */
 export function MultipleChoice({ suggestions, isBinary, disabled, onPick }: Props) {
   const [pickedIdx, setPickedIdx] = useState<number | null>(null);
+  const ready = useChoiceReady();
 
   function handlePick(value: string, idx: number, x: number, y: number) {
     if (pickedIdx !== null) return;
@@ -37,7 +39,7 @@ export function MultipleChoice({ suggestions, isBinary, disabled, onPick }: Prop
 
   const stateFor = (i: number): PickState =>
     pickedIdx === null ? 'idle' : pickedIdx === i ? 'picked' : 'unpicked';
-  const lockedDisabled = disabled || pickedIdx !== null;
+  const lockedDisabled = disabled || pickedIdx !== null || !ready;
 
   if (suggestions.length === 0) return null;
 

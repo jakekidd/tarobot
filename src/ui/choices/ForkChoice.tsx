@@ -12,6 +12,7 @@
 // is acute right now.
 
 import { useState } from 'react';
+import { useChoiceReady } from './useChoiceReady';
 
 type Props = {
   /** Options as strings of form "left | right". The parseSurveyMd
@@ -30,10 +31,12 @@ export function ForkChoice({ options, onPick }: Props) {
   // the engine processes the answer. pickedIdx === null means
   // "no pick yet"; any non-null value locks the rest.
   const [pickedIdx, setPickedIdx] = useState<number | null>(null);
+  const ready = useChoiceReady();
   const locked = pickedIdx !== null;
 
   function tap(idx: number, encoded: string) {
     if (pickedIdx !== null) return;
+    if (!ready) return;
     setPickedIdx(idx);
     // Fire immediately — no confirmation step. The visual state
     // change (selected row highlighted) is the feedback.
@@ -56,7 +59,7 @@ export function ForkChoice({ options, onPick }: Props) {
               type="button"
               className="fork-choice__side fork-choice__side--left"
               onClick={() => tap(i, left)}
-              disabled={otherLocked}
+              disabled={otherLocked || !ready}
             >
               {left}
             </button>
@@ -64,7 +67,7 @@ export function ForkChoice({ options, onPick }: Props) {
               type="button"
               className="fork-choice__bar"
               onClick={() => tap(i, `between:${left}/${right}`)}
-              disabled={otherLocked}
+              disabled={otherLocked || !ready}
               title={`stuck between ${left} and ${right}`}
               aria-label={`stuck between ${left} and ${right}`}
             />
@@ -72,7 +75,7 @@ export function ForkChoice({ options, onPick }: Props) {
               type="button"
               className="fork-choice__side fork-choice__side--right"
               onClick={() => tap(i, right)}
-              disabled={otherLocked}
+              disabled={otherLocked || !ready}
             >
               {right}
             </button>

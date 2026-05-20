@@ -1,5 +1,6 @@
 import { useState, type MouseEvent as RMouseEvent } from 'react';
 import { fireImpact } from '../scene/impactStore';
+import { useChoiceReady } from './useChoiceReady';
 
 // Mirror the animation timing used by MultipleChoice so the visual language
 // is identical: others fade, picked flashes + bursts, beacon emerges, advance.
@@ -23,9 +24,11 @@ type Props = {
 export function Matrix2x2Choice({ axes, options, onPick }: Props) {
   const [pickedIdx, setPickedIdx] = useState<number | null>(null);
   const [hoverIdx, setHoverIdx] = useState<number | null>(null);
+  const ready = useChoiceReady();
 
   function handlePick(idx: number, e: RMouseEvent<HTMLButtonElement>) {
     if (pickedIdx !== null) return;
+    if (!ready) return;
     setPickedIdx(idx);
     const r = e.currentTarget.getBoundingClientRect();
     const x = e.clientX || r.left + r.width / 2;
@@ -59,7 +62,7 @@ export function Matrix2x2Choice({ axes, options, onPick }: Props) {
             key={i}
             type="button"
             className={cellClass(i)}
-            disabled={pickedIdx !== null}
+            disabled={pickedIdx !== null || !ready}
             onClick={(e) => handlePick(i, e)}
             onMouseEnter={() => setHoverIdx(i)}
             onMouseLeave={() =>

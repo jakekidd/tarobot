@@ -53,6 +53,11 @@ export function App() {
   }, [phase.kind]);
 
   function goMenu() {
+    // Bailing out of a survey via the topbar leaves the durable Person
+    // record (created at save threshold) but clears the volatile active
+    // session — we don't have a "resume in-progress survey" feature, and
+    // letting it linger would mean stale engine state in storage.
+    if (phase.kind === 'survey') clearActiveSession();
     setPhase({ kind: 'menu' });
   }
 
