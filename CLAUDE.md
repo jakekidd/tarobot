@@ -10,10 +10,10 @@ delete it rather than patch it.
 ## What this is
 
 A tarot-themed web app. The visible product is: a user lands in a dark
-purple game-feel CRT scene, a cat (Clat) interviews them via a sequence of
-multiple-choice questions, the cat compiles a brief, the Seer then reads
-four cards in a diamond spread for them. The reading is the thing the rest
-exists to serve.
+purple game-feel CRT scene, a cat (the survey mascot) interviews them via
+a sequence of multiple-choice questions, then the Seer reads four cards
+in a diamond spread for them. The reading is the thing the rest exists
+to serve.
 
 Deploy is Vercel static. The browser holds the user's Anthropic API key and
 calls the model directly — there is no backend, no database, no auth layer.
@@ -28,8 +28,121 @@ to phones in line. The reading happens at the booth itself with a real-
 robot Seer. Latency budget shapes the runtime split below.
 
 Owner: jakek. Project tone is dark, game-feel, sparse. Pixel / ASCII /
-unicode-glyph aesthetic. CRT scanline overlay, three.js Clat as full-screen
-backdrop, monospace typography in places. No emoji unless explicitly asked.
+unicode-glyph aesthetic. CRT scanline overlay, three.js cat mascot as
+full-screen backdrop, monospace typography in places. No emoji unless
+explicitly asked.
+
+---
+
+## Materials (text-shaped artifacts) live at `materials/`
+
+Everything text-shaped that authors / agents tune is in the
+`materials/` directory at the repo root. Loaded into TS via Vite `?raw`
+imports so non-coders can edit on GitHub and Vercel rebuilds with the
+new content.
+
+```
+materials/
+  survey.md                       the survey questions (Pillars + Pool)
+  templates/
+    profile.md                    observer scaffold (9 sections + HTML-comment instructions)
+    story.md                      StoryObject shape reference doc (human-only)
+  prompts/
+    observer.md                   profiler prompt — every turn, full body rewrite, speculation authority
+    detective.md                  story-architect + ladder-collaborator
+    augur-outline.md              outcome naming (binary/ternary/open)
+    augur-fill.md                 outcome document fills (markdown prose)
+    mantra.md                     closing one-line takeaway
+    seer/
+      voice-bible.md              shared craft for all actors
+      director-intro.md           prose-brief from story
+      director-per-card.md        per-card Set (given circumstances)
+      director-closing.md         ClosingIntent + held-probe swing
+      actor-intro.md              one-line voiced intro
+      actor-per-card.md           voiced beat from a Set
+      actor-closing.md            voiced outro
+      actor-chat.md               between-beats reply
+  names/
+    masc.txt                      relationship_pick name bank (one per line)
+    fem.txt
+  mascot/
+    return-lines.md               canned mascot lines for returning RESUME
+```
+
+## Survey engine — the three artifacts
+
+At survey close, three artifacts hand off to the Seer:
+
+- **profile** (observer's domain · breadth) — a freeform markdown
+  document the observer rewrites every turn. 9 section headers
+  (`self / history / relationships / joys / fears / insecurities /
+  yearnings / now / tensions`). Plus side-channel reads (signals,
+  patterns, contradictions, avoidances), hooks (verbatim specifics
+  the seer can echo), edges (growth surface — what the user almost-
+  knows), and cast (named people + per-person observer notes).
+- **investigation** (detective's domain · depth) — a hypothesis ladder
+  (confirmed / probable / tentative / contested / refuted / held)
+  populated by:
+  - the algorithmic seeder (`src/pipeline/survey/seeder.ts`),
+    which reads each question's `Inversions:` probe text and seeds
+    deterministic hypotheses into `tentative[]`,
+  - the observer (every turn — elevates / holds / refutes seeds),
+  - the detective (adds new hypotheses, moves rungs).
+- **story** (detective's domain · narrative) — the slice across time
+  anchored to the user's fork. Five slots:
+  - `fork: { a, b, is_stasis }` — the two future paths. `is_stasis`
+    true means the detective constructed it from a stasis pattern
+    (the user has no live decision; the fork is "act on this vs.
+    continue as you are").
+  - `present_pressure` — what makes the fork acute right now.
+  - `past_root` — what in their history pre-figures the fork.
+  - `stakes: { on_a, on_b }` — what is at risk each way.
+  - `hooks` — verbatim concrete specifics.
+
+The cards land on story slots (past_root → past card, present_pressure
+→ present, fork.a + fork.b → the two future cards). The director's
+prose_brief is built around story; the closing director receives the
+held-probe queue (sorted by age DESC) and may take ONE risky swing.
+
+## Clat (the mascot) is the user-facing voice during survey
+
+Three agents fire per post-opener pick (returning users skip the
+observer + detective):
+
+- **mascot commentary** (local, real-time, in-character) — what the
+  user sees and hears between picks. Reactive lines, RPG-dialogue
+  style. The user-facing layer.
+- **observer** (cognition tier, cloud, async) — psychological profiler.
+  Rewrites profile.body, elevates / refutes hypotheses. SILENT — never
+  surfaces mid-survey.
+- **detective** (deep tier, cloud, async) — story architect + ladder
+  collaborator. Builds the StoryObject, surfaces new hypotheses.
+  SILENT — never surfaces mid-survey.
+
+Observer + detective outputs never leak to the user. Only the mascot's
+reactive commentary does. If a future implementation accidentally
+prints detective thoughts to the user, that's a regression of this
+load-bearing rule.
+
+## Categories — the 9 the observer files under
+
+```
+self           personality · how they come across · belief stance
+history        formative experiences · old wounds · regrets
+relationships  cast dynamics · whose voice they carry
+joys           aliveness · what they nerd out about · pride / built
+fears          anticipated harms · anxieties
+insecurities   self-doubt · comparison · what they hide
+yearnings      unfulfilled wants · the version they want to become
+now            current situation · the live fork · what's pulsing
+tensions       internal contradictions · belief-personality mismatches
+               (observer-derived only, never tagged on a question)
+```
+
+Of the 9, 7 are question-tagged in `materials/survey.md`. `tensions`
+is observer-derived only — emerges across answers. `pride` collapsed
+into `joys` (people perform humility on direct asks; observer infers
+from indirect signal).
 
 ---
 

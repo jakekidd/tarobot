@@ -29,6 +29,30 @@ delete from here.
 
 ## just-deferred (most recent first)
 
+### body-header expansion (observer-only)
+If observer writing feels thin after launch around dimensions the
+9-category set doesn't cover well, expand `materials/templates/
+profile.md` with additional headers. Likely candidates from earlier
+psychometric work: `body` (somatic baseline), `finitude` (relationship
+to mortality / time horizon), `money` (scarcity, risk, planning,
+status), `rituals` (habits, daily structure), `play` (humor,
+mischief), `drives` (achievement / power / affiliation), `defenses`
+(how they handle threat), `agency` (locus of control). Don't expand
+the pool tags — keep those at 9 so the question-tagging stays simple;
+body headers and pool tags don't have to match. Migration is
+materials/templates/profile.md only.
+
+### richer interaction telemetry (UI capture)
+TimingEvent already has the fields (`interaction_count`,
+`initial_pick`, `final_pick`) but UI components fire onPick on first
+tap with no "change your mind" pattern, so all picks come through
+with interaction_count=1 and initial_pick=null. To capture
+hesitation / change-of-mind signal: add a tap-then-confirm UX (or
+double-tap-to-commit) to MultipleChoice / Matrix2x2Choice / ForkChoice
+that tracks interim taps. Pass through to engine.submitAnswer via
+an optional telemetry second arg. Observer's side-channel reads
+these once they're populated.
+
 ### detective queue-editing (re-enable when guarded)
 The detective used to emit `queue_edits[]` that the engine applied to
 upcoming queue items (options_override + preamble). Cut on 2026-05-19

@@ -45,13 +45,31 @@ system appearing prescient.
    silently; the actor (the voiced seer) speaks. Each card is its own
    small fan-out of director+actor calls.
 
-## Authoring questions
+## Authoring questions + prompts (`materials/`)
 
-All survey questions live in **[`src/pipeline/survey/SURVEY.md`](src/pipeline/survey/SURVEY.md)**.
-Edit there, push, Vercel rebuilds with the new questions. The first
-section of that file explains the format. There is no separate
-question-ID column — the engine slugifies the question text for
-internal use, so authors just write questions.
+All text-shaped artifacts — survey questions, agent prompts, profile
+templates, name banks, mascot lines — live under **[`materials/`](materials/)**
+at the repo root. Edit there, push, Vercel rebuilds with the new
+content. The directory layout:
+
+```
+materials/
+  survey.md                       survey questions (Pillars + Pool)
+  templates/profile.md            observer's profile scaffold
+  templates/story.md              StoryObject shape reference
+  prompts/observer.md             observer prompt (profiler)
+  prompts/detective.md            detective prompt (story + ladder)
+  prompts/augur-{outline,fill}.md outcome naming + document fills
+  prompts/mantra.md               closing one-line takeaway
+  prompts/seer/                   seer voice bible + per-call prompts
+  names/{masc,fem}.txt            relationship_pick name banks
+  mascot/return-lines.md          returning-user mascot lines
+```
+
+The top of `materials/survey.md` documents the schema for questions
+(Pillars / Pool, Probe sub-fields, Options syntax). There is no
+separate question-ID column — the engine slugifies the question text
+internally.
 
 ## Local dev
 
@@ -66,9 +84,11 @@ pnpm build
 ## Layout
 
 - `src/App.tsx` — phase machine (key / menu / survey / reading / pipeline).
-- `src/pipeline/` — Node-portable cognition. Engines, prompts, schemas,
-  static data (cards, spreads, personas, the survey doc). The product.
-- `src/pipeline/survey/SURVEY.md` — the survey questions.
+- `src/pipeline/` — Node-portable cognition. Engines, schemas, static
+  data (cards, spreads, personas). The product. Text-shaped content
+  (prompts, templates, name banks) lives in `materials/` and is
+  imported via Vite `?raw`.
+- `materials/` — single source of truth for all editable text.
 - `src/ui/` — React layer.
 - `src/storage.ts` — `localStorage` wrapper for the API key, Persons,
   the active in-flight session.
