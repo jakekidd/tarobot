@@ -10,6 +10,11 @@ type Props = {
   onReadDemo: () => void;
   onOpenResume: () => void;
   onSettings: () => void;
+  /** True once a transition out of the menu has started (e.g. READ DEMO
+   *  fired, turtle is mid-disintegrate). UI fades out so the visual
+   *  focus is on the turtle dissolving, not on the buttons we're
+   *  leaving behind. */
+  transitioning?: boolean;
 };
 
 // New greeting — keep it lowercase to match the rest of the UI register.
@@ -24,7 +29,7 @@ const T_DIALOGUE_TYPE_MS = 1900;   // typewriter begins after the line has expan
 const T_BUTTON_BASE_MS   = 2400;   // first button appears
 const T_BUTTON_STEP_MS   = 220;    // gap between successive buttons
 
-export function Menu({ onBegin, onReadDemo, onOpenResume, onSettings }: Props) {
+export function Menu({ onBegin, onReadDemo, onOpenResume, onSettings, transitioning }: Props) {
   const [resumeCount] = useState(() => listPeople().length);
   const [speaking, setSpeaking] = useState(false);
 
@@ -67,7 +72,7 @@ export function Menu({ onBegin, onReadDemo, onOpenResume, onSettings }: Props) {
   }, [buttons.length]);
 
   return (
-    <div className="screen screen--menu">
+    <div className={`screen screen--menu ${transitioning ? 'screen--menu--exiting' : ''}`}>
       <div className="menu__stage">
         <Reader isSpeaking={speaking} />
         <div className={`menu__dialogue-wrap ${dialogueOpen ? 'is-open' : ''}`}>

@@ -28,6 +28,7 @@ import {
   subscribeMascotDisintegrateComplete,
   triggerMascotDisintegrate,
 } from './ui/scene/disintegrateStore';
+import { AgentActivity } from './debug/AgentActivity';
 
 type Phase =
   | { kind: 'key' }
@@ -72,6 +73,11 @@ export function App() {
     setPhase({ kind: 'survey', session: s });
   }
 
+  // Brief "we're leaving the menu" flag — set when READ DEMO fires so
+  // the menu fades out its buttons + dialogue while the turtle
+  // disintegrates. Cleared when Reading mounts (or on cancellation).
+  const [menuTransitioning, setMenuTransitioning] = useState(false);
+
   /** Skip survey: synthesize a session and route straight into the
    *  reading with a hand-authored brief and intro. Triggers the same
    *  mascot disintegration as the survey path so the turtle is gone
@@ -79,6 +85,7 @@ export function App() {
    *  read demo is dev/showcase only, not a full booth experience. */
   function startReadDemo() {
     if (!apiKey) return;
+    setMenuTransitioning(true);
     const unsub = subscribeMascotDisintegrateComplete(() => {
       unsub();
       const s: Session = { ...newSession(), phase: 'tent' };
@@ -88,6 +95,7 @@ export function App() {
         session: s,
         seer: buildMarisolDemoSeer(adapter),
       });
+      setMenuTransitioning(false);
     });
     triggerMascotDisintegrate();
   }
@@ -157,6 +165,7 @@ export function App() {
               onReadDemo={startReadDemo}
               onOpenResume={() => setPhase({ kind: 'resume' })}
               onSettings={() => setPhase({ kind: 'settings' })}
+              transitioning={menuTransitioning}
             />
           )}
 
@@ -187,6 +196,10 @@ export function App() {
 
       <Debug visible={debugVisible} />
       <DebugQueue visible={debugVisible && phase.kind === 'survey'} />
+      {/* Live agent activity stream — always-visible during reading and
+          when debug is on. Gives concrete visibility into "what's the
+          seer preparing", which would otherwise be a black box. */}
+      <AgentActivity alwaysVisible={debugVisible || phase.kind === 'reading'} />
     </div>
   );
 }

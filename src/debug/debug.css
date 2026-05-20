@@ -179,3 +179,119 @@
   color: #50456a !important;
   font-style: italic;
 }
+
+/* ─── Agent activity panel ────────────────────────────────────
+   Live stream of LLM agent calls — mounted during compiling and
+   reading phases. Bottom-right corner, semi-transparent, fixed.
+   Tap on each row to expand the response preview. */
+.agent-activity {
+  position: fixed;
+  right: 0.85rem;
+  bottom: 0.85rem;
+  width: 22rem;
+  max-width: calc(100vw - 1.7rem);
+  max-height: 50vh;
+  z-index: 9000;
+  pointer-events: auto;
+  display: flex;
+  flex-direction: column;
+  background: rgba(8, 4, 22, 0.92);
+  border: 1px solid rgba(124, 58, 237, 0.45);
+  border-radius: 0;
+  box-shadow: 0 0 26px rgba(0, 0, 0, 0.55);
+  font-family: var(--font-mono, monospace);
+  font-size: 0.7rem;
+  color: #cfc4f0;
+}
+.agent-activity__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding: 0.42rem 0.65rem;
+  border-bottom: 1px solid rgba(124, 58, 237, 0.3);
+}
+.agent-activity__title {
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  font-size: 0.65rem;
+  color: #b388ff;
+}
+.agent-activity__sub {
+  font-size: 0.6rem;
+  color: #6b5a8a;
+}
+.agent-activity__body {
+  overflow-y: auto;
+  padding: 0.4rem 0.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+.agent-activity__empty {
+  color: #50456a;
+  font-style: italic;
+  text-align: center;
+  padding: 0.5rem;
+}
+.agent-activity__row {
+  padding: 0.32rem 0.45rem;
+  border-left: 2px solid transparent;
+  background: rgba(255, 255, 255, 0.02);
+}
+.agent-activity__row--inflight {
+  border-left-color: #fbbf24;        /* amber — still working */
+}
+.agent-activity__row--ok {
+  border-left-color: #34d399;        /* green — done */
+}
+.agent-activity__row--failed {
+  border-left-color: #ef4444;        /* red — error */
+}
+.agent-activity__row-head {
+  display: flex;
+  gap: 0.5rem;
+  align-items: baseline;
+}
+.agent-activity__label {
+  color: #e8e0ff;
+  letter-spacing: 0.04em;
+}
+.agent-activity__model {
+  color: #7c3aed;
+  font-size: 0.6rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+.agent-activity__dur {
+  margin-left: auto;
+  color: #6b5a8a;
+  font-size: 0.62rem;
+}
+.agent-activity__err {
+  color: #fca5a5;
+  margin-top: 0.25rem;
+  font-size: 0.65rem;
+}
+.agent-activity__resp {
+  margin-top: 0.25rem;
+  color: #a5b4fc;
+  font-size: 0.62rem;
+}
+.agent-activity__resp summary {
+  cursor: pointer;
+  color: #6b5a8a;
+  user-select: none;
+}
+.agent-activity__resp summary:hover {
+  color: #b388ff;
+}
+.agent-activity__resp pre {
+  white-space: pre-wrap;
+  word-break: break-word;
+  margin: 0.25rem 0 0;
+  max-height: 14rem;
+  overflow-y: auto;
+  font-family: var(--font-mono, monospace);
+  font-size: 0.62rem;
+  color: #cfc4f0;
+}

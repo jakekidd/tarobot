@@ -10,6 +10,16 @@ import type {
   LLMAdapter,
   ModelTier,
 } from './adapter';
+import {
+  startAgentEvent,
+  completeAgentEvent,
+  failAgentEvent,
+} from '../../debug/agentActivityBus';
+
+let nextAgentEventId = 1;
+function nextId(): string {
+  return `ae-${nextAgentEventId++}`;
+}
 
 // Tier → concrete model id. Easy to retune without touching engine code.
 const MODEL_FOR: Record<ModelTier, string> = {
@@ -50,22 +60,34 @@ export class AnthropicAdapter implements LLMAdapter {
 
     inFlightCount += 1;
     lastTier = spec.model;
+    const eventId = nextId();
+    startAgentEvent({ id: eventId, label: spec.tool.name, model: spec.model });
     try {
       const firstCall = await this.callOnce(spec, tool);
       const firstParsed = schema.safeParse(firstCall);
-      if (firstParsed.success) return firstParsed.data;
+      if (firstParsed.success) {
+        completeAgentEvent({ id: eventId, response: firstParsed.data });
+        return firstParsed.data;
+      }
 
       // Retry once with an explicit "your last response was invalid" follow-up.
       const retryUser = spec.user
         + '\n\n[your previous response failed JSON-schema validation. respond ONLY with the tool call, exactly matching the schema.]';
       const retryCall = await this.callOnce({ ...spec, user: retryUser }, tool);
       const retryParsed = schema.safeParse(retryCall);
-      if (retryParsed.success) return retryParsed.data;
+      if (retryParsed.success) {
+        completeAgentEvent({ id: eventId, response: retryParsed.data });
+        return retryParsed.data;
+      }
 
-      throw new Error(
+      const errMsg =
         `adapter: tool '${spec.tool.name}' returned malformed JSON twice. issues: `
-        + JSON.stringify(retryParsed.error.issues),
-      );
+        + JSON.stringify(retryParsed.error.issues);
+      failAgentEvent({ id: eventId, error: errMsg });
+      throw new Error(errMsg);
+    } catch (e) {
+      if (e instanceof Error) failAgentEvent({ id: eventId, error: e.message });
+      throw e;
     } finally {
       inFlightCount = Math.max(0, inFlightCount - 1);
     }
@@ -74,6 +96,8 @@ export class AnthropicAdapter implements LLMAdapter {
   async invokeFreeform(spec: FreeformSpec): Promise<string> {
     inFlightCount += 1;
     lastTier = spec.model;
+    const eventId = nextId();
+    startAgentEvent({ id: eventId, label: 'freeform', model: spec.model });
     try {
       const modelId = MODEL_FOR[spec.model];
       const response = await this.client.messages.create({
@@ -94,9 +118,15 @@ export class AnthropicAdapter implements LLMAdapter {
         .map((b) => b.text)
         .join('');
       if (!text) {
-        throw new Error(`adapter.invokeFreeform: model returned no text (stop_reason=${response.stop_reason})`);
+        const errMsg = `adapter.invokeFreeform: model returned no text (stop_reason=${response.stop_reason})`;
+        failAgentEvent({ id: eventId, error: errMsg });
+        throw new Error(errMsg);
       }
+      completeAgentEvent({ id: eventId, response: text });
       return text;
+    } catch (e) {
+      if (e instanceof Error) failAgentEvent({ id: eventId, error: e.message });
+      throw e;
     } finally {
       inFlightCount = Math.max(0, inFlightCount - 1);
     }

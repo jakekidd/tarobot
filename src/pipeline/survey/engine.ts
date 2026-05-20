@@ -362,35 +362,41 @@ export class SurveyEngine {
 
     const drawn = drawForSpread(FOUR_CARD_DIAMOND);
 
-    // End-of-survey compile sequence:
-    //   1. final observer synthesis pass — one last shot at profile.body
-    //      with full Q&A context (revise Q1-5, populate ## tensions).
-    //   2. algorithmic extraction — overwrite profile.hooks +
-    //      profile.side_channel from picks_log + timing_log. Replaces
-    //      the unreliable per-turn LLM emission with deterministic data.
-    //   3. assemble Profile snapshot for Augur + Seer (must happen
-    //      AFTER 1 and 2 so the final state lands).
-    //   4. Augur (~5-7s) → outcomes. Held probes from the reaper get
-    //      passed so the augur can write probe-outcomes.
-    //   5. Seer.ready — its intro pipeline runs (~3s) in the same UI
-    //      'compiling' window.
+    // End-of-survey compile sequence. Observer and Augur run in PARALLEL
+    // since Augur consumes story (from the detective, already populated)
+    // + identity + cast — not the observer's output. Saves ~5-15s wall
+    // clock on the "seer is preparing" wait.
+    //
+    //   1. (parallel) final observer synthesis pass — full Q&A history,
+    //      revise Q1-5, populate ## tensions. Result lands in profile.body.
+    //      (parallel) Augur — outline + N parallel fill calls. Held probes
+    //      from the reaper get passed so the augur can write probe-outcomes.
+    //   2. (post-both) algorithmic hooks + side_channel extraction.
+    //   3. (post-both) assemble Profile snapshot for the Seer — has
+    //      observer's final body AND the algo-extracted fields.
+    //   4. Seer constructed; its intro pipeline runs in its constructor.
     void (async () => {
       try {
-        await this.runFinalObserverPass();
-        this.applyAlgoExtraction();
-        const profile = assembleProfile(this.state, '');
         const heldProbes = [...this.state.investigation.hypotheses.held]
           .sort((a, b) => (b.age_in_turns ?? 0) - (a.age_in_turns ?? 0));
-        const outcomes = await runAugur(this.opts.adapter, {
-          profile,
-          intention: cleaned,
-          surveyHistory: this.state.picks_log,
-          story: this.state.investigation.story,
-          heldProbes,
-        });
+        // Augur uses pre-observer profile — it doesn't read observer_body
+        // / hooks / edges / side_channel. Run concurrently with observer.
+        const preObserverProfile = assembleProfile(this.state, '');
+        const [, outcomes] = await Promise.all([
+          this.runFinalObserverPass(),
+          runAugur(this.opts.adapter, {
+            profile: preObserverProfile,
+            intention: cleaned,
+            surveyHistory: this.state.picks_log,
+            story: this.state.investigation.story,
+            heldProbes,
+          }),
+        ]);
+        this.applyAlgoExtraction();
+        const finalProfile = assembleProfile(this.state, '');
         this.seer = new Seer({
           adapter: this.opts.adapter,
-          profile,
+          profile: finalProfile,
           surveyHistory: this.state.picks_log,
           intention: cleaned,
           drawn,

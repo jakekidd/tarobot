@@ -23,25 +23,30 @@ import { z } from 'zod';
 
 const LadderRung = z.enum(['confirmed', 'probable', 'tentative', 'contested', 'refuted', 'held']);
 
+// All fields default to safe empty values. The model regularly omits
+// fields it has no content for (e.g. hypothesis_ladder_moves when no
+// moves this turn). Treating them all as optional + defaulted prevents
+// the whole tool call from failing the schema check when it's actually
+// fine on the load-bearing parts (profile_body, hooks).
 export const ObserverOutputSchema = z.object({
-  profile_body: z.string(),
-  hooks: z.array(z.string()),
-  edges: z.array(z.string()),
+  profile_body: z.string().default(''),
+  hooks: z.array(z.string()).default([]),
+  edges: z.array(z.string()).default([]),
   side_channel: z.object({
     signals: z.string().optional(),
     patterns: z.string().optional(),
     contradictions: z.string().optional(),
     avoidances: z.string().optional(),
-  }),
+  }).default({}),
   cast_notes_updates: z.array(z.object({
     label: z.string(),
     notes: z.string(),
-  })),
+  })).default([]),
   hypothesis_ladder_moves: z.array(z.object({
     id: z.string(),
     to: LadderRung,
-  })),
-  reasoning: z.string(),
+  })).default([]),
+  reasoning: z.string().default(''),
 });
 
 // ─── Detective (v2) ────────────────────────────────────
@@ -52,16 +57,19 @@ export const ObserverOutputSchema = z.object({
 // queue_edits and current_understanding are gone (replaced by
 // observer's ladder authority + story).
 
+// Same defaults treatment as ObserverOutputSchema — the model frequently
+// omits sub-objects/arrays it has nothing to add for this turn, and we
+// want the call to succeed cleanly when that happens.
 export const DetectiveOutputSchema = z.object({
   new_hypotheses: z.array(z.object({
     id: z.string(),
     claim: z.string(),
     start_at: LadderRung.optional(),
-  })),
+  })).default([]),
   hypothesis_ladder_moves: z.array(z.object({
     id: z.string(),
     to: LadderRung,
-  })),
+  })).default([]),
   story_updates: z.object({
     fork: z.object({
       a: z.string(),
@@ -75,9 +83,9 @@ export const DetectiveOutputSchema = z.object({
       on_b: z.string(),
     }).optional(),
     hooks: z.array(z.string()).optional(),
-  }),
-  private_thoughts: z.string(),
-  reasoning: z.string(),
+  }).default({}),
+  private_thoughts: z.string().default(''),
+  reasoning: z.string().default(''),
 });
 
 // ─── Compiler (removed) ─────────────────────────────────

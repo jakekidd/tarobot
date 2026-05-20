@@ -1114,6 +1114,18 @@ input, textarea {
   gap: 1rem;
 }
 
+/* Exit transition — fade dialogue + buttons when the user clicks READ
+   DEMO (or any future "leave the menu" path that runs a scene effect
+   like the turtle disintegrate). The scene itself stays visible so the
+   visual focus is on the turtle dissolving, not on lingering chrome. */
+.screen--menu--exiting .menu__dialogue-wrap,
+.screen--menu--exiting .menu__choices,
+.screen--menu--exiting .menu__resume-count {
+  transition: opacity 0.45s ease-out;
+  opacity: 0;
+  pointer-events: none;
+}
+
 .menu__choices {
   display: flex;
   flex-direction: column;

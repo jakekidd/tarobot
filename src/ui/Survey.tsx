@@ -352,7 +352,7 @@ export function Survey({ apiKey, session, onComplete }: Props) {
       {/* Undo chevron — top-left, anchored away from the choices block
           so the user can't fat-thumb it. Renders only when there's a
           snapshot to restore AND the engine isn't mid-think. */}
-      {canUndo && farewell === 'idle' && (
+      {canUndo && farewell === 'idle' && state.stage === 'questions' && (
         <button
           type="button"
           className="survey__undo"
