@@ -300,3 +300,44 @@ describe('SurveyEngine — pipeline path (with FakeAdapter)', () => {
   });
 });
 
+describe('SurveyEngine — full-flow smoke', () => {
+  it('walks openers + 5 post-opener picks without errors, leaves a populated ladder + non-null cast/profile', async () => {
+    const adapter = makeAdapter();
+    const engine = makeEngine({ adapter });
+    // Openers.
+    await engine.submitAnswer('jake');
+    await engine.submitAnswer('1990-01-15');
+    await engine.submitAnswer('single');
+    await engine.submitAnswer('what should i do?');
+
+    // 5 post-opener picks — skip relationship_pick formats (they need JSON payloads).
+    for (let i = 0; i < 5; i++) {
+      const q = engine.getCurrentQuestion();
+      if (!q) break;
+      if (q.format === 'relationship_pick') {
+        await engine.submitAnswer(
+          JSON.stringify({ category: 'parent', name: `Person${i}` }),
+        );
+      } else {
+        await engine.submitAnswer(q.options[0] ?? 'pass');
+      }
+    }
+    await new Promise((r) => setTimeout(r, 0));
+
+    const state = engine.getState();
+    // Engine didn't blow up — basic shape still valid.
+    expect(state.profile.name).toBe('jake');
+    expect(state.picks_log.length).toBeGreaterThan(4);
+    // The seeder ran on at least one post-opener pick → tentative populated.
+    const lad = state.investigation.hypotheses;
+    const totalHyps =
+      lad.confirmed.length + lad.probable.length + lad.tentative.length +
+      lad.contested.length + lad.refuted.length + lad.held.length;
+    expect(totalHyps).toBeGreaterThan(0);
+    // Both agents got called.
+    const toolNames = adapter.calls.map((c) => c.tool);
+    expect(toolNames).toContain('observer_metabolize');
+    expect(toolNames).toContain('detective_step');
+  });
+});
+

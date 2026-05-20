@@ -90,11 +90,26 @@ function hyp(id: string, status: Hypothesis['status'] = 'inferred', confidence =
 
 // ─── applyObserverOutput ───────────────────────────────────
 
+// A body that passes the shape guard — all 9 required ## headers present.
+const FULL_BODY = [
+  '# Profile',
+  '## self',
+  'she is a careful planner.',
+  '## history',
+  '## relationships',
+  '## joys',
+  '## fears',
+  '## insecurities',
+  '## yearnings',
+  '## now',
+  '## tensions',
+].join('\n\n');
+
 describe('applyObserverOutput', () => {
-  it('REPLACES profile.body with new body', () => {
+  it('REPLACES profile.body with new body (when shape guard passes)', () => {
     const profile = emptyProfile();
     const out: ObserverOutput = {
-      profile_body: '# Profile\n\n## self\n\nshe is a careful planner.\n',
+      profile_body: FULL_BODY,
       hooks: [],
       edges: [],
       side_channel: {},
@@ -105,6 +120,38 @@ describe('applyObserverOutput', () => {
     const next = __test_applyObserverOutput(profile, out);
     expect(next.body).toContain('she is a careful planner');
     expect(next.body).not.toBe(profile.body);  // not the original scaffold
+  });
+
+  it('FALLS BACK to prior body when emitted body is missing required ## sections', () => {
+    // Distinct prior body so the assertion proves we kept it, not the broken one.
+    const priorBody = [
+      '# Profile',
+      'PRIOR-MARKER',
+      '## self', '## history', '## relationships', '## joys',
+      '## fears', '## insecurities', '## yearnings', '## now', '## tensions',
+    ].join('\n\n');
+    const profile = { ...emptyProfile(), body: priorBody };
+    // Emit body that drops ## tensions and ## now — broken scaffold.
+    const broken = [
+      '# Profile',
+      'BROKEN-MARKER',
+      '## self', '## history', '## relationships', '## joys',
+      '## fears', '## insecurities', '## yearnings',
+      // ## now and ## tensions missing
+    ].join('\n\n');
+    const out: ObserverOutput = {
+      profile_body: broken,
+      hooks: [],
+      edges: [],
+      side_channel: {},
+      cast_notes_updates: [],
+      hypothesis_ladder_moves: [],
+      reasoning: '',
+    };
+    const next = __test_applyObserverOutput(profile, out);
+    expect(next.body).toBe(priorBody);          // kept the prior shape-correct body
+    expect(next.body).toContain('PRIOR-MARKER');
+    expect(next.body).not.toContain('BROKEN-MARKER');
   });
 
   it('REPLACES hooks / edges / side_channel arrays (no merge)', () => {

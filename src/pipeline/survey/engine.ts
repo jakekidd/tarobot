@@ -978,7 +978,12 @@ function shuffleInPlace<T>(arr: T[]): T[] {
 
 /** Apply v2 observer output to profile.
  *
- *  - profile.body is REPLACED with out.profile_body (full rewrite).
+ *  - profile.body is REPLACED with out.profile_body (full rewrite),
+ *    but only if the emitted body still has all 9 expected section
+ *    headers. If a header is dropped (model hallucinated a rewrite
+ *    that lost structure), keep the prior body — better to show
+ *    stale-but-shape-correct than to lose the scaffold downstream
+ *    consumers (the seer) depend on.
  *  - hooks / edges / side_channel are REPLACED with the observer's
  *    full-emit arrays (the observer emits the full desired state each
  *    turn; engine doesn't merge — observer integrates manually).
@@ -987,15 +992,34 @@ function shuffleInPlace<T>(arr: T[]): T[] {
  *  - Legacy `sections` field is left untouched (transitional — engine
  *    doesn't append to it anymore, but old data persists for any
  *    downstream consumer until cleanup phase). */
+const REQUIRED_PROFILE_SECTIONS = [
+  'self', 'history', 'relationships', 'joys',
+  'fears', 'insecurities', 'yearnings', 'now', 'tensions',
+] as const;
+
+function profileBodyHasAllSections(body: string): boolean {
+  return REQUIRED_PROFILE_SECTIONS.every((s) =>
+    new RegExp(`^##\\s+${s}\\b`, 'mi').test(body),
+  );
+}
+
 function applyObserverOutput(profile: SurveyProfile, out: ObserverOutput): SurveyProfile {
   const castNotesByLabel = new Map(out.cast_notes_updates.map((u) => [u.label, u.notes]));
   const nextCast = profile.cast.map((m) => {
     const notes = castNotesByLabel.get(m.label);
     return notes !== undefined ? { ...m, notes } : m;
   });
+  const nextBody = profileBodyHasAllSections(out.profile_body)
+    ? out.profile_body
+    : profile.body;
+  if (nextBody !== out.profile_body) {
+    console.warn(
+      '[observer] profile_body rewrite dropped one or more required ## sections — keeping prior body.',
+    );
+  }
   return {
     ...profile,
-    body: out.profile_body,
+    body: nextBody,
     hooks: out.hooks,
     edges: out.edges,
     side_channel: out.side_channel,

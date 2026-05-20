@@ -91,15 +91,12 @@ Options:
 Format: choice
 Probe:
   Surface: tone calibration for the seer's opening register.
-  Inversions: skeptic = wants the reading to surprise them honestly, suspects the seer wants to convert them; believer = brings cosmology, may project meaning onto generic statements; "it's complicated" = the most diagnostic — usually means they were raised in one frame and have left it without arriving anywhere stable.
+  Inversions: skeptic = wants the reading to surprise them honestly, suspects the seer wants to convert them; spiritual = brings cosmology, may project meaning onto generic statements; searching = the most diagnostic — usually means they were raised in one frame and have left it without arriving anywhere stable.
   Watch for: cross-reference with value_most — wisdom-pickers who say "searching" are looking for permission to stop searching.
 Options:
-  - believer
   - skeptic
-  - spiritual but not religious
+  - spiritual
   - searching
-  - not interested
-  - it's complicated
 
 ### How do you make decisions?
 
