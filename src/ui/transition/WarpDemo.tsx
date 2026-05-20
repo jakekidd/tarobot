@@ -23,11 +23,15 @@ type Phase =
   | 'whiteout'       // flash → black → silence
   | 'queue';         // mock queue card
 
+// Warp is intentionally long — it's the in-tunnel chat phase, where
+// the user will eventually be chatting with the turtle while the
+// backend compiles their survey into a story + predictions. For the
+// demo, 15s gives time to see 2–3 perch cycles and try clicking.
 const PHASE_DURATIONS_MS: Record<Phase, number> = {
   pre: 2000,
   summon: 2000,
-  lock: 500,
-  warp: 6500,
+  lock: 800,
+  warp: 15000,
   disintegrate: 2000,
   whiteout: 1500,
   queue: Infinity, // sit on it until user clicks replay / restart

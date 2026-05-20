@@ -33,6 +33,9 @@ const EYE_COLOR = 0xfff7e0;
 export type WarpTurtle = {
   group: THREE.Group;
   update: (dt: number, t: number) => void;
+  /** Set the swim-cycle mixer timeScale. Couple to spring velocity so
+   *  the paddle visibly speeds up during perch transitions. */
+  setAnimationSpeed: (scale: number) => void;
   dispose: () => void;
   ready: Promise<void>;
 };
@@ -148,6 +151,10 @@ export function createWarpTurtle(): WarpTurtle {
     if (mixer) mixer.update(dt);
   }
 
+  function setAnimationSpeed(scale: number): void {
+    if (mixer) mixer.timeScale = scale;
+  }
+
   function dispose(): void {
     if (mixer) mixer.stopAllAction();
     for (const d of disposables) { try { d.dispose(); } catch { /* swallow */ } }
@@ -155,5 +162,5 @@ export function createWarpTurtle(): WarpTurtle {
     if (group.parent) group.parent.remove(group);
   }
 
-  return { group, update, dispose, ready };
+  return { group, update, setAnimationSpeed, dispose, ready };
 }
