@@ -50,6 +50,7 @@ import { ChatInput } from './ChatInput';
 import { UndoIcon } from './icons/UndoIcon';
 import { setCardsActive } from './scene/cardsScopeStore';
 import { fireBurnCard } from './scene/burnCardStore';
+import { useAmbientTrack } from './sound/useAmbientTrack';
 
 const READY_BUTTON_MIN_TURNS = 6;
 
@@ -76,6 +77,11 @@ export function Survey({ apiKey, session, onComplete }: Props) {
     setCardsActive(true);
     return () => { setCardsActive(false); };
   }, []);
+
+  // Survey-only ambient: lo-fi celeste through a tape machine, played
+  // far enough away to sit under the dialogue. Menu has its own quieter
+  // kalimba; the two never overlap.
+  useAmbientTrack('/audio/celeste-distant.mp3', 0.22);
 
   // Snapshot existing known names for the soft "this name exists" hint
   // on the NameForm. Live name-match (which fires the modal) happens on
