@@ -50,6 +50,10 @@ import { ChatInput } from './ChatInput';
 import { UndoIcon } from './icons/UndoIcon';
 import { setCardsActive } from './scene/cardsScopeStore';
 import { fireBurnCard } from './scene/burnCardStore';
+import {
+  subscribeMascotDisintegrateComplete,
+  triggerMascotDisintegrate,
+} from './scene/disintegrateStore';
 
 const READY_BUTTON_MIN_TURNS = 6;
 
@@ -68,6 +72,17 @@ export function Survey({ apiKey, session, onComplete }: Props) {
 
   const [speaking, setSpeaking] = useState(false);
   const persistedFor = useRef<string | null>(null);
+
+  // Farewell substate. After the user clicks ENTER on the reading_ready
+  // screen we play a slow goodbye line, then trigger the mascot to
+  // disintegrate. Once both finish, the held Seer is handed to App for
+  // the Reading transition.
+  //   idle         — survey still in normal flow
+  //   speaking     — goodbye dialogue typing out (quarter speed)
+  //   disintegrating — turtle dissolving toe-to-head
+  type FarewellState = 'idle' | 'speaking' | 'disintegrating';
+  const [farewell, setFarewell] = useState<FarewellState>('idle');
+  const seerRef = useRef<Seer | null>(null);
 
   // Orbiting-cards scope: this subsystem is global (mounted in App via
   // TarobotScene) but should ONLY render cards while a survey is active.
@@ -213,9 +228,22 @@ export function Survey({ apiKey, session, onComplete }: Props) {
   }, [state.stage, seer, state]);
 
   function handleEnter() {
-    if (!seer) return;
-    onComplete(seer);
+    if (!seer || farewell !== 'idle') return;
+    // Stash the seer reference — the engine state could shift before
+    // disintegration completes, and onComplete needs the same Seer
+    // instance.
+    seerRef.current = seer;
+    setFarewell('speaking');
   }
+
+  // Wire the disintegrate completion → seer handoff.
+  useEffect(() => {
+    const unsub = subscribeMascotDisintegrateComplete(() => {
+      const s = seerRef.current;
+      if (s) onComplete(s);
+    });
+    return unsub;
+  }, [onComplete]);
 
   // ─── existing side effects (dizzy, debug) ─────────────
   useEffect(() => {
@@ -271,7 +299,10 @@ export function Survey({ apiKey, session, onComplete }: Props) {
 
   let dialogText = '';
   let dialogKey = 'empty';
-  if (returnLine) {
+  if (farewell !== 'idle') {
+    dialogText = 'ok. have fun, be safe. goodbye';
+    dialogKey = 'farewell';
+  } else if (returnLine) {
     dialogText = returnLine;
     dialogKey = 'return-line';
   } else if (pendingMatches) {
@@ -321,7 +352,7 @@ export function Survey({ apiKey, session, onComplete }: Props) {
       {/* Undo chevron — top-left, anchored away from the choices block
           so the user can't fat-thumb it. Renders only when there's a
           snapshot to restore AND the engine isn't mid-think. */}
-      {canUndo && (
+      {canUndo && farewell === 'idle' && (
         <button
           type="button"
           className="survey__undo"
@@ -351,7 +382,20 @@ export function Survey({ apiKey, session, onComplete }: Props) {
           <Dialogue
             key={dialogKey}
             text={dialogText}
+            // Quarter speed during the farewell — the goodbye lands
+            // slowly, gives the user a moment before the turtle goes.
+            charDelayMs={farewell === 'speaking' || farewell === 'disintegrating' ? 112 : undefined}
+            // Disable click-skip on the farewell — let it play out.
+            clickToSkip={farewell === 'idle'}
             onTypingChange={setSpeaking}
+            onDone={
+              farewell === 'speaking'
+                ? () => {
+                    setFarewell('disintegrating');
+                    triggerMascotDisintegrate();
+                  }
+                : undefined
+            }
           />
         )}
       </div>
@@ -483,7 +527,7 @@ export function Survey({ apiKey, session, onComplete }: Props) {
             ready for the cards →
           </button>
         )}
-        {state.stage === 'reading_ready' && seer && (
+        {state.stage === 'reading_ready' && seer && farewell === 'idle' && (
           <button
             className="btn btn--big survey__enter"
             onClick={handleEnter}

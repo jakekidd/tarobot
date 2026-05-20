@@ -10,6 +10,7 @@ import { subscribeImpacts, type Impact as ImpactEvent } from './impactStore';
 import { createOrbitingCards } from './orbitingCards';
 import { subscribeDizzy } from './dizzyStore';
 import { subscribeReaderMode, type ReaderMode } from './readerModeStore';
+import { subscribeMascotDisintegrateTrigger, fireMascotDisintegrateComplete } from './disintegrateStore';
 import { getTableAnchor } from './tableAnchorStore';
 import {
   subscribeCardScene,
@@ -396,13 +397,40 @@ export function TarobotScene() {
     scene.add(positionGroup);
 
     // Reader mode subscription — flips which face is shown at the anchor.
-    // (The old cat→eyes "shatter" transition is deferred — it lived
-    // here because it used the cat's sprite texture; will be re-added as
-    // a Mascot lifecycle hook when another mascot also wants a custom
-    // transition. See TODO.md → "mascot exit animation hook".)
+    // The mascot's own disintegrate effect (turtle.disintegrate) handles
+    // the exit animation now; readerMode change is independent and just
+    // toggles the face shown.
+    // Starfield palette. Violet during survey/menu, turquoise during the
+    // reading (stars behind the seer's eyes). Smoothly lerped per frame
+    // toward the target — no hard cut.
+    const STAR_VIOLET: readonly [number, number, number] = [0.49, 0.23, 0.93];
+    const STAR_TURQUOISE: readonly [number, number, number] = [0.18, 0.85, 0.78];
+    const starColor: [number, number, number] = [STAR_VIOLET[0], STAR_VIOLET[1], STAR_VIOLET[2]];
+    let starColorTarget: readonly [number, number, number] = STAR_VIOLET;
+
     let readerMode: ReaderMode = 'cat';
     const unsubscribeReaderMode = subscribeReaderMode((m) => {
+      // Transitioning eyes → cat: a fresh visit is starting. Reset the
+      // mascot so its warp-in plays again (and any prior disintegration
+      // state is undone).
+      if (readerMode !== 'cat' && m === 'cat' && mascot.reset) {
+        mascot.reset();
+      }
       readerMode = m;
+      starColorTarget = m === 'eyes' ? STAR_TURQUOISE : STAR_VIOLET;
+    });
+
+    // Mascot disintegrate trigger — fired by Survey on the farewell beat.
+    // Relays to the active mascot's optional disintegrate() method; when
+    // that calls back, broadcast completion so Survey can route into
+    // Reading. If the mascot doesn't implement disintegrate, fall back
+    // to immediate completion so the flow doesn't stall.
+    const unsubscribeDisintegrateTrigger = subscribeMascotDisintegrateTrigger(() => {
+      if (mascot.disintegrate) {
+        mascot.disintegrate(() => fireMascotDisintegrateComplete());
+      } else {
+        fireMascotDisintegrateComplete();
+      }
     });
 
     // Eyes blink state — independent of the cat's sprite-frame blink, since
@@ -964,6 +992,14 @@ export function TarobotScene() {
       const dizzyRate = dizzy ? DIZZY_RAMP_UP_RATE : DIZZY_RAMP_DOWN_RATE;
       dizzyMultiplier += (dizzyTarget - dizzyMultiplier) * dizzyRate;
 
+      // Star palette tween — exponential lerp toward target. ~0.5s to
+      // settle from violet ↔ turquoise; smooth enough not to be noticed
+      // as a transition.
+      const PALETTE_LERP_RATE = 0.04;
+      starColor[0] += (starColorTarget[0] - starColor[0]) * PALETTE_LERP_RATE;
+      starColor[1] += (starColorTarget[1] - starColor[1]) * PALETTE_LERP_RATE;
+      starColor[2] += (starColorTarget[2] - starColor[2]) * PALETTE_LERP_RATE;
+
       // ── Particles: clockwise swirl with per-particle randomness ──
       const posArr = particleGeom.attributes.position.array as Float32Array;
       const colArr = particleGeom.attributes.color.array as Float32Array;
@@ -1002,9 +1038,12 @@ export function TarobotScene() {
         if (age < 0.5) intensity = age / 0.5;
         else if (age > life - 1) intensity = Math.max(0, (life - age));
         intensity *= 0.85;
-        colArr[i * 3 + 0] = intensity * 0.49;
-        colArr[i * 3 + 1] = intensity * 0.23;
-        colArr[i * 3 + 2] = intensity * 0.93;
+        // Palette: violet for survey/menu (cat); turquoise for reading
+        // (eyes — stars behind the seer). starHue tween below smooths
+        // the transition so the palette swap doesn't pop.
+        colArr[i * 3 + 0] = intensity * starColor[0];
+        colArr[i * 3 + 1] = intensity * starColor[1];
+        colArr[i * 3 + 2] = intensity * starColor[2];
       }
       particleGeom.attributes.position.needsUpdate = true;
       particleGeom.attributes.color.needsUpdate = true;
@@ -1167,6 +1206,7 @@ export function TarobotScene() {
       unsubscribeImpacts();
       unsubscribeDizzy();
       unsubscribeReaderMode();
+      unsubscribeDisintegrateTrigger();
       unsubscribeCardScene();
       unsubscribeDebug();
       unsubscribeFlyIn();

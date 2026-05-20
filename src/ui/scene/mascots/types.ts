@@ -53,4 +53,15 @@ export type Mascot = {
   dispose: () => void;
   /** Optional: resolves once async assets have loaded. */
   ready?: Promise<void>;
+  /** Optional: trigger a disintegration effect (mascot dissolves into
+   *  particles toe-to-head). Calls `onDone` when particles have all
+   *  dissipated. If the mascot doesn't implement this, the scene
+   *  immediately fires `onDone` (instant hide). */
+  disintegrate?: (onDone: () => void) => void;
+  /** Optional: reset internal state so the mascot can warp-in fresh on
+   *  next visit. Called by the scene when readerMode flips back to
+   *  'cat' after a reading. Implementations should undo any one-shot
+   *  effects (disintegration, warp-in completion) so the next view
+   *  plays the entry animation again. */
+  reset?: () => void;
 };

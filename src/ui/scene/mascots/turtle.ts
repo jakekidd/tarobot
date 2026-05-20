@@ -44,6 +44,19 @@ const GRADIENT_LIGHT = new THREE.Color(0x3a9a4a);  // medium green — peak no l
 const GRADIENT_BAND_FREQ = 4.0;     // bands per unit of local Y — higher = tighter stripes
 const GRADIENT_SPEED = 0.375;       // rad/sec — slow flow (¼ of the original 1.5)
 
+// Disintegration tuning. The toe-to-head wave sweeps `dissolveCutoffY`
+// from minY to maxY over DISINTEGRATE_WAVE_S; particles activate as
+// the wave reaches their local Y. After the wave finishes, particles
+// continue floating + fading for PARTICLE_LIFE_S more.
+const DISINTEGRATE_PARTICLE_COUNT = 900;
+const DISINTEGRATE_WAVE_S = 1.6;          // toe-to-head sweep time
+const PARTICLE_LIFE_S = 1.8;              // per-particle drift+fade duration
+const PARTICLE_UPWARD_VEL_MIN = 0.25;
+const PARTICLE_UPWARD_VEL_MAX = 0.95;
+const PARTICLE_LATERAL_VEL = 0.45;
+const PARTICLE_GRAVITY = 0.18;            // downward drag — particles slow at peak
+const PARTICLE_BASE_SIZE_PX = 4.5;
+
 // Wander shape — two incommensurate frequencies so the path never closes.
 // Amplitudes in positionGroup-local units (rig is ~100 px/unit), so
 // ±30px / ±20px of drift on screen at rest scale.
@@ -84,6 +97,11 @@ export function createTurtleMascot(): Mascot {
   tiltGroup.position.z = Z_OFFSET;
   group.add(tiltGroup);
 
+  // Disintegrate uniform — shared between body + eye materials. Local-Y
+  // cutoff: any fragment with vLocalPos.y < uDissolveCutoffY is discarded.
+  // Starts at -∞ (whole model visible); ramped to +∞ to fully erase.
+  const dissolveUniform = { value: -1e9 };
+
   // Eye glow — applied in place of the gltf's eye material so the turtle
   // has visible eyes even when the body uses the original PBR skin.
   // depthTest=false so the eyes draw THROUGH the head silhouette — the
@@ -92,6 +110,27 @@ export function createTurtleMascot(): Mascot {
     color: EYE_COLOR,
     depthTest: false,
   });
+  eyeMat.onBeforeCompile = (shader) => {
+    shader.uniforms.uDissolveCutoffY = dissolveUniform;
+    shader.vertexShader = shader.vertexShader
+      .replace(
+        '#include <common>',
+        '#include <common>\nvarying vec3 vLocalPosEye;',
+      )
+      .replace(
+        '#include <begin_vertex>',
+        '#include <begin_vertex>\nvLocalPosEye = position;',
+      );
+    shader.fragmentShader = shader.fragmentShader
+      .replace(
+        '#include <common>',
+        '#include <common>\nuniform float uDissolveCutoffY;\nvarying vec3 vLocalPosEye;',
+      )
+      .replace(
+        '#include <color_fragment>',
+        '#include <color_fragment>\nif (vLocalPosEye.y < uDissolveCutoffY) discard;',
+      );
+  };
 
   // Body skin — MeshBasicMaterial patched via onBeforeCompile so we get
   // built-in skinning vertex chunks for free, then override the
@@ -124,14 +163,17 @@ export function createTurtleMascot(): Mascot {
          uniform vec3 uGradLight;
          uniform float uBandFreq;
          uniform float uSpeed;
+         uniform float uDissolveCutoffY;
          varying vec3 vLocalPos;`,
       )
       .replace(
         '#include <color_fragment>',
         `#include <color_fragment>
+         if (vLocalPos.y < uDissolveCutoffY) discard;
          float wave = sin(vLocalPos.y * uBandFreq + uTime * uSpeed) * 0.5 + 0.5;
          diffuseColor.rgb = mix(uGradDark, uGradLight, wave);`,
       );
+    shader.uniforms.uDissolveCutoffY = dissolveUniform;
   };
 
   // Live rotation — starts at BASE_ROTATION, mutated by debug arrow keys.
@@ -140,11 +182,35 @@ export function createTurtleMascot(): Mascot {
   let rootRef: THREE.Object3D | null = null;
   let debugVisible = false;
 
+  // ─── Disintegrate state ─────────────────────────────────
+  // When `disintegrating` flips true, the wander/breath/tilt freeze and
+  // the dissolve uniform ramps from minY to maxY over DISINTEGRATE_WAVE_S.
+  // Particles spawn timed to the wave so the body "erodes" toe-to-head.
+  let disintegrating = false;
+  let disintegrateStartT = -1;
+  let disintegrateDone = false;
+  let disintegrateOnDone: (() => void) | null = null;
+  type ParticleData = {
+    geom: THREE.BufferGeometry;
+    mat: THREE.PointsMaterial;
+    points: THREE.Points;
+    positions: Float32Array;
+    colors: Float32Array;
+    sizes: Float32Array;
+    origins: Float32Array;          // initial XYZ per particle
+    velocities: Float32Array;       // initial XYZ velocity
+    activationT: Float32Array;      // seconds-since-trigger when particle wakes
+    bodyMinY: number;
+    bodyMaxY: number;
+  };
+  let particleData: ParticleData | null = null;
+
   // Entry timing — captured the first frame the mascot is visible. The
   // entrance is delay → warp-in → normal (wander/breath/tilt).
   let firstSeenT = -1;
 
   const mixer: { value: THREE.AnimationMixer | null } = { value: null };
+  let mixerAction: THREE.AnimationAction | null = null;
   const disposables: Array<{ dispose: () => void }> = [eyeMat, bodyMat];
 
   function publishRotation(): void {
@@ -247,7 +313,8 @@ export function createTurtleMascot(): Mascot {
           mixer.value = new THREE.AnimationMixer(root);
           const clip = gltf.animations[0];
           if (clip) {
-            mixer.value.clipAction(clip).play();
+            mixerAction = mixer.value.clipAction(clip);
+            mixerAction.play();
             mixer.value.timeScale = ANIMATION_TIME_SCALE;
           }
         }
@@ -263,7 +330,230 @@ export function createTurtleMascot(): Mascot {
     );
   });
 
+  /** Sample bind-pose vertex positions across all body meshes. Returns
+   *  an array of { localPos, color } items. Color is generated from the
+   *  body gradient (sampled at the vertex's local Y) so each particle
+   *  matches the moss-to-medium-green palette the body uses. */
+  function sampleBodyVertices(root: THREE.Object3D): Array<{
+    p: THREE.Vector3;
+    c: THREE.Color;
+  }> {
+    const samples: Array<{ p: THREE.Vector3; c: THREE.Color }> = [];
+    root.traverse((obj) => {
+      const m = obj as THREE.Mesh;
+      if (!m.isMesh) return;
+      if (m.name === EYE_MESH_NAME) return;       // skip eye mesh
+      const posAttr = m.geometry?.attributes?.position;
+      if (!posAttr) return;
+      const stride = Math.max(1, Math.floor(posAttr.count / 200));
+      const tmp = new THREE.Vector3();
+      for (let i = 0; i < posAttr.count; i += stride) {
+        tmp.fromBufferAttribute(posAttr, i);
+        // Color picked from the gradient — same wave as the body shader,
+        // sampled at t=0 (don't bother phasing).
+        const wave = Math.sin(tmp.y * GRADIENT_BAND_FREQ) * 0.5 + 0.5;
+        const c = GRADIENT_DARK.clone().lerp(GRADIENT_LIGHT, wave);
+        samples.push({ p: tmp.clone(), c });
+      }
+    });
+    return samples;
+  }
+
+  function startDisintegrate(onDone: () => void): void {
+    if (disintegrating || !rootRef) {
+      // No turtle yet (still loading), or already going — fire onDone so
+      // the caller's flow doesn't stall.
+      onDone();
+      return;
+    }
+    disintegrating = true;
+    disintegrateStartT = -1;
+    disintegrateDone = false;
+    disintegrateOnDone = onDone;
+    if (mixer.value) mixer.value.stopAllAction();
+
+    // Sample bind-pose vertices in the turtle's LOCAL space (root). Cap
+    // to DISINTEGRATE_PARTICLE_COUNT; if there are more, downsample
+    // uniformly across the list so we don't lose distribution.
+    const samples = sampleBodyVertices(rootRef);
+    let chosen = samples;
+    if (samples.length > DISINTEGRATE_PARTICLE_COUNT) {
+      const step = samples.length / DISINTEGRATE_PARTICLE_COUNT;
+      chosen = [];
+      for (let i = 0; i < DISINTEGRATE_PARTICLE_COUNT; i++) {
+        chosen.push(samples[Math.floor(i * step)]!);
+      }
+    }
+    const count = chosen.length;
+    if (count === 0) { onDone(); disintegrating = false; return; }
+
+    // Min/max local Y — drives the toe-to-head sweep range.
+    let minY = +Infinity;
+    let maxY = -Infinity;
+    for (const s of chosen) {
+      if (s.p.y < minY) minY = s.p.y;
+      if (s.p.y > maxY) maxY = s.p.y;
+    }
+    const spanY = Math.max(1e-6, maxY - minY);
+
+    const positions = new Float32Array(count * 3);
+    const colors = new Float32Array(count * 3);
+    const sizes = new Float32Array(count);
+    const origins = new Float32Array(count * 3);
+    const velocities = new Float32Array(count * 3);
+    const activationT = new Float32Array(count);
+
+    for (let i = 0; i < count; i++) {
+      const s = chosen[i]!;
+      // Transform local → root-space position. rootRef is attached to
+      // tiltGroup; both contribute. We want particles emitted in the
+      // SAME frame as `root` so they ride along with the wander/tilt
+      // until activation. Use the local position directly — the Points
+      // object will be parented to `root`.
+      origins[i * 3 + 0] = s.p.x;
+      origins[i * 3 + 1] = s.p.y;
+      origins[i * 3 + 2] = s.p.z;
+      positions[i * 3 + 0] = s.p.x;
+      positions[i * 3 + 1] = s.p.y;
+      positions[i * 3 + 2] = s.p.z;
+      colors[i * 3 + 0] = s.c.r;
+      colors[i * 3 + 1] = s.c.g;
+      colors[i * 3 + 2] = s.c.b;
+      sizes[i] = 0;
+      // Velocity: outward XZ burst + upward Y bias. Some randomness so
+      // particles don't all rise in lockstep.
+      const ang = Math.random() * Math.PI * 2;
+      const radial = (0.3 + Math.random() * 0.7) * PARTICLE_LATERAL_VEL;
+      velocities[i * 3 + 0] = Math.cos(ang) * radial;
+      velocities[i * 3 + 1] = PARTICLE_UPWARD_VEL_MIN +
+        Math.random() * (PARTICLE_UPWARD_VEL_MAX - PARTICLE_UPWARD_VEL_MIN);
+      velocities[i * 3 + 2] = Math.sin(ang) * radial;
+      // Activation time = wave reaches this particle's local Y.
+      const tY = (s.p.y - minY) / spanY;        // 0 at toes, 1 at head
+      // Small jitter so particles within the same Y band don't all
+      // activate exactly at once.
+      activationT[i] = tY * DISINTEGRATE_WAVE_S + (Math.random() - 0.5) * 0.06;
+    }
+
+    const geom = new THREE.BufferGeometry();
+    geom.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+    geom.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+    // PointsMaterial doesn't support per-vertex size as an attribute, so
+    // we use a single size and rely on per-particle scale via making the
+    // position-into-camera trick irrelevant (sizeAttenuation true gives
+    // distance fade). Per-particle alpha is baked into the color
+    // (premultiplied feel) via the additive blend.
+    const mat = new THREE.PointsMaterial({
+      size: PARTICLE_BASE_SIZE_PX,
+      sizeAttenuation: false,
+      transparent: true,
+      vertexColors: true,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+    });
+    const points = new THREE.Points(geom, mat);
+    points.frustumCulled = false;
+    rootRef.add(points);
+    particleData = {
+      geom, mat, points,
+      positions, colors, sizes, origins, velocities, activationT,
+      bodyMinY: minY,
+      bodyMaxY: maxY,
+    };
+  }
+
+  function updateDisintegrate(ctx: MascotContext): void {
+    if (!disintegrating || !particleData) return;
+    if (disintegrateStartT < 0) disintegrateStartT = ctx.t;
+    const elapsed = ctx.t - disintegrateStartT;
+
+    const pd = particleData;
+    const count = pd.activationT.length;
+
+    // Wave sweeps the dissolve cutoff from below-minY to above-maxY over
+    // DISINTEGRATE_WAVE_S. Add a small overshoot so the very last
+    // fragments definitely discard.
+    const waveT = Math.min(1, elapsed / DISINTEGRATE_WAVE_S);
+    const sweepRange = pd.bodyMaxY - pd.bodyMinY;
+    dissolveUniform.value = pd.bodyMinY + waveT * sweepRange * 1.02;
+
+    // Update particles. Each that has activated advances its drift + fade.
+    let aliveCount = 0;
+    for (let i = 0; i < count; i++) {
+      const act = pd.activationT[i]!;
+      if (elapsed < act) {
+        // Not yet active. Stay anchored at origin, invisible.
+        pd.colors[i * 3 + 0] = 0;
+        pd.colors[i * 3 + 1] = 0;
+        pd.colors[i * 3 + 2] = 0;
+        continue;
+      }
+      const partAge = elapsed - act;
+      if (partAge >= PARTICLE_LIFE_S) {
+        // Particle dead — keep it invisible.
+        pd.colors[i * 3 + 0] = 0;
+        pd.colors[i * 3 + 1] = 0;
+        pd.colors[i * 3 + 2] = 0;
+        continue;
+      }
+      aliveCount += 1;
+      // Position: ballistic — origin + v*t - 0.5*g*t² on Y.
+      const ox = pd.origins[i * 3 + 0]!;
+      const oy = pd.origins[i * 3 + 1]!;
+      const oz = pd.origins[i * 3 + 2]!;
+      const vx = pd.velocities[i * 3 + 0]!;
+      const vy = pd.velocities[i * 3 + 1]!;
+      const vz = pd.velocities[i * 3 + 2]!;
+      pd.positions[i * 3 + 0] = ox + vx * partAge;
+      pd.positions[i * 3 + 1] = oy + vy * partAge - 0.5 * PARTICLE_GRAVITY * partAge * partAge;
+      pd.positions[i * 3 + 2] = oz + vz * partAge;
+      // Color: bright ember at spawn → green base → dim over life.
+      const t = partAge / PARTICLE_LIFE_S;
+      // Ember intensity peaks early (first 25% of life) for a "flash"
+      // effect, then settles into the body color, then fades.
+      const ember = Math.max(0, 1 - t * 4);            // 1 → 0 over 0..0.25
+      const fade = Math.max(0, 1 - t);                 // 1 → 0 over full life
+      // Source body color for this particle (stored in origins-paired
+      // colors at start — but we overwrote colors with 0 to hide
+      // pre-activation. Reconstruct from gradient using the local Y.)
+      const ly = oy;
+      const wave = Math.sin(ly * GRADIENT_BAND_FREQ) * 0.5 + 0.5;
+      const baseR = GRADIENT_DARK.r * (1 - wave) + GRADIENT_LIGHT.r * wave;
+      const baseG = GRADIENT_DARK.g * (1 - wave) + GRADIENT_LIGHT.g * wave;
+      const baseB = GRADIENT_DARK.b * (1 - wave) + GRADIENT_LIGHT.b * wave;
+      // Ember tint: warm yellow-white at peak, blending out into base color.
+      const r = (baseR + ember * (1.0 - baseR)) * fade;
+      const g = (baseG + ember * (0.85 - baseG)) * fade;
+      const b = (baseB + ember * (0.55 - baseB)) * fade;
+      pd.colors[i * 3 + 0] = Math.max(0, r);
+      pd.colors[i * 3 + 1] = Math.max(0, g);
+      pd.colors[i * 3 + 2] = Math.max(0, b);
+    }
+    pd.geom.attributes.position.needsUpdate = true;
+    pd.geom.attributes.color.needsUpdate = true;
+
+    // Done condition: wave finished AND no particles still alive.
+    if (waveT >= 1 && aliveCount === 0 && !disintegrateDone) {
+      disintegrateDone = true;
+      // Hide the points object (final cleanup happens in dispose).
+      pd.points.visible = false;
+      // Fire callback once.
+      const cb = disintegrateOnDone;
+      disintegrateOnDone = null;
+      if (cb) cb();
+    }
+  }
+
   function update(ctx: MascotContext): void {
+    // Disintegrate branch: once triggered, the wander/breath/tilt freeze
+    // and the dissolve wave + particles take over. Body still renders
+    // (with cutoff discarding lower fragments) until the wave completes.
+    if (disintegrating) {
+      updateDisintegrate(ctx);
+      bodyTimeUniform.value = ctx.t;
+      return;
+    }
+
     if (firstSeenT < 0 && group.visible) firstSeenT = ctx.t;
     const since = firstSeenT >= 0 ? ctx.t - firstSeenT : 0;
 
@@ -321,6 +611,12 @@ export function createTurtleMascot(): Mascot {
       try { d.dispose(); } catch { /* swallow */ }
     }
     disposables.length = 0;
+    if (particleData) {
+      particleData.geom.dispose();
+      particleData.mat.dispose();
+      if (particleData.points.parent) particleData.points.parent.remove(particleData.points);
+      particleData = null;
+    }
     window.removeEventListener('keydown', onKey);
     unsubDebug();
     clearDebug('turtle.rotX');
@@ -329,7 +625,26 @@ export function createTurtleMascot(): Mascot {
     if (group.parent) group.parent.remove(group);
   }
 
-  return { group, update, dispose, ready };
+  function reset(): void {
+    // Restore from disintegration: clear particles, reset dissolve, replay warp-in.
+    if (particleData) {
+      if (particleData.points.parent) particleData.points.parent.remove(particleData.points);
+      particleData.geom.dispose();
+      particleData.mat.dispose();
+      particleData = null;
+    }
+    disintegrating = false;
+    disintegrateStartT = -1;
+    disintegrateDone = false;
+    disintegrateOnDone = null;
+    dissolveUniform.value = -1e9;
+    firstSeenT = -1;
+    if (mixerAction) {
+      try { mixerAction.reset().play(); } catch { /* mixer already stopped */ }
+    }
+  }
+
+  return { group, update, dispose, ready, disintegrate: startDisintegrate, reset };
 }
 
 function formatRot(r: number): string {
