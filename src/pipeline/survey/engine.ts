@@ -32,6 +32,7 @@ import {
 } from './tree';
 import { derivePhase } from './phase';
 import { PROFILE_TEMPLATE_RAW } from './template';
+import { ageLadderTentativeAndHeld, generateSeeds } from './seeder';
 import type {
   CastMember,
   EngineListener,
@@ -265,6 +266,14 @@ export class SurveyEngine {
         this.seedPostOpenerQueue();
       }
     } else {
+      // Algorithmic seeder runs BEFORE the pipeline fires: age existing
+      // tentative + held hypotheses by 1, then push fresh seeds from the
+      // question's Inversions probe into tentative[]. The pipeline's
+      // detective payload includes the new ladder, so the model sees
+      // them this turn (and can elevate, hold, or refute via the
+      // hypothesis_updates output — until Phase H rewrites the
+      // detective output schema).
+      this.applySeeder(head.node_id, pick);
       this.spawnPipeline(pick);
 
       // Transition to IntentConfirm when there's nothing more to ask.
@@ -285,6 +294,39 @@ export class SurveyEngine {
   /** Number of post-opener questions the user has answered. */
   private countPostOpenerPicks(): number {
     return this.state.picks_log.filter((p) => !OPENER_NODE_IDS.has(p.node_id)).length;
+  }
+
+  /** Apply the algorithmic seeder for a fresh post-opener pick.
+   *  - Ages existing tentative + held hypotheses by 1 turn.
+   *  - Generates fresh seeds from the question's Inversions probe.
+   *  - Upserts each seed into tentative[] by id (collisions update
+   *    the existing entry rather than duplicate). */
+  private applySeeder(nodeId: string, pick: PickEvent): void {
+    const node = getNode(nodeId);
+    if (!node) return;
+    const turn_n = this.state.picks_log.length;
+    const aged = ageLadderTentativeAndHeld(
+      this.state.investigation.hypotheses.tentative,
+      this.state.investigation.hypotheses.held,
+    );
+    const seeds = generateSeeds(node, pick.answer, turn_n, nodeId);
+    if (seeds.length === 0 && aged.tentative === this.state.investigation.hypotheses.tentative && aged.held === this.state.investigation.hypotheses.held) {
+      return;
+    }
+    // Upsert seeds into the aged tentative array (by id).
+    const seedIds = new Set(seeds.map((s) => s.id));
+    const tentativeNoCollisions = aged.tentative.filter((h) => !seedIds.has(h.id));
+    const nextTentative = [...tentativeNoCollisions, ...seeds];
+    this.setState({
+      investigation: {
+        ...this.state.investigation,
+        hypotheses: {
+          ...this.state.investigation.hypotheses,
+          tentative: nextTentative,
+          held: aged.held,
+        },
+      },
+    });
   }
 
   // questionCap removed — queue exhaustion is the close trigger now.
