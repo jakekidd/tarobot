@@ -58,6 +58,9 @@ export function WarpDemo({ onExit }: { onExit: () => void }) {
   const [phaseStartMs, setPhaseStartMs] = useState<number>(() => performance.now());
   const [closingChat, setClosingChat] = useState(false);
   const [goodbyeText, setGoodbyeText] = useState('');
+  // Increments each time the turtle delivers a chat line. WarpScene
+  // listens and triggers pilot.shiftPerch() so motion is speech-driven.
+  const [turtleSpeechId, setTurtleSpeechId] = useState(0);
 
   function advanceFromPhase(from: Phase): void {
     const i = PHASE_SEQUENCE.indexOf(from);
@@ -161,12 +164,17 @@ export function WarpDemo({ onExit }: { onExit: () => void }) {
           phase={phase}
           phaseStartMs={phaseStartMs}
           closingChat={closingChat}
+          turtleSpeechId={turtleSpeechId}
         />
       </div>
 
       {/* Chat overlay — only during warp, only BEFORE closing. */}
       {phase === 'warp' && !closingChat && (
-        <WarpChat context={STUB_CONTEXT} onReady={beginGoodbye} />
+        <WarpChat
+          context={STUB_CONTEXT}
+          onReady={beginGoodbye}
+          onTurtleSpeak={() => setTurtleSpeechId((n) => n + 1)}
+        />
       )}
 
       {/* Goodbye line typewriter — during warp, AFTER closing kicks in. */}

@@ -31,7 +31,8 @@ import * as THREE from 'three';
 import { publishWarpStat, warpLog } from './warpLog';
 import { createStarStreaks } from './StarStreaks';
 import { createWarpTurtle } from './WarpTurtle';
-import { createTurtlePilot } from './TurtlePilot';
+import { createTurtlePilot, type TurtlePilot } from './TurtlePilot';
+import { createParallaxStars } from './ParallaxStars';
 
 export type WarpPhase =
   | 'pre' | 'summon' | 'lock' | 'warp' | 'disintegrate' | 'whiteout' | 'queue';
@@ -43,6 +44,9 @@ type Props = {
    *  the turtle drifts back to face-camera at center and goes quiet
    *  while the goodbye line types out. */
   closingChat?: boolean;
+  /** Increments each time the turtle delivers a chat line. Speech-
+   *  driven motion: each new id triggers pilot.shiftPerch(). */
+  turtleSpeechId?: number;
 };
 
 const AXES_SIZE = 80;
@@ -113,14 +117,29 @@ function makeLabelSprite(text: string, hex: number): THREE.Sprite {
   return s;
 }
 
-export function WarpScene({ phase, phaseStartMs, closingChat }: Props) {
+export function WarpScene({ phase, phaseStartMs, closingChat, turtleSpeechId }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const phaseRef = useRef(phase);
   const phaseStartRef = useRef(phaseStartMs);
   const closingChatRef = useRef(!!closingChat);
+  const prevPhaseRef = useRef<WarpPhase>(phase);
   useEffect(() => { phaseRef.current = phase; }, [phase]);
   useEffect(() => { phaseStartRef.current = phaseStartMs; }, [phaseStartMs]);
   useEffect(() => { closingChatRef.current = !!closingChat; }, [closingChat]);
+
+  // Lazy-init pilot so its identity is stable across renders. Lifted
+  // out of the main scene-setup effect so external triggers (the speech
+  // counter below) can call shiftPerch() without re-mounting the scene.
+  const pilotRef = useRef<TurtlePilot | null>(null);
+  if (!pilotRef.current) pilotRef.current = createTurtlePilot();
+
+  // Each new turtle utterance shifts the perch. Reading 0 on first
+  // mount is fine — pilot.shiftPerch() picks a non-current perch.
+  useEffect(() => {
+    if (turtleSpeechId && turtleSpeechId > 0 && pilotRef.current) {
+      pilotRef.current.shiftPerch();
+    }
+  }, [turtleSpeechId]);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -145,6 +164,11 @@ export function WarpScene({ phase, phaseStartMs, closingChat }: Props) {
     streaks.attachUnderscene(camera.position.z);
     scene.add(streaks.mesh);
 
+    // Parallax starfield — visible during pre/summon/lock, crossfades
+    // out as streaks crossfade in at warp.
+    const stars = createParallaxStars();
+    scene.add(stars.points);
+
     function sizeRig(): void {
       const w = container?.clientWidth ?? window.innerWidth;
       const h = container?.clientHeight ?? window.innerHeight;
@@ -155,6 +179,7 @@ export function WarpScene({ phase, phaseStartMs, closingChat }: Props) {
       camera.bottom = -h / 2;
       camera.updateProjectionMatrix();
       streaks.resize(w, h);
+      stars.resize(w, h);
       publishWarpStat('viewport', `${w}×${h}`);
     }
 
@@ -217,7 +242,10 @@ export function WarpScene({ phase, phaseStartMs, closingChat }: Props) {
     const turtle = createWarpTurtle();
     phaseGroup.add(turtle.group);
 
-    const pilot = createTurtlePilot();
+    // Pilot is created outside this effect (see top of component) so
+    // shiftPerch() can be called from the turtleSpeechId effect without
+    // depending on this effect's local scope.
+    const pilot = pilotRef.current!;
 
     turtle.ready
       .then(() => {
@@ -252,6 +280,7 @@ export function WarpScene({ phase, phaseStartMs, closingChat }: Props) {
     let lastFrameT = performance.now();
     const startT = performance.now();
     let streakI = 0; // smoothed intensity for the streak shader
+    let starAlpha = 1; // smoothed alpha for the parallax stars
 
     function animate(): void {
       if (!mounted) return;
@@ -263,12 +292,35 @@ export function WarpScene({ phase, phaseStartMs, closingChat }: Props) {
       const phaseElapsed = (now - phaseStartRef.current) / 1000;
       const ph = phaseRef.current;
 
+      // Detect phase transitions so we can snap behaviour where needed.
+      const phaseJustEntered = ph !== prevPhaseRef.current;
+      if (phaseJustEntered) prevPhaseRef.current = ph;
+
       // ── Star streaks ──
       streaks.update(t);
-      const target = PHASE_STREAK_TARGET[ph];
-      // First-order smoothing; ~120ms time-constant feels right.
-      streakI += (target - streakI) * Math.min(dt * 8, 1);
+      const streakTarget = PHASE_STREAK_TARGET[ph];
+      streakI += (streakTarget - streakI) * Math.min(dt * 8, 1);
       streaks.setIntensity(streakI);
+
+      // ── Parallax stars ──
+      // Spin: ramps up through pre and summon, SNAPS to 0 at lock.
+      // Alpha: full through pre/summon/lock, lerps out as we enter warp.
+      let spinMul: number;
+      if (ph === 'pre') {
+        // 1.5 → 5.0 across the 2s pre window.
+        spinMul = 1.5 + Math.min(phaseElapsed / 2, 1) * 3.5;
+      } else if (ph === 'summon') {
+        // 5.0 → 9.0 across the 2s summon window.
+        spinMul = 5.0 + Math.min(phaseElapsed / 2, 1) * 4.0;
+      } else {
+        // lock and beyond → 0 (locked still).
+        spinMul = 0;
+      }
+      stars.setSpinMul(spinMul);
+      const starTarget = (ph === 'pre' || ph === 'summon' || ph === 'lock') ? 1 : 0;
+      starAlpha += (starTarget - starAlpha) * Math.min(dt * 4, 1);
+      stars.setAlpha(starAlpha);
+      stars.update(dt);
 
       // ── Turtle (always tick swim cycle + shader time) ──
       turtle.update(dt, t);
@@ -331,6 +383,7 @@ export function WarpScene({ phase, phaseStartMs, closingChat }: Props) {
         publishWarpStat('scene.objs', scene.children.length);
         publishWarpStat('turtle.s', `${s.toFixed(0)}px`);
         publishWarpStat('streaks.i', streakI.toFixed(2));
+        publishWarpStat('stars.alpha', starAlpha.toFixed(2));
         if (ph === 'warp') {
           publishWarpStat('pilot.perch', pilot.perch());
           publishWarpStat('pilot.vel', `${pilot.vel.length().toFixed(0)}px/s`);
@@ -359,6 +412,7 @@ export function WarpScene({ phase, phaseStartMs, closingChat }: Props) {
       });
       turtle.dispose();
       streaks.dispose();
+      stars.dispose();
       renderer.dispose();
       if (canvas.parentElement) canvas.parentElement.removeChild(canvas);
       warpLog('WarpScene unmounted');

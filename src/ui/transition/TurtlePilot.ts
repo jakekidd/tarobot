@@ -63,6 +63,9 @@ export type TurtlePilot = {
   animTimeScale: () => number;
   /** Tick the controller. dt in seconds; t in seconds since mount. */
   update: (dt: number, t: number, viewportW: number, viewportH: number) => void;
+  /** Switch to a new perch (random, not the current one). Caller drives
+   *  this on dialogue events — see WarpDemo wiring. */
+  shiftPerch: () => void;
   /** Inject a rotation impulse — call on click. */
   kick: (kind?: 'flip' | 'spin' | 'random') => void;
   /** Snap back to center perch & zero kick state (e.g. on phase exit). */
@@ -103,15 +106,11 @@ export function createTurtlePilot(): TurtlePilot {
       return ANIM_SLOW + (ANIM_FAST - ANIM_SLOW) * u;
     },
     update(dt, t, viewportW, viewportH) {
-      // Perch advancement.
-      if (t >= perchUntilT) {
-        if (perchUntilT === 0) {
-          // First tick — set the first hold without a perch swap.
-          perchUntilT = t + PERCH_HOLD_MIN_S + Math.random() * (PERCH_HOLD_MAX_S - PERCH_HOLD_MIN_S);
-        } else {
-          pickNextPerch();
-        }
-      }
+      // Perch advancement is no longer automatic — the caller invokes
+      // shiftPerch() on dialogue events (e.g. each time the turtle
+      // delivers a line). PERCH_HOLD_MIN_S/MAX_S survive only as
+      // tuning constants for fallback callers that want them.
+      void t; void perchUntilT;
 
       // ── Position spring ──
       // Critically damped: ẍ = -ω² (x - x*) - 2ω ẋ
@@ -136,6 +135,9 @@ export function createTurtlePilot(): TurtlePilot {
         .sub(rotVel.clone().multiplyScalar(2 * ROT_OMEGA));
       rotVel.add(ra.multiplyScalar(dt));
       rot.add(rotVel.clone().multiplyScalar(dt));
+    },
+    shiftPerch() {
+      pickNextPerch();
     },
     kick(kind = 'random') {
       const actual = kind === 'random' ? (Math.random() < 0.5 ? 'flip' : 'spin') : kind;
