@@ -1,14 +1,18 @@
 // Warp demo — sandbox page for the end-of-survey → reading transition.
-// Self-contained: owns its own canvas (when scene lands), state machine,
-// UI overlays. App.tsx short-circuits to this when the URL contains
-// ?scene=warp-demo; everything else (TarobotScene, topbar, CRT overlay,
-// debug chips) is bypassed so the demo can render fullscreen on a
-// black background without contamination.
+// Self-contained: owns its own canvas, state machine, UI overlays.
+// App.tsx short-circuits to this when the URL contains ?scene=warp-demo;
+// everything else (TarobotScene, topbar, CRT overlay, debug chips) is
+// bypassed so the demo can render fullscreen on a black background
+// without contamination.
 //
-// Future: when this is glued in as the real transition, it becomes a
-// phase between survey close and reading mount. For now it's standalone.
+// Future: when this is glued in as the real end-of-survey transition,
+// it becomes a phase between survey close and reading mount. For now
+// it's a standalone sandbox.
 
 import { useEffect, useState } from 'react';
+import { WarpScene } from './WarpScene';
+import { WarpDebug } from './WarpDebug';
+import { setWarpLogPhase, warpLog } from './warpLog';
 
 type Phase =
   | 'pre'            // turtle wanders, dialogue holds the final survey line
@@ -26,7 +30,7 @@ const PHASE_DURATIONS_MS: Record<Phase, number> = {
   warp: 6500,
   disintegrate: 2000,
   whiteout: 1500,
-  queue: Infinity, // sit on it until user clicks replay
+  queue: Infinity, // sit on it until user clicks replay / restart
 };
 
 const PHASE_SEQUENCE: Phase[] = [
@@ -36,6 +40,14 @@ const PHASE_SEQUENCE: Phase[] = [
 export function WarpDemo({ onExit }: { onExit: () => void }) {
   const [phase, setPhase] = useState<Phase>('pre');
   const [phaseStartMs, setPhaseStartMs] = useState<number>(() => performance.now());
+
+  // Keep the log buffer's phase label synced with React state so log
+  // lines emitted from non-React code (the scene, future shaders) get
+  // tagged correctly.
+  useEffect(() => {
+    setWarpLogPhase(phase);
+    warpLog(`enter phase: ${phase}`);
+  }, [phase]);
 
   // Auto-advance through the sequence on a timer per phase.
   useEffect(() => {
@@ -52,7 +64,7 @@ export function WarpDemo({ onExit }: { onExit: () => void }) {
     return () => window.clearTimeout(t);
   }, [phase]);
 
-  // Spacebar skips ahead one phase; 'r' restarts from the top.
+  // Spacebar skips ahead one phase; 'r' restarts from the top; esc exits.
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if (e.key === ' ') {
@@ -60,23 +72,22 @@ export function WarpDemo({ onExit }: { onExit: () => void }) {
         const i = PHASE_SEQUENCE.indexOf(phase);
         const next = PHASE_SEQUENCE[i + 1];
         if (next) {
+          warpLog('skip (space)');
           setPhase(next);
           setPhaseStartMs(performance.now());
         }
       } else if (e.key === 'r' || e.key === 'R') {
+        warpLog('restart (r)');
         setPhase('pre');
         setPhaseStartMs(performance.now());
       } else if (e.key === 'Escape') {
+        warpLog('exit (esc)');
         onExit();
       }
     }
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [phase, onExit]);
-
-  // Avoid the unused-var lint warning until the scene is wired up;
-  // phaseStartMs will drive smooth crossfades in the next step.
-  void phaseStartMs;
 
   return (
     <div className="warp-demo">
@@ -94,12 +105,13 @@ export function WarpDemo({ onExit }: { onExit: () => void }) {
         <div className="warp-demo__hint">space = skip · r = restart · esc = exit</div>
       </div>
 
-      {/* Stage layers — built up step by step. Right now: just a placeholder. */}
+      {/* Three.js scene — bare skeleton with debug helpers. Star
+          shader / turtle / disintegrate FX layer in here next. */}
       <div className="warp-demo__stage">
-        <p className="warp-demo__placeholder">
-          [warp scene mounts here]
-        </p>
+        <WarpScene />
       </div>
+
+      <WarpDebug phase={phase} phaseStartMs={phaseStartMs} />
     </div>
   );
 }
