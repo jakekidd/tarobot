@@ -39,3 +39,6 @@ pnpm-debug.log*
 # survey bot harness
 archetypes/
 runs/
+
+# vitest coverage output (regenerated each run; HTML viewer at coverage/index.html)
+coverage/
