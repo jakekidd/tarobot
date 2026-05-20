@@ -5,85 +5,99 @@
 // bypassed so the demo can render fullscreen on a black background
 // without contamination.
 //
-// Future: when this is glued in as the real end-of-survey transition,
-// it becomes a phase between survey close and reading mount. For now
-// it's a standalone sandbox.
+// Warp phase is user-driven (Infinity duration). It holds an in-tunnel
+// chat with the turtle. When the agent or the user signals "ready",
+// the goodbye sequence runs: the turtle drifts to face-camera center,
+// the final line types out slowly, then the phase advances to
+// disintegrate.
 
 import { useEffect, useState } from 'react';
 import { WarpScene } from './WarpScene';
 import { WarpDebug } from './WarpDebug';
+import { WarpChat } from './WarpChat';
 import { setWarpLogPhase, warpLog } from './warpLog';
+import type { WarpChatContext } from './warpChatAgent';
 
 type Phase =
-  | 'pre'            // turtle wanders, dialogue holds the final survey line
-  | 'summon'         // stars accelerate; turtle drawn to center
-  | 'lock'           // swirl snaps to radial alignment
-  | 'warp'           // hyperspace + dialogue beats
-  | 'disintegrate'   // turtle vaporizes
-  | 'whiteout'       // flash → black → silence
-  | 'queue';         // mock queue card
+  | 'pre' | 'summon' | 'lock' | 'warp'
+  | 'disintegrate' | 'whiteout' | 'queue';
 
-// Warp is intentionally long — it's the in-tunnel chat phase, where
-// the user will eventually be chatting with the turtle while the
-// backend compiles their survey into a story + predictions. For the
-// demo, 15s gives time to see 2–3 perch cycles and try clicking.
+// Warp = Infinity ⇒ user-driven (advanced when chat closes or "i'm
+// ready" is clicked). In prod this is where the survey-compile stall
+// hides.
 const PHASE_DURATIONS_MS: Record<Phase, number> = {
   pre: 2000,
   summon: 2000,
   lock: 800,
-  warp: 15000,
+  warp: Infinity,
   disintegrate: 2000,
   whiteout: 1500,
-  queue: Infinity, // sit on it until user clicks replay / restart
+  queue: Infinity,
 };
 
 const PHASE_SEQUENCE: Phase[] = [
   'pre', 'summon', 'lock', 'warp', 'disintegrate', 'whiteout', 'queue',
 ];
 
+// The closing line. Typed out slowly — pause on punctuation so the
+// rhythm reads like real speech, not metronome.
+const GOODBYE_LINE = 'ok. i love you. be safe. goodbye.';
+const TYPE_MS_PER_CHAR = 110;
+const PUNCT_PAUSE_MS = 600;
+const TYPE_AFTER_DONE_MS = 1800;   // dwell before triggering disintegrate
+
+// Stub survey context for the sandbox. Replace with real SurveyProfile
+// + brief snippet when this gets glued in downstream.
+const STUB_CONTEXT: WarpChatContext = {
+  profile: { name: 'traveler', sun_sign: null, age_bracket: null },
+  briefSnippet: undefined,
+};
+
 export function WarpDemo({ onExit }: { onExit: () => void }) {
   const [phase, setPhase] = useState<Phase>('pre');
   const [phaseStartMs, setPhaseStartMs] = useState<number>(() => performance.now());
+  const [closingChat, setClosingChat] = useState(false);
+  const [goodbyeText, setGoodbyeText] = useState('');
 
-  // Keep the log buffer's phase label synced with React state so log
-  // lines emitted from non-React code (the scene, future shaders) get
-  // tagged correctly.
+  function advanceFromPhase(from: Phase): void {
+    const i = PHASE_SEQUENCE.indexOf(from);
+    const next = PHASE_SEQUENCE[i + 1];
+    if (next) {
+      setPhase(next);
+      setPhaseStartMs(performance.now());
+    }
+  }
+
+  // Sync log buffer's phase label + log entry transitions.
   useEffect(() => {
     setWarpLogPhase(phase);
     warpLog(`enter phase: ${phase}`);
   }, [phase]);
 
-  // Auto-advance through the sequence on a timer per phase.
+  // Auto-advance through finite phases.
   useEffect(() => {
     const dur = PHASE_DURATIONS_MS[phase];
     if (!Number.isFinite(dur)) return;
-    const t = window.setTimeout(() => {
-      const i = PHASE_SEQUENCE.indexOf(phase);
-      const next = PHASE_SEQUENCE[i + 1];
-      if (next) {
-        setPhase(next);
-        setPhaseStartMs(performance.now());
-      }
-    }, dur);
+    const t = window.setTimeout(() => advanceFromPhase(phase), dur);
     return () => window.clearTimeout(t);
   }, [phase]);
 
-  // Spacebar skips ahead one phase; 'r' restarts from the top; esc exits.
+  // Spacebar skips ahead one phase; 'r' restarts; esc exits.
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
+      const tag = (e.target as HTMLElement | null)?.tagName;
+      // Don't hijack arrows / space while typing in the chat input.
+      if (tag === 'INPUT' || tag === 'TEXTAREA') return;
       if (e.key === ' ') {
         e.preventDefault();
-        const i = PHASE_SEQUENCE.indexOf(phase);
-        const next = PHASE_SEQUENCE[i + 1];
-        if (next) {
-          warpLog('skip (space)');
-          setPhase(next);
-          setPhaseStartMs(performance.now());
-        }
+        warpLog('skip (space)');
+        advanceFromPhase(phase);
       } else if (e.key === 'r' || e.key === 'R') {
         warpLog('restart (r)');
         setPhase('pre');
         setPhaseStartMs(performance.now());
+        setClosingChat(false);
+        setGoodbyeText('');
       } else if (e.key === 'Escape') {
         warpLog('exit (esc)');
         onExit();
@@ -92,6 +106,39 @@ export function WarpDemo({ onExit }: { onExit: () => void }) {
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [phase, onExit]);
+
+  // Chat → goodbye → disintegrate.
+  // Triggered by the agent emitting <ready/> OR the user clicking the
+  // "i'm ready" button OR the "skip to goodbye" no-key fallback.
+  function beginGoodbye(): void {
+    if (closingChat) return;
+    setClosingChat(true);
+    warpLog('chat closed — beginning goodbye sequence');
+
+    // Slow typewriter with pauses on punctuation. Each char appended
+    // via setTimeout chain (not setInterval) so the per-char delay
+    // can vary.
+    let i = 0;
+    function tick(): void {
+      i += 1;
+      const slice = GOODBYE_LINE.slice(0, i);
+      setGoodbyeText(slice);
+      if (i >= GOODBYE_LINE.length) {
+        window.setTimeout(() => {
+          // Phase to disintegrate.
+          setPhase('disintegrate');
+          setPhaseStartMs(performance.now());
+        }, TYPE_AFTER_DONE_MS);
+        return;
+      }
+      const lastChar = GOODBYE_LINE[i - 1];
+      const delay = (lastChar === '.' || lastChar === ',')
+        ? TYPE_MS_PER_CHAR + PUNCT_PAUSE_MS
+        : TYPE_MS_PER_CHAR;
+      window.setTimeout(tick, delay);
+    }
+    tick();
+  }
 
   return (
     <div className="warp-demo">
@@ -109,15 +156,30 @@ export function WarpDemo({ onExit }: { onExit: () => void }) {
         <div className="warp-demo__hint">space = skip · r = restart · esc = exit</div>
       </div>
 
-      {/* Three.js scene — bare skeleton with debug helpers + phase-
-          aware placeholder behavior. Real star shader / turtle /
-          disintegrate FX layer in here in subsequent steps. */}
       <div className="warp-demo__stage">
-        <WarpScene phase={phase} phaseStartMs={phaseStartMs} />
+        <WarpScene
+          phase={phase}
+          phaseStartMs={phaseStartMs}
+          closingChat={closingChat}
+        />
       </div>
 
-      {/* DOM overlays for phases where a non-3d effect is the right
-          tool. Both keyed on phase so React handles mount/unmount. */}
+      {/* Chat overlay — only during warp, only BEFORE closing. */}
+      {phase === 'warp' && !closingChat && (
+        <WarpChat context={STUB_CONTEXT} onReady={beginGoodbye} />
+      )}
+
+      {/* Goodbye line typewriter — during warp, AFTER closing kicks in. */}
+      {phase === 'warp' && closingChat && (
+        <div className="warp-demo__goodbye">
+          <span className="warp-demo__goodbye-text">{goodbyeText}</span>
+          {goodbyeText.length < GOODBYE_LINE.length && (
+            <span className="warp-demo__goodbye-caret" aria-hidden>▍</span>
+          )}
+        </div>
+      )}
+
+      {/* Existing whiteout + queue overlays. */}
       {phase === 'whiteout' && <div className="warp-demo__whiteout" />}
       {phase === 'queue' && (
         <div className="warp-demo__queue">

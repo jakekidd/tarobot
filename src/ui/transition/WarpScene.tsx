@@ -39,6 +39,10 @@ export type WarpPhase =
 type Props = {
   phase: WarpPhase;
   phaseStartMs: number;
+  /** Set true when the in-warp chat is closing. Overrides the pilot:
+   *  the turtle drifts back to face-camera at center and goes quiet
+   *  while the goodbye line types out. */
+  closingChat?: boolean;
 };
 
 const AXES_SIZE = 80;
@@ -49,6 +53,13 @@ const BOUNDS_INSET = 6;
 const AXIS_LABEL_PX = 28;
 
 const TURTLE_BASE_PX = 240;
+// Push the turtle back in Z so click-impulse rotation can't swing
+// parts of its mesh across the camera's near plane (camera at z=100,
+// near=0.1 ⇒ anything with z > 99.9 gets clipped). With this offset,
+// even a 90° rotation around X swings extent only ~120px forward,
+// keeping the nearest point at z ≈ -TURTLE_Z_OFFSET + 120 = -180 —
+// well safe.
+const TURTLE_Z_OFFSET = -300;
 
 // Per-phase scale for the turtle, used by phases OTHER than warp. Warp
 // uses TurtlePilot for full pose control. Scale here is in
@@ -102,12 +113,14 @@ function makeLabelSprite(text: string, hex: number): THREE.Sprite {
   return s;
 }
 
-export function WarpScene({ phase, phaseStartMs }: Props) {
+export function WarpScene({ phase, phaseStartMs, closingChat }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const phaseRef = useRef(phase);
   const phaseStartRef = useRef(phaseStartMs);
+  const closingChatRef = useRef(!!closingChat);
   useEffect(() => { phaseRef.current = phase; }, [phase]);
   useEffect(() => { phaseStartRef.current = phaseStartMs; }, [phaseStartMs]);
+  useEffect(() => { closingChatRef.current = !!closingChat; }, [closingChat]);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -266,17 +279,34 @@ export function WarpScene({ phase, phaseStartMs }: Props) {
       let phaseScale = PHASE_SCALE[ph];
 
       if (ph === 'warp') {
-        pilot.update(dt, t, viewportW, viewportH);
-        phaseGroup.position.copy(pilot.pos);
-        // Pilot.rot is layered ON TOP of the turtle's baked face-camera
-        // rotation. We apply it to phaseGroup so the click wobble
-        // recovers naturally back to identity.
-        phaseGroup.rotation.set(pilot.rot.x, pilot.rot.y, pilot.rot.z);
-        turtle.setAnimationSpeed(pilot.animTimeScale());
+        if (closingChatRef.current) {
+          // Goodbye sequence: drift back to face-camera at center,
+          // slow paddle. Frame-rate-independent ease toward target.
+          const k = 1 - Math.exp(-dt * 2.2);
+          phaseGroup.position.x += (0 - phaseGroup.position.x) * k;
+          phaseGroup.position.y += (0 - phaseGroup.position.y) * k;
+          phaseGroup.position.z = TURTLE_Z_OFFSET;
+          phaseGroup.rotation.x += (0 - phaseGroup.rotation.x) * k;
+          phaseGroup.rotation.y += (0 - phaseGroup.rotation.y) * k;
+          phaseGroup.rotation.z += (0 - phaseGroup.rotation.z) * k;
+          turtle.setAnimationSpeed(0.12);
+          // Sync pilot state to the eased pose so re-entry (e.g. a
+          // restart) doesn't pop.
+          pilot.pos.copy(phaseGroup.position).setZ(0);
+          pilot.rot.set(phaseGroup.rotation.x, phaseGroup.rotation.y, phaseGroup.rotation.z);
+        } else {
+          pilot.update(dt, t, viewportW, viewportH);
+          phaseGroup.position.set(pilot.pos.x, pilot.pos.y, TURTLE_Z_OFFSET);
+          // Pilot.rot is layered ON TOP of the turtle's baked face-camera
+          // rotation. We apply it to phaseGroup so the click wobble
+          // recovers naturally back to identity.
+          phaseGroup.rotation.set(pilot.rot.x, pilot.rot.y, pilot.rot.z);
+          turtle.setAnimationSpeed(pilot.animTimeScale());
+        }
       } else {
         // Non-warp phases: simple centered hover. No flying-in motion.
         if (ph === 'disintegrate') phaseScale = disintegrateScale(phaseElapsed);
-        phaseGroup.position.set(0, 0, 0);
+        phaseGroup.position.set(0, 0, TURTLE_Z_OFFSET);
         // Very small idle yaw so he's not statue-still during pre/summon/lock.
         phaseGroup.rotation.set(0, Math.sin(t * 0.4) * 0.04, 0);
         turtle.setAnimationSpeed(0.25);
