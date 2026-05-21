@@ -289,8 +289,13 @@ export function Survey({ apiKey, session, onComplete }: Props) {
     ).length,
     [state.picks_log],
   );
+  // GAG_ENABLED — hidden for now. Re-enable when we have a randomized
+  // policy for inserting the joke question (currently it triggers
+  // deterministically at postOpenerCount === 12 which feels canned).
+  const GAG_ENABLED = false;
   const showGag =
-    !gagShown
+    GAG_ENABLED
+    && !gagShown
     && postOpenerCount === 12
     && stage === 'questions'
     && currentQuestion !== null;
