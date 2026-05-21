@@ -100,6 +100,28 @@ function AgentRow({ ev, now }: { ev: AgentEvent; now: number }) {
           {ev.error.length > 120 ? `${ev.error.slice(0, 120)}…` : ev.error}
         </div>
       )}
+      {(ev.system_preview || ev.user_preview) && (
+        <details className="agent-activity__resp">
+          <summary>
+            payload
+            {ev.user_size !== undefined && ` (user ${ev.user_size} chars`}
+            {ev.system_size !== undefined && `, system ${ev.system_size} chars`}
+            {ev.user_size !== undefined && ')'}
+          </summary>
+          {ev.system_preview && (
+            <>
+              <div className="agent-activity__resp-label">system:</div>
+              <pre>{ev.system_preview}</pre>
+            </>
+          )}
+          {ev.user_preview && (
+            <>
+              <div className="agent-activity__resp-label">user:</div>
+              <pre>{ev.user_preview}</pre>
+            </>
+          )}
+        </details>
+      )}
       {ev.response_preview && (
         <details className="agent-activity__resp">
           <summary>response ({ev.response_size} chars)</summary>

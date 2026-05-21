@@ -60,7 +60,12 @@ A few rules so the parser doesn't bite you:
 
 These are the always-asked questions, in order, post-openers. Two
 calibration questions warm the seer up to the user's register, then the
-operational/relational/values arc lands the live fork by position 7.
+operational/relational/values arc lands the live fork as the final pillar.
+
+Authoring note: the deprivation question ("what does your life not have
+enough of?") was dropped in the v2 refactor — too monoculture-prone
+("meaning" tells you nothing). Phase 5 of v2 will add 4-5 new
+calibrators built around discriminative axes (2 per axis).
 
 ### Template
 
@@ -165,21 +170,6 @@ Options:
   - control | surrender
   - later | now
   - silence | speak
-
-### What does your life not have enough of?
-
-Format: choice
-Probe:
-  Surface: felt deprivation as values indicator.
-  Inversions: somatic answers (touch, quiet) skew raw / unmet bodily needs; ego answers (recognition, risk) cross-reference the relational anchor — recognition-pickers often have a key_person whose approval they're chasing; meaning flags a values-behavior gap; time often masks avoidance ("if i only had time, i would —").
-  Watch for: touch is the one people hesitate on — weight it heavily and read it against the relational anchor first. if the user picks meaning AND wisdom on value_most, suspect a values-execution gap (they know what matters but aren't living it).
-Options:
-  - time
-  - quiet
-  - touch
-  - meaning
-  - risk
-  - recognition
 
 ---
 
@@ -306,43 +296,6 @@ Options:
   - sit with it
   - ignore it
   - talk to someone
-
-#### Pick a creature. fast.
-
-Format: choice
-Probe:
-  Surface: projective self-identification.
-  Inversions: cat = independent, observant, selectively affectionate; dog = warm, loyalty-prone, may over-give; bird = perspective-keeper, ambivalent about ground; fish = quiet self, perhaps unobserved; bear = self-sufficient + dangerous when poked; with wings = wants flight, suspect escape pattern; with teeth = identifies with threat, possibly weaponizing fear.
-  Watch for: stretch from the conventional reading (e.g. "bear" picked by a small soft person) is the signal — the projection IS the data, not the conventional meaning.
-Options:
-  - cat
-  - dog
-  - bird
-  - fish
-  - bear
-  - something with wings
-  - something with teeth
-
-#### Would you rather have a destination with no map, or a map with no destination?
-
-Format: binary
-Probe:
-  Surface: agency style — purpose-with-method vs method-with-purpose.
-  Inversions: yes (destination, no map) = has a goal, lacks process — possibly impulsive or visionary; no (map, no destination) = systems built without clear telos — possibly competent but adrift; sometimes = situational, evades the dichotomy.
-  Watch for: cross with how-do-you-make-decisions (gut = destination-no-map; mind = map-no-destination).
-
-#### You find a door you've never seen. you—
-
-Format: choice
-Probe:
-  Surface: projective for novelty / risk response.
-  Inversions: open it = high openness, may be reckless; knock first = courteous, suspects others' presence; walk past = avoidant, may suppress curiosity; go get someone = co-regulates novelty through people.
-  Watch for: "walk past" + "later" on fork = chronic deferral pattern.
-Options:
-  - open it
-  - knock first
-  - walk past
-  - go get someone
 
 ### history
 
@@ -578,19 +531,6 @@ Options:
   - a decision
   - a goodbye
   - something for myself
-
-#### What do you want the cards to say?
-
-Format: choice
-Probe:
-  Surface: what the user is hoping the seer will license.
-  Inversions: "that i'm right" = wants validation, suspect they're in a conflict and need backup; "that it'll be okay" = wants reassurance, possibly mid-anxiety spike; "that i should leave" = looking for permission, the fork is already decided emotionally; "something i'm not expecting" = open, lower-defended.
-  Watch for: "that i should leave" is a near-tell that the fork is stay/go and the user is already on the go side. read against the 9-fork answer.
-Options:
-  - that i'm right
-  - that it'll be okay
-  - that i should leave
-  - something i'm not expecting
 
 #### If you weren't doing what you do, you'd be—
 

@@ -26,6 +26,17 @@ export type AgentEvent = {
   response_preview?: string;
   /** Error message when status === 'failed'. */
   error?: string;
+  /** System prompt the model saw, truncated for the panel. Captures
+   *  the literal text sent — would have caught the astrology /
+   *  instagram fabrications faster if exposed during dev. */
+  system_preview?: string;
+  /** User message the model saw (typically JSON.stringify of the
+   *  payload), truncated for the panel. */
+  user_preview?: string;
+  /** Untruncated sizes — shown in the expand caption so the user
+   *  knows when they're looking at a slice vs the whole thing. */
+  system_size?: number;
+  user_size?: number;
 };
 
 const EVENT_CAP = 80;
@@ -42,17 +53,39 @@ function emit(): void {
   }
 }
 
+/** Truncation cap for prompt previews. ~2KB is enough to spot
+ *  fabrication-prone phrasing without overwhelming the panel. */
+const PROMPT_PREVIEW_CAP = 2000;
+
+function preview(s: string | undefined): { preview?: string; size?: number } {
+  if (s === undefined) return {};
+  if (s.length > PROMPT_PREVIEW_CAP) {
+    return { preview: `${s.slice(0, PROMPT_PREVIEW_CAP)}…`, size: s.length };
+  }
+  return { preview: s, size: s.length };
+}
+
 export function startAgentEvent(args: {
   id: string;
   label: string;
   model?: string;
+  /** Literal system prompt sent to the model. Stored truncated. */
+  system?: string;
+  /** Literal user message sent to the model. Stored truncated. */
+  user?: string;
 }): void {
+  const sys = preview(args.system);
+  const usr = preview(args.user);
   events.push({
     id: args.id,
     label: args.label,
     model: args.model,
     status: 'started',
     started_at: Date.now(),
+    system_preview: sys.preview,
+    system_size: sys.size,
+    user_preview: usr.preview,
+    user_size: usr.size,
   });
   while (events.length > EVENT_CAP) events.shift();
   emit();

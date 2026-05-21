@@ -1,11 +1,12 @@
 // Observer — stage 1 of the survey pipeline. Metabolizes the latest
 // answer into profile notes + cast updates.
 
-import type { LLMAdapter } from '../../llm/adapter';
-import { ObserverOutputSchema } from '../schemas';
-import { OBSERVER_SYSTEM, OBSERVER_TOOL } from '../prompts/observer';
-import type { ObserverOutput, PipelineContext } from '../types';
-import { buildAgentPayload } from './payload';
+import type { LLMAdapter } from '../../../llm/adapter';
+import type { PipelineContext } from '../../types';
+import { ObserverOutputSchema } from './schema';
+import { OBSERVER_SYSTEM, OBSERVER_TOOL } from './prompt';
+import { buildObserverPayload } from './payload';
+import type { ObserverOutput } from './apply';
 
 export async function runObserver(
   adapter: LLMAdapter,
@@ -14,7 +15,7 @@ export async function runObserver(
   return adapter.invoke(
     {
       system: OBSERVER_SYSTEM,
-      user: JSON.stringify(buildAgentPayload(ctx, 'observer'), null, 2),
+      user: JSON.stringify(buildObserverPayload(ctx, 'live'), null, 2),
       tool: OBSERVER_TOOL,
       // Observer fires sparsely (every Nth turn) and metabolizes a window
       // of recent picks. Sonnet — quality matters more than latency
@@ -37,7 +38,7 @@ export async function runFinalObserver(
   return adapter.invoke(
     {
       system: OBSERVER_SYSTEM,
-      user: JSON.stringify(buildAgentPayload(ctx, 'observer-final'), null, 2),
+      user: JSON.stringify(buildObserverPayload(ctx, 'final'), null, 2),
       tool: OBSERVER_TOOL,
       model: 'cognition',
       max_tokens: 3000,

@@ -12,10 +12,11 @@
 // See docs/SURVEY_PIPELINE.md for design rationale.
 
 import type { LLMAdapter } from '../llm/adapter';
-import { runFinalObserver, runObserver } from './agents/observer';
+import { runFinalObserver, runObserver, applyObserverOutput } from './agents/observer';
 import { extractHooks, extractSideChannel } from './algoExtract';
-import { runDetective } from './agents/detective';
+import { runDetective, applyDetectiveOutput } from './agents/detective';
 import { runAugur } from './agents/augur';
+import { applyLadderMoves } from './agents/shared';
 import { Seer } from '../seer';
 import { drawForSpread } from '../cards';
 import { FOUR_CARD_DIAMOND } from '../spreads';
@@ -38,8 +39,6 @@ import { ageLadderTentativeAndHeld, generateSeeds } from './seeder';
 import type {
   EngineListener,
   EngineState,
-  Hypothesis,
-  HypothesisLadder,
   Investigation,
   ObserverOutput,
   DetectiveOutput,
@@ -1024,248 +1023,24 @@ function shuffleInPlace<T>(arr: T[]): T[] {
 // the engine no longer applies them (see runDetectiveTask). This helper
 // can come back once the re-apply path is guarded against stale edits.
 
-/** Apply v2 observer output to profile.
- *
- *  - profile.body is REPLACED with out.profile_body (full rewrite),
- *    but only if the emitted body still has all 9 expected section
- *    headers. If a header is dropped (model hallucinated a rewrite
- *    that lost structure), keep the prior body — better to show
- *    stale-but-shape-correct than to lose the scaffold downstream
- *    consumers (the seer) depend on.
- *  - hooks / edges / side_channel are REPLACED with the observer's
- *    full-emit arrays (the observer emits the full desired state each
- *    turn; engine doesn't merge — observer integrates manually).
- *  - cast notes are merged by label: for each { label, notes } update,
- *    find the matching CastMember and set its `notes` field.
- *  - Legacy `sections` field is left untouched (transitional — engine
- *    doesn't append to it anymore, but old data persists for any
- *    downstream consumer until cleanup phase). */
-const REQUIRED_PROFILE_SECTIONS = [
-  'self', 'history', 'relationships', 'joys',
-  'fears', 'insecurities', 'yearnings', 'now', 'tensions',
-] as const;
-
-/** Parse a body into a map of section_name → content. Splits on `## name`
- *  headers; content is everything until the next `## ` or EOF. */
-function splitBodyIntoSections(body: string): Map<string, string> {
-  const out = new Map<string, string>();
-  const re = /^##\s+(\S+)\s*\n([\s\S]*?)(?=^##\s+|$(?![\r\n]))/gm;
-  let m: RegExpExecArray | null;
-  while ((m = re.exec(body)) !== null) {
-    out.set(m[1]!.toLowerCase(), m[2] ?? '');
-  }
-  return out;
-}
-
-/** Merge the observer's new body with the prior body section-by-section.
- *  For each required section: prefer new's content if non-empty, else
- *  fall back to prior. This prevents a single bad observer turn (drops
- *  ## tensions entirely) from wiping the whole document. Always emits
- *  all 9 headers in canonical order. */
-function mergeBodySections(prior: string, next: string): string {
-  const priorSections = splitBodyIntoSections(prior);
-  const nextSections = splitBodyIntoSections(next);
-  const lines: string[] = ['# Profile', ''];
-  for (const section of REQUIRED_PROFILE_SECTIONS) {
-    const nextContent = (nextSections.get(section) ?? '').trim();
-    const priorContent = (priorSections.get(section) ?? '').trim();
-    const content = nextContent || priorContent;
-    lines.push(`## ${section}`, '');
-    if (content) lines.push(content, '');
-  }
-  return lines.join('\n');
-}
-
-function applyObserverOutput(profile: SurveyProfile, out: ObserverOutput): SurveyProfile {
-  const castNotesByLabel = new Map(out.cast_notes_updates.map((u) => [u.label, u.notes]));
-  const nextCast = profile.cast.map((m) => {
-    const notes = castNotesByLabel.get(m.label);
-    return notes !== undefined ? { ...m, notes } : m;
-  });
-  // Section-by-section merge — the observer can drop a section in a
-  // given turn without wiping it from the doc. Earlier turns' content
-  // for that section persists until the observer overwrites it.
-  const nextBody = mergeBodySections(profile.body, out.profile_body);
-  return {
-    ...profile,
-    body: nextBody,
-    // Hooks / edges / side_channel are STILL replaced. End-of-survey
-    // algorithmic extraction overrides hooks + side_channel afterward,
-    // so any per-turn observer noise here gets stomped on the way out.
-    hooks: out.hooks,
-    edges: out.edges,
-    side_channel: out.side_channel,
-    cast: nextCast,
-  };
-}
-
-/** Apply detective output to investigation. Designed for safe
- *  composition: sibling pipelines stomping on the same field do NOT
- *  corrupt state — each merge rule is associative-ish.
- *
- *    hypotheses        upsert by id (per-id last-write-wins)
- *    contradictions    union-by-description (no dupes from two pipelines flagging same tension)
- *    hooks             union-by-description (same)
- *    choice_draft      replace ONLY if incoming has confidence >= existing
- *                       (so a slower / less-informed detective can't regress a stronger draft)
- *    active_threads    upsert by thread_id
- *    posture           replace if incoming non-null (last-write-wins)
- */
-/** Apply observer's hypothesis ladder moves to the ladder. Each move
- *  finds the hypothesis by id across all rungs, removes it from its
- *  current rung, and pushes it into the target rung. Unknown ids are
- *  silently dropped (the observer may have hallucinated). */
-function applyLadderMoves(
-  ladder: HypothesisLadder,
-  moves: Array<{ id: string; to: 'confirmed' | 'probable' | 'tentative' | 'contested' | 'refuted' | 'held' }>,
-): HypothesisLadder {
-  if (moves.length === 0) return ladder;
-  let next = ladder;
-  for (const move of moves) {
-    // Find the hypothesis across rungs.
-    const all = [
-      ...next.confirmed, ...next.probable, ...next.tentative,
-      ...next.contested, ...next.refuted, ...next.held,
-    ];
-    const found = all.find((h) => h.id === move.id);
-    if (!found) continue;
-    // Remove from wherever it lives, push to target.
-    next = removeFromLadder(next, move.id);
-    next = { ...next, [move.to]: [...next[move.to], found] };
-  }
-  return next;
-}
-
-function applyDetectiveOutput(inv: Investigation, out: DetectiveOutput): Investigation {
-  // v2 detective: produces new_hypotheses + ladder_moves + story_updates +
-  // private_thoughts. No more legacy hypothesis_updates / refutes /
-  // choice_update / contradictions_found / hooks_found / thread_updates /
-  // posture / current_understanding / queue_edits.
-  let hypotheses = inv.hypotheses;
-  // 1. Add new hypotheses to their starting rungs.
-  if (out.new_hypotheses.length > 0) {
-    hypotheses = addNewHypotheses(hypotheses, out.new_hypotheses);
-  }
-  // 2. Apply ladder moves.
-  if (out.hypothesis_ladder_moves.length > 0) {
-    hypotheses = applyLadderMoves(hypotheses, out.hypothesis_ladder_moves);
-  }
-  // 3. Merge story_updates into investigation.story.
-  const story = mergeStoryUpdates(inv.story, out.story_updates);
-  return {
-    ...inv,
-    hypotheses,
-    story,
-  };
-}
-
-/** Add new hypotheses surfaced by the detective. Each lands on the
- *  ladder at `start_at` (default 'tentative'). Stable id → upsert
- *  semantics: same id already on the board, the new claim replaces
- *  but rung is preserved. */
-function addNewHypotheses(
-  ladder: HypothesisLadder,
-  news: Array<{ id: string; claim: string; start_at?: 'confirmed' | 'probable' | 'tentative' | 'contested' | 'refuted' | 'held' }>,
-): HypothesisLadder {
-  let next = ladder;
-  for (const n of news) {
-    const startRung = n.start_at ?? 'tentative';
-    // Upsert: if id exists on any rung, update its description; else add fresh.
-    const all = [
-      ...next.confirmed, ...next.probable, ...next.tentative,
-      ...next.contested, ...next.refuted, ...next.held,
-    ];
-    const existing = all.find((h) => h.id === n.id);
-    if (existing) {
-      next = removeFromLadder(next, n.id);
-      const updated: Hypothesis = { ...existing, description: n.claim };
-      next = { ...next, [startRung]: [...next[startRung], updated] };
-    } else {
-      const fresh: Hypothesis = {
-        id: n.id,
-        description: n.claim,
-        supporting_picks: [],
-        contradicting_picks: [],
-        confidence: startRung === 'confirmed' ? 0.9 : startRung === 'probable' ? 0.65 : 0.3,
-        status: startRung === 'confirmed' ? 'confirmed' : startRung === 'refuted' ? 'refuted' : 'inferred',
-        seeded: false,
-        generated_at: 0,
-        age_in_turns: 0,
-      };
-      next = { ...next, [startRung]: [...next[startRung], fresh] };
-    }
-  }
-  return next;
-}
-
-/** Merge a partial story_updates object into the current story.
- *  fork / present_pressure / past_root / stakes are REPLACED with
- *  the incoming value if provided. hooks are APPENDED + deduped. */
-function mergeStoryUpdates(
-  story: NonNullable<Investigation['story']>,
-  updates: DetectiveOutput['story_updates'],
-): NonNullable<Investigation['story']> {
-  const nextHooks = updates.hooks
-    ? Array.from(new Set([...story.hooks, ...updates.hooks]))
-    : story.hooks;
-  return {
-    fork: updates.fork ?? story.fork,
-    present_pressure: updates.present_pressure ?? story.present_pressure,
-    past_root: updates.past_root ?? story.past_root,
-    stakes: updates.stakes ?? story.stakes,
-    hooks: nextHooks,
-  };
-}
-
-// applyLadderUpdates / rungFor / moveToRefuted helpers removed —
-// they were the transitional bridge for the legacy detective output
-// (hypothesis_updates: Hypothesis[] with .status). v2 detective emits
-// new_hypotheses + hypothesis_ladder_moves directly; observer too.
-
-function removeFromLadder(ladder: HypothesisLadder, id: string): HypothesisLadder {
-  return {
-    confirmed: ladder.confirmed.filter((h) => h.id !== id),
-    probable: ladder.probable.filter((h) => h.id !== id),
-    tentative: ladder.tentative.filter((h) => h.id !== id),
-    contested: ladder.contested.filter((h) => h.id !== id),
-    refuted: ladder.refuted.filter((h) => h.id !== id),
-    held: ladder.held.filter((h) => h.id !== id),
-  };
-}
-
-// moveToRefuted / pickStrongerChoice / unionByKey helpers removed —
-// they served the legacy detective output's hypothesis_refutes,
-// choice_update, contradictions_found, and hooks_found fields. None
-// are emitted by the v2 detective.
-
-// mergeCast removed — the v2 observer doesn't emit full CastMember
-// updates anymore (cast identity is owned by the user via the
-// relationship_pick UI). Observer only updates the `notes` field on
-// existing CastMembers; identity / pronouns / color / off_limits are
-// untouched. See applyObserverOutput above.
-
-// mergeHypotheses removed — applyLadderUpdates (above) handles the new
-// ladder routing. Phase H rewrites the detective output schema to
-// emit ladder rungs natively; until then the transitional adapter
-// maps legacy `status`-based output into the new shape.
-
-// Engine-side hypothesis pruning removed. The detective now persists
-// its full board across the whole survey — the scratchpad
-// (detective_log) carries continuity, and stale hypotheses are
-// information (a refuted lead is a useful constraint), not noise.
 
 // ─── test-only re-exports ────────────────────────────────
 //
-// The apply helpers are intentionally module-local (no caller outside
-// engine.ts needs them at runtime). Re-export with `__test_` prefix so
-// the unit tests can target them directly without going through
-// engine state machine setup. Production code SHOULD NOT import these.
+// The apply helpers live in their per-agent folders (agents/observer/apply.ts,
+// agents/detective/apply.ts, agents/shared.ts). Re-export with `__test_`
+// prefix so the unit tests can target them directly without going through
+// engine state machine setup. Production code SHOULD import from the
+// per-agent folders, not from engine.ts.
 
 export {
   applyObserverOutput as __test_applyObserverOutput,
+} from './agents/observer';
+export {
   applyDetectiveOutput as __test_applyDetectiveOutput,
-  applyLadderMoves as __test_applyLadderMoves,
   addNewHypotheses as __test_addNewHypotheses,
   mergeStoryUpdates as __test_mergeStoryUpdates,
+} from './agents/detective';
+export {
+  applyLadderMoves as __test_applyLadderMoves,
   removeFromLadder as __test_removeFromLadder,
-};
+} from './agents/shared';

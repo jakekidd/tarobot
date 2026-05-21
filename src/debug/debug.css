@@ -312,3 +312,13 @@
   font-size: 0.62rem;
   color: #cfc4f0;
 }
+.agent-activity__resp-label {
+  margin-top: 0.4rem;
+  color: #6b5a8a;
+  font-size: 0.6rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.agent-activity__resp-label:first-child {
+  margin-top: 0;
+}

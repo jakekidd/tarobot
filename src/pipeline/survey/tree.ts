@@ -219,8 +219,9 @@ export function getOpeners(): string[] {
   return TREE.openers.slice();
 }
 
-/** The static 6 Pillar questions, in order. Asked immediately after
- *  openers complete. Pipeline DOES fire on Pillar answers. */
+/** The Pillar questions, in order. Asked immediately after openers
+ *  complete. Pipeline DOES fire on Pillar answers. Count is dynamic —
+ *  whatever materials/survey.md authors under `## Pillars`. */
 export function getPillars(): string[] {
   return TREE.pillars.slice();
 }

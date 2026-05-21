@@ -8,16 +8,16 @@
 // Output: Outcome[]. Consumed by Seer (passed in via SeerOpts.outcomes)
 // and read by all subsequent per-card / closing / intro cognition calls.
 
-import type { LLMAdapter } from '../../llm/adapter';
+import type { LLMAdapter } from '../../../llm/adapter';
+import type { Outcome } from '../../../seer/types';
+import type { Profile } from '../../../types';
+import type { Hypothesis, PickEvent, StoryObject } from '../../types';
 import {
   AUGUR_OUTLINE_SCHEMA,
   AUGUR_OUTLINE_SYSTEM,
   AUGUR_OUTLINE_TOOL,
   AUGUR_FILL_SYSTEM,
-} from '../prompts/augur';
-import type { Outcome } from '../../seer/types';
-import type { Profile } from '../../types';
-import type { Hypothesis, PickEvent, StoryObject } from '../types';
+} from './prompt';
 
 export type AugurInput = {
   profile: Profile;

@@ -27,13 +27,13 @@ import { STARTER_SEED_COUNT } from '../pipeline/survey';
 
 // ── Live prompt imports ─────────────────────────────────────
 
-import { OBSERVER_SYSTEM, OBSERVER_TOOL } from '../pipeline/survey/prompts/observer';
-import { DETECTIVE_SYSTEM, DETECTIVE_TOOL } from '../pipeline/survey/prompts/detective';
+import { OBSERVER_SYSTEM, OBSERVER_TOOL } from '../pipeline/survey/agents/observer';
+import { DETECTIVE_SYSTEM, DETECTIVE_TOOL } from '../pipeline/survey/agents/detective';
 import {
   AUGUR_OUTLINE_SYSTEM,
   AUGUR_OUTLINE_TOOL,
   AUGUR_FILL_SYSTEM,
-} from '../pipeline/survey/prompts/augur';
+} from '../pipeline/survey/agents/augur';
 import { MANTRA_SYSTEM } from '../pipeline/seer/mantra';
 
 import {
