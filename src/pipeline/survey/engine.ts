@@ -17,6 +17,7 @@ import { extractHooks, extractSideChannel, computeLatencyZScores } from './algoE
 import { runDetective, applyDetectiveOutput, type DetectiveApplyResult } from './agents/detective';
 import { runAugur } from './agents/augur';
 import { recomputeCoverage, isCoverageDone } from './coverage';
+import { generateQuestion } from './generation';
 import { Seer } from '../seer';
 import { drawForSpread } from '../cards';
 import { FOUR_CARD_DIAMOND } from '../spreads';
@@ -30,7 +31,7 @@ import {
   getOpeners,
   getPillars,
   getPoolNodeIds,
-  renderQuestion,
+  renderQueueItem,
   TREE,
 } from './tree';
 import { derivePhase } from './phase';
@@ -146,12 +147,7 @@ export class SurveyEngine {
     const head = this.state.queue[0];
     if (!head) return null;
     this.currentRenderedAt = Date.now();
-    return renderQuestion(
-      head.node_id,
-      this.state.profile,
-      head.preamble,
-      head.options_override,
-    );
+    return renderQueueItem(head, this.state.profile);
   }
 
   /** True when the user has out-paced the pipeline: queue empty but a
@@ -184,8 +180,13 @@ export class SurveyEngine {
     if (this.state.closed) return;
     const head = this.state.queue[0];
     if (!head) return;
+    // Engine-authored items have no TREE.nodes entry — `node` will be
+    // undefined and that's fine. We use renderQueueItem (which
+    // dispatches on inline data) for the user-visible rendering and
+    // the recorded pick. The only place we still need `node` is the
+    // relationship_pick branch below — and engine-authored questions
+    // are always 'choice' format, so that branch can't fire.
     const node = getNode(head.node_id);
-    if (!node) return;
 
     // Snapshot for undo. Capture BEFORE any mutation so undo restores
     // the exact pre-pick state. Deep clone via JSON to avoid sharing
@@ -199,12 +200,7 @@ export class SurveyEngine {
 
     // Capture the question + options EXACTLY as the user saw them — so
     // history reflects what was on screen, not what the basket says now.
-    const renderedNow = renderQuestion(
-      head.node_id,
-      this.state.profile,
-      head.preamble,
-      head.options_override,
-    );
+    const renderedNow = renderQueueItem(head, this.state.profile);
 
     const pick: PickEvent = {
       node_id: head.node_id,
@@ -214,6 +210,10 @@ export class SurveyEngine {
       answered_at: answeredAt,
       latency_ms: latencyMs,
       prompted_by: head.prompted_by,
+      // v2: propagate the QueueItem's is_engine_authored flag onto the
+      // PickEvent. extractHooks filters these out so planted-option
+      // text never becomes a "verbatim" hook the Seer echoes back.
+      is_engine_authored: head.is_engine_authored,
     };
     const timing: TimingEvent = {
       node_id: head.node_id,
@@ -253,7 +253,9 @@ export class SurveyEngine {
 
     // Process relationship_pick answers: parse the structured JSON
     // payload and add/update the CastMember on the profile.
-    if (node.f === 'relationship_pick' && typeof answer === 'string') {
+    // Engine-authored items are always 'choice' format so node is
+    // guaranteed non-null here when this branch matches.
+    if (node && node.f === 'relationship_pick' && typeof answer === 'string') {
       this.applyRelationshipPick(head.node_id, answer);
     }
 
@@ -948,13 +950,110 @@ export class SurveyEngine {
     const detResult = await this.runDetectiveTask(detCtx);
     if (!detResult) return;
 
-    // Engine reads next_move for telemetry; in Phase 3 only `conclude`
-    // is consumed (gated on pillar floor — Phase 5 calibrates
-    // coverage-done so conclude can fire earlier).
-    if (detResult.move.kind === 'conclude' && postOpenerCount >= pillarFloor) {
+    // ── Stage: act on the detective's next_move ──
+    await this.applyDetectiveNextMove(detResult.move, postOpenerCount, pillarFloor);
+  }
+
+  /** Route the detective's next_move into engine state mutations.
+   *  Phase 4 wiring:
+   *    - 'append' with intent: trigger the generation pipeline
+   *      (interrogator + crowd) and push the result to queue
+   *    - 'append' with node_id only: push that authored question to
+   *      queue (Phase 3-compatible advisory pick)
+   *    - 'revise' tail_index: Phase 5; no-op for now
+   *    - 'conclude': flush engine-authored items + transition to
+   *      finalizing (gated on pillar floor)
+   *
+   *  Note on "queue zones": instead of a structural QueueZone {head,
+   *  tail} type, we use the is_engine_authored flag on QueueItem as
+   *  the logical zone marker. Pillars and authored pool items are
+   *  is_engine_authored=false (committed); generation pipeline items
+   *  are is_engine_authored=true (revisable / flushable). Conclude
+   *  flushes only the engine-authored items, preserving any remaining
+   *  authored questions. */
+  private async applyDetectiveNextMove(
+    move: { kind: string; node_id?: string; intent?: { angle: string; planted_options?: string[] }; reason: string; tail_index?: number },
+    postOpenerCount: number,
+    pillarFloor: number,
+  ): Promise<void> {
+    if (move.kind === 'conclude') {
+      if (postOpenerCount < pillarFloor) {
+        // Floor gate: detective can't end early until pillars exhausted.
+        // Phase 5 calibrates the coverage heuristic, then this floor
+        // becomes the safety net rather than the dominant gate.
+        return;
+      }
+      // Flush engine-authored items from the queue, then transition.
+      this.setState({
+        queue: this.state.queue.filter((q) => !q.is_engine_authored),
+      });
       this.beginIntentionStage();
+      return;
     }
-    // Phase 4 will consume append/revise into queue.head/queue.tail.
+    if (move.kind === 'revise') {
+      // Phase 5: revise queue.tail[tail_index]. For now, no-op.
+      return;
+    }
+    if (move.kind === 'append') {
+      // Phase 4 path: detective supplied an `intent` → generate.
+      if (move.intent && move.intent.angle.trim().length > 0) {
+        await this.appendGeneratedQuestion(move.intent);
+        return;
+      }
+      // Phase 3 fallback path: detective picked a node_id from the
+      // adversarial candidates pool. Push the authored item.
+      if (move.node_id) {
+        // Defensive: skip if already asked or already queued.
+        if (this.state.asked_node_ids.includes(move.node_id)) return;
+        if (this.state.queue.some((q) => q.node_id === move.node_id)) return;
+        this.setState({
+          queue: [
+            ...this.state.queue,
+            { node_id: move.node_id, prompted_by: 'detective_append', priority: 'normal' },
+          ],
+        });
+        return;
+      }
+      // No intent + no node_id — empty append. Detective hasn't
+      // committed to a direction yet; no-op.
+    }
+  }
+
+  /** Trigger the Phase 4 generation pipeline: interrogator + crowd
+   *  → assemble + lint → enqueue with is_engine_authored=true. On
+   *  lint failure (both attempts), falls back to a random
+   *  unanswered pool pick. */
+  private async appendGeneratedQuestion(intent: { angle: string; planted_options?: string[] }): Promise<void> {
+    try {
+      const result = await generateQuestion(this.opts.adapter, intent);
+      if (result) {
+        this.setState({
+          queue: [...this.state.queue, result.item],
+        });
+        return;
+      }
+    } catch (e) {
+      console.warn('[survey] generation pipeline failed', e);
+    }
+    // Fallback: pick a random unanswered authored question.
+    const fallback = this.pickFallbackPoolItem();
+    if (fallback) {
+      this.setState({ queue: [...this.state.queue, fallback] });
+    }
+  }
+
+  /** Return a random unanswered pool QueueItem, or null when the
+   *  pool is exhausted. Used as the static fallback when generation
+   *  fails lint. */
+  private pickFallbackPoolItem(): QueueItem | null {
+    const asked = new Set(this.state.asked_node_ids);
+    const queued = new Set(this.state.queue.map((q) => q.node_id));
+    const candidates = [...getPillars(), ...getPoolNodeIds()].filter(
+      (id) => !asked.has(id) && !queued.has(id),
+    );
+    if (candidates.length === 0) return null;
+    const node_id = candidates[Math.floor(Math.random() * candidates.length)]!;
+    return { node_id, prompted_by: 'fallback_pool', priority: 'normal' };
   }
 
   /** Run the observer agent. Returns true on successful apply, false

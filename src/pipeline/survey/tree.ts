@@ -146,7 +146,7 @@ export function renderQuestion(
 ): RenderedQuestion {
   const node = TREE.nodes[node_id];
   if (!node) {
-    throw new Error(`tree: cannot render unknown node '${node_id}'`);
+    throw new Error(`tree: cannot render unknown node '${node_id}' (engine-authored items must use QueueItem.inline + renderQueueItem, not renderQuestion)`);
   }
   const text = substituteOrBlank(node.q, profile);
   // Format-locked options:
@@ -172,6 +172,28 @@ export function renderQuestion(
     axes: node.axes,
     preamble: preamble && preamble.length > 0 ? preamble : undefined,
   };
+}
+
+/** Render a QueueItem to a RenderedQuestion. Dispatches by source:
+ *  engine-authored items (inline payload set) render from the inline
+ *  data; authored items render via renderQuestion against TREE.nodes.
+ *  Engine + driver use this so they don't have to branch at the call
+ *  site. */
+export function renderQueueItem(
+  item: { node_id: string; preamble?: string; options_override?: string[]; inline?: { text: string; format: AnswerFormat; options: string[]; axis_tag?: string } },
+  profile: SurveyProfile,
+): RenderedQuestion {
+  if (item.inline) {
+    return {
+      node_id: item.node_id,
+      text: item.inline.text,
+      format: item.inline.format,
+      options: item.options_override ?? item.inline.options,
+      axes: undefined,
+      preamble: item.preamble,
+    };
+  }
+  return renderQuestion(item.node_id, profile, item.preamble, item.options_override);
 }
 
 /** Just the label (first tuple slot) from each answer. */

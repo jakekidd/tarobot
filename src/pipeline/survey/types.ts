@@ -314,6 +314,17 @@ export type QueueItem = {
    *  in materials/survey.md. PickEvent.is_engine_authored is propagated
    *  from this flag at answer time. */
   is_engine_authored?: boolean;
+  /** Phase 4 inline question payload — set on engine-authored items
+   *  that have no corresponding TREE.nodes entry. Renderers use this
+   *  in place of `renderQuestion(node_id, ...)` when present. axis_tag
+   *  is the interrogator's dimension label, surfaced to the coverage
+   *  map at picks-log inspect time. */
+  inline?: {
+    text: string;
+    format: AnswerFormat;
+    options: string[];
+    axis_tag?: string;
+  };
 };
 
 // ─── Engine state ───────────────────────────────────────

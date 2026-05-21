@@ -17,6 +17,7 @@ export {
   TREE,
   validateTree,
   renderQuestion,
+  renderQueueItem,
   getNode,
   getOpeners,
   getPillars,

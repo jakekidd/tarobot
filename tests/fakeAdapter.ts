@@ -95,3 +95,22 @@ export function defaultAugurOutline(name: string): unknown {
     reasoning: 'binary fork',
   };
 }
+
+/** Minimal valid CrowdOutput — 2 short decoys. Used by tests that
+ *  exercise the Phase 4 generation pipeline. */
+export function defaultCrowdOutput(): unknown {
+  return {
+    decoys: ['decoy one', 'decoy two'],
+    reasoning: 'test decoys',
+  };
+}
+
+/** Minimal valid InterrogatorOutput — a placeholder stem + tag.
+ *  Always passes lint: lowercase, ends with '?', ≤120 chars. */
+export function defaultInterrogatorOutput(): unknown {
+  return {
+    question_text: 'what would surprise you to admit out loud?',
+    axis_tag: 'self-disclosure',
+    reasoning: 'test stem',
+  };
+}
