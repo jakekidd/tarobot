@@ -63,6 +63,13 @@ export type EngineOpts = {
     prior_intentions: string[];
     prior_session_summary?: string;
   };
+  /** Optional engine state to hydrate from — used by the headless
+   *  driver script (scripts/survey-driver.ts) to restore mid-session
+   *  state across CLI invocations. When provided, replaces the
+   *  fresh initState. The runtime-only fields (in-flight counters,
+   *  pickEpoch, seer) are NOT serialized; they start fresh per
+   *  invocation and that's fine for the per-turn driver model. */
+  initialState?: EngineState;
 };
 
 const OPENER_NODE_IDS = new Set<string>(getOpeners());
@@ -117,7 +124,15 @@ export class SurveyEngine {
 
   constructor(opts: EngineOpts) {
     this.opts = opts;
-    this.state = this.initState(opts);
+    this.state = opts.initialState ?? this.initState(opts);
+    // When hydrated from initialState, mark the seeder as already fired
+    // for any post-opener picks — otherwise loadFromSave-style restore
+    // would re-seed the pillar queue on the next post-opener tick.
+    if (opts.initialState) {
+      this.starterSeedFired =
+        opts.initialState.picks_log.length >
+        opts.initialState.asked_node_ids.filter((id) => OPENER_NODE_IDS.has(id)).length;
+    }
   }
 
   // ─── public API ──────────────────────────────────────
