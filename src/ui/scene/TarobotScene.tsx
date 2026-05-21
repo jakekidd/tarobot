@@ -10,6 +10,7 @@ import { subscribeImpacts, type Impact as ImpactEvent } from './impactStore';
 import { createOrbitingCards } from './orbitingCards';
 import { subscribeDizzy } from './dizzyStore';
 import { subscribeReaderMode, type ReaderMode } from './readerModeStore';
+import { subscribeSeerError } from './seerErrorStore';
 import { subscribeMascotDisintegrateTrigger, fireMascotDisintegrateComplete } from './disintegrateStore';
 import { getTableAnchor } from './tableAnchorStore';
 import {
@@ -248,7 +249,7 @@ export function TarobotScene() {
     function paintEye(
       ctx: CanvasRenderingContext2D,
       timeSec: number,
-      mood: 'calm' | 'thinking',
+      mood: 'calm' | 'thinking' | 'broken',
       jitter: number,                  // 0..1 per-eye phase offset
       gaze: { x: number; y: number },  // -1..1 within the table area; (0,0) = idle drift
     ) {
@@ -259,6 +260,44 @@ export function TarobotScene() {
       const cy = H / 2;
       const rx = W * 0.46;
       const ry = H * 0.46;
+
+      // Broken mood (seer pipeline crashed): muted red glow, X eye.
+      // Skip the violet halo + ripple — the eye reads as "out of order".
+      if (mood === 'broken') {
+        // Dim red halo behind.
+        ctx.save();
+        ctx.globalCompositeOperation = 'lighter';
+        const haloR = Math.max(rx, ry) * 1.4;
+        const halo = ctx.createRadialGradient(cx, cy, 0, cx, cy, haloR);
+        halo.addColorStop(0.0, 'rgba(220, 60, 80, 0.45)');
+        halo.addColorStop(0.5, 'rgba(180, 30, 50, 0.18)');
+        halo.addColorStop(1.0, 'rgba(120, 20, 30, 0.00)');
+        ctx.fillStyle = halo;
+        ctx.fillRect(0, 0, W, H);
+        ctx.restore();
+        // Dim violet orb so the X has contrast.
+        ctx.fillStyle = 'rgba(60, 24, 90, 0.95)';
+        ctx.beginPath();
+        ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2);
+        ctx.fill();
+        // X — two strokes, slight tilt jitter per eye so they're not
+        // perfectly symmetric.
+        ctx.save();
+        ctx.translate(cx, cy);
+        ctx.rotate(jitter * 0.18 - 0.09);
+        ctx.strokeStyle = 'rgba(255, 235, 235, 0.95)';
+        ctx.lineWidth = 14;
+        ctx.lineCap = 'round';
+        const armX = Math.min(rx, ry) * 0.55;
+        ctx.beginPath();
+        ctx.moveTo(-armX, -armX);
+        ctx.lineTo(armX, armX);
+        ctx.moveTo(armX, -armX);
+        ctx.lineTo(-armX, armX);
+        ctx.stroke();
+        ctx.restore();
+        return;
+      }
 
       // ── Outer halo glow — sits BEHIND the eye orb, pushed to bloom.
       // Two stacked radial gradients with additive composition so the
@@ -407,6 +446,12 @@ export function TarobotScene() {
     const STAR_TURQUOISE: readonly [number, number, number] = [0.18, 0.85, 0.78];
     const starColor: [number, number, number] = [STAR_VIOLET[0], STAR_VIOLET[1], STAR_VIOLET[2]];
     let starColorTarget: readonly [number, number, number] = STAR_VIOLET;
+
+    // Seer-broken flag — when set, the eyes paint as X's instead of the
+    // ripple-violet orbs. Published by Reading.tsx when state.phase ===
+    // 'error'. Cleared on Reading unmount.
+    let seerBroken = false;
+    const unsubscribeSeerError = subscribeSeerError((b) => { seerBroken = b; });
 
     let readerMode: ReaderMode = 'cat';
     const unsubscribeReaderMode = subscribeReaderMode((m) => {
@@ -925,7 +970,8 @@ export function TarobotScene() {
         rightEye.mesh.scale.y = sy;
 
         // Mood: dizzy (any tier awaiting) → thinking spiral; else calm.
-        const mood: 'calm' | 'thinking' = dizzy ? 'thinking' : 'calm';
+        const mood: 'calm' | 'thinking' | 'broken' =
+          seerBroken ? 'broken' : dizzy ? 'thinking' : 'calm';
         // Gaze: eyes track the mouse over the table region whenever
         // the seer is shown (not just during pickable). NDC (-1..1)
         // within the table-anchor rect; idle drift takes over outside.
@@ -1230,6 +1276,7 @@ export function TarobotScene() {
       unsubscribeDizzy();
       unsubscribeReaderMode();
       unsubscribeDisintegrateTrigger();
+      unsubscribeSeerError();
       unsubscribeCardScene();
       unsubscribeDebug();
       unsubscribeFlyIn();

@@ -108,7 +108,7 @@ export type Set = {
   /** Specific facts and hunches from the profile this card licenses
    *  the seer to use. The seer chooses which to surface and which to
    *  hold back — under-specifying is itself a craft move. 0-5 items. */
-  knows: string[];
+  knows?: string[] | null;
   /** What is genuinely uncertain. May be voiced AS uncertainty — that
    *  is far eerier than false confidence. 0-1 sentences. */
   uncertainty: string;
@@ -123,12 +123,12 @@ export type Set = {
    *  supports a reframe; most beats won't have one. Null/omitted
    *  otherwise. */
   reframe?: {
-    /** What the user currently believes (about themselves, the
+    /** What the subject currently believes (about themselves, the
      *  situation, the other person). Concrete, citable from picks. */
     user_belief: string;
     /** What the card licenses as the alternative angle. Specific. */
     cards_invitation: string;
-  };
+  } | null;
 };
 
 /** @deprecated Use Set. Kept transiently for any consumer still importing. */
@@ -141,8 +141,9 @@ export type Monologue = {
    *  for beats; 1 short line for intro; 1 sentence for outro. */
   text: string;
   /** Optional invitation for user response. If non-empty, UI may
-   *  surface it as a hint above the chat box. */
-  prompt_to_user?: string;
+   *  surface it as a hint above the chat box. Null allowed (model
+   *  sometimes emits null when it has no prompt). */
+  prompt_to_user?: string | null;
   /** Closing-only: the post-reading mantra produced by the mantra
    *  agent. Single declarative line — ticker-tape-printable
    *  (no markdown, no emoji). Rendered by Reading.tsx after the

@@ -15,13 +15,19 @@ export const SetSchema = z.object({
   click: z.string(),
   attending: z.string(),
   intent: z.string(),
-  knows: z.array(z.string()).min(0).max(5),
-  uncertainty: z.string(),
-  through_line: z.string(),
+  // `knows` is lenient — model sometimes returns null or omits it.
+  // (Can't use .transform here — z.toJSONSchema rejects transforms.)
+  knows: z.array(z.string()).max(5).nullable().optional(),
+  uncertainty: z.string().default(''),
+  through_line: z.string().default(''),
+  // `reframe` is OPTIONAL in spec ("emit only when card supports it").
+  // .nullable().optional() = accepts undefined, null, or valid object.
+  // Consumers check `if (set.reframe)` which is true for neither null
+  // nor undefined.
   reframe: z.object({
     user_belief: z.string(),
     cards_invitation: z.string(),
-  }).optional(),
+  }).nullable().optional(),
 });
 
 /** @deprecated Use SetSchema. */
@@ -29,10 +35,12 @@ export const ClinicalIntentSchema = SetSchema;
 
 export const MonologueSchema = z.object({
   text: z.string(),
-  prompt_to_user: z.string().optional(),
+  // Model frequently emits `prompt_to_user: null` for beats without a
+  // user prompt. Accept either; consumers null-check before using.
+  prompt_to_user: z.string().nullable().optional(),
 });
 
 export const ClosingIntentSchema = z.object({
   takeaway: z.string(),
-  director_notes: z.string(),
+  director_notes: z.string().default(''),
 });

@@ -47,6 +47,8 @@ import { highlightNames, type Highlights } from './dialogue/highlightNames';
 import { parseEmphasis, type EmphasisRange } from './dialogue/parseEmphasis';
 import { setDizzy } from './scene/dizzyStore';
 import { setReaderMode } from './scene/readerModeStore';
+import { setSeerBroken } from './scene/seerErrorStore';
+import { SeerError } from './SeerError';
 import { startFlyIn, endFlyIn, subscribeFlyIn } from './scene/flyInStore';
 import { loadSettings } from '../storage';
 import { publishDebug, clearDebug } from '../debug/debugBus';
@@ -98,6 +100,13 @@ export function Reading({ apiKey: _apiKey, seer, onExit }: Props) {
     setDizzy(state.awaiting_layer !== null);
     return () => setDizzy(false);
   }, [state.awaiting_layer]);
+
+  // Publish the seer-broken flag so the scene can render X eyes when
+  // the pipeline has crashed. Clears on unmount or recovery.
+  useEffect(() => {
+    setSeerBroken(state.phase === 'error');
+  }, [state.phase]);
+  useEffect(() => () => setSeerBroken(false), []);
 
   // Restore cat face on unmount (set to 'eyes' in the fly-in handler).
   useEffect(() => {
@@ -383,7 +392,7 @@ function ReadingStage({ state, engine, advanceTick, highlights }: StageProps) {
     return <FillerLine layer="actor" />;
   }
   if (state.phase === 'error') {
-    return <div className="reading__error">{state.error ?? 'something went wrong.'}</div>;
+    return <SeerError error={state.error ?? 'something went wrong.'} />;
   }
   if (state.phase === 'intro' && state.intro) {
     return (

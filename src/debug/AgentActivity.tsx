@@ -9,8 +9,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { subscribeAgentActivity, type AgentEvent } from './agentActivityBus';
-import { getSurveyState } from './surveyStateBus';
-import type { PickEvent } from '../pipeline/survey';
+import { copyTranscriptToClipboard } from './transcript';
 
 const VISIBLE_LIMIT = 14;
 
@@ -55,7 +54,7 @@ export function AgentActivity({ alwaysVisible = false }: Props) {
         <button
           type="button"
           className="agent-activity__copy"
-          onClick={() => copyTranscript(events)}
+          onClick={copyTranscriptToClipboard}
           title="copy a markdown transcript of all Q&A turns + agent traces to clipboard"
         >
           copy transcript
@@ -77,87 +76,6 @@ export function AgentActivity({ alwaysVisible = false }: Props) {
       </div>
     </aside>
   );
-}
-
-// Build a markdown transcript of the survey's Q&A turns with each
-// agent event (observer, detective, augur, etc.) attached to the turn
-// that triggered it. Events whose `started_at` falls between Q[i]'s
-// answered_at and Q[i+1]'s answered_at belong to Q[i]. Events that
-// fired after the last Q are appended in an "end-of-survey compile"
-// section.
-function buildTranscript(events: readonly AgentEvent[]): string {
-  const state = getSurveyState();
-  const out: string[] = [];
-  const now = new Date();
-  out.push('# Tarobot pipeline transcript');
-  out.push(`## ${now.toISOString()}`);
-  if (state?.profile?.name) out.push(`## subject: ${state.profile.name}`);
-  out.push('');
-  const picks: readonly PickEvent[] = state?.picks_log ?? [];
-  // Build slot windows: each pick gets a [startTs, endTs) window.
-  const windows: Array<{ start: number; end: number; pick: PickEvent | null; label: string }> = [];
-  let prev = 0;
-  picks.forEach((p, i) => {
-    windows.push({
-      start: prev,
-      end: p.answered_at,
-      pick: p,
-      label: `Q${i + 1}`,
-    });
-    prev = p.answered_at;
-  });
-  // Trailing window (events fired after the last pick — e.g. final
-  // observer pass, augur, seer intro).
-  windows.push({ start: prev, end: Number.POSITIVE_INFINITY, pick: null, label: 'end-of-survey compile' });
-
-  for (const w of windows) {
-    if (w.pick) {
-      const p = w.pick;
-      const answerText = typeof p.answer === 'string' ? p.answer : JSON.stringify(p.answer);
-      out.push(`## ${w.label} · ${p.node_id}`);
-      out.push(`Q: ${p.question_text}`);
-      if (p.options_shown && p.options_shown.length > 0) {
-        out.push(`Options: ${p.options_shown.join(' / ')}`);
-      }
-      out.push(`A: ${answerText}   [${p.latency_ms}ms]`);
-    } else {
-      out.push(`## ${w.label}`);
-    }
-    const matched = events.filter((e) => e.started_at >= w.start && e.started_at < w.end);
-    if (matched.length === 0) {
-      out.push('(no agent activity in this window)');
-    } else {
-      for (const e of matched) {
-        const dur = e.ended_at ? `${((e.ended_at - e.started_at) / 1000).toFixed(1)}s` : 'in flight';
-        const status = e.status === 'failed' ? ' FAILED' : e.status === 'started' ? ' (live)' : '';
-        out.push('');
-        out.push(`### ${e.label}${status} · ${e.model ?? '?'} · ${dur}`);
-        if (e.error) {
-          out.push(`error: ${e.error}`);
-        }
-        if (e.response_preview) {
-          out.push('```');
-          out.push(e.response_preview);
-          out.push('```');
-        }
-      }
-    }
-    out.push('');
-  }
-  return out.join('\n');
-}
-
-function copyTranscript(events: readonly AgentEvent[]): void {
-  const text = buildTranscript(events);
-  if (typeof navigator !== 'undefined' && navigator.clipboard) {
-    navigator.clipboard.writeText(text).catch(() => {
-      console.warn('[agent-activity] clipboard write failed; transcript:');
-      console.log(text);
-    });
-  } else {
-    console.warn('[agent-activity] no clipboard API; transcript:');
-    console.log(text);
-  }
 }
 
 function AgentRow({ ev, now }: { ev: AgentEvent; now: number }) {
