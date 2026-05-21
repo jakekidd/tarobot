@@ -39,13 +39,10 @@ export type {
   AnswerTuple,
   CastMember,
   CloseReason,
-  DetectiveOutput,
   DialogueTree,
   EngineListener,
   EngineState,
   Hypothesis,
-  LadderRung,
-  ObserverOutput,
   Phase,
   PickEvent,
   PipelineContext,
@@ -58,6 +55,10 @@ export type {
   TimingEvent,
   TreeNode,
 } from './types';
+
+// v2 agent output types (live in per-agent schema.ts via z.infer).
+export type { ObserverOutput, ObserverDelta } from './agents/observer';
+export type { DetectiveOutput, StoryUpdates } from './agents/detective';
 
 // v2 LivingDoc types — new public surface introduced in Phase 2.
 export type {

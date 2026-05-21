@@ -19,11 +19,16 @@ const FAST_PICK_MS = 1500;     // sub-1.5s pick = pre-loaded answer
 const SLOW_PICK_MS = 10000;    // 10s+ pick = heavy deliberation
 const MAX_HOOK_LEN = 60;       // skip long free-text "hooks"
 const RELATIONSHIP_PICK_PREFIX = '{'; // JSON-encoded answer payload
+/** Z-score threshold for "outlier" latency. Beyond this, the answer
+ *  is treated as a flinch — pain or deliberation worth flagging. */
+const LATENCY_Z_OUTLIER = 1.5;
 
 /** Extract verbatim hook phrases worth echoing back in the reading.
  *  Filters out openers (identity data lives elsewhere), JSON-encoded
- *  relationship_pick payloads, very long free-text answers, and the
- *  literal 'pass' sentinel. Always includes the user's name. */
+ *  relationship_pick payloads, very long free-text answers, the
+ *  literal 'pass' sentinel, AND engine-authored picks (the "instagram"
+ *  guard — planted option text is not the user's verbatim phrase, the
+ *  Seer must never echo it back). Always includes the user's name. */
 export function extractHooks(picks: PickEvent[]): string[] {
   const out = new Set<string>();
   for (const p of picks) {
@@ -32,6 +37,10 @@ export function extractHooks(picks: PickEvent[]): string[] {
       continue;
     }
     if (OPENER_NODE_IDS.has(p.node_id)) continue;
+    // v2: engine-authored picks (Phase 4 generation) never produce
+    // verbatim hooks. The user picked the option but didn't author
+    // its words. Seer must not echo planted-option text as theirs.
+    if (p.is_engine_authored === true) continue;
     const ans = p.answer;
     if (typeof ans === 'string') {
       const t = ans.trim();
@@ -131,4 +140,52 @@ export function extractSideChannel(
   }
 
   return signalParts.length > 0 ? { signals: signalParts.join(' \n ') } : {};
+}
+
+// ─── Latency z-score (v2 first-class telemetry) ─────────
+
+/** Compute per-user latency z-scores over the post-opener timing log.
+ *  Returns a new TimingEvent[] with `latency_z` attached. Pure function;
+ *  the engine calls this from algoExtract at survey close (and during
+ *  per-turn telemetry attach in Phase 3 once wired into the cognition
+ *  cycle).
+ *
+ *  Latency is the only physical "body language" tell available to the
+ *  survey (no posture, no expression). A z-score baselines each pick
+ *  against the user's OWN pace — a 30s pick is a flinch from a fast
+ *  user, a fluent answer from a slow user. Outliers (|z| > 1.5) are
+ *  flagged as tells. */
+export function computeLatencyZScores(timing: readonly TimingEvent[]): TimingEvent[] {
+  const postOpener = timing.filter((t) => !OPENER_NODE_IDS.has(t.node_id));
+  if (postOpener.length < 2) {
+    // Not enough samples for a meaningful baseline — return as-is.
+    return [...timing];
+  }
+  // Running mean + standard deviation of post-opener latencies.
+  const mean = postOpener.reduce((sum, t) => sum + t.latency_ms, 0) / postOpener.length;
+  const variance = postOpener.reduce(
+    (sum, t) => sum + (t.latency_ms - mean) ** 2,
+    0,
+  ) / postOpener.length;
+  const stddev = Math.sqrt(variance);
+  if (stddev === 0) {
+    // All identical latencies — no z-score signal available.
+    return timing.map((t) => ({ ...t, latency_z: 0 }));
+  }
+  // Attach z-score to every event (opener events get z=0 since they
+  // weren't in the baseline).
+  return timing.map((t) => {
+    if (OPENER_NODE_IDS.has(t.node_id)) {
+      return { ...t, latency_z: 0 };
+    }
+    const z = (t.latency_ms - mean) / stddev;
+    return { ...t, latency_z: Number(z.toFixed(2)) };
+  });
+}
+
+/** Return the timing events whose |latency_z| exceeds the outlier
+ *  threshold. These are the flinches — picks where the user took
+ *  notably longer or shorter than their own baseline. */
+export function latencyOutliers(timing: readonly TimingEvent[]): TimingEvent[] {
+  return timing.filter((t) => Math.abs(t.latency_z ?? 0) > LATENCY_Z_OUTLIER);
 }

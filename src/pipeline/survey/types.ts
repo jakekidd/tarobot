@@ -221,15 +221,12 @@ export const EMPTY_STORY: StoryObject = {
   hooks: [],
 };
 
-// ─── Legacy ObserverOutput / DetectiveOutput / SideChannel ───
-//
-// These remain so the stubbed Phase 2 schemas / apply functions still
-// typecheck. Phase 3 rewrites the schemas + replaces these types with
-// the v2 LivingDoc-shaped output schemas. Until then they're dead
-// data — agents throw not_implemented_v2 before producing any.
+// ─── Compatibility seams ─────────────────────────────────
 
-/** Telemetry-derived "side channel" reads. Legacy — Phase 3 absorbs
- *  this into doc.scaffold.tells + the algoExtract latency-z output. */
+/** Telemetry-derived "side channel" reads. Kept so the frozen Profile
+ *  shape's `observer_side_channel?: SideChannel` still typechecks.
+ *  In v2 the engine fills it from doc.scaffold.tells + algoExtract
+ *  latency-z at the assembly seam — not from a legacy ObserverOutput. */
 export type SideChannel = {
   signals?: string;
   patterns?: string;
@@ -237,29 +234,10 @@ export type SideChannel = {
   avoidances?: string;
 };
 
-/** Ladder rung name. Used by legacy ObserverOutput.hypothesis_ladder_moves
- *  and DetectiveOutput.{new_hypotheses,hypothesis_ladder_moves}.
- *  Phase 3 deletes both schemas and this type along with them. */
-export type LadderRung = 'confirmed' | 'probable' | 'tentative' | 'contested' | 'refuted' | 'held';
-
-/** Legacy observer output shape. Phase 2: agents stubbed; this type
- *  remains for the schema's inferred output. Phase 3 deletes. */
-export type ObserverOutput = {
-  profile_body: string;
-  hooks: string[];
-  edges: string[];
-  side_channel: SideChannel;
-  cast_notes_updates: Array<{ label: string; notes: string }>;
-  hypothesis_ladder_moves: Array<{ id: string; to: LadderRung }>;
-  reasoning: string;
-};
-
-/** Compatibility shim type for the Seer's heldProbes field. The Seer
- *  (untouched in v2) consumes `Hypothesis[]` with a `.description`
- *  field; the v2 survey produces `Probe[]` with `.claim`. The engine
- *  maps Probe → Hypothesis at the seer-construction boundary. Phase
- *  3/4 work eliminates this shim by either updating the seer's seam
- *  to take Probe[] directly or collapsing the rename. */
+/** Seer-seam compatibility shim. The Seer (untouched in v2) consumes
+ *  `Hypothesis[]` with a `.description` field; the v2 survey produces
+ *  `Probe[]` with `.claim`. The engine maps Probe → Hypothesis at
+ *  the seer-construction boundary. */
 export type Hypothesis = {
   id: string;
   description: string;     // = Probe.claim
@@ -274,20 +252,9 @@ export type Hypothesis = {
   generated_at?: number;
 };
 
-/** Legacy detective output shape. Same fate as ObserverOutput. */
-export type DetectiveOutput = {
-  new_hypotheses: Array<{ id: string; claim: string; start_at?: LadderRung }>;
-  hypothesis_ladder_moves: Array<{ id: string; to: LadderRung }>;
-  story_updates: {
-    fork?: { a: string; b: string; is_stasis: boolean };
-    present_pressure?: string;
-    past_root?: string;
-    stakes?: { on_a: string; on_b: string };
-    hooks?: string[];
-  };
-  private_thoughts: string;
-  reasoning: string;
-};
+// (ObserverOutput, DetectiveOutput, LadderRung deleted in Phase 3 —
+// the v2 schemas live in agents/observer/schema.ts and
+// agents/detective/schema.ts; types inferred via z.infer.)
 
 // ─── Events ─────────────────────────────────────────────
 

@@ -13,11 +13,13 @@ import {
 function makeAdapter(): FakeAdapter {
   return new FakeAdapter()
     .setTool('observer_metabolize', (spec) => {
-      // Use whatever profile_body the engine sent us, echo it back.
       const payload = JSON.parse(spec.user);
-      return defaultObserverOutput(payload.profile_body ?? '');
+      return defaultObserverOutput(payload.doc_v ?? 0);
     })
-    .setTool('detective_step', () => defaultDetectiveOutput());
+    .setTool('detective_step', (spec) => {
+      const payload = JSON.parse(spec.user);
+      return defaultDetectiveOutput(payload.doc?.v ?? 0);
+    });
 }
 
 function makeEngine(opts?: { adapter?: FakeAdapter }): SurveyEngine {
@@ -237,11 +239,23 @@ describe('SurveyEngine — relationship_pick parsing', () => {
 });
 
 describe('SurveyEngine — pipeline path (with FakeAdapter)', () => {
-  // Phase 2: observer + detective agents throw not_implemented_v2.
-  // engine.runObserverTask / runDetectiveTask catch and warn, so the
-  // adapter never sees the call. Phase 3 re-enables this assertion
-  // when the v2 cognition core lands.
-  it.todo('fires observer + detective on post-opener picks (non-returning) — Phase 3');
+  it('fires observer + detective on post-opener picks (non-returning)', async () => {
+    const adapter = makeAdapter();
+    const engine = makeEngine({ adapter });
+    await engine.submitAnswer('jake');
+    await engine.submitAnswer('1990-01-15');
+    await engine.submitAnswer('single');
+    await engine.submitAnswer('what should i do?');
+    // First post-opener pick: the first Pillar.
+    const q = engine.getCurrentQuestion()!;
+    await engine.submitAnswer(q.options[0] ?? 'mind');
+    // Wait for spawned promises to resolve.
+    await new Promise((r) => setTimeout(r, 0));
+    // Should have called both observer + detective at least once.
+    const toolNames = adapter.calls.map((c) => c.tool);
+    expect(toolNames).toContain('observer_metabolize');
+    expect(toolNames).toContain('detective_step');
+  });
 
   it('returning-user lite mode skips BOTH observer + detective', async () => {
     const adapter = makeAdapter();

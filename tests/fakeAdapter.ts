@@ -51,29 +51,37 @@ export class FakeAdapter implements LLMAdapter {
   }
 }
 
-// ─── canned outputs for the v2 agent shapes ───────────────
+// ─── canned outputs for the v2 (Phase 3) agent shapes ─────
 
-/** Minimal valid ObserverOutput — emits a body, no other changes. */
-export function defaultObserverOutput(profileBody: string): unknown {
+/** Minimal valid ObserverOutput — emits an empty delta. The
+ *  `based_on_v` must match the doc.v in the engine's payload, so
+ *  the responder reads it back from the spec.user JSON. */
+export function defaultObserverOutput(based_on_v: number): unknown {
   return {
-    profile_body: profileBody,
-    hooks: [],
-    edges: [],
-    side_channel: {},
-    cast_notes_updates: [],
-    hypothesis_ladder_moves: [],
-    reasoning: 'no-op',
+    delta: {
+      axes_updates: {},
+      cast_updates: [],
+      tells: [],
+      margin_append: '',
+      probe_elevate: [],
+      probe_refute: [],
+    },
+    based_on_v,
+    reasoning: 'test no-op',
   };
 }
 
-/** Minimal valid DetectiveOutput — emits nothing, just scratchpad. */
-export function defaultDetectiveOutput(): unknown {
+/** Minimal valid DetectiveOutput — emits nothing, just an append
+ *  move with no specific node_id (which the engine treats as
+ *  advisory in Phase 3). */
+export function defaultDetectiveOutput(based_on_v: number): unknown {
   return {
-    new_hypotheses: [],
-    hypothesis_ladder_moves: [],
+    scratchpad: '(test scratchpad)',
+    leading_hypothesis: '',
     story_updates: {},
-    private_thoughts: '(test scratchpad)',
-    reasoning: 'no-op',
+    next_move: { kind: 'append', reason: 'test no-op' },
+    based_on_v,
+    reasoning: 'test no-op',
   };
 }
 

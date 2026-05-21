@@ -1,20 +1,33 @@
-// Detective — Phase 2 stub.
+// Detective — v2 prose-shell output, adversarial objective.
 //
-// Phase 3 implements the v2 detective: prose-shell output with
-// leading_hypothesis + next_move (append | revise | conclude),
-// dropping from Opus → Sonnet, adversarial objective (propose the
-// question whose answer would most break its own leading read).
-//
-// In Phase 2 this throws `not_implemented_v2` when called. The
-// engine's runDetectiveTask catches and logs.
+// Drops from 'deep' (Opus) to 'cognition' (Sonnet) per locked
+// architecture. The queue model removes the per-turn latency tax
+// that justified the old parallel-firing design, so sequential
+// Sonnet is the right cost/quality point.
 
 import type { LLMAdapter } from '../../../llm/adapter';
 import type { PipelineContext } from '../../types';
-import type { DetectiveOutput } from './apply';
+import { DetectiveOutputSchema, type DetectiveOutput } from './schema';
+import { DETECTIVE_SYSTEM, DETECTIVE_TOOL } from './prompt';
+import { buildDetectivePayload } from './payload';
 
 export async function runDetective(
-  _adapter: LLMAdapter,
-  _ctx: PipelineContext,
+  adapter: LLMAdapter,
+  ctx: PipelineContext,
 ): Promise<DetectiveOutput> {
-  throw new Error('not_implemented_v2: runDetective lands in Phase 3 (sequential cognition core)');
+  return adapter.invoke(
+    {
+      system: DETECTIVE_SYSTEM,
+      user: JSON.stringify(buildDetectivePayload(ctx), null, 2),
+      tool: DETECTIVE_TOOL,
+      // 'cognition' tier — Sonnet. The detective's scratchpad is the
+      // largest single output in the survey pipeline so the token
+      // budget stays at 4K; quality at this tier is sufficient for
+      // adversarial selection given the deterministic ranker already
+      // pre-filters the candidate set.
+      model: 'cognition',
+      max_tokens: 4000,
+    },
+    DetectiveOutputSchema,
+  );
 }

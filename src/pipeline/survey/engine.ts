@@ -12,10 +12,11 @@
 // See docs/SURVEY_PIPELINE.md for design rationale.
 
 import type { LLMAdapter } from '../llm/adapter';
-import { runFinalObserver, runObserver } from './agents/observer';
-import { extractHooks, extractSideChannel } from './algoExtract';
-import { runDetective } from './agents/detective';
+import { runFinalObserver, runObserver, applyObserverDelta } from './agents/observer';
+import { extractHooks, extractSideChannel, computeLatencyZScores } from './algoExtract';
+import { runDetective, applyDetectiveOutput, type DetectiveApplyResult } from './agents/detective';
 import { runAugur } from './agents/augur';
+import { recomputeCoverage, isCoverageDone } from './coverage';
 import { Seer } from '../seer';
 import { drawForSpread } from '../cards';
 import { FOUR_CARD_DIAMOND } from '../spreads';
@@ -37,8 +38,6 @@ import { ageHeldProbes, generateSeeds } from './seeder';
 import type {
   EngineListener,
   EngineState,
-  ObserverOutput,
-  DetectiveOutput,
   PickEvent,
   PipelineContext,
   QueueItem,
@@ -455,10 +454,10 @@ export class SurveyEngine {
   }
 
   /** Final synthesis observer pass. Fires once at survey close before
-   *  Augur runs. Phase 2 stub: agent throws not_implemented_v2 and the
-   *  catch-warn lets the pipeline proceed without a final synthesis.
-   *  Phase 3 reimplements this as a final delta-update against the
-   *  populated LivingDoc. */
+   *  Augur runs. Runs the observer once more with the 'final' framing
+   *  (full Q&A history, explicit permission to retroactively revise).
+   *  The delta is applied to the doc; the engine then proceeds to
+   *  applyAlgoExtraction (latency z-scores) and submitIntention. */
   private async runFinalObserverPass(): Promise<void> {
     if (this.state.is_returning_user) return;
     try {
@@ -472,23 +471,34 @@ export class SurveyEngine {
         history: this.state.picks_log,
         queue: this.state.queue,
       };
-      await runFinalObserver(this.opts.adapter, baseCtx);
-      // Phase 2: agent throws before producing output; catch below
-      // handles. Phase 3 applies the delta here.
+      const out = await runFinalObserver(this.opts.adapter, baseCtx);
+      if (out.based_on_v !== this.state.doc.v) {
+        // Stale — unusual at final pass but possible if the
+        // engine state changed mid-call. Discard cleanly.
+        return;
+      }
+      const nextDoc = applyObserverDelta(this.state.doc, out.delta);
+      // Recompute coverage after the final delta lands.
+      const finalCoverage = recomputeCoverage(nextDoc, this.state.picks_log);
+      this.setState({
+        doc: { ...nextDoc, v: nextDoc.v + 1, coverage: finalCoverage },
+      });
     } catch (e) {
       console.warn('[survey] final observer pass failed', e);
     }
   }
 
-  /** Run algorithmic extraction over picks_log + timing_log.
-   *  Phase 2: extracts hooks + side_channel but has nowhere to land
-   *  them on the slimmed SurveyProfile. Phase 3 wires the outputs
-   *  into doc.scaffold.tells + a derived observer_side_channel at
-   *  the assembly seam. For now we just compute and discard —
-   *  the computation tests (algoExtract.test.ts) still pass; the
-   *  results aren't yet wired downstream. */
+  /** Run algorithmic extraction over picks_log + timing_log. Attaches
+   *  latency z-scores to timing_log (first-class telemetry). The
+   *  hooks + side_channel computation lands at the assembleProfile
+   *  seam (profile-assembly reads doc.story.hooks for the Seer's
+   *  observer_hooks; latency outliers surface via doc.scaffold.tells
+   *  set by the observer). */
   private applyAlgoExtraction(): void {
-    // Compute for telemetry / debug; results land in Phase 3.
+    const enrichedTiming = computeLatencyZScores(this.state.timing_log);
+    this.setState({ timing_log: enrichedTiming });
+    // Hooks + side_channel still computed for telemetry; the bridge
+    // (profile-assembly.ts) reads doc fields directly for now.
     extractHooks(this.state.picks_log);
     extractSideChannel(this.state.timing_log, this.state.picks_log);
   }
@@ -863,22 +873,24 @@ export class SurveyEngine {
     this.beginIntentionStage();
   }
 
+  /** v2 sequential cognition core. Replaces the parallel
+   *  observer+detective firing of v1. Flow per post-opener pick:
+   *
+   *    seeder (already ran before this in submitAnswer)
+   *      → observer (single writer) → bumps doc.v
+   *      → coverage map recompute → bumps doc.v
+   *      → if coverage indicates done AND pillar-floor cleared:
+   *          beginIntentionStage()
+   *      → else: detective → applies leading_hypothesis +
+   *          story_updates (bumps doc.v); next_move captured for
+   *          telemetry. Phase 4 wires next_move into queue edits.
+   *
+   *  Staleness discipline: observer + detective both echo `based_on_v`
+   *  matching the doc.v they read. Engine compares against current
+   *  doc.v before applying — stale results discard (the engine moved
+   *  on; the next cognition cycle will reconverge). */
   private async runPipeline(pick: PickEvent): Promise<void> {
-    // Each pipeline takes ONE snapshot at fire-time. All agents read this
-    // SAME snapshot in parallel. Cross-agent updates (this pipeline's
-    // observer output → detective context, etc.) DO NOT propagate within
-    // a single pipeline — they land on the NEXT pipeline's snapshot.
-    //
-    // The lag is acceptable: each agent's contribution accumulates in
-    // engine state and the next pipeline catches up. The win is ~2x
-    // wall-clock since we no longer chain observer → detective →
-    // interrogator serially.
-    //
-    // Collision handling lives in the merge functions (apply…). Outputs
-    // are designed to be commutative-ish: notes append, hypotheses upsert
-    // by id, contradictions/hooks append-with-dedupe, choice_draft
-    // replaces. Sibling pipelines stomping the same field → later writer
-    // wins (per spec).
+    if (this.state.is_returning_user) return; // lite mode
 
     const baseCtx: PipelineContext = {
       index: this.state.picks_log.length,
@@ -891,48 +903,89 @@ export class SurveyEngine {
       queue: this.state.queue,
     };
 
-    // Phase 2: observer + detective agents throw not_implemented_v2.
-    // The catch in each task warns and returns; the doc never gets
-    // updated. Phase 3 replaces these with the sequential cognition
-    // core (observer → coverage → detective, single-writer LivingDoc).
-    // Returning users still skip the pipeline (lite mode).
-    const tasks: Promise<unknown>[] = [];
-    if (!this.state.is_returning_user) {
-      tasks.push(this.runObserverTask(baseCtx));
-      tasks.push(this.runDetectiveTask(baseCtx));
+    // ── Stage: observer (single writer) ──
+    const obsResult = await this.runObserverTask(baseCtx);
+    if (!obsResult) return; // observer failed; abort the cycle
+
+    // ── Stage: coverage recompute (deterministic) ──
+    const nextCoverage = recomputeCoverage(this.state.doc, this.state.picks_log);
+    this.setState({
+      doc: {
+        ...this.state.doc,
+        v: this.state.doc.v + 1,
+        coverage: nextCoverage,
+      },
+    });
+    this.emit();
+
+    // ── Stage: check coverage + pillar floor ──
+    const postOpenerCount = this.countPostOpenerPicks();
+    const pillarFloor = getPillars().length;
+    if (postOpenerCount >= pillarFloor && isCoverageDone(this.state.doc.coverage)) {
+      // Adaptive termination — the coverage map says we have enough.
+      // (Phase 5 calibrates the isCoverageDone heuristic.)
+      this.beginIntentionStage();
+      return;
     }
 
-    await Promise.allSettled(tasks);
+    // ── Stage: detective (reads doc + coverage + adversarial candidates) ──
+    const detCtx: PipelineContext = { ...baseCtx, doc: this.state.doc };
+    const detResult = await this.runDetectiveTask(detCtx);
+    if (!detResult) return;
+
+    // Engine reads next_move for telemetry; in Phase 3 only `conclude`
+    // is consumed (gated on pillar floor — Phase 5 calibrates
+    // coverage-done so conclude can fire earlier).
+    if (detResult.move.kind === 'conclude' && postOpenerCount >= pillarFloor) {
+      this.beginIntentionStage();
+    }
+    // Phase 4 will consume append/revise into queue.head/queue.tail.
   }
 
-  /** Phase 2 stub. runObserver throws not_implemented_v2; we catch
-   *  and warn. Phase 3 reimplements with sequential single-writer
-   *  semantics + doc.v staleness gate + applyObserverDelta. */
-  private async runObserverTask(baseCtx: PipelineContext): Promise<void> {
+  /** Run the observer agent. Returns true on successful apply, false
+   *  on failure or staleness. Bumps doc.v on success. */
+  private async runObserverTask(baseCtx: PipelineContext): Promise<boolean> {
     this.agentInFlight.observer += 1; this.publishInflight();
     try {
-      const _out: ObserverOutput = await runObserver(this.opts.adapter, baseCtx);
-      void _out;
-      // Phase 3: applyObserverDelta(state.doc, delta) and bump doc.v.
+      const out = await runObserver(this.opts.adapter, baseCtx);
+      // Staleness gate: discard if the doc moved while we were
+      // thinking. The next cognition cycle will re-base.
+      if (out.based_on_v !== this.state.doc.v) {
+        return false;
+      }
+      const nextDoc = applyObserverDelta(this.state.doc, out.delta);
+      this.setState({ doc: nextDoc });
+      this.emit();
+      return true;
     } catch (e) {
       console.warn('[survey] observer failed', e);
+      return false;
     } finally {
       this.agentInFlight.observer -= 1; this.publishInflight();
     }
   }
 
-  /** Phase 2 stub. runDetective throws not_implemented_v2; we catch
-   *  and warn. Phase 3 reimplements with adversarial Move emission. */
-  private async runDetectiveTask(baseCtx: PipelineContext): Promise<void> {
+  /** Run the detective agent. Applies leading_hypothesis +
+   *  story_updates; returns the result (engine inspects next_move).
+   *  Bumps doc.v on success when the output mutates doc. */
+  private async runDetectiveTask(
+    baseCtx: PipelineContext,
+  ): Promise<DetectiveApplyResult | null> {
     this.agentInFlight.detective += 1; this.publishInflight();
     try {
-      const _out: DetectiveOutput = await runDetective(this.opts.adapter, baseCtx);
-      void _out;
-      // Phase 3: applyDetectiveMove(state, move) — story_updates fold
-      // into doc.story, leading_hypothesis updates scaffold,
-      // next_move drives queue edits.
+      const out = await runDetective(this.opts.adapter, baseCtx);
+      if (out.based_on_v !== this.state.doc.v) {
+        return null;
+      }
+      const applied = applyDetectiveOutput(this.state.doc, out);
+      if (applied.nextDoc !== this.state.doc) {
+        this.setState({ doc: applied.nextDoc });
+        this.emit();
+      }
+      return applied;
     } catch (e) {
       console.warn('[survey] detective failed', e);
+      return null;
     } finally {
       this.agentInFlight.detective -= 1; this.publishInflight();
     }
@@ -984,21 +1037,16 @@ function shuffleInPlace<T>(arr: T[]): T[] {
 
 // ─── test-only re-exports ────────────────────────────────
 //
-// The apply helpers live in their per-agent folders (agents/observer/apply.ts,
-// agents/detective/apply.ts, agents/shared.ts). Re-export with `__test_`
-// prefix so the unit tests can target them directly without going through
-// engine state machine setup. Production code SHOULD import from the
+// v2 apply helpers live in per-agent apply.ts files. Re-export here
+// so unit tests can target them directly without going through engine
+// state machine setup. Production code SHOULD import from the
 // per-agent folders, not from engine.ts.
 
-export {
-  applyObserverOutput as __test_applyObserverOutput,
-} from './agents/observer';
+export { applyObserverDelta as __test_applyObserverDelta } from './agents/observer';
 export {
   applyDetectiveOutput as __test_applyDetectiveOutput,
-  addNewHypotheses as __test_addNewHypotheses,
   mergeStoryUpdates as __test_mergeStoryUpdates,
 } from './agents/detective';
-export {
-  applyLadderMoves as __test_applyLadderMoves,
-  removeFromLadder as __test_removeFromLadder,
-} from './agents/shared';
+export { recomputeCoverage as __test_recomputeCoverage, isCoverageDone as __test_isCoverageDone } from './coverage';
+export { rankAdversarial as __test_rankAdversarial } from './adversarial';
+export { computeLatencyZScores as __test_computeLatencyZScores } from './algoExtract';
