@@ -31,18 +31,14 @@ import { ReturningUserModal } from './survey/ReturningUserModal';
 import { downloadTranscript, persistLog } from './survey/transcript';
 import { setDizzy } from './scene/dizzyStore';
 import {
-  appendVisitToPerson,
-  clearActiveSession,
-  createPersonFromVisit,
   deletePerson,
   listKnownNames,
-  saveActiveSession,
-  savePerson,
-  getPerson,
+  prependIntentionToPerson,
+  savePersonFromFinalState,
+  type Person,
   type Session,
-  type VisitRecord,
 } from '../storage';
-import { findPeopleMatchingName, pickReturnLine, type ReturningMatch } from '../pipeline/survey';
+import { findPeopleMatchingName, type ReturningMatch } from '../pipeline/survey';
 import type { Seer } from '../pipeline/seer';
 import type { SurveyProfile } from '../pipeline/survey';
 import { publishDebug, clearDebug } from '../debug/debugBus';
@@ -61,15 +57,36 @@ const READY_BUTTON_MIN_TURNS = 6;
 type Props = {
   apiKey: string;
   session: Session;
+  /** When non-null, the engine hydrates from this Person record and
+   *  jumps straight to the intention question — no survey, no
+   *  synthesis, no save. The "load" path. */
+  loadedPerson?: Person | null;
   /** Survey hands off a ready Seer (intro pre-built) instead of a brief. */
   onComplete: (seer: Seer) => void;
 };
 
-export function Survey({ apiKey, session, onComplete }: Props) {
+export function Survey({ apiKey, session, loadedPerson, onComplete }: Props) {
   const { state, currentQuestion, submitAnswer, submitIntention, skipAhead, canUndo, undo, seer, engine } = useSurveyEngine({
     apiKey,
     sessionId: session.id,
   });
+
+  // Loaded-from-save bootstrap: on mount, if we have a saved Person,
+  // hydrate the engine directly and skip the survey.
+  const loadedRef = useRef(false);
+  useEffect(() => {
+    if (loadedRef.current) return;
+    loadedRef.current = true;
+    if (loadedPerson) {
+      engine.loadFromSave({
+        profile: loadedPerson.profile,
+        investigation: loadedPerson.investigation,
+        picks_log: loadedPerson.picks_log,
+        timing_log: loadedPerson.timing_log,
+        prior_intentions: loadedPerson.intentions,
+      });
+    }
+  }, [engine, loadedPerson]);
 
   const [speaking, setSpeaking] = useState(false);
   const persistedFor = useRef<string | null>(null);
@@ -84,6 +101,21 @@ export function Survey({ apiKey, session, onComplete }: Props) {
   type FarewellState = 'idle' | 'speaking' | 'disintegrating';
   const [farewell, setFarewell] = useState<FarewellState>('idle');
   const seerRef = useRef<Seer | null>(null);
+
+  // Confirmation substate — runs between awaiting_intention transition
+  // and the IntentConfirm UI. New-completion path shows the green
+  // "✓ Your survey results have been saved." line; loaded path shows
+  // "Welcome back, <name>." Both wait 2.5s AFTER the typewriter
+  // finishes before letting IntentConfirm render.
+  type ConfirmState = 'pending' | 'typing' | 'holding' | 'done';
+  // For LOADED runs the kind is known up-front (welcoming); for fresh
+  // runs it's set when the engine flips finalizing → awaiting_intention
+  // (in the save-once effect below).
+  const [confirm, setConfirm] = useState<ConfirmState>(loadedPerson ? 'typing' : 'pending');
+  const [confirmKind, setConfirmKind] = useState<'saving' | 'welcoming' | null>(
+    loadedPerson ? 'welcoming' : null,
+  );
+  const personIdRef = useRef<string | null>(loadedPerson?.id ?? null);
 
   // Orbiting-cards scope: this subsystem is global (mounted in App via
   // TarobotScene) but should ONLY render cards while a survey is active.
@@ -120,10 +152,8 @@ export function Survey({ apiKey, session, onComplete }: Props) {
   }
 
   // ─── returning-user line (mascot) ─────────────────────
-  // Set when user picks RESUME on the modal. Rendered in the dialogue
-  // slot for one tick, then cleared so the next question's preamble
-  // takes over.
-  const [returnLine, setReturnLine] = useState<string | null>(null);
+  // (returning-user "welcome back" line is now handled by the
+  //  confirmation substate above — see confirmKind === 'welcoming'.)
 
   // ─── relationship_pick: "i'm sensing..." mascot line ───
   // Set by RelationshipPickForm via callback while the user is typing
@@ -133,10 +163,19 @@ export function Survey({ apiKey, session, onComplete }: Props) {
   const [sensing, setSensing] = useState<{ name: string; color: string } | null>(null);
 
   function handleResume(match: ReturningMatch) {
-    engine.confirmReturningPerson(match);
+    // RESUME on the name-match modal: hydrate the engine from the
+    // saved snapshot (skip the survey, jump to intention prompt).
+    // Mirrors the LOAD button in ResumeMenu.
+    engine.loadFromSave({
+      profile: match.profile,
+      investigation: match.investigation,
+      picks_log: match.picks_log,
+      timing_log: match.timing_log,
+      prior_intentions: match.prior_intentions,
+    });
     personIdRef.current = match.person_id;
-    setPersonIdState(match.person_id);
-    setReturnLine(pickReturnLine(state.profile.name));
+    setConfirmKind('welcoming');
+    setConfirm('typing');
     setPendingMatches(null);
   }
 
@@ -152,79 +191,45 @@ export function Survey({ apiKey, session, onComplete }: Props) {
     setPendingMatches(null);
   }
 
-  // ─── save-threshold persistence ───────────────────────
-  // Tracked Person id for THIS visit. null until either:
-  //   - RESUME modal confirms (set in handleResume), or
-  //   - save threshold creates a fresh Person (set in the effect below).
-  // Engine doesn't know or care about person_id — Survey owns it.
-  const personIdRef = useRef<string | null>(null);
-  const [personIdState, setPersonIdState] = useState<string | null>(null);
-
+  // ─── save-once persistence ───────────────────────────
+  // The Person record is written EXACTLY ONCE per survey: at the moment
+  // the engine transitions finalizing → awaiting_intention (the synthesis
+  // is done, the snapshot is final). Save games are immutable from that
+  // point — a returning visitor LOADs them, asks a different intention,
+  // and gets a fresh reading from the same survey state.
+  //
+  // Loaded sessions skip this entirely (loadedPerson is non-null).
+  const savedThisSession = useRef(false);
   useEffect(() => {
-    if (!allOpenersAnswered(state.profile, state.asked_node_ids)) return;
-    const profileSnapshot = cloneProfile(state.profile);
-    const answeredFromSession = state.picks_log.map((p) => p.node_id);
-
-    if (personIdRef.current === null) {
-      // Crossing the threshold for the first time as a NEW user. Create
-      // a Person shell now so the resume list shows them.
-      const visit: VisitRecord = {
-        visit_id: state.session_id,
-        started_at: state.started_at,
-        answered_node_ids: answeredFromSession,
-      };
-      const p = createPersonFromVisit({ profile: profileSnapshot, visit });
-      personIdRef.current = p.id;
-      setPersonIdState(p.id);
-    } else {
-      // Update the existing Person's profile + answered union as the
-      // visit progresses. We do NOT push a new visit record here — only
-      // at survey close.
-      const existing = getPerson(personIdRef.current);
-      if (existing) {
-        const unionAnswered = Array.from(new Set([...existing.history.answered_node_ids, ...answeredFromSession]));
-        savePerson({
-          ...existing,
-          profile: profileSnapshot,
-          history: {
-            ...existing.history,
-            answered_node_ids: unionAnswered,
-          },
-        });
-      }
-    }
-
-    // Save the active session so resume works mid-visit.
-    saveActiveSession({
-      ...session,
-      person_id: personIdRef.current ?? undefined,
-      engine: state,
+    if (loadedPerson) return;                     // load path doesn't save
+    if (savedThisSession.current) return;
+    if (state.stage !== 'awaiting_intention') return;
+    if (!state.profile.name) return;              // need at least a name
+    savedThisSession.current = true;
+    const person = savePersonFromFinalState({
+      profile: cloneProfile(state.profile),
+      investigation: JSON.parse(JSON.stringify(state.investigation)) as typeof state.investigation,
+      picks_log: [...state.picks_log],
+      timing_log: [...state.timing_log],
     });
-  }, [state, session]);
+    personIdRef.current = person.id;
+    // setState here is the legitimate downstream of the side-effect
+    // (Person write). Both flips coordinate the confirmation dialogue;
+    // they don't drive a re-derivable visible state.
+    /* eslint-disable react-hooks/set-state-in-effect */
+    setConfirmKind('saving');
+    setConfirm('typing');
+    /* eslint-enable react-hooks/set-state-in-effect */
+  }, [loadedPerson, state.stage, state]);
 
-  // ─── close: fold visit into Person, hand off seer ─────
+  // ─── close: hand off seer + record intention against Person ───
   useEffect(() => {
     if (state.stage === 'reading_ready' && seer && persistedFor.current !== state.session_id) {
       persistLog(state, null);
       persistedFor.current = state.session_id;
-
-      // Finalize: append this completed visit to the Person record.
-      const pid = personIdRef.current;
-      if (pid) {
-        const visit: VisitRecord = {
-          visit_id: state.session_id,
-          started_at: state.started_at,
-          completed_at: Date.now(),
-          intention: state.chosen_intention ?? undefined,
-          answered_node_ids: state.picks_log.map((p) => p.node_id),
-        };
-        appendVisitToPerson({
-          person_id: pid,
-          profile: cloneProfile(state.profile),
-          visit,
-        });
+      if (personIdRef.current && state.chosen_intention) {
+        prependIntentionToPerson(personIdRef.current, state.chosen_intention);
       }
-      clearActiveSession();
     }
   }, [state.stage, seer, state]);
 
@@ -257,9 +262,9 @@ export function Survey({ apiKey, session, onComplete }: Props) {
     publishDebug('survey.picks', state.picks_log.length);
     publishDebug('survey.queue', state.queue.map((q) => q.node_id).join(','));
     publishDebug('survey.asked', state.asked_node_ids.join(','));
-    publishDebug('survey.person', personIdState ?? '');
+    publishDebug('survey.person', personIdRef.current ?? '');
     publishSurveyState(state);
-  }, [state, state.thinking, state.picks_log.length, state.queue, state.asked_node_ids, personIdState]);
+  }, [state, state.thinking, state.picks_log.length, state.queue, state.asked_node_ids]);
 
   // Clear the bus snapshot when Survey unmounts.
   useEffect(() => () => publishSurveyState(null), []);
@@ -275,8 +280,12 @@ export function Survey({ apiKey, session, onComplete }: Props) {
   // ─── render ───────────────────────────────────────────
 
   const stage = state.stage;
+  const isFinalizing = stage === 'finalizing';
   const isAwaitingIntention = stage === 'awaiting_intention';
   const isCompiling = stage === 'compiling';
+  // While the confirmation dialogue is on-screen (saving / welcoming),
+  // suppress the IntentConfirm widget below.
+  const isConfirming = confirm === 'typing' || confirm === 'holding';
 
   // Gag interlude — interrupt exactly once, when the user has answered
   // 12 post-opener questions and a 13th is queued. Pure UI; the engine
@@ -309,15 +318,28 @@ export function Survey({ apiKey, session, onComplete }: Props) {
 
   let dialogText = '';
   let dialogKey = 'empty';
+  let dialogClass: string | undefined;
   if (farewell !== 'idle') {
     dialogText = 'ok. have fun, be safe. goodbye';
     dialogKey = 'farewell';
-  } else if (returnLine) {
-    dialogText = returnLine;
-    dialogKey = 'return-line';
   } else if (pendingMatches) {
     dialogText = 'wait. let me look at you.';
     dialogKey = 'returning-check';
+  } else if (isConfirming) {
+    // Green-text save / welcome confirmation. Holds 2.5s after typewriter
+    // before IntentConfirm renders (handled in the onDone effect chain).
+    if (confirmKind === 'welcoming') {
+      const nm = (loadedPerson?.profile?.name || state.profile.name || 'traveler').toLowerCase();
+      dialogText = `welcome back, ${nm}.`;
+      dialogKey = 'confirm-welcome';
+    } else {
+      dialogText = '✓ your survey results have been saved.';
+      dialogKey = 'confirm-saved';
+    }
+    dialogClass = 'dialogue-text--confirmation';
+  } else if (isFinalizing) {
+    dialogText = 'sitting with what you told me.';
+    dialogKey = 'finalizing';
   } else if (isAwaitingIntention) {
     // Dialogue carries the prompt for IntentConfirm now — the form below
     // is just the input + confirm button (no duplicate text).
@@ -341,14 +363,6 @@ export function Survey({ apiKey, session, onComplete }: Props) {
     dialogText = '…';
     dialogKey = 'thinking';
   }
-
-  // Clear the return line one tick after it's shown, so the next
-  // question's preamble takes over the dialogue slot.
-  useEffect(() => {
-    if (!returnLine) return;
-    const t = setTimeout(() => setReturnLine(null), 2200);
-    return () => clearTimeout(t);
-  }, [returnLine]);
 
   const modalOpen = pendingMatches !== null;
   // The intent opener (and the closing IntentConfirm) get a red treatment
@@ -392,17 +406,24 @@ export function Survey({ apiKey, session, onComplete }: Props) {
           <Dialogue
             key={dialogKey}
             text={dialogText}
+            className={dialogClass}
             // Quarter speed during the farewell — the goodbye lands
             // slowly, gives the user a moment before the turtle goes.
             charDelayMs={farewell === 'speaking' || farewell === 'disintegrating' ? 112 : undefined}
-            // Disable click-skip on the farewell — let it play out.
-            clickToSkip={farewell === 'idle'}
+            // Disable click-skip on the farewell + confirmation — let
+            // them play out so the timing reads right.
+            clickToSkip={farewell === 'idle' && !isConfirming}
             onTypingChange={setSpeaking}
             onDone={
               farewell === 'speaking'
                 ? () => {
                     setFarewell('disintegrating');
                     triggerMascotDisintegrate();
+                  }
+                : isConfirming
+                ? () => {
+                    setConfirm('holding');
+                    window.setTimeout(() => setConfirm('done'), 2500);
                   }
                 : undefined
             }
@@ -511,7 +532,7 @@ export function Survey({ apiKey, session, onComplete }: Props) {
             <div className="ui-frame__waiting"><Spinner label="thinking" /></div>
           )}
 
-          {isAwaitingIntention && (
+          {isAwaitingIntention && confirm === 'done' && (
             <div className="survey__intentions">
               {lastIntention && (
                 <p className="survey__last-intention">
@@ -569,19 +590,6 @@ export function Survey({ apiKey, session, onComplete }: Props) {
 }
 
 // ─── helpers ────────────────────────────────────────────
-
-/** Save threshold predicate: a Person record is only written once the
- *  identifying openers are filled (name, birthday, birth_time, intent).
- *  The intent slot is counted via `asked_node_ids` because `initial_intention`
- *  can legitimately be null (user pressed "I DON'T KNOW"). */
-function allOpenersAnswered(profile: SurveyProfile, askedNodeIds: string[]): boolean {
-  return (
-    profile.name.trim().length > 0 &&
-    profile.birthday !== null &&
-    profile.birth_time_bracket !== null &&
-    askedNodeIds.includes('intent')
-  );
-}
 
 function cloneProfile(p: SurveyProfile): SurveyProfile {
   return JSON.parse(JSON.stringify(p)) as SurveyProfile;

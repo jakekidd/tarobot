@@ -416,8 +416,9 @@ export type CloseReason = 'user_exit' | 'queue_exhausted' | 'cap';
  */
 export type SurveyStage =
   | 'questions'
-  | 'awaiting_intention'
-  | 'compiling'
+  | 'finalizing'           // queue empty; final observer pass + algo extraction running
+  | 'awaiting_intention'   // finalize complete; show "saved" confirmation then intent
+  | 'compiling'            // intention picked; augur + seer running
   | 'reading_ready';
 
 export type EngineState = {

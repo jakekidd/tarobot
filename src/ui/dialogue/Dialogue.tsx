@@ -10,6 +10,9 @@ type Props = {
   onTypingChange?: (typing: boolean) => void;
   onDone?: () => void;
   clickToSkip?: boolean;
+  /** Optional extra class on the inner dialogue-text span — used to
+   *  recolor the typed copy (e.g. green for save-confirmations). */
+  className?: string;
 };
 
 /**
@@ -25,6 +28,7 @@ export function Dialogue({
   onTypingChange,
   onDone,
   clickToSkip = true,
+  className,
 }: Props) {
   const [settings] = useState(() => loadSettings());
   const cdms = charDelayMs ?? settings.charDelayMs;
@@ -51,7 +55,7 @@ export function Dialogue({
       {/* Measurement layer — reserves the box at full final size. */}
       <span className="dialogue-measure" aria-hidden>{text}</span>
       {/* Visible typewriter text — absolutely positioned over the measure. */}
-      <span className="dialogue-text">
+      <span className={`dialogue-text${className ? ` ${className}` : ''}`}>
         {displayed}
         {!done && <span className="dialogue-caret" aria-hidden>▍</span>}
       </span>

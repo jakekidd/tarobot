@@ -4,6 +4,7 @@ import {
   loadApiKey,
   newSession,
   clearActiveSession,
+  type Person,
   type Session,
 } from './storage';
 import { KeyEntry } from './ui/KeyEntry';
@@ -35,7 +36,7 @@ type Phase =
   | { kind: 'menu' }
   | { kind: 'resume' }
   | { kind: 'settings' }
-  | { kind: 'survey'; session: Session }
+  | { kind: 'survey'; session: Session; loadedPerson?: Person | null }
   | { kind: 'reading'; session: Session; seer: Seer }
   | { kind: 'pipeline' };
 
@@ -65,6 +66,13 @@ export function App() {
     // letting it linger would mean stale engine state in storage.
     if (phase.kind === 'survey') clearActiveSession();
     setPhase({ kind: 'menu' });
+  }
+
+  /** Skip the survey: hydrate from a saved Person and go straight to
+   *  the intention prompt. Person record is NOT touched (immutable). */
+  function startLoadedReading(person: Person) {
+    const s = newSession();
+    setPhase({ kind: 'survey', session: s, loadedPerson: person });
   }
 
   function startNewReading() {
@@ -170,7 +178,7 @@ export function App() {
           )}
 
           {phase.kind === 'resume' && (
-            <ResumeMenu onBack={goMenu} />
+            <ResumeMenu onBack={goMenu} onLoad={startLoadedReading} />
           )}
 
           {phase.kind === 'settings' && <Settings onBack={goMenu} />}
@@ -179,6 +187,7 @@ export function App() {
             <SurveyScreen
               apiKey={apiKey}
               session={phase.session}
+              loadedPerson={phase.loadedPerson}
               onComplete={(seer) => onSurveyComplete(phase.session, seer)}
             />
           )}

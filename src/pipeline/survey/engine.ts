@@ -21,7 +21,8 @@ import { drawForSpread } from '../cards';
 import { FOUR_CARD_DIAMOND } from '../spreads';
 import { assembleProfile } from './profile-assembly';
 import { computeAstroProfile, parseBirthDate } from '../astrology';
-import type { ReturningMatch } from './returning';
+// (ReturningMatch import dropped — confirmReturningPerson was removed
+//  in the save-game restructure. Survey UI calls loadFromSave directly.)
 import { publishDebug } from '../../debug/debugBus';
 import {
   getNode,
@@ -333,9 +334,52 @@ export class SurveyEngine {
   /** Sync transition from questions → awaiting_intention. No LLM call.
    *  The user provides their own intention via the IntentConfirm UI;
    *  the engine doesn't guess. */
+  /** Survey questions are done — run the end-of-survey synthesis
+   *  (final observer pass + algorithmic extraction), then transition
+   *  to awaiting_intention. This is what produces the "saved" snapshot
+   *  the Person record persists. Augur is deferred to submitIntention
+   *  (it depends on the intention text). */
   private beginIntentionStage(): void {
     if (this.state.stage !== 'questions') return;   // idempotent
-    this.setState({ stage: 'awaiting_intention', thinking: false });
+    this.setState({ stage: 'finalizing', thinking: true });
+    this.emit();
+    void (async () => {
+      try {
+        await this.runFinalObserverPass();
+        this.applyAlgoExtraction();
+      } catch (e) {
+        console.warn('[survey] finalize failed', e);
+      }
+      this.setState({ stage: 'awaiting_intention', thinking: false });
+      this.emit();
+    })();
+  }
+
+  /** Hydrate the engine directly from a saved Person record and jump to
+   *  awaiting_intention. Skips all questions + the synthesis pass — the
+   *  saved snapshot IS the post-synthesis state. Caller must ensure the
+   *  saved record has profile + investigation + picks_log (modern Person
+   *  schema; legacy records without these are rejected by the loader UI). */
+  loadFromSave(args: {
+    profile: SurveyProfile;
+    investigation: Investigation;
+    picks_log: PickEvent[];
+    timing_log?: TimingEvent[];
+    prior_intentions?: string[];
+  }): void {
+    this.setState({
+      profile: args.profile,
+      investigation: args.investigation,
+      picks_log: args.picks_log,
+      timing_log: args.timing_log ?? [],
+      asked_node_ids: args.picks_log.map((p) => p.node_id),
+      queue: [],
+      is_returning_user: true,
+      prior_intentions: args.prior_intentions ?? [],
+      stage: 'awaiting_intention',
+      thinking: false,
+      closed: false,
+    });
     this.emit();
   }
 
@@ -362,41 +406,24 @@ export class SurveyEngine {
 
     const drawn = drawForSpread(FOUR_CARD_DIAMOND);
 
-    // End-of-survey compile sequence. Observer and Augur run in PARALLEL
-    // since Augur consumes story (from the detective, already populated)
-    // + identity + cast — not the observer's output. Saves ~5-15s wall
-    // clock on the "seer is preparing" wait.
-    //
-    //   1. (parallel) final observer synthesis pass — full Q&A history,
-    //      revise Q1-5, populate ## tensions. Result lands in profile.body.
-    //      (parallel) Augur — outline + N parallel fill calls. Held probes
-    //      from the reaper get passed so the augur can write probe-outcomes.
-    //   2. (post-both) algorithmic hooks + side_channel extraction.
-    //   3. (post-both) assemble Profile snapshot for the Seer — has
-    //      observer's final body AND the algo-extracted fields.
-    //   4. Seer constructed; its intro pipeline runs in its constructor.
+    // Synthesis already happened in beginIntentionStage (or never, for
+    // loaded sessions — the saved snapshot IS post-synthesis). Here we
+    // just run Augur (intention-dependent) and build the Seer.
     void (async () => {
       try {
         const heldProbes = [...this.state.investigation.hypotheses.held]
           .sort((a, b) => (b.age_in_turns ?? 0) - (a.age_in_turns ?? 0));
-        // Augur uses pre-observer profile — it doesn't read observer_body
-        // / hooks / edges / side_channel. Run concurrently with observer.
-        const preObserverProfile = assembleProfile(this.state, '');
-        const [, outcomes] = await Promise.all([
-          this.runFinalObserverPass(),
-          runAugur(this.opts.adapter, {
-            profile: preObserverProfile,
-            intention: cleaned,
-            surveyHistory: this.state.picks_log,
-            story: this.state.investigation.story,
-            heldProbes,
-          }),
-        ]);
-        this.applyAlgoExtraction();
-        const finalProfile = assembleProfile(this.state, '');
+        const profile = assembleProfile(this.state, '');
+        const outcomes = await runAugur(this.opts.adapter, {
+          profile,
+          intention: cleaned,
+          surveyHistory: this.state.picks_log,
+          story: this.state.investigation.story,
+          heldProbes,
+        });
         this.seer = new Seer({
           adapter: this.opts.adapter,
-          profile: finalProfile,
+          profile,
           surveyHistory: this.state.picks_log,
           intention: cleaned,
           drawn,
@@ -468,34 +495,9 @@ export class SurveyEngine {
     return this.seer;
   }
 
-  /** UI confirmed a returning Person (via the RESUME modal). Switch
-   *  the engine into returning-mode mid-flight: fold the Person's
-   *  profile + history into state, drop any pending opener questions
-   *  whose data is already known, and seed the starter pool (deduped). */
-  confirmReturningPerson(match: ReturningMatch): void {
-    // Seed everything from the matched profile EXCEPT name (already set
-    // by the user in Q1, may differ in casing/spelling from storage).
-    this.setState({
-      profile: {
-        ...this.state.profile,
-        birthday: match.profile.birthday,
-        sun_sign: match.profile.sun_sign,
-        life_path: match.profile.life_path,
-        birth_card: match.profile.birth_card,
-        age_bracket: match.profile.age_bracket,
-        birth_time_bracket: match.profile.birth_time_bracket,
-        // initial_intention not carried across visits — each visit asks
-        // its own question via the intent opener.
-      },
-      is_returning_user: true,
-      prior_answered_node_ids: match.answered_node_ids,
-      prior_intentions: match.prior_intentions,
-      prior_session_summary: match.display_summary,
-    });
-    this.clearOpenersFromQueue();
-    if (!this.starterSeedFired) this.seedPostOpenerQueue();
-    this.emit();
-  }
+  // (confirmReturningPerson removed. The new flow uses loadFromSave —
+  //  RESUME on the name-match modal hydrates from the saved snapshot
+  //  and jumps straight to awaiting_intention. No mid-flight fold.)
 
   /** UI confirmed START FRESH on the modal. No engine state to flip —
    *  we were already in new-user mode. Exposed for symmetry and so the
@@ -749,14 +751,6 @@ export class SurveyEngine {
       return false;
     }
     return false;
-  }
-
-  /** Drop any remaining opener nodes from the front of the queue.
-   *  Called when we detect a returning user mid-opener-chain. */
-  private clearOpenersFromQueue(): void {
-    this.setState({
-      queue: this.state.queue.filter((q) => !OPENER_NODE_IDS.has(q.node_id)),
-    });
   }
 
   /** Pre-roll the post-opener queue. New users get the 6 Pillars (in

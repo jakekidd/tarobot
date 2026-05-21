@@ -15,7 +15,13 @@
 //   tarobot:active_session
 //   tarobot:settings
 
-import type { EngineState, SurveyProfile } from './pipeline/survey';
+import type {
+  EngineState,
+  Investigation,
+  PickEvent,
+  SurveyProfile,
+  TimingEvent,
+} from './pipeline/survey';
 import type { PersonaId } from './pipeline';
 import { DEFAULT_MASCOT_ID, type MascotId } from './ui/scene/mascots';
 
@@ -25,7 +31,6 @@ const K_ACTIVE_SESSION = 'tarobot:active_session';
 const K_SETTINGS = 'tarobot:settings';
 
 const PEOPLE_CAP = 200;
-const HISTORY_VISITS_CAP = 20;
 
 // ─── API key ────────────────────────────────────────────
 
@@ -45,28 +50,25 @@ export function clearApiKey(): void {
 
 // ─── Person (durable record) ────────────────────────────
 
-export type VisitRecord = {
-  visit_id: string;
-  started_at: number;
-  completed_at?: number;
-  intention?: string;
-  answered_node_ids: string[];
-  /** Optional 1-line summary of the reading for "last time you..." UI. */
-  reading_summary?: string;
-};
-
 export type Person = {
   id: string;
   /** Lowercase first name — the primary match key. Original casing is
    *  preserved in `profile.name`. */
   name: string;
-  /** The most-recent SurveyProfile, used to seed returning visits. */
+  /** Final post-synthesis SurveyProfile (immutable once saved). */
   profile: SurveyProfile;
-  history: {
-    visits: VisitRecord[];        // most-recent first; capped at HISTORY_VISITS_CAP
-    answered_node_ids: string[];  // union across all visits
-    intentions: string[];         // most-recent first
-  };
+  /** Final post-synthesis Investigation (story + hypothesis ladder + cast). */
+  investigation: Investigation;
+  /** Full picks_log from the survey — the Seer reads this as
+   *  surveyHistory in the director payloads. */
+  picks_log: PickEvent[];
+  /** Optional telemetry log (latency, initial-vs-final picks). Kept for
+   *  algoExtract regeneration if needed; not load-bearing. */
+  timing_log?: TimingEvent[];
+  /** History of intentions the user has asked (most-recent first).
+   *  Each LOAD + new intention prepends here so we can show
+   *  "last time you asked: X" hints. */
+  intentions: string[];
   created_at: number;
   last_visit_at: number;
 };
@@ -194,55 +196,58 @@ export function completeActiveSession(): void {
 
 // ─── Folding active session into Person ─────────────────
 
-/** Build a fresh Person from a closed session's profile + visit record.
- *  Caller supplies the visit metadata (intention, node ids, summary). */
-export function createPersonFromVisit(args: {
+/** Persist a Person record from the post-synthesis engine snapshot.
+ *  Called ONCE at end-of-survey (after the final observer pass + algo
+ *  extraction land). Save games are immutable from this point — they
+ *  exist so the user can reload their survey state and ask a different
+ *  intention without re-running the questionnaire. */
+export function savePersonFromFinalState(args: {
   profile: SurveyProfile;
-  visit: VisitRecord;
+  investigation: Investigation;
+  picks_log: PickEvent[];
+  timing_log?: TimingEvent[];
 }): Person {
   const name = args.profile.name.trim().toLowerCase();
+  const now = Date.now();
   const person: Person = {
     id: makeId(),
     name,
     profile: args.profile,
-    history: {
-      visits: [args.visit],
-      answered_node_ids: [...args.visit.answered_node_ids],
-      intentions: args.visit.intention ? [args.visit.intention] : [],
-    },
-    created_at: Date.now(),
-    last_visit_at: Date.now(),
+    investigation: args.investigation,
+    picks_log: args.picks_log,
+    timing_log: args.timing_log,
+    intentions: [],
+    created_at: now,
+    last_visit_at: now,
   };
   savePerson(person);
   return person;
 }
 
-/** Fold a new visit into an existing Person. Updates profile (latest
- *  wins for atomic fields), appends to visit history (capped),
- *  unions answered question ids, prepends new intention. */
-export function appendVisitToPerson(args: {
-  person_id: string;
-  profile: SurveyProfile;
-  visit: VisitRecord;
-}): Person | null {
+/** Record an intention against an existing Person without rewriting
+ *  the survey snapshot. Used on each LOAD-and-ask, so we can show
+ *  "last time you asked: X" hints. */
+export function prependIntentionToPerson(person_id: string, intention: string): void {
   const list = loadPeopleRaw();
-  const idx = list.findIndex((p) => p.id === args.person_id);
-  if (idx < 0) return null;
+  const idx = list.findIndex((p) => p.id === person_id);
+  if (idx < 0) return;
   const prior = list[idx]!;
-  const visits = [args.visit, ...prior.history.visits].slice(0, HISTORY_VISITS_CAP);
-  const answered = unionStrings(prior.history.answered_node_ids, args.visit.answered_node_ids);
-  const intentions = args.visit.intention
-    ? prependUnique(prior.history.intentions, args.visit.intention)
-    : prior.history.intentions;
-  const next: Person = {
-    ...prior,
-    profile: args.profile,
-    history: { visits, answered_node_ids: answered, intentions },
-    last_visit_at: Date.now(),
-  };
-  list[idx] = next;
+  const intentions = prependUnique(prior.intentions ?? [], intention);
+  list[idx] = { ...prior, intentions, last_visit_at: Date.now() };
   writePeople(list);
-  return next;
+}
+
+/** Drop any pre-schema-change Persons (the old shape lacked
+ *  `investigation` + `picks_log` so they can't be loaded). Called
+ *  once from main.tsx at boot. */
+export function purgeLegacyPersons(): void {
+  const list = loadPeopleRaw();
+  const survivors = list.filter(
+    (p) => p.investigation && Array.isArray(p.picks_log),
+  );
+  if (survivors.length !== list.length) {
+    writePeople(survivors);
+  }
 }
 
 // ─── Settings ───────────────────────────────────────────
@@ -299,10 +304,6 @@ function makeId(): string {
     return crypto.randomUUID();
   }
   return `s_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
-}
-
-function unionStrings(a: string[], b: string[]): string[] {
-  return Array.from(new Set([...a, ...b]));
 }
 
 function prependUnique(list: string[], value: string): string[] {

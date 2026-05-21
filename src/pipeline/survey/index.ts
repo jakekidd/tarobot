@@ -10,7 +10,7 @@ export type { EngineOpts } from './engine';
 export { AnthropicAdapter } from '../llm';
 export type { LLMAdapter, ModelTier, ToolDef, InvocationSpec } from '../llm';
 
-export { findPeopleMatchingName, seedFromPerson } from './returning';
+export { findPeopleMatchingName } from './returning';
 export type { ReturningMatch } from './returning';
 
 export {

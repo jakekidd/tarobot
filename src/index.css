@@ -1075,6 +1075,14 @@ input, textarea {
   letter-spacing: inherit;
 }
 
+/* Save / welcome confirmation — green typed copy. Sits over the same
+   dialogue stage; lasts 2.5s after typewriter completes, then the
+   IntentConfirm widget renders below. */
+.dialogue-text--confirmation {
+  color: #6ee7b7;
+  text-shadow: 0 0 12px rgba(52, 211, 153, 0.35);
+}
+
 .dialogue-measure {
   visibility: hidden;
   display: -webkit-box;
@@ -1288,10 +1296,10 @@ input, textarea {
 }
 
 .profile-row__resume,
+.profile-row__load,
 .profile-row__delete {
-  width: 2.6rem;
   height: 2.6rem;
-  font-size: 1.4rem;
+  font-size: 1rem;
   cursor: pointer;
   border-radius: 0;
   font-family: var(--font-mono);
@@ -1300,6 +1308,22 @@ input, textarea {
   justify-content: center;
   transition: filter 0.1s;
   line-height: 1;
+}
+.profile-row__resume,
+.profile-row__delete {
+  width: 2.6rem;
+  font-size: 1.4rem;
+}
+.profile-row__load {
+  padding: 0 0.9rem;
+  letter-spacing: 0.16em;
+  background: rgba(124, 58, 237, 0.18);
+  color: #e8e0ff;
+  border: 1px solid var(--violet, #7c3aed);
+}
+.profile-row__load:hover:not(:disabled) {
+  background: rgba(124, 58, 237, 0.32);
+  color: #fff;
 }
 .profile-row__resume {
   background: var(--color-white);
@@ -1315,6 +1339,7 @@ input, textarea {
 }
 .profile-row__delete:hover:not(:disabled) { filter: brightness(0.92); }
 .profile-row__resume:disabled,
+.profile-row__load:disabled,
 .profile-row__delete:disabled { opacity: 0.35; cursor: default; }
 
 /* Confirm popover — absolute so the row's grid sizes never change. */
