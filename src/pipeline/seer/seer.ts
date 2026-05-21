@@ -76,10 +76,10 @@ export type SeerOpts = {
    *  refutation — sorted by age_in_turns DESC. The closing director
    *  may take a risky swing at one as the outro's loaded probe. */
   heldProbes?: Hypothesis[];
-  /** Full investigation board (ladder + story). Accepted but not yet
-   *  stored — Phase I wires story + heldProbes through; future
-   *  per-card director use can pull from here. */
-  investigation?: import('../survey').Investigation;
+  // (Legacy `investigation?: Investigation` field removed in
+  //  survey-engine-v2 Phase 2. The Seer's per-card and closing
+  //  director already get story + heldProbes through explicit args;
+  //  the dead Investigation pass-through was unused storage.)
   preferred_intro?: Monologue;
   /** Onstage actor voicing the reading. Defaults to the registry default
    *  (currently the Geometer). Director Set is voice-agnostic; only the

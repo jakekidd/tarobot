@@ -3,7 +3,7 @@
 
 import { describe, expect, it } from 'vitest';
 import { SurveyEngine } from '../src/pipeline/survey/engine';
-import { PROFILE_TEMPLATE_RAW } from '../src/pipeline/survey/template';
+// PROFILE_TEMPLATE_RAW import dropped — profile.body is gone in v2.
 import {
   FakeAdapter,
   defaultDetectiveOutput,
@@ -25,38 +25,39 @@ function makeEngine(opts?: { adapter?: FakeAdapter }): SurveyEngine {
 }
 
 describe('SurveyEngine — initial state', () => {
-  it('populates profile.body with the template scaffold', () => {
+  it('starts with an empty LivingDoc (v=0, no scaffold content, no held probes)', () => {
     const engine = makeEngine();
-    expect(engine.getState().profile.body).toBe(PROFILE_TEMPLATE_RAW);
+    const doc = engine.getState().doc;
+    expect(doc.v).toBe(0);
+    expect(doc.scaffold.leading_hypothesis).toBe('');
+    expect(doc.scaffold.axes).toEqual({});
+    expect(doc.scaffold.cast_notes).toEqual({});
+    expect(doc.scaffold.fork).toBeNull();
+    expect(doc.scaffold.temporal_lean).toBeNull();
+    expect(doc.scaffold.tells).toEqual([]);
+    expect(doc.margin).toEqual([]);
+    expect(doc.held).toEqual([]);
+    expect(doc.coverage).toEqual({});
   });
 
-  it('populates profile.hooks / edges / side_channel as empty defaults', () => {
+  it('starts the story empty (fork null, no pressure/root/stakes/hooks)', () => {
     const engine = makeEngine();
-    const profile = engine.getState().profile;
-    expect(profile.hooks).toEqual([]);
-    expect(profile.edges).toEqual([]);
-    expect(profile.side_channel).toEqual({});
-  });
-
-  it('populates an empty hypothesis ladder', () => {
-    const engine = makeEngine();
-    const lad = engine.getState().investigation.hypotheses;
-    expect(lad.confirmed).toEqual([]);
-    expect(lad.probable).toEqual([]);
-    expect(lad.tentative).toEqual([]);
-    expect(lad.contested).toEqual([]);
-    expect(lad.refuted).toEqual([]);
-    expect(lad.held).toEqual([]);
-  });
-
-  it('populates an empty story', () => {
-    const engine = makeEngine();
-    const story = engine.getState().investigation.story;
+    const story = engine.getState().doc.story;
     expect(story.fork).toBeNull();
     expect(story.present_pressure).toBeNull();
     expect(story.past_root).toBeNull();
     expect(story.stakes).toBeNull();
     expect(story.hooks).toEqual([]);
+  });
+
+  it('profile is slim — identity + cast only (no body/hooks/edges/side_channel/sections)', () => {
+    const engine = makeEngine();
+    const profile = engine.getState().profile;
+    expect(profile.name).toBe('');
+    expect(profile.birthday).toBeNull();
+    expect(profile.cast).toEqual([]);
+    expect((profile as unknown as { body?: unknown }).body).toBeUndefined();
+    expect((profile as unknown as { sections?: unknown }).sections).toBeUndefined();
   });
 
   it('starts at phase A and stage questions', () => {
@@ -236,23 +237,11 @@ describe('SurveyEngine — relationship_pick parsing', () => {
 });
 
 describe('SurveyEngine — pipeline path (with FakeAdapter)', () => {
-  it('fires observer + detective on post-opener picks (non-returning)', async () => {
-    const adapter = makeAdapter();
-    const engine = makeEngine({ adapter });
-    await engine.submitAnswer('jake');
-    await engine.submitAnswer('1990-01-15');
-    await engine.submitAnswer('single');
-    await engine.submitAnswer('what should i do?');
-    // First post-opener pick: the first Pillar.
-    const q = engine.getCurrentQuestion()!;
-    await engine.submitAnswer(q.options[0] ?? 'mind');
-    // Wait for spawned promises to resolve.
-    await new Promise((r) => setTimeout(r, 0));
-    // Should have called both observer + detective at least once.
-    const toolNames = adapter.calls.map((c) => c.tool);
-    expect(toolNames).toContain('observer_metabolize');
-    expect(toolNames).toContain('detective_step');
-  });
+  // Phase 2: observer + detective agents throw not_implemented_v2.
+  // engine.runObserverTask / runDetectiveTask catch and warn, so the
+  // adapter never sees the call. Phase 3 re-enables this assertion
+  // when the v2 cognition core lands.
+  it.todo('fires observer + detective on post-opener picks (non-returning) — Phase 3');
 
   it('returning-user lite mode skips BOTH observer + detective', async () => {
     const adapter = makeAdapter();
@@ -294,14 +283,15 @@ describe('SurveyEngine — pipeline path (with FakeAdapter)', () => {
     // Pick 'love' — seeder should drop 'fear of being unlovable' or similar.
     await engine.submitAnswer('love');
     await new Promise((r) => setTimeout(r, 0));
-    const tentative = engine.getState().investigation.hypotheses.tentative;
-    expect(tentative.length).toBeGreaterThan(0);
-    expect(tentative.some((h) => /unlovable|abandoned/i.test(h.description))).toBe(true);
+    // v2: seeder writes Probes to doc.held (not investigation.hypotheses.tentative).
+    const held = engine.getState().doc.held;
+    expect(held.length).toBeGreaterThan(0);
+    expect(held.some((p) => /unlovable|abandoned/i.test(p.claim))).toBe(true);
   });
 });
 
 describe('SurveyEngine — full-flow smoke', () => {
-  it('walks openers + 5 post-opener picks without errors, leaves a populated ladder + non-null cast/profile', async () => {
+  it('walks openers + 5 post-opener picks without errors, leaves doc.held populated', async () => {
     const adapter = makeAdapter();
     const engine = makeEngine({ adapter });
     // Openers.
@@ -328,16 +318,14 @@ describe('SurveyEngine — full-flow smoke', () => {
     // Engine didn't blow up — basic shape still valid.
     expect(state.profile.name).toBe('jake');
     expect(state.picks_log.length).toBeGreaterThan(4);
-    // The seeder ran on at least one post-opener pick → tentative populated.
-    const lad = state.investigation.hypotheses;
-    const totalHyps =
-      lad.confirmed.length + lad.probable.length + lad.tentative.length +
-      lad.contested.length + lad.refuted.length + lad.held.length;
-    expect(totalHyps).toBeGreaterThan(0);
-    // Both agents got called.
-    const toolNames = adapter.calls.map((c) => c.tool);
-    expect(toolNames).toContain('observer_metabolize');
-    expect(toolNames).toContain('detective_step');
+    // v2: the seeder writes Probes to doc.held on at least one pillar pick.
+    // (Phase 2: agents throw, but the seeder still fires deterministically.)
+    expect(state.doc.held.length).toBeGreaterThan(0);
+    // Agents are stubbed in Phase 2 — they throw before invoking the adapter.
+    // The engine's runObserverTask/runDetectiveTask catch the throw, so the
+    // adapter never sees the call. Phase 3 lights this up. For now we
+    // assert the engine still completed the walk.
+    expect(state.closed === false || state.stage === 'finalizing' || state.stage === 'awaiting_intention').toBe(true);
   });
 });
 

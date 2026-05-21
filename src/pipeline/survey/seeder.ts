@@ -1,14 +1,19 @@
-// Algorithmic hypothesis seeder.
+// Algorithmic probe seeder.
 //
 // Reads the `Inversions:` block of a question's probe and emits
-// deterministic hypothesis seeds based on the user's answer. Seeds
-// land on `investigation.hypotheses.tentative[]` before the observer
-// fires, so the observer (with explicit speculation authority,
-// Phase G+) sees them as candidates to elevate / hold / refute.
+// deterministic Probe seeds based on the user's answer. Seeds land
+// on `doc.held[]` before the observer fires, so the observer (single
+// writer of doc, with explicit speculation authority) sees them as
+// candidates to elevate (move to scaffold.leading_hypothesis / axes)
+// or refute (clear from held).
 //
 // No LLM call — pure parser + matcher. Bypasses the model's
 // natural cautiousness ("I don't want to make wild assumptions")
 // by encoding the inversion rules in the markdown the author wrote.
+//
+// v2 (Phase 2): emits `Probe` (from living-doc.ts) instead of the
+// 9-field legacy `Hypothesis`. The signal is the claim; the rest of
+// the ladder bookkeeping is gone.
 //
 // Inversion text follows one of three loose formats — the parser
 // handles all three by splitting on `.` AND `;` and matching
@@ -21,16 +26,17 @@
 // For fork answers encoded as "between:left/right", BOTH sides'
 // seeds are emitted PLUS a generic stuck-between claim.
 
-import type { Hypothesis, TreeNode } from './types';
+import type { TreeNode } from './types';
+import type { Probe } from './living-doc';
 
 /** Public entry. Generate seeds for one Q&A pair. Returns 0..N
- *  Hypothesis objects, each ready to push to tentative[]. */
+ *  Probe objects, each ready to push to doc.held[]. */
 export function generateSeeds(
   node: TreeNode,
   answer: string | string[],
   turn_n: number,
   source_pick_node_id: string,
-): Hypothesis[] {
+): Probe[] {
   const inversions = node.probe?.inversions;
   if (!inversions) return [];
   const answerStr = Array.isArray(answer) ? answer.join(' ') : answer;
@@ -112,19 +118,15 @@ function buildSeed(
   turn_n: number,
   source_pick_node_id: string,
   idx: number,
-): Hypothesis {
+): Probe {
   // Stable id based on source + claim text — same Q+claim seeded
   // twice in a session collides to the same id (upsert behavior).
   const id = `seed-${source_pick_node_id}-${idx}-${hashShort(claim)}`;
   return {
     id,
-    description: claim,
-    supporting_picks: [source_pick_node_id],
-    contradicting_picks: [],
-    confidence: 0.3,  // tentative; observer elevates if confirmed
-    status: 'inferred',
-    seeded: true,
-    generated_at: turn_n,
+    claim,
+    source: 'seeder',
+    born_turn: turn_n,
     age_in_turns: 0,
   };
 }
@@ -139,19 +141,13 @@ function hashShort(s: string): string {
   return Math.abs(h).toString(36).slice(0, 6);
 }
 
-/** Age all tentative + held hypotheses by 1 turn. Engine calls this
- *  on every post-opener pick before generating new seeds. Returns
- *  shallow-copied arrays so the engine state mutation stays clean. */
-export function ageLadderTentativeAndHeld<T extends Hypothesis>(
-  tentative: T[],
-  held: T[],
-): { tentative: T[]; held: T[] } {
-  const bumpAge = (h: T): T => ({
-    ...h,
-    age_in_turns: (h.age_in_turns ?? 0) + 1,
-  });
-  return {
-    tentative: tentative.map(bumpAge),
-    held: held.map(bumpAge),
-  };
+/** Age all held probes by 1 turn. Engine calls this on every
+ *  post-opener pick before generating new seeds. Returns a
+ *  shallow-copied array so the engine state mutation stays clean. */
+export function ageHeldProbes(held: Probe[]): Probe[] {
+  return held.map((p) => ({ ...p, age_in_turns: (p.age_in_turns ?? 0) + 1 }));
 }
+
+// (Legacy ageLadderTentativeAndHeld removed — the 6-rung ladder is
+// gone in v2. The new "held" lives at doc.held and is a flat list
+// of Probes; ageing is the same operation.)

@@ -5,9 +5,8 @@ export { ObserverOutputSchema } from './schema';
 export { OBSERVER_SYSTEM, OBSERVER_TOOL } from './prompt';
 export { buildObserverPayload, type ObserverPayloadMode } from './payload';
 export {
-  REQUIRED_PROFILE_SECTIONS,
-  splitBodyIntoSections,
-  mergeBodySections,
   applyObserverOutput,
   type ObserverOutput,
 } from './apply';
+// REQUIRED_PROFILE_SECTIONS / splitBodyIntoSections / mergeBodySections
+// removed in Phase 2 — they served profile.body, which is gone.

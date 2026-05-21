@@ -1,48 +1,28 @@
-// Observer — stage 1 of the survey pipeline. Metabolizes the latest
-// answer into profile notes + cast updates.
+// Observer — Phase 2 stub.
+//
+// Phase 3 implements the v2 observer: single sequential writer of
+// LivingDoc, delta-on-scaffold output, doc.v staleness gate, hard
+// prompt rules against astrology / specifics fabrication.
+//
+// In Phase 2 these functions throw `not_implemented_v2` when called.
+// The engine's runObserverTask catches and logs via console.warn,
+// so the survey still proceeds (just without observations) — Q5+ in
+// dev will show the warning in the console + the AgentActivity panel.
 
 import type { LLMAdapter } from '../../../llm/adapter';
 import type { PipelineContext } from '../../types';
-import { ObserverOutputSchema } from './schema';
-import { OBSERVER_SYSTEM, OBSERVER_TOOL } from './prompt';
-import { buildObserverPayload } from './payload';
 import type { ObserverOutput } from './apply';
 
 export async function runObserver(
-  adapter: LLMAdapter,
-  ctx: PipelineContext,
+  _adapter: LLMAdapter,
+  _ctx: PipelineContext,
 ): Promise<ObserverOutput> {
-  return adapter.invoke(
-    {
-      system: OBSERVER_SYSTEM,
-      user: JSON.stringify(buildObserverPayload(ctx, 'live'), null, 2),
-      tool: OBSERVER_TOOL,
-      // Observer fires sparsely (every Nth turn) and metabolizes a window
-      // of recent picks. Sonnet — quality matters more than latency
-      // because cross-turn observation is the agent's whole job.
-      model: 'cognition',
-      max_tokens: 2000,
-    },
-    ObserverOutputSchema,
-  );
+  throw new Error('not_implemented_v2: runObserver lands in Phase 3 (sequential cognition core)');
 }
 
-/** End-of-survey synthesis call. Same agent, same schema — different
- *  framing in the user payload. Fires once after the last pick, before
- *  Augur. Gives the observer the full Q&A history and explicit
- *  permission to retroactively revise Q1-5 reads and populate ## tensions. */
 export async function runFinalObserver(
-  adapter: LLMAdapter,
-  ctx: PipelineContext,
+  _adapter: LLMAdapter,
+  _ctx: PipelineContext,
 ): Promise<ObserverOutput> {
-  return adapter.invoke(
-    {
-      system: OBSERVER_SYSTEM,
-      user: JSON.stringify(buildObserverPayload(ctx, 'final'), null, 2),
-      tool: OBSERVER_TOOL,
-      model: 'cognition',
-      max_tokens: 3000,
-    },
-    ObserverOutputSchema,
-  );
+  throw new Error('not_implemented_v2: runFinalObserver lands in Phase 3');
 }

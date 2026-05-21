@@ -1,31 +1,20 @@
-// Detective — stage 2 of the survey pipeline. Updates the
-// investigation (hypotheses, choice draft, contradictions, hooks,
-// posture) based on the just-metabolized profile.
+// Detective — Phase 2 stub.
+//
+// Phase 3 implements the v2 detective: prose-shell output with
+// leading_hypothesis + next_move (append | revise | conclude),
+// dropping from Opus → Sonnet, adversarial objective (propose the
+// question whose answer would most break its own leading read).
+//
+// In Phase 2 this throws `not_implemented_v2` when called. The
+// engine's runDetectiveTask catches and logs.
 
 import type { LLMAdapter } from '../../../llm/adapter';
 import type { PipelineContext } from '../../types';
-import { DetectiveOutputSchema } from './schema';
-import { DETECTIVE_SYSTEM, DETECTIVE_TOOL } from './prompt';
-import { buildDetectivePayload } from './payload';
 import type { DetectiveOutput } from './apply';
 
 export async function runDetective(
-  adapter: LLMAdapter,
-  ctx: PipelineContext,
+  _adapter: LLMAdapter,
+  _ctx: PipelineContext,
 ): Promise<DetectiveOutput> {
-  return adapter.invoke(
-    {
-      system: DETECTIVE_SYSTEM,
-      user: JSON.stringify(buildDetectivePayload(ctx), null, 2),
-      tool: DETECTIVE_TOOL,
-      // Opus — the detective now does BOTH the investigation update AND
-      // the next-question pick, plus an extended private_thoughts
-      // scratchpad. The scratchpad is half-or-more of the output, so the
-      // total token budget is higher than the old detective-only call.
-      // Phase 3 will drop this to 'cognition' (Sonnet) per locked design.
-      model: 'deep',
-      max_tokens: 4000,
-    },
-    DetectiveOutputSchema,
-  );
+  throw new Error('not_implemented_v2: runDetective lands in Phase 3 (sequential cognition core)');
 }

@@ -12,11 +12,10 @@
 // See docs/SURVEY_PIPELINE.md for design rationale.
 
 import type { LLMAdapter } from '../llm/adapter';
-import { runFinalObserver, runObserver, applyObserverOutput } from './agents/observer';
+import { runFinalObserver, runObserver } from './agents/observer';
 import { extractHooks, extractSideChannel } from './algoExtract';
-import { runDetective, applyDetectiveOutput } from './agents/detective';
+import { runDetective } from './agents/detective';
 import { runAugur } from './agents/augur';
-import { applyLadderMoves } from './agents/shared';
 import { Seer } from '../seer';
 import { drawForSpread } from '../cards';
 import { FOUR_CARD_DIAMOND } from '../spreads';
@@ -34,12 +33,10 @@ import {
   TREE,
 } from './tree';
 import { derivePhase } from './phase';
-import { PROFILE_TEMPLATE_RAW } from './template';
-import { ageLadderTentativeAndHeld, generateSeeds } from './seeder';
+import { ageHeldProbes, generateSeeds } from './seeder';
 import type {
   EngineListener,
   EngineState,
-  Investigation,
   ObserverOutput,
   DetectiveOutput,
   PickEvent,
@@ -49,6 +46,8 @@ import type {
   SurveyProfile,
   TimingEvent,
 } from './types';
+import type { LivingDoc } from './living-doc';
+import { EMPTY_DOC } from './living-doc';
 
 export type EngineOpts = {
   adapter: LLMAdapter;
@@ -83,9 +82,10 @@ export const STARTER_SEED_COUNT = RETURNING_LITE_COUNT;
 // fires EVERY post-opener pick. The legacy multi-turn window framing
 // (catch up across the gap) is replaced by every-turn rewriting of
 // the living document.
-/** Detective's running scratchpad. Last N entries are surfaced as
- *  `detective_log` on the next call so the detective has continuity. */
-const DETECTIVE_LOG_CAP = 8;
+//
+// (DETECTIVE_LOG_CAP removed — v2 detective doesn't persist a
+// cross-turn scratchpad in engine state. The leading_hypothesis +
+// doc.margin carry continuity in Phase 3.)
 
 export class SurveyEngine {
   private state: EngineState;
@@ -294,34 +294,32 @@ export class SurveyEngine {
   }
 
   /** Apply the algorithmic seeder for a fresh post-opener pick.
-   *  - Ages existing tentative + held hypotheses by 1 turn.
-   *  - Generates fresh seeds from the question's Inversions probe.
-   *  - Upserts each seed into tentative[] by id (collisions update
-   *    the existing entry rather than duplicate). */
+   *  v2: writes Probe seeds directly into doc.held (ageing on every
+   *  turn). The 6-rung tentative/held split is gone; held is the
+   *  single bucket of unresolved probes. Observer can elevate (move
+   *  claim into scaffold.axes / leading_hypothesis) or refute (clear
+   *  from held). Bumps doc.v.
+   *
+   *  Every doc write bumps v — this makes the based_on_v staleness
+   *  gate (Phase 3) a real assertion not dead code. */
   private applySeeder(nodeId: string, pick: PickEvent): void {
     const node = getNode(nodeId);
     if (!node) return;
     const turn_n = this.state.picks_log.length;
-    const aged = ageLadderTentativeAndHeld(
-      this.state.investigation.hypotheses.tentative,
-      this.state.investigation.hypotheses.held,
-    );
+    const aged = ageHeldProbes(this.state.doc.held);
     const seeds = generateSeeds(node, pick.answer, turn_n, nodeId);
-    if (seeds.length === 0 && aged.tentative === this.state.investigation.hypotheses.tentative && aged.held === this.state.investigation.hypotheses.held) {
+    if (seeds.length === 0 && aged === this.state.doc.held) {
       return;
     }
-    // Upsert seeds into the aged tentative array (by id).
+    // Upsert seeds into held (by id — same seed-key collides cleanly).
     const seedIds = new Set(seeds.map((s) => s.id));
-    const tentativeNoCollisions = aged.tentative.filter((h) => !seedIds.has(h.id));
-    const nextTentative = [...tentativeNoCollisions, ...seeds];
+    const heldNoCollisions = aged.filter((p) => !seedIds.has(p.id));
+    const nextHeld = [...heldNoCollisions, ...seeds];
     this.setState({
-      investigation: {
-        ...this.state.investigation,
-        hypotheses: {
-          ...this.state.investigation.hypotheses,
-          tentative: nextTentative,
-          held: aged.held,
-        },
+      doc: {
+        ...this.state.doc,
+        v: this.state.doc.v + 1,
+        held: nextHeld,
       },
     });
   }
@@ -357,18 +355,17 @@ export class SurveyEngine {
   /** Hydrate the engine directly from a saved Person record and jump to
    *  awaiting_intention. Skips all questions + the synthesis pass — the
    *  saved snapshot IS the post-synthesis state. Caller must ensure the
-   *  saved record has profile + investigation + picks_log (modern Person
-   *  schema; legacy records without these are rejected by the loader UI). */
+   *  saved record has profile + doc + picks_log (schema_version 2). */
   loadFromSave(args: {
     profile: SurveyProfile;
-    investigation: Investigation;
+    doc: LivingDoc;
     picks_log: PickEvent[];
     timing_log?: TimingEvent[];
     prior_intentions?: string[];
   }): void {
     this.setState({
       profile: args.profile,
-      investigation: args.investigation,
+      doc: args.doc,
       picks_log: args.picks_log,
       timing_log: args.timing_log ?? [],
       asked_node_ids: args.picks_log.map((p) => p.node_id),
@@ -410,16 +407,27 @@ export class SurveyEngine {
     // just run Augur (intention-dependent) and build the Seer.
     void (async () => {
       try {
-        const heldProbes = [...this.state.investigation.hypotheses.held]
+        // v2: held probes live at doc.held (Probe shape, not Hypothesis).
+        // Sort by age DESC so the closing director sees the most-durable
+        // probes first.
+        const heldProbes = [...this.state.doc.held]
           .sort((a, b) => (b.age_in_turns ?? 0) - (a.age_in_turns ?? 0));
         const profile = assembleProfile(this.state, '');
         const outcomes = await runAugur(this.opts.adapter, {
           profile,
           intention: cleaned,
           surveyHistory: this.state.picks_log,
-          story: this.state.investigation.story,
+          story: this.state.doc.story,
           heldProbes,
         });
+        // Seam: Seer accepts Hypothesis[] (legacy shape with .description).
+        // v2 doc.held is Probe[] (.claim). Map at the boundary so the
+        // Seer code stays untouched. Phase 3/4 may collapse the rename.
+        const heldProbesForSeer = heldProbes.map((p) => ({
+          id: p.id,
+          description: p.claim,
+          age_in_turns: p.age_in_turns,
+        }));
         this.seer = new Seer({
           adapter: this.opts.adapter,
           profile,
@@ -427,9 +435,8 @@ export class SurveyEngine {
           intention: cleaned,
           drawn,
           outcomes,
-          story: this.state.investigation.story,
-          heldProbes,
-          investigation: this.state.investigation,
+          story: this.state.doc.story,
+          heldProbes: heldProbesForSeer,
         });
         await this.seer.ready;
         this.setState({
@@ -448,9 +455,10 @@ export class SurveyEngine {
   }
 
   /** Final synthesis observer pass. Fires once at survey close before
-   *  Augur runs. Different framing than per-turn observer — full Q&A
-   *  history visible, instruction to re-evaluate Q1-5 and populate
-   *  ## tensions. Returning users in lite mode skip this. */
+   *  Augur runs. Phase 2 stub: agent throws not_implemented_v2 and the
+   *  catch-warn lets the pipeline proceed without a final synthesis.
+   *  Phase 3 reimplements this as a final delta-update against the
+   *  populated LivingDoc. */
   private async runFinalObserverPass(): Promise<void> {
     if (this.state.is_returning_user) return;
     try {
@@ -460,32 +468,29 @@ export class SurveyEngine {
         options_shown: [],
         answer: '',
         profile: this.state.profile,
-        investigation: this.state.investigation,
+        doc: this.state.doc,
         history: this.state.picks_log,
         queue: this.state.queue,
       };
-      const out = await runFinalObserver(this.opts.adapter, baseCtx);
-      const nextProfile = applyObserverOutput(this.state.profile, out);
-      this.setState({ profile: nextProfile });
+      await runFinalObserver(this.opts.adapter, baseCtx);
+      // Phase 2: agent throws before producing output; catch below
+      // handles. Phase 3 applies the delta here.
     } catch (e) {
       console.warn('[survey] final observer pass failed', e);
     }
   }
 
-  /** Run algorithmic extraction over picks_log + timing_log and
-   *  overwrite profile.hooks + profile.side_channel with the results.
-   *  Deterministic; cheap; replaces the LLM's unreliable emission for
-   *  these fields. */
+  /** Run algorithmic extraction over picks_log + timing_log.
+   *  Phase 2: extracts hooks + side_channel but has nowhere to land
+   *  them on the slimmed SurveyProfile. Phase 3 wires the outputs
+   *  into doc.scaffold.tells + a derived observer_side_channel at
+   *  the assembly seam. For now we just compute and discard —
+   *  the computation tests (algoExtract.test.ts) still pass; the
+   *  results aren't yet wired downstream. */
   private applyAlgoExtraction(): void {
-    const hooks = extractHooks(this.state.picks_log);
-    const sideChannel = extractSideChannel(this.state.timing_log, this.state.picks_log);
-    this.setState({
-      profile: {
-        ...this.state.profile,
-        hooks,
-        side_channel: sideChannel,
-      },
-    });
+    // Compute for telemetry / debug; results land in Phase 3.
+    extractHooks(this.state.picks_log);
+    extractSideChannel(this.state.timing_log, this.state.picks_log);
   }
 
   /** Exposed to App once stage === 'reading_ready'. App routes to the
@@ -562,30 +567,13 @@ export class SurveyEngine {
       birth_time_bracket: null,
       relationship_status: null,
       initial_intention: null,
-      sections: {
-        identity: [], state: [], relational: [],
-        self_model: [], decision_context: [], patterns: [],
-      },
-      // v2 fields — populated by observer in Phase G+. Body starts as
-      // the profile template scaffold from materials/templates/profile.md
-      // with HTML-comment instructions visible — observer reads them
-      // and writes filed observations in their place.
-      body: PROFILE_TEMPLATE_RAW,
-      hooks: [],
-      edges: [],
-      side_channel: {},
       cast: [],
       ...(opts.returning?.profile_seed ?? {}),
     };
-    const startInvestigation: Investigation = {
-      hypotheses: { confirmed: [], probable: [], tentative: [], contested: [], refuted: [], held: [] },
-      story: { fork: null, present_pressure: null, past_root: null, stakes: null, hooks: [] },
-      choice_draft: null,
-      contradictions: [],
-      hooks: [],
-      active_threads: [],
-      posture: null,
-    };
+    // v2: LivingDoc replaces Investigation. Observer (Phase 3+)
+    // single-writes; detective reads + emits Moves; coverage is
+    // recomputed deterministically. EMPTY_DOC is the initial state.
+    const startDoc: LivingDoc = EMPTY_DOC;
     const isReturning = !!opts.returning;
 
     const firstUnsatisfied = getOpeners().find(
@@ -600,12 +588,11 @@ export class SurveyEngine {
       started_at: Date.now(),
       tree_version: TREE.v,
       profile: startProfile,
-      investigation: startInvestigation,
+      doc: startDoc,
       is_returning_user: isReturning,
       prior_answered_node_ids: opts.returning?.answered_node_ids ?? [],
       prior_intentions: opts.returning?.prior_intentions ?? [],
       prior_session_summary: opts.returning?.prior_session_summary,
-      detective_log: [],
       queue: openerQueue,
       picks_log: [],
       timing_log: [],
@@ -899,16 +886,16 @@ export class SurveyEngine {
       options_shown: pick.options_shown,
       answer: pick.answer,
       profile: this.state.profile,
-      investigation: this.state.investigation,
+      doc: this.state.doc,
       history: this.state.picks_log,
       queue: this.state.queue,
     };
 
-    // Observer fires EVERY post-opener pick (Phase G+) — the
-    // living-document model means there's no "catch up" need; the
-    // observer rewrites profile.body each turn. Returning users
-    // still skip both observer + detective (lite mode is the seeded
-    // 6 pool questions with no agents).
+    // Phase 2: observer + detective agents throw not_implemented_v2.
+    // The catch in each task warns and returns; the doc never gets
+    // updated. Phase 3 replaces these with the sequential cognition
+    // core (observer → coverage → detective, single-writer LivingDoc).
+    // Returning users still skip the pipeline (lite mode).
     const tasks: Promise<unknown>[] = [];
     if (!this.state.is_returning_user) {
       tasks.push(this.runObserverTask(baseCtx));
@@ -918,27 +905,15 @@ export class SurveyEngine {
     await Promise.allSettled(tasks);
   }
 
+  /** Phase 2 stub. runObserver throws not_implemented_v2; we catch
+   *  and warn. Phase 3 reimplements with sequential single-writer
+   *  semantics + doc.v staleness gate + applyObserverDelta. */
   private async runObserverTask(baseCtx: PipelineContext): Promise<void> {
-    const spawnEpoch = this.pickEpoch;
     this.agentInFlight.observer += 1; this.publishInflight();
     try {
-      const out: ObserverOutput = await runObserver(this.opts.adapter, baseCtx);
-      // Stale-result drop: an undo (or a subsequent pick) bumps pickEpoch.
-      // If the engine has moved on since this task was spawned, the
-      // observer was reasoning about a now-rolled-back state — drop.
-      if (spawnEpoch !== this.pickEpoch) return;
-      // Profile-side updates (body, hooks, edges, side_channel, cast notes).
-      const nextProfile = applyObserverOutput(this.state.profile, out);
-      // Investigation-side updates (hypothesis ladder moves).
-      const nextHypotheses = applyLadderMoves(this.state.investigation.hypotheses, out.hypothesis_ladder_moves);
-      this.setState({
-        profile: nextProfile,
-        investigation: {
-          ...this.state.investigation,
-          hypotheses: nextHypotheses,
-        },
-      });
-      this.emit();
+      const _out: ObserverOutput = await runObserver(this.opts.adapter, baseCtx);
+      void _out;
+      // Phase 3: applyObserverDelta(state.doc, delta) and bump doc.v.
     } catch (e) {
       console.warn('[survey] observer failed', e);
     } finally {
@@ -946,33 +921,16 @@ export class SurveyEngine {
     }
   }
 
+  /** Phase 2 stub. runDetective throws not_implemented_v2; we catch
+   *  and warn. Phase 3 reimplements with adversarial Move emission. */
   private async runDetectiveTask(baseCtx: PipelineContext): Promise<void> {
-    const spawnEpoch = this.pickEpoch;
     this.agentInFlight.detective += 1; this.publishInflight();
     try {
-      const out: DetectiveOutput = await runDetective(this.opts.adapter, {
-        ...baseCtx,
-        detective_log: this.state.detective_log,
-      });
-      // Stale-result drop: see observer comment above.
-      if (spawnEpoch !== this.pickEpoch) return;
-      // applyDetectiveOutput maintains transitional behavior in Phase C:
-      // - hypothesis_updates / hypothesis_refutes route into the new
-      //   ladder rungs based on status (Phase H rewrites both detective
-      //   prompt + apply path to use the ladder natively).
-      // - current_understanding (legacy field) is silently dropped —
-      //   Phase H emits StoryObject instead and the engine starts
-      //   storing into investigation.story.
-      // - queue_edits stay dropped (bug; guarded re-introduction backlog).
-      const nextInvestigation = applyDetectiveOutput(this.state.investigation, out);
-      const nextLog = out.private_thoughts && out.private_thoughts.trim().length > 0
-        ? [...this.state.detective_log, out.private_thoughts.trim()].slice(-DETECTIVE_LOG_CAP)
-        : this.state.detective_log;
-      this.setState({
-        investigation: nextInvestigation,
-        detective_log: nextLog,
-      });
-      this.emit();
+      const _out: DetectiveOutput = await runDetective(this.opts.adapter, baseCtx);
+      void _out;
+      // Phase 3: applyDetectiveMove(state, move) — story_updates fold
+      // into doc.story, leading_hypothesis updates scaffold,
+      // next_move drives queue edits.
     } catch (e) {
       console.warn('[survey] detective failed', e);
     } finally {

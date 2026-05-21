@@ -5,11 +5,12 @@
 
 import { describe, expect, it } from 'vitest';
 import {
-  ageLadderTentativeAndHeld,
+  ageHeldProbes,
   generateSeeds,
   parseInversionMatches,
 } from '../src/pipeline/survey/seeder';
-import type { Hypothesis, TreeNode } from '../src/pipeline/survey/types';
+import type { TreeNode } from '../src/pipeline/survey/types';
+import type { Probe } from '../src/pipeline/survey/living-doc';
 
 describe('parseInversionMatches', () => {
   it('matches the value-style: "love → fear of being unlovable; freedom → fear ..."', () => {
@@ -71,17 +72,15 @@ describe('generateSeeds', () => {
     },
   };
 
-  it('emits a Hypothesis with the right shape', () => {
+  it('emits a Probe with the right shape', () => {
     const seeds = generateSeeds(valueNode, 'love', 5, 'value_most');
     expect(seeds).toHaveLength(1);
     const seed = seeds[0]!;
-    expect(seed.description).toBe('fear of being unlovable');
-    expect(seed.status).toBe('inferred');
-    expect(seed.confidence).toBeCloseTo(0.3);
-    expect(seed.seeded).toBe(true);
-    expect(seed.generated_at).toBe(5);
+    expect(seed.claim).toBe('fear of being unlovable');
+    expect(seed.source).toBe('seeder');
+    expect(seed.born_turn).toBe(5);
     expect(seed.age_in_turns).toBe(0);
-    expect(seed.supporting_picks).toEqual(['value_most']);
+    expect(seed.id).toMatch(/^seed-value_most-/);
   });
 
   it('produces stable ids based on source + claim', () => {
@@ -107,7 +106,7 @@ describe('generateSeeds', () => {
 
   it('joins an array answer (multi-select) into a single match string', () => {
     const seeds = generateSeeds(valueNode, ['love'], 3, 'value_most');
-    expect(seeds.map((s) => s.description)).toEqual(['fear of being unlovable']);
+    expect(seeds.map((s) => s.claim)).toEqual(['fear of being unlovable']);
   });
 
   it('for fork between-encoding, emits seeds for BOTH sides + stuck claim', () => {
@@ -120,42 +119,31 @@ describe('generateSeeds', () => {
       },
     };
     const seeds = generateSeeds(forkNode, 'between:bet/hold', 1, 'fork');
-    const claims = seeds.map((s) => s.description);
+    const claims = seeds.map((s) => s.claim);
     expect(claims).toContain('leap not taken');
     expect(claims).toContain('leap almost taken');
     expect(claims.some((c) => /stuck on the bet\/hold fork/.test(c))).toBe(true);
   });
 });
 
-describe('ageLadderTentativeAndHeld', () => {
-  const h = (id: string, age: number | undefined): Hypothesis => ({
+describe('ageHeldProbes', () => {
+  const p = (id: string, age: number): Probe => ({
     id,
-    description: id,
-    supporting_picks: [],
-    contradicting_picks: [],
-    confidence: 0.3,
-    status: 'inferred',
+    claim: id,
+    source: 'seeder',
+    born_turn: 0,
     age_in_turns: age,
   });
 
-  it('bumps age_in_turns by 1 on every item in tentative + held', () => {
-    const result = ageLadderTentativeAndHeld(
-      [h('a', 0), h('b', 5)],
-      [h('c', 10)],
-    );
-    expect(result.tentative.map((x) => x.age_in_turns)).toEqual([1, 6]);
-    expect(result.held.map((x) => x.age_in_turns)).toEqual([11]);
+  it('bumps age_in_turns by 1 on every held probe', () => {
+    const result = ageHeldProbes([p('a', 0), p('b', 5), p('c', 10)]);
+    expect(result.map((x) => x.age_in_turns)).toEqual([1, 6, 11]);
   });
 
-  it('treats undefined age as 0 and bumps to 1', () => {
-    const result = ageLadderTentativeAndHeld([h('a', undefined)], []);
-    expect(result.tentative[0]!.age_in_turns).toBe(1);
-  });
-
-  it('returns new arrays, does not mutate input', () => {
-    const orig = [h('a', 0)];
-    const result = ageLadderTentativeAndHeld(orig, []);
+  it('returns a new array, does not mutate input', () => {
+    const orig = [p('a', 0)];
+    const result = ageHeldProbes(orig);
     expect(orig[0]!.age_in_turns).toBe(0);  // untouched
-    expect(result.tentative).not.toBe(orig);  // new array ref
+    expect(result).not.toBe(orig);          // new array ref
   });
 });

@@ -63,7 +63,7 @@ function compressForLog(state: EngineState) {
     session_id: state.session_id,
     tree_version: state.tree_version,
     profile: state.profile,
-    investigation: state.investigation,
+    doc: state.doc,
     is_returning_user: state.is_returning_user,
     phase: state.phase,
     closed: state.closed,

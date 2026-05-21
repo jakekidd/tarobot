@@ -11,7 +11,8 @@
 import type { LLMAdapter } from '../../../llm/adapter';
 import type { Outcome } from '../../../seer/types';
 import type { Profile } from '../../../types';
-import type { Hypothesis, PickEvent, StoryObject } from '../../types';
+import type { PickEvent, StoryObject } from '../../types';
+import type { Probe } from '../../living-doc';
 import {
   AUGUR_OUTLINE_SCHEMA,
   AUGUR_OUTLINE_SYSTEM,
@@ -28,11 +29,12 @@ export type AugurInput = {
    *  present_pressure + past_root + stakes which enrich the fill stage's
    *  document specificity. Null when the detective didn't commit one. */
   story?: StoryObject | null;
-  /** Held hypotheses from the reaper — open questions about the user
+  /** Held probes from doc.held — open questions about the user
    *  the survey ran out of evidence to confirm or refute. An outcome
    *  that probes one of these is high-leverage. Sorted by age DESC by
-   *  the caller (older = more durable = more interesting). */
-  heldProbes?: Hypothesis[];
+   *  the caller (older = more durable = more interesting). v2 shape:
+   *  Probe (from living-doc.ts) replaces the legacy Hypothesis. */
+  heldProbes?: Probe[];
 };
 
 /** Two-stage run. Returns Outcome[] ready to seed the Seer. */
@@ -55,7 +57,7 @@ export async function runAugur(
     // Held probes — open questions the survey didn't resolve. An outcome
     // can probe one of these (high-leverage cold read). Cap at 6 most-
     // durable (age-sorted by caller).
-    held_probes: (input.heldProbes ?? []).slice(0, 6).map((h) => h.description),
+    held_probes: (input.heldProbes ?? []).slice(0, 6).map((h) => h.claim),
     survey_history_compact: input.surveyHistory.map((p) => ({
       question: p.question_text,
       answer: p.answer,
@@ -105,7 +107,7 @@ export async function runAugur(
             hooks: input.story.hooks,
           }
         : null,
-      held_probes: (input.heldProbes ?? []).map((h) => h.description),
+      held_probes: (input.heldProbes ?? []).map((h) => h.claim),
       survey_history: input.surveyHistory.map((p) => ({
         question: p.question_text,
         options: p.options_shown,
