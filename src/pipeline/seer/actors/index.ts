@@ -5,12 +5,17 @@
 
 import type { Actor, ActorId } from './types';
 import { GEOMETER } from './geometer';
+import { VISITOR } from './visitor';
 
 export const ACTORS: Record<ActorId, Actor> = {
   geometer: GEOMETER,
+  visitor: VISITOR,
 };
 
-export const DEFAULT_ACTOR_ID: ActorId = 'geometer';
+// v2 default — the silly alien visitor. The geometer (clinical alien)
+// stays in the registry as an opt-in for users who want the cold
+// instrument register.
+export const DEFAULT_ACTOR_ID: ActorId = 'visitor';
 
 export function getActor(id?: ActorId): Actor {
   return ACTORS[id ?? DEFAULT_ACTOR_ID];

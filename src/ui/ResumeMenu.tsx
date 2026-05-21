@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { deletePerson, listPeople, type Person } from '../storage';
+import { deletePerson, listPeople, savePerson, type Person } from '../storage';
+import { makeDemoPerson } from '../demo-save';
 
 type Props = {
   onBack: () => void;
@@ -25,6 +26,13 @@ export function ResumeMenu({ onBack, onLoad }: Props) {
     setPendingDeleteId(null);
   }
 
+  function loadDemo() {
+    if (!onLoad) return;
+    const demo = makeDemoPerson();
+    savePerson(demo);
+    onLoad(demo);
+  }
+
   return (
     <div className="screen screen--resume">
       <header className="screen__head">
@@ -33,6 +41,19 @@ export function ResumeMenu({ onBack, onLoad }: Props) {
       </header>
 
       {people.length === 0 && <p className="screen__lede">no prior visits.</p>}
+
+      {onLoad && (
+        <section className="profile-list" style={{ marginBottom: '1.5rem' }}>
+          <h3 className="screen__subhead">demo</h3>
+          <p className="screen__hint">
+            skip the survey. loads a synthetic profile (jake, libra, stay/go fork) with
+            a pre-baked intention. the reading itself still hits the api on submit.
+          </p>
+          <button className="btn btn--primary" onClick={loadDemo}>
+            LOAD DEMO
+          </button>
+        </section>
+      )}
 
       {people.length > 0 && (
         <section className="profile-list">

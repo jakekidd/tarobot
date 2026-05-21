@@ -3,7 +3,7 @@
 // specific character. New voices = new files in this folder + register
 // in index.ts.
 
-export type ActorId = 'geometer';
+export type ActorId = 'geometer' | 'visitor';
 
 export interface Actor {
   id: ActorId;
