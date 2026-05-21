@@ -12,10 +12,12 @@
 // See docs/SURVEY_PIPELINE.md for design rationale.
 
 import type { LLMAdapter } from '../llm/adapter';
-import { runFinalObserver, runObserver } from './agents/observer';
-import { extractHooks, extractSideChannel } from './algoExtract';
-import { runDetective } from './agents/detective';
+import { runFinalObserver, runObserver, applyObserverDelta } from './agents/observer';
+import { extractHooks, extractSideChannel, computeLatencyZScores } from './algoExtract';
+import { runDetective, applyDetectiveOutput, type DetectiveApplyResult } from './agents/detective';
 import { runAugur } from './agents/augur';
+import { recomputeCoverage, isCoverageDone } from './coverage';
+import { generateQuestion } from './generation';
 import { Seer } from '../seer';
 import { drawForSpread } from '../cards';
 import { FOUR_CARD_DIAMOND } from '../spreads';
@@ -29,20 +31,14 @@ import {
   getOpeners,
   getPillars,
   getPoolNodeIds,
-  renderQuestion,
+  renderQueueItem,
   TREE,
 } from './tree';
 import { derivePhase } from './phase';
-import { PROFILE_TEMPLATE_RAW } from './template';
-import { ageLadderTentativeAndHeld, generateSeeds } from './seeder';
+import { ageHeldProbes, generateSeeds } from './seeder';
 import type {
   EngineListener,
   EngineState,
-  Hypothesis,
-  HypothesisLadder,
-  Investigation,
-  ObserverOutput,
-  DetectiveOutput,
   PickEvent,
   PipelineContext,
   QueueItem,
@@ -50,6 +46,8 @@ import type {
   SurveyProfile,
   TimingEvent,
 } from './types';
+import type { LivingDoc } from './living-doc';
+import { EMPTY_DOC } from './living-doc';
 
 export type EngineOpts = {
   adapter: LLMAdapter;
@@ -66,6 +64,13 @@ export type EngineOpts = {
     prior_intentions: string[];
     prior_session_summary?: string;
   };
+  /** Optional engine state to hydrate from — used by the headless
+   *  driver script (scripts/survey-driver.ts) to restore mid-session
+   *  state across CLI invocations. When provided, replaces the
+   *  fresh initState. The runtime-only fields (in-flight counters,
+   *  pickEpoch, seer) are NOT serialized; they start fresh per
+   *  invocation and that's fine for the per-turn driver model. */
+  initialState?: EngineState;
 };
 
 const OPENER_NODE_IDS = new Set<string>(getOpeners());
@@ -84,9 +89,10 @@ export const STARTER_SEED_COUNT = RETURNING_LITE_COUNT;
 // fires EVERY post-opener pick. The legacy multi-turn window framing
 // (catch up across the gap) is replaced by every-turn rewriting of
 // the living document.
-/** Detective's running scratchpad. Last N entries are surfaced as
- *  `detective_log` on the next call so the detective has continuity. */
-const DETECTIVE_LOG_CAP = 8;
+//
+// (DETECTIVE_LOG_CAP removed — v2 detective doesn't persist a
+// cross-turn scratchpad in engine state. The leading_hypothesis +
+// doc.margin carry continuity in Phase 3.)
 
 export class SurveyEngine {
   private state: EngineState;
@@ -119,7 +125,15 @@ export class SurveyEngine {
 
   constructor(opts: EngineOpts) {
     this.opts = opts;
-    this.state = this.initState(opts);
+    this.state = opts.initialState ?? this.initState(opts);
+    // When hydrated from initialState, mark the seeder as already fired
+    // for any post-opener picks — otherwise loadFromSave-style restore
+    // would re-seed the pillar queue on the next post-opener tick.
+    if (opts.initialState) {
+      this.starterSeedFired =
+        opts.initialState.picks_log.length >
+        opts.initialState.asked_node_ids.filter((id) => OPENER_NODE_IDS.has(id)).length;
+    }
   }
 
   // ─── public API ──────────────────────────────────────
@@ -133,12 +147,7 @@ export class SurveyEngine {
     const head = this.state.queue[0];
     if (!head) return null;
     this.currentRenderedAt = Date.now();
-    return renderQuestion(
-      head.node_id,
-      this.state.profile,
-      head.preamble,
-      head.options_override,
-    );
+    return renderQueueItem(head, this.state.profile);
   }
 
   /** True when the user has out-paced the pipeline: queue empty but a
@@ -171,8 +180,13 @@ export class SurveyEngine {
     if (this.state.closed) return;
     const head = this.state.queue[0];
     if (!head) return;
+    // Engine-authored items have no TREE.nodes entry — `node` will be
+    // undefined and that's fine. We use renderQueueItem (which
+    // dispatches on inline data) for the user-visible rendering and
+    // the recorded pick. The only place we still need `node` is the
+    // relationship_pick branch below — and engine-authored questions
+    // are always 'choice' format, so that branch can't fire.
     const node = getNode(head.node_id);
-    if (!node) return;
 
     // Snapshot for undo. Capture BEFORE any mutation so undo restores
     // the exact pre-pick state. Deep clone via JSON to avoid sharing
@@ -186,12 +200,7 @@ export class SurveyEngine {
 
     // Capture the question + options EXACTLY as the user saw them — so
     // history reflects what was on screen, not what the basket says now.
-    const renderedNow = renderQuestion(
-      head.node_id,
-      this.state.profile,
-      head.preamble,
-      head.options_override,
-    );
+    const renderedNow = renderQueueItem(head, this.state.profile);
 
     const pick: PickEvent = {
       node_id: head.node_id,
@@ -201,6 +210,10 @@ export class SurveyEngine {
       answered_at: answeredAt,
       latency_ms: latencyMs,
       prompted_by: head.prompted_by,
+      // v2: propagate the QueueItem's is_engine_authored flag onto the
+      // PickEvent. extractHooks filters these out so planted-option
+      // text never becomes a "verbatim" hook the Seer echoes back.
+      is_engine_authored: head.is_engine_authored,
     };
     const timing: TimingEvent = {
       node_id: head.node_id,
@@ -240,7 +253,9 @@ export class SurveyEngine {
 
     // Process relationship_pick answers: parse the structured JSON
     // payload and add/update the CastMember on the profile.
-    if (node.f === 'relationship_pick' && typeof answer === 'string') {
+    // Engine-authored items are always 'choice' format so node is
+    // guaranteed non-null here when this branch matches.
+    if (node && node.f === 'relationship_pick' && typeof answer === 'string') {
       this.applyRelationshipPick(head.node_id, answer);
     }
 
@@ -295,34 +310,32 @@ export class SurveyEngine {
   }
 
   /** Apply the algorithmic seeder for a fresh post-opener pick.
-   *  - Ages existing tentative + held hypotheses by 1 turn.
-   *  - Generates fresh seeds from the question's Inversions probe.
-   *  - Upserts each seed into tentative[] by id (collisions update
-   *    the existing entry rather than duplicate). */
+   *  v2: writes Probe seeds directly into doc.held (ageing on every
+   *  turn). The 6-rung tentative/held split is gone; held is the
+   *  single bucket of unresolved probes. Observer can elevate (move
+   *  claim into scaffold.axes / leading_hypothesis) or refute (clear
+   *  from held). Bumps doc.v.
+   *
+   *  Every doc write bumps v — this makes the based_on_v staleness
+   *  gate (Phase 3) a real assertion not dead code. */
   private applySeeder(nodeId: string, pick: PickEvent): void {
     const node = getNode(nodeId);
     if (!node) return;
     const turn_n = this.state.picks_log.length;
-    const aged = ageLadderTentativeAndHeld(
-      this.state.investigation.hypotheses.tentative,
-      this.state.investigation.hypotheses.held,
-    );
+    const aged = ageHeldProbes(this.state.doc.held);
     const seeds = generateSeeds(node, pick.answer, turn_n, nodeId);
-    if (seeds.length === 0 && aged.tentative === this.state.investigation.hypotheses.tentative && aged.held === this.state.investigation.hypotheses.held) {
+    if (seeds.length === 0 && aged === this.state.doc.held) {
       return;
     }
-    // Upsert seeds into the aged tentative array (by id).
+    // Upsert seeds into held (by id — same seed-key collides cleanly).
     const seedIds = new Set(seeds.map((s) => s.id));
-    const tentativeNoCollisions = aged.tentative.filter((h) => !seedIds.has(h.id));
-    const nextTentative = [...tentativeNoCollisions, ...seeds];
+    const heldNoCollisions = aged.filter((p) => !seedIds.has(p.id));
+    const nextHeld = [...heldNoCollisions, ...seeds];
     this.setState({
-      investigation: {
-        ...this.state.investigation,
-        hypotheses: {
-          ...this.state.investigation.hypotheses,
-          tentative: nextTentative,
-          held: aged.held,
-        },
+      doc: {
+        ...this.state.doc,
+        v: this.state.doc.v + 1,
+        held: nextHeld,
       },
     });
   }
@@ -358,18 +371,17 @@ export class SurveyEngine {
   /** Hydrate the engine directly from a saved Person record and jump to
    *  awaiting_intention. Skips all questions + the synthesis pass — the
    *  saved snapshot IS the post-synthesis state. Caller must ensure the
-   *  saved record has profile + investigation + picks_log (modern Person
-   *  schema; legacy records without these are rejected by the loader UI). */
+   *  saved record has profile + doc + picks_log (schema_version 2). */
   loadFromSave(args: {
     profile: SurveyProfile;
-    investigation: Investigation;
+    doc: LivingDoc;
     picks_log: PickEvent[];
     timing_log?: TimingEvent[];
     prior_intentions?: string[];
   }): void {
     this.setState({
       profile: args.profile,
-      investigation: args.investigation,
+      doc: args.doc,
       picks_log: args.picks_log,
       timing_log: args.timing_log ?? [],
       asked_node_ids: args.picks_log.map((p) => p.node_id),
@@ -411,16 +423,27 @@ export class SurveyEngine {
     // just run Augur (intention-dependent) and build the Seer.
     void (async () => {
       try {
-        const heldProbes = [...this.state.investigation.hypotheses.held]
+        // v2: held probes live at doc.held (Probe shape, not Hypothesis).
+        // Sort by age DESC so the closing director sees the most-durable
+        // probes first.
+        const heldProbes = [...this.state.doc.held]
           .sort((a, b) => (b.age_in_turns ?? 0) - (a.age_in_turns ?? 0));
         const profile = assembleProfile(this.state, '');
         const outcomes = await runAugur(this.opts.adapter, {
           profile,
           intention: cleaned,
           surveyHistory: this.state.picks_log,
-          story: this.state.investigation.story,
+          story: this.state.doc.story,
           heldProbes,
         });
+        // Seam: Seer accepts Hypothesis[] (legacy shape with .description).
+        // v2 doc.held is Probe[] (.claim). Map at the boundary so the
+        // Seer code stays untouched. Phase 3/4 may collapse the rename.
+        const heldProbesForSeer = heldProbes.map((p) => ({
+          id: p.id,
+          description: p.claim,
+          age_in_turns: p.age_in_turns,
+        }));
         this.seer = new Seer({
           adapter: this.opts.adapter,
           profile,
@@ -428,9 +451,8 @@ export class SurveyEngine {
           intention: cleaned,
           drawn,
           outcomes,
-          story: this.state.investigation.story,
-          heldProbes,
-          investigation: this.state.investigation,
+          story: this.state.doc.story,
+          heldProbes: heldProbesForSeer,
         });
         await this.seer.ready;
         this.setState({
@@ -449,9 +471,10 @@ export class SurveyEngine {
   }
 
   /** Final synthesis observer pass. Fires once at survey close before
-   *  Augur runs. Different framing than per-turn observer — full Q&A
-   *  history visible, instruction to re-evaluate Q1-5 and populate
-   *  ## tensions. Returning users in lite mode skip this. */
+   *  Augur runs. Runs the observer once more with the 'final' framing
+   *  (full Q&A history, explicit permission to retroactively revise).
+   *  The delta is applied to the doc; the engine then proceeds to
+   *  applyAlgoExtraction (latency z-scores) and submitIntention. */
   private async runFinalObserverPass(): Promise<void> {
     if (this.state.is_returning_user) return;
     try {
@@ -461,32 +484,40 @@ export class SurveyEngine {
         options_shown: [],
         answer: '',
         profile: this.state.profile,
-        investigation: this.state.investigation,
+        doc: this.state.doc,
         history: this.state.picks_log,
         queue: this.state.queue,
       };
       const out = await runFinalObserver(this.opts.adapter, baseCtx);
-      const nextProfile = applyObserverOutput(this.state.profile, out);
-      this.setState({ profile: nextProfile });
+      if (out.based_on_v !== this.state.doc.v) {
+        // Stale — unusual at final pass but possible if the
+        // engine state changed mid-call. Discard cleanly.
+        return;
+      }
+      const nextDoc = applyObserverDelta(this.state.doc, out.delta);
+      // Recompute coverage after the final delta lands.
+      const finalCoverage = recomputeCoverage(nextDoc, this.state.picks_log);
+      this.setState({
+        doc: { ...nextDoc, v: nextDoc.v + 1, coverage: finalCoverage },
+      });
     } catch (e) {
       console.warn('[survey] final observer pass failed', e);
     }
   }
 
-  /** Run algorithmic extraction over picks_log + timing_log and
-   *  overwrite profile.hooks + profile.side_channel with the results.
-   *  Deterministic; cheap; replaces the LLM's unreliable emission for
-   *  these fields. */
+  /** Run algorithmic extraction over picks_log + timing_log. Attaches
+   *  latency z-scores to timing_log (first-class telemetry). The
+   *  hooks + side_channel computation lands at the assembleProfile
+   *  seam (profile-assembly reads doc.story.hooks for the Seer's
+   *  observer_hooks; latency outliers surface via doc.scaffold.tells
+   *  set by the observer). */
   private applyAlgoExtraction(): void {
-    const hooks = extractHooks(this.state.picks_log);
-    const sideChannel = extractSideChannel(this.state.timing_log, this.state.picks_log);
-    this.setState({
-      profile: {
-        ...this.state.profile,
-        hooks,
-        side_channel: sideChannel,
-      },
-    });
+    const enrichedTiming = computeLatencyZScores(this.state.timing_log);
+    this.setState({ timing_log: enrichedTiming });
+    // Hooks + side_channel still computed for telemetry; the bridge
+    // (profile-assembly.ts) reads doc fields directly for now.
+    extractHooks(this.state.picks_log);
+    extractSideChannel(this.state.timing_log, this.state.picks_log);
   }
 
   /** Exposed to App once stage === 'reading_ready'. App routes to the
@@ -563,30 +594,13 @@ export class SurveyEngine {
       birth_time_bracket: null,
       relationship_status: null,
       initial_intention: null,
-      sections: {
-        identity: [], state: [], relational: [],
-        self_model: [], decision_context: [], patterns: [],
-      },
-      // v2 fields — populated by observer in Phase G+. Body starts as
-      // the profile template scaffold from materials/templates/profile.md
-      // with HTML-comment instructions visible — observer reads them
-      // and writes filed observations in their place.
-      body: PROFILE_TEMPLATE_RAW,
-      hooks: [],
-      edges: [],
-      side_channel: {},
       cast: [],
       ...(opts.returning?.profile_seed ?? {}),
     };
-    const startInvestigation: Investigation = {
-      hypotheses: { confirmed: [], probable: [], tentative: [], contested: [], refuted: [], held: [] },
-      story: { fork: null, present_pressure: null, past_root: null, stakes: null, hooks: [] },
-      choice_draft: null,
-      contradictions: [],
-      hooks: [],
-      active_threads: [],
-      posture: null,
-    };
+    // v2: LivingDoc replaces Investigation. Observer (Phase 3+)
+    // single-writes; detective reads + emits Moves; coverage is
+    // recomputed deterministically. EMPTY_DOC is the initial state.
+    const startDoc: LivingDoc = EMPTY_DOC;
     const isReturning = !!opts.returning;
 
     const firstUnsatisfied = getOpeners().find(
@@ -601,12 +615,11 @@ export class SurveyEngine {
       started_at: Date.now(),
       tree_version: TREE.v,
       profile: startProfile,
-      investigation: startInvestigation,
+      doc: startDoc,
       is_returning_user: isReturning,
       prior_answered_node_ids: opts.returning?.answered_node_ids ?? [],
       prior_intentions: opts.returning?.prior_intentions ?? [],
       prior_session_summary: opts.returning?.prior_session_summary,
-      detective_log: [],
       queue: openerQueue,
       picks_log: [],
       timing_log: [],
@@ -877,22 +890,24 @@ export class SurveyEngine {
     this.beginIntentionStage();
   }
 
+  /** v2 sequential cognition core. Replaces the parallel
+   *  observer+detective firing of v1. Flow per post-opener pick:
+   *
+   *    seeder (already ran before this in submitAnswer)
+   *      → observer (single writer) → bumps doc.v
+   *      → coverage map recompute → bumps doc.v
+   *      → if coverage indicates done AND pillar-floor cleared:
+   *          beginIntentionStage()
+   *      → else: detective → applies leading_hypothesis +
+   *          story_updates (bumps doc.v); next_move captured for
+   *          telemetry. Phase 4 wires next_move into queue edits.
+   *
+   *  Staleness discipline: observer + detective both echo `based_on_v`
+   *  matching the doc.v they read. Engine compares against current
+   *  doc.v before applying — stale results discard (the engine moved
+   *  on; the next cognition cycle will reconverge). */
   private async runPipeline(pick: PickEvent): Promise<void> {
-    // Each pipeline takes ONE snapshot at fire-time. All agents read this
-    // SAME snapshot in parallel. Cross-agent updates (this pipeline's
-    // observer output → detective context, etc.) DO NOT propagate within
-    // a single pipeline — they land on the NEXT pipeline's snapshot.
-    //
-    // The lag is acceptable: each agent's contribution accumulates in
-    // engine state and the next pipeline catches up. The win is ~2x
-    // wall-clock since we no longer chain observer → detective →
-    // interrogator serially.
-    //
-    // Collision handling lives in the merge functions (apply…). Outputs
-    // are designed to be commutative-ish: notes append, hypotheses upsert
-    // by id, contradictions/hooks append-with-dedupe, choice_draft
-    // replaces. Sibling pipelines stomping the same field → later writer
-    // wins (per spec).
+    if (this.state.is_returning_user) return; // lite mode
 
     const baseCtx: PipelineContext = {
       index: this.state.picks_log.length,
@@ -900,82 +915,191 @@ export class SurveyEngine {
       options_shown: pick.options_shown,
       answer: pick.answer,
       profile: this.state.profile,
-      investigation: this.state.investigation,
+      doc: this.state.doc,
       history: this.state.picks_log,
       queue: this.state.queue,
     };
 
-    // Observer fires EVERY post-opener pick (Phase G+) — the
-    // living-document model means there's no "catch up" need; the
-    // observer rewrites profile.body each turn. Returning users
-    // still skip both observer + detective (lite mode is the seeded
-    // 6 pool questions with no agents).
-    const tasks: Promise<unknown>[] = [];
-    if (!this.state.is_returning_user) {
-      tasks.push(this.runObserverTask(baseCtx));
-      tasks.push(this.runDetectiveTask(baseCtx));
+    // ── Stage: observer (single writer) ──
+    const obsResult = await this.runObserverTask(baseCtx);
+    if (!obsResult) return; // observer failed; abort the cycle
+
+    // ── Stage: coverage recompute (deterministic) ──
+    const nextCoverage = recomputeCoverage(this.state.doc, this.state.picks_log);
+    this.setState({
+      doc: {
+        ...this.state.doc,
+        v: this.state.doc.v + 1,
+        coverage: nextCoverage,
+      },
+    });
+    this.emit();
+
+    // ── Stage: check coverage + pillar floor ──
+    const postOpenerCount = this.countPostOpenerPicks();
+    const pillarFloor = getPillars().length;
+    if (postOpenerCount >= pillarFloor && isCoverageDone(this.state.doc.coverage)) {
+      // Adaptive termination — the coverage map says we have enough.
+      // (Phase 5 calibrates the isCoverageDone heuristic.)
+      this.beginIntentionStage();
+      return;
     }
 
-    await Promise.allSettled(tasks);
+    // ── Stage: detective (reads doc + coverage + adversarial candidates) ──
+    const detCtx: PipelineContext = { ...baseCtx, doc: this.state.doc };
+    const detResult = await this.runDetectiveTask(detCtx);
+    if (!detResult) return;
+
+    // ── Stage: act on the detective's next_move ──
+    await this.applyDetectiveNextMove(detResult.move, postOpenerCount, pillarFloor);
   }
 
-  private async runObserverTask(baseCtx: PipelineContext): Promise<void> {
-    const spawnEpoch = this.pickEpoch;
+  /** Route the detective's next_move into engine state mutations.
+   *  Phase 4 wiring:
+   *    - 'append' with intent: trigger the generation pipeline
+   *      (interrogator + crowd) and push the result to queue
+   *    - 'append' with node_id only: push that authored question to
+   *      queue (Phase 3-compatible advisory pick)
+   *    - 'revise' tail_index: Phase 5; no-op for now
+   *    - 'conclude': flush engine-authored items + transition to
+   *      finalizing (gated on pillar floor)
+   *
+   *  Note on "queue zones": instead of a structural QueueZone {head,
+   *  tail} type, we use the is_engine_authored flag on QueueItem as
+   *  the logical zone marker. Pillars and authored pool items are
+   *  is_engine_authored=false (committed); generation pipeline items
+   *  are is_engine_authored=true (revisable / flushable). Conclude
+   *  flushes only the engine-authored items, preserving any remaining
+   *  authored questions. */
+  private async applyDetectiveNextMove(
+    move: { kind: string; node_id?: string; intent?: { angle: string; planted_options?: string[] }; reason: string; tail_index?: number },
+    postOpenerCount: number,
+    pillarFloor: number,
+  ): Promise<void> {
+    if (move.kind === 'conclude') {
+      if (postOpenerCount < pillarFloor) {
+        // Floor gate: detective can't end early until pillars exhausted.
+        // Phase 5 calibrates the coverage heuristic, then this floor
+        // becomes the safety net rather than the dominant gate.
+        return;
+      }
+      // Flush engine-authored items from the queue, then transition.
+      this.setState({
+        queue: this.state.queue.filter((q) => !q.is_engine_authored),
+      });
+      this.beginIntentionStage();
+      return;
+    }
+    if (move.kind === 'revise') {
+      // Phase 5: revise queue.tail[tail_index]. For now, no-op.
+      return;
+    }
+    if (move.kind === 'append') {
+      // Phase 4 path: detective supplied an `intent` → generate.
+      if (move.intent && move.intent.angle.trim().length > 0) {
+        await this.appendGeneratedQuestion(move.intent);
+        return;
+      }
+      // Phase 3 fallback path: detective picked a node_id from the
+      // adversarial candidates pool. Push the authored item.
+      if (move.node_id) {
+        // Defensive: skip if already asked or already queued.
+        if (this.state.asked_node_ids.includes(move.node_id)) return;
+        if (this.state.queue.some((q) => q.node_id === move.node_id)) return;
+        this.setState({
+          queue: [
+            ...this.state.queue,
+            { node_id: move.node_id, prompted_by: 'detective_append', priority: 'normal' },
+          ],
+        });
+        return;
+      }
+      // No intent + no node_id — empty append. Detective hasn't
+      // committed to a direction yet; no-op.
+    }
+  }
+
+  /** Trigger the Phase 4 generation pipeline: interrogator + crowd
+   *  → assemble + lint → enqueue with is_engine_authored=true. On
+   *  lint failure (both attempts), falls back to a random
+   *  unanswered pool pick. */
+  private async appendGeneratedQuestion(intent: { angle: string; planted_options?: string[] }): Promise<void> {
+    try {
+      const result = await generateQuestion(this.opts.adapter, intent);
+      if (result) {
+        this.setState({
+          queue: [...this.state.queue, result.item],
+        });
+        return;
+      }
+    } catch (e) {
+      console.warn('[survey] generation pipeline failed', e);
+    }
+    // Fallback: pick a random unanswered authored question.
+    const fallback = this.pickFallbackPoolItem();
+    if (fallback) {
+      this.setState({ queue: [...this.state.queue, fallback] });
+    }
+  }
+
+  /** Return a random unanswered pool QueueItem, or null when the
+   *  pool is exhausted. Used as the static fallback when generation
+   *  fails lint. */
+  private pickFallbackPoolItem(): QueueItem | null {
+    const asked = new Set(this.state.asked_node_ids);
+    const queued = new Set(this.state.queue.map((q) => q.node_id));
+    const candidates = [...getPillars(), ...getPoolNodeIds()].filter(
+      (id) => !asked.has(id) && !queued.has(id),
+    );
+    if (candidates.length === 0) return null;
+    const node_id = candidates[Math.floor(Math.random() * candidates.length)]!;
+    return { node_id, prompted_by: 'fallback_pool', priority: 'normal' };
+  }
+
+  /** Run the observer agent. Returns true on successful apply, false
+   *  on failure or staleness. Bumps doc.v on success. */
+  private async runObserverTask(baseCtx: PipelineContext): Promise<boolean> {
     this.agentInFlight.observer += 1; this.publishInflight();
     try {
-      const out: ObserverOutput = await runObserver(this.opts.adapter, baseCtx);
-      // Stale-result drop: an undo (or a subsequent pick) bumps pickEpoch.
-      // If the engine has moved on since this task was spawned, the
-      // observer was reasoning about a now-rolled-back state — drop.
-      if (spawnEpoch !== this.pickEpoch) return;
-      // Profile-side updates (body, hooks, edges, side_channel, cast notes).
-      const nextProfile = applyObserverOutput(this.state.profile, out);
-      // Investigation-side updates (hypothesis ladder moves).
-      const nextHypotheses = applyLadderMoves(this.state.investigation.hypotheses, out.hypothesis_ladder_moves);
-      this.setState({
-        profile: nextProfile,
-        investigation: {
-          ...this.state.investigation,
-          hypotheses: nextHypotheses,
-        },
-      });
+      const out = await runObserver(this.opts.adapter, baseCtx);
+      // Staleness gate: discard if the doc moved while we were
+      // thinking. The next cognition cycle will re-base.
+      if (out.based_on_v !== this.state.doc.v) {
+        return false;
+      }
+      const nextDoc = applyObserverDelta(this.state.doc, out.delta);
+      this.setState({ doc: nextDoc });
       this.emit();
+      return true;
     } catch (e) {
       console.warn('[survey] observer failed', e);
+      return false;
     } finally {
       this.agentInFlight.observer -= 1; this.publishInflight();
     }
   }
 
-  private async runDetectiveTask(baseCtx: PipelineContext): Promise<void> {
-    const spawnEpoch = this.pickEpoch;
+  /** Run the detective agent. Applies leading_hypothesis +
+   *  story_updates; returns the result (engine inspects next_move).
+   *  Bumps doc.v on success when the output mutates doc. */
+  private async runDetectiveTask(
+    baseCtx: PipelineContext,
+  ): Promise<DetectiveApplyResult | null> {
     this.agentInFlight.detective += 1; this.publishInflight();
     try {
-      const out: DetectiveOutput = await runDetective(this.opts.adapter, {
-        ...baseCtx,
-        detective_log: this.state.detective_log,
-      });
-      // Stale-result drop: see observer comment above.
-      if (spawnEpoch !== this.pickEpoch) return;
-      // applyDetectiveOutput maintains transitional behavior in Phase C:
-      // - hypothesis_updates / hypothesis_refutes route into the new
-      //   ladder rungs based on status (Phase H rewrites both detective
-      //   prompt + apply path to use the ladder natively).
-      // - current_understanding (legacy field) is silently dropped —
-      //   Phase H emits StoryObject instead and the engine starts
-      //   storing into investigation.story.
-      // - queue_edits stay dropped (bug; guarded re-introduction backlog).
-      const nextInvestigation = applyDetectiveOutput(this.state.investigation, out);
-      const nextLog = out.private_thoughts && out.private_thoughts.trim().length > 0
-        ? [...this.state.detective_log, out.private_thoughts.trim()].slice(-DETECTIVE_LOG_CAP)
-        : this.state.detective_log;
-      this.setState({
-        investigation: nextInvestigation,
-        detective_log: nextLog,
-      });
-      this.emit();
+      const out = await runDetective(this.opts.adapter, baseCtx);
+      if (out.based_on_v !== this.state.doc.v) {
+        return null;
+      }
+      const applied = applyDetectiveOutput(this.state.doc, out);
+      if (applied.nextDoc !== this.state.doc) {
+        this.setState({ doc: applied.nextDoc });
+        this.emit();
+      }
+      return applied;
     } catch (e) {
       console.warn('[survey] detective failed', e);
+      return null;
     } finally {
       this.agentInFlight.detective -= 1; this.publishInflight();
     }
@@ -1024,248 +1148,19 @@ function shuffleInPlace<T>(arr: T[]): T[] {
 // the engine no longer applies them (see runDetectiveTask). This helper
 // can come back once the re-apply path is guarded against stale edits.
 
-/** Apply v2 observer output to profile.
- *
- *  - profile.body is REPLACED with out.profile_body (full rewrite),
- *    but only if the emitted body still has all 9 expected section
- *    headers. If a header is dropped (model hallucinated a rewrite
- *    that lost structure), keep the prior body — better to show
- *    stale-but-shape-correct than to lose the scaffold downstream
- *    consumers (the seer) depend on.
- *  - hooks / edges / side_channel are REPLACED with the observer's
- *    full-emit arrays (the observer emits the full desired state each
- *    turn; engine doesn't merge — observer integrates manually).
- *  - cast notes are merged by label: for each { label, notes } update,
- *    find the matching CastMember and set its `notes` field.
- *  - Legacy `sections` field is left untouched (transitional — engine
- *    doesn't append to it anymore, but old data persists for any
- *    downstream consumer until cleanup phase). */
-const REQUIRED_PROFILE_SECTIONS = [
-  'self', 'history', 'relationships', 'joys',
-  'fears', 'insecurities', 'yearnings', 'now', 'tensions',
-] as const;
-
-/** Parse a body into a map of section_name → content. Splits on `## name`
- *  headers; content is everything until the next `## ` or EOF. */
-function splitBodyIntoSections(body: string): Map<string, string> {
-  const out = new Map<string, string>();
-  const re = /^##\s+(\S+)\s*\n([\s\S]*?)(?=^##\s+|$(?![\r\n]))/gm;
-  let m: RegExpExecArray | null;
-  while ((m = re.exec(body)) !== null) {
-    out.set(m[1]!.toLowerCase(), m[2] ?? '');
-  }
-  return out;
-}
-
-/** Merge the observer's new body with the prior body section-by-section.
- *  For each required section: prefer new's content if non-empty, else
- *  fall back to prior. This prevents a single bad observer turn (drops
- *  ## tensions entirely) from wiping the whole document. Always emits
- *  all 9 headers in canonical order. */
-function mergeBodySections(prior: string, next: string): string {
-  const priorSections = splitBodyIntoSections(prior);
-  const nextSections = splitBodyIntoSections(next);
-  const lines: string[] = ['# Profile', ''];
-  for (const section of REQUIRED_PROFILE_SECTIONS) {
-    const nextContent = (nextSections.get(section) ?? '').trim();
-    const priorContent = (priorSections.get(section) ?? '').trim();
-    const content = nextContent || priorContent;
-    lines.push(`## ${section}`, '');
-    if (content) lines.push(content, '');
-  }
-  return lines.join('\n');
-}
-
-function applyObserverOutput(profile: SurveyProfile, out: ObserverOutput): SurveyProfile {
-  const castNotesByLabel = new Map(out.cast_notes_updates.map((u) => [u.label, u.notes]));
-  const nextCast = profile.cast.map((m) => {
-    const notes = castNotesByLabel.get(m.label);
-    return notes !== undefined ? { ...m, notes } : m;
-  });
-  // Section-by-section merge — the observer can drop a section in a
-  // given turn without wiping it from the doc. Earlier turns' content
-  // for that section persists until the observer overwrites it.
-  const nextBody = mergeBodySections(profile.body, out.profile_body);
-  return {
-    ...profile,
-    body: nextBody,
-    // Hooks / edges / side_channel are STILL replaced. End-of-survey
-    // algorithmic extraction overrides hooks + side_channel afterward,
-    // so any per-turn observer noise here gets stomped on the way out.
-    hooks: out.hooks,
-    edges: out.edges,
-    side_channel: out.side_channel,
-    cast: nextCast,
-  };
-}
-
-/** Apply detective output to investigation. Designed for safe
- *  composition: sibling pipelines stomping on the same field do NOT
- *  corrupt state — each merge rule is associative-ish.
- *
- *    hypotheses        upsert by id (per-id last-write-wins)
- *    contradictions    union-by-description (no dupes from two pipelines flagging same tension)
- *    hooks             union-by-description (same)
- *    choice_draft      replace ONLY if incoming has confidence >= existing
- *                       (so a slower / less-informed detective can't regress a stronger draft)
- *    active_threads    upsert by thread_id
- *    posture           replace if incoming non-null (last-write-wins)
- */
-/** Apply observer's hypothesis ladder moves to the ladder. Each move
- *  finds the hypothesis by id across all rungs, removes it from its
- *  current rung, and pushes it into the target rung. Unknown ids are
- *  silently dropped (the observer may have hallucinated). */
-function applyLadderMoves(
-  ladder: HypothesisLadder,
-  moves: Array<{ id: string; to: 'confirmed' | 'probable' | 'tentative' | 'contested' | 'refuted' | 'held' }>,
-): HypothesisLadder {
-  if (moves.length === 0) return ladder;
-  let next = ladder;
-  for (const move of moves) {
-    // Find the hypothesis across rungs.
-    const all = [
-      ...next.confirmed, ...next.probable, ...next.tentative,
-      ...next.contested, ...next.refuted, ...next.held,
-    ];
-    const found = all.find((h) => h.id === move.id);
-    if (!found) continue;
-    // Remove from wherever it lives, push to target.
-    next = removeFromLadder(next, move.id);
-    next = { ...next, [move.to]: [...next[move.to], found] };
-  }
-  return next;
-}
-
-function applyDetectiveOutput(inv: Investigation, out: DetectiveOutput): Investigation {
-  // v2 detective: produces new_hypotheses + ladder_moves + story_updates +
-  // private_thoughts. No more legacy hypothesis_updates / refutes /
-  // choice_update / contradictions_found / hooks_found / thread_updates /
-  // posture / current_understanding / queue_edits.
-  let hypotheses = inv.hypotheses;
-  // 1. Add new hypotheses to their starting rungs.
-  if (out.new_hypotheses.length > 0) {
-    hypotheses = addNewHypotheses(hypotheses, out.new_hypotheses);
-  }
-  // 2. Apply ladder moves.
-  if (out.hypothesis_ladder_moves.length > 0) {
-    hypotheses = applyLadderMoves(hypotheses, out.hypothesis_ladder_moves);
-  }
-  // 3. Merge story_updates into investigation.story.
-  const story = mergeStoryUpdates(inv.story, out.story_updates);
-  return {
-    ...inv,
-    hypotheses,
-    story,
-  };
-}
-
-/** Add new hypotheses surfaced by the detective. Each lands on the
- *  ladder at `start_at` (default 'tentative'). Stable id → upsert
- *  semantics: same id already on the board, the new claim replaces
- *  but rung is preserved. */
-function addNewHypotheses(
-  ladder: HypothesisLadder,
-  news: Array<{ id: string; claim: string; start_at?: 'confirmed' | 'probable' | 'tentative' | 'contested' | 'refuted' | 'held' }>,
-): HypothesisLadder {
-  let next = ladder;
-  for (const n of news) {
-    const startRung = n.start_at ?? 'tentative';
-    // Upsert: if id exists on any rung, update its description; else add fresh.
-    const all = [
-      ...next.confirmed, ...next.probable, ...next.tentative,
-      ...next.contested, ...next.refuted, ...next.held,
-    ];
-    const existing = all.find((h) => h.id === n.id);
-    if (existing) {
-      next = removeFromLadder(next, n.id);
-      const updated: Hypothesis = { ...existing, description: n.claim };
-      next = { ...next, [startRung]: [...next[startRung], updated] };
-    } else {
-      const fresh: Hypothesis = {
-        id: n.id,
-        description: n.claim,
-        supporting_picks: [],
-        contradicting_picks: [],
-        confidence: startRung === 'confirmed' ? 0.9 : startRung === 'probable' ? 0.65 : 0.3,
-        status: startRung === 'confirmed' ? 'confirmed' : startRung === 'refuted' ? 'refuted' : 'inferred',
-        seeded: false,
-        generated_at: 0,
-        age_in_turns: 0,
-      };
-      next = { ...next, [startRung]: [...next[startRung], fresh] };
-    }
-  }
-  return next;
-}
-
-/** Merge a partial story_updates object into the current story.
- *  fork / present_pressure / past_root / stakes are REPLACED with
- *  the incoming value if provided. hooks are APPENDED + deduped. */
-function mergeStoryUpdates(
-  story: NonNullable<Investigation['story']>,
-  updates: DetectiveOutput['story_updates'],
-): NonNullable<Investigation['story']> {
-  const nextHooks = updates.hooks
-    ? Array.from(new Set([...story.hooks, ...updates.hooks]))
-    : story.hooks;
-  return {
-    fork: updates.fork ?? story.fork,
-    present_pressure: updates.present_pressure ?? story.present_pressure,
-    past_root: updates.past_root ?? story.past_root,
-    stakes: updates.stakes ?? story.stakes,
-    hooks: nextHooks,
-  };
-}
-
-// applyLadderUpdates / rungFor / moveToRefuted helpers removed —
-// they were the transitional bridge for the legacy detective output
-// (hypothesis_updates: Hypothesis[] with .status). v2 detective emits
-// new_hypotheses + hypothesis_ladder_moves directly; observer too.
-
-function removeFromLadder(ladder: HypothesisLadder, id: string): HypothesisLadder {
-  return {
-    confirmed: ladder.confirmed.filter((h) => h.id !== id),
-    probable: ladder.probable.filter((h) => h.id !== id),
-    tentative: ladder.tentative.filter((h) => h.id !== id),
-    contested: ladder.contested.filter((h) => h.id !== id),
-    refuted: ladder.refuted.filter((h) => h.id !== id),
-    held: ladder.held.filter((h) => h.id !== id),
-  };
-}
-
-// moveToRefuted / pickStrongerChoice / unionByKey helpers removed —
-// they served the legacy detective output's hypothesis_refutes,
-// choice_update, contradictions_found, and hooks_found fields. None
-// are emitted by the v2 detective.
-
-// mergeCast removed — the v2 observer doesn't emit full CastMember
-// updates anymore (cast identity is owned by the user via the
-// relationship_pick UI). Observer only updates the `notes` field on
-// existing CastMembers; identity / pronouns / color / off_limits are
-// untouched. See applyObserverOutput above.
-
-// mergeHypotheses removed — applyLadderUpdates (above) handles the new
-// ladder routing. Phase H rewrites the detective output schema to
-// emit ladder rungs natively; until then the transitional adapter
-// maps legacy `status`-based output into the new shape.
-
-// Engine-side hypothesis pruning removed. The detective now persists
-// its full board across the whole survey — the scratchpad
-// (detective_log) carries continuity, and stale hypotheses are
-// information (a refuted lead is a useful constraint), not noise.
 
 // ─── test-only re-exports ────────────────────────────────
 //
-// The apply helpers are intentionally module-local (no caller outside
-// engine.ts needs them at runtime). Re-export with `__test_` prefix so
-// the unit tests can target them directly without going through
-// engine state machine setup. Production code SHOULD NOT import these.
+// v2 apply helpers live in per-agent apply.ts files. Re-export here
+// so unit tests can target them directly without going through engine
+// state machine setup. Production code SHOULD import from the
+// per-agent folders, not from engine.ts.
 
+export { applyObserverDelta as __test_applyObserverDelta } from './agents/observer';
 export {
-  applyObserverOutput as __test_applyObserverOutput,
   applyDetectiveOutput as __test_applyDetectiveOutput,
-  applyLadderMoves as __test_applyLadderMoves,
-  addNewHypotheses as __test_addNewHypotheses,
   mergeStoryUpdates as __test_mergeStoryUpdates,
-  removeFromLadder as __test_removeFromLadder,
-};
+} from './agents/detective';
+export { recomputeCoverage as __test_recomputeCoverage, isCoverageDone as __test_isCoverageDone } from './coverage';
+export { rankAdversarial as __test_rankAdversarial } from './adversarial';
+export { computeLatencyZScores as __test_computeLatencyZScores } from './algoExtract';

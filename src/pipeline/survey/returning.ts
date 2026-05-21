@@ -2,15 +2,18 @@
 // name matches an existing Person record so we can offer LOAD vs START
 // FRESH. The match carries the full saved Person — the LOAD path
 // hydrates the engine directly from it via engine.loadFromSave().
+//
+// v2: Person.investigation → Person.doc (LivingDoc).
 
 import { findPeopleByName, type Person } from '../../storage';
-import type { Investigation, PickEvent, SurveyProfile, TimingEvent } from './types';
+import type { PickEvent, SurveyProfile, TimingEvent } from './types';
+import type { LivingDoc } from './living-doc';
 
 export type ReturningMatch = {
   person_id: string;
   profile: SurveyProfile;
   /** Final post-synthesis snapshot — needed for the LOAD path. */
-  investigation: Investigation;
+  doc: LivingDoc;
   picks_log: PickEvent[];
   timing_log?: TimingEvent[];
   /** History of past intentions, most-recent first. */
@@ -34,7 +37,7 @@ function toMatch(person: Person): ReturningMatch {
   return {
     person_id: person.id,
     profile: person.profile,
-    investigation: person.investigation,
+    doc: person.doc,
     picks_log: person.picks_log,
     timing_log: person.timing_log,
     prior_intentions: [...(person.intentions ?? [])],

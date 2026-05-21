@@ -61,7 +61,13 @@ export class AnthropicAdapter implements LLMAdapter {
     inFlightCount += 1;
     lastTier = spec.model;
     const eventId = nextId();
-    startAgentEvent({ id: eventId, label: spec.tool.name, model: spec.model });
+    startAgentEvent({
+      id: eventId,
+      label: spec.tool.name,
+      model: spec.model,
+      system: spec.system,
+      user: spec.user,
+    });
     try {
       const firstCall = await this.callOnce(spec, tool);
       const firstParsed = schema.safeParse(firstCall);
@@ -97,7 +103,13 @@ export class AnthropicAdapter implements LLMAdapter {
     inFlightCount += 1;
     lastTier = spec.model;
     const eventId = nextId();
-    startAgentEvent({ id: eventId, label: 'freeform', model: spec.model });
+    startAgentEvent({
+      id: eventId,
+      label: 'freeform',
+      model: spec.model,
+      system: spec.system,
+      user: spec.user,
+    });
     try {
       const modelId = MODEL_FOR[spec.model];
       const response = await this.client.messages.create({

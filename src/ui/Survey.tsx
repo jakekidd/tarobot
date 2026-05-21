@@ -80,7 +80,7 @@ export function Survey({ apiKey, session, loadedPerson, onComplete }: Props) {
     if (loadedPerson) {
       engine.loadFromSave({
         profile: loadedPerson.profile,
-        investigation: loadedPerson.investigation,
+        doc: loadedPerson.doc,
         picks_log: loadedPerson.picks_log,
         timing_log: loadedPerson.timing_log,
         prior_intentions: loadedPerson.intentions,
@@ -168,7 +168,7 @@ export function Survey({ apiKey, session, loadedPerson, onComplete }: Props) {
     // Mirrors the LOAD button in ResumeMenu.
     engine.loadFromSave({
       profile: match.profile,
-      investigation: match.investigation,
+      doc: match.doc,
       picks_log: match.picks_log,
       timing_log: match.timing_log,
       prior_intentions: match.prior_intentions,
@@ -208,7 +208,7 @@ export function Survey({ apiKey, session, loadedPerson, onComplete }: Props) {
     savedThisSession.current = true;
     const person = savePersonFromFinalState({
       profile: cloneProfile(state.profile),
-      investigation: JSON.parse(JSON.stringify(state.investigation)) as typeof state.investigation,
+      doc: JSON.parse(JSON.stringify(state.doc)) as typeof state.doc,
       picks_log: [...state.picks_log],
       timing_log: [...state.timing_log],
     });

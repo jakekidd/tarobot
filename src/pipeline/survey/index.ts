@@ -17,6 +17,7 @@ export {
   TREE,
   validateTree,
   renderQuestion,
+  renderQueueItem,
   getNode,
   getOpeners,
   getPillars,
@@ -36,28 +37,17 @@ export { derivePhase, phaseFromTurns } from './phase';
 
 export type {
   AnswerFormat,
-  ActiveThread,
+  AnswerTuple,
   CastMember,
-  Choice,
   CloseReason,
-  Contradiction,
-  DetectiveOutput,
   DialogueTree,
   EngineListener,
   EngineState,
-  Hook,
   Hypothesis,
-  HypothesisLadder,
-  InterrogatorOutput,
-  Investigation,
-  LadderRung,
-  Note,
-  ObserverOutput,
   Phase,
   PickEvent,
   PipelineContext,
   ProbeBlock,
-  ProfileSections,
   QueueItem,
   RenderedQuestion,
   SideChannel,
@@ -65,5 +55,21 @@ export type {
   SurveyProfile,
   TimingEvent,
   TreeNode,
-  AnswerTuple,
 } from './types';
+
+// v2 agent output types (live in per-agent schema.ts via z.infer).
+export type { ObserverOutput, ObserverDelta } from './agents/observer';
+export type { DetectiveOutput, StoryUpdates } from './agents/detective';
+
+// v2 LivingDoc types — new public surface introduced in Phase 2.
+export type {
+  LivingDoc,
+  Probe,
+  CoverageDim,
+  CoverageMap,
+  DocScaffold,
+  TemporalLean,
+  Move,
+  QueueZone,
+} from './living-doc';
+export { EMPTY_DOC, MARGIN_CAP, TELLS_CAP } from './living-doc';

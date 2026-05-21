@@ -1,33 +1,26 @@
-// Deterministic mapping from EngineState → legacy Profile. The Compiler LLM
-// produces ONLY synthesis fields (brief, openers, prose_brief); everything
-// else in the Profile is built here from the engine's own data. This dramatically
-// reduces the LLM surface area and makes Compiler failures recoverable.
+// Deterministic mapping from EngineState → legacy Profile. THE bridge.
+//
+// The Profile shape is frozen (the downstream seam — Seer, Augur,
+// director, actor, mantra all read it). This file is the ONLY place
+// in the survey module that knows about both the new LivingDoc and
+// the legacy Profile shape. Everything else inside the survey deals
+// in LivingDoc; everything downstream deals in Profile.
+//
+// Phase 2 status: doc is largely empty at assembly time because the
+// observer + detective agents throw not_implemented_v2. The bridge
+// still produces a valid Profile — just with empty/minimal cognition
+// fields. The Seer's director / Augur tolerate empty arrays so the
+// reading degrades to "raw identity + opener answers" but doesn't
+// crash. Phase 3 lights up the real doc content.
 
 import type {
-  CastEntry, Choice, Highlight, Hunch, Profile, Thread,
+  CastEntry, Choice, Hunch, Profile, Thread,
 } from '../types';
-import type {
-  EngineState, CastMember, Hook, Hypothesis, HypothesisLadder, ActiveThread, Note,
-  Choice as SurveyChoice,
-} from './types';
-
-/** Flatten the hypothesis ladder into a single array for legacy
- *  Profile.hunches consumption. Order: confirmed → probable →
- *  contested → tentative → held → refuted (most-believed first;
- *  refuted last). Phase I rewires the seer handoff to take the
- *  ladder directly. */
-function flattenLadder(l: HypothesisLadder): Hypothesis[] {
-  return [
-    ...l.confirmed,
-    ...l.probable,
-    ...l.contested,
-    ...l.tentative,
-    ...l.held,
-    ...l.refuted,
-  ];
-}
+import type { EngineState, CastMember } from './types';
+import type { LivingDoc, Probe } from './living-doc';
 
 export function assembleProfile(state: EngineState, briefSummary: string): Profile {
+  const doc = state.doc;
   return {
     identity: {
       name: state.profile.name || undefined,
@@ -40,103 +33,136 @@ export function assembleProfile(state: EngineState, briefSummary: string): Profi
       sun_sign: state.profile.sun_sign ?? undefined,
       life_path: state.profile.life_path ?? undefined,
       tarot_birth_card: state.profile.birth_card ?? undefined,
-      came_with: undefined,        // not asked in v0.4.0 openers
+      came_with: undefined,
       notes: collectIdentityNotes(state),
     },
-    candidates: mapCandidates(state.investigation.choice_draft),
+    candidates: candidatesFromDoc(doc),
     cast: state.profile.cast.map(mapCast),
-    threads: state.investigation.active_threads.map(mapThread),
-    // Hypothesis ladder → hunches: flatten all rungs (transitional;
-    // Phase I rewires the seer handoff to take the ladder directly
-    // along with the StoryObject).
-    hunches: flattenLadder(state.investigation.hypotheses).map(mapHunch),
-    margin: buildMargin(state),
-    cognition_log: buildCognitionLog(state),
-    highlights: state.investigation.hooks.map((h, idx) => mapHighlight(h, idx)),
+    // Director.ts handles empty arrays gracefully. Threads as a
+    // cross-cutting pattern type isn't reconstructed from doc;
+    // similar information surfaces through doc.scaffold.axes and
+    // leading_hypothesis (which feed observer_body).
+    threads: [] as Thread[],
+    // Hunches map 1-to-1 from doc.held — each unresolved probe is a
+    // "suspicion the survey didn't settle". Director uses them as
+    // texture for the closing risky-swing.
+    hunches: doc.held.map(mapHunch),
+    margin: doc.margin.join(' · ').slice(0, 480),
+    cognition_log: buildCognitionLog(doc, state),
+    // Highlights derive from doc.story.hooks (verbatim specifics).
+    // Phase 4's is_engine_authored guard prevents planted-option
+    // text from leaking in here.
+    highlights: doc.story.hooks.map((h, i) => ({
+      id: `hook-${i}`,
+      topic: h,
+      reason: 'story hook',
+      introduced_turn: 0,
+      ttl: 5,
+      salience: 'medium' as const,
+    })),
     brief: briefSummary,
-    // Observer-produced texture forwarded to the seer. These were
-    // computed but going nowhere before — the director payloads now
-    // include them so the seer reads who the subject IS, not just the
-    // structural fork they stand at.
-    observer_body: state.profile.body,
-    observer_hooks: state.profile.hooks,
-    observer_edges: state.profile.edges,
-    observer_side_channel: state.profile.side_channel,
-    ready_to_close: (state.investigation.choice_draft?.confidence ?? 'low') !== 'low',
-    version: 1,
+    // Observer-produced texture — Phase 3 fills these. In Phase 2 the
+    // observer throws so these are minimal; the body is a rendering of
+    // whatever scaffold content survived. Empty scaffold → empty body.
+    observer_body: renderScaffoldAsMarkdown(doc),
+    observer_hooks: doc.story.hooks,
+    observer_edges: doc.held.map((p) => p.claim).slice(0, 8),
+    observer_side_channel: {},     // Phase 3 derives from doc.scaffold.tells + algoExtract
+    ready_to_close: isCoverageDone(doc),
+    version: doc.v,
   };
 }
 
-// ─── mappers ────────────────────────────────────────────────
+// ─── derivations from LivingDoc ────────────────────────
 
-function mapCandidates(choice: SurveyChoice | null): Choice[] {
-  if (!choice) return [];
-  // Score the dimensions from confidence + stakes heuristics; the seer can
-  // read these but doesn't strictly depend on them being precise.
-  const scoreFromConfidence: Record<SurveyChoice['confidence'], number> = {
-    low: 2, medium: 3, high: 4,
-  };
-  const score = scoreFromConfidence[choice.confidence];
+/** Render `doc.scaffold` as a single markdown document the Seer's
+ *  director can read. Captures leading_hypothesis, axes, cast_notes,
+ *  tells, temporal_lean — the structured psychological state.
+ *  Phase 2 most of these are empty; the function still emits a
+ *  scaffold-only doc that the director gracefully ignores. */
+function renderScaffoldAsMarkdown(doc: LivingDoc): string {
+  const s = doc.scaffold;
+  const out: string[] = ['# Profile', ''];
+  if (s.leading_hypothesis) {
+    out.push('## leading_hypothesis', '', s.leading_hypothesis, '');
+  }
+  if (s.temporal_lean) {
+    out.push('## stance', '', `temporal_lean: ${s.temporal_lean}`, '');
+  }
+  const axisKeys = Object.keys(s.axes);
+  if (axisKeys.length > 0) {
+    out.push('## axes', '');
+    for (const k of axisKeys) {
+      out.push(`### ${k}`, '', s.axes[k] ?? '', '');
+    }
+  }
+  const castKeys = Object.keys(s.cast_notes);
+  if (castKeys.length > 0) {
+    out.push('## cast_notes', '');
+    for (const k of castKeys) {
+      out.push(`- ${k}: ${s.cast_notes[k] ?? ''}`);
+    }
+    out.push('');
+  }
+  if (s.tells.length > 0) {
+    out.push('## tells', '', ...s.tells.map((t) => `- ${t}`), '');
+  }
+  if (doc.margin.length > 0) {
+    out.push('## margin', '', ...doc.margin.map((m) => `- ${m}`), '');
+  }
+  return out.join('\n');
+}
+
+/** Build the Profile.candidates array from doc.scaffold. The Seer's
+ *  director reads this to find the target fork (which it then names
+ *  the cards around). In v2 we derive a single Choice from
+ *  leading_hypothesis + fork. Empty leading_hypothesis → empty
+ *  candidates (director tolerates). */
+function candidatesFromDoc(doc: LivingDoc): Choice[] {
+  if (!doc.scaffold.fork && !doc.scaffold.leading_hypothesis) return [];
+  const fork = doc.scaffold.fork;
   return [{
-    id: 'survey-choice-1',
-    description: choice.fork,
-    options: [
-      { name: choice.fork_a.label, summary: choice.fork_a.supporting_picks.join(' · ') },
-      { name: choice.fork_b.label, summary: choice.fork_b.supporting_picks.join(' · ') },
-    ],
-    source: choice.is_stated ? 'stated' : 'constructed',
+    id: 'doc-leading',
+    description: doc.scaffold.leading_hypothesis || (fork ? `${fork.a} vs ${fork.b}` : '(unnamed)'),
+    options: fork
+      ? [
+          { name: fork.a, summary: '' },
+          { name: fork.b, summary: '' },
+        ]
+      : [],
+    source: fork?.is_stasis ? 'constructed' : 'stated',
     scores: {
-      stakes: score,
-      time_proximity: score,
-      user_engagement: score,
+      stakes: 3,
+      time_proximity: 3,
+      user_engagement: 3,
     },
     is_target: true,
-    confidence: choice.confidence === 'high' ? 0.85 : choice.confidence === 'medium' ? 0.6 : 0.35,
-    notes: choice.open_questions.join(' · '),
+    confidence: doc.scaffold.leading_hypothesis ? 0.6 : 0.3,
+    notes: '',
   }];
 }
 
 function mapCast(c: CastMember): CastEntry {
   return {
     role: c.likely_role ?? c.label,
-    name: c.label.startsWith('unnamed') ? undefined : undefined,   // labels are placeholders
-    valence: c.confidence === 'high' ? 'high-confidence anchor' : c.confidence === 'medium' ? 'probable' : 'speculative',
+    name: undefined,
+    valence: c.confidence === 'high'
+      ? 'high-confidence anchor'
+      : c.confidence === 'medium' ? 'probable' : 'speculative',
     last_referenced_turn: 0,
   };
 }
 
-function mapThread(t: ActiveThread): Thread {
+function mapHunch(p: Probe): Hunch {
   return {
-    pattern: `${t.description}${t.observer_note ? ' — ' + t.observer_note : ''} (${t.status})`,
-    observations: [],            // engine doesn't track turn indices for threads
-    salience:
-      t.status === 'confirmed' ? 4 :
-      t.status === 'awaiting_confirm' ? 3 :
-      t.status === 'open' ? 2 : 1,
+    suspicion: p.claim,
+    grounded_in: `${p.source} · ${p.age_in_turns} turns held`,
+    confidence: 0.3,
+    age_turns: p.age_in_turns,
   };
 }
 
-function mapHunch(h: Hypothesis): Hunch {
-  return {
-    suspicion: h.description,
-    grounded_in: h.supporting_picks.join(' · ') || '(no specific picks)',
-    confidence: h.confidence,
-    age_turns: 0,
-  };
-}
-
-function mapHighlight(h: Hook, idx: number): Highlight {
-  return {
-    id: `hook-${idx}`,
-    topic: h.description,
-    reason: `from ${h.source}${h.source_pick ? ' on ' + h.source_pick : ''}`,
-    introduced_turn: 0,
-    ttl: 5,
-    salience: h.source === 'admission' || h.source === 'pass' ? 'high' : 'medium',
-  };
-}
-
-// ─── builders ───────────────────────────────────────────────
+// ─── builders ───────────────────────────────────────────
 
 function collectIdentityNotes(state: EngineState): string {
   const parts: string[] = [];
@@ -155,54 +181,40 @@ function collectIdentityNotes(state: EngineState): string {
   if (id.age_bracket) {
     parts.push(`age bracket: ${id.age_bracket}`);
   }
-  for (const n of state.profile.sections.identity) {
-    parts.push(n.text);
-  }
   return parts.join('. ');
 }
 
-function buildMargin(state: EngineState): string {
-  // Compressed observations across all profile sections. Keep under ~500 chars.
-  const all: Note[] = [
-    ...state.profile.sections.state,
-    ...state.profile.sections.relational,
-    ...state.profile.sections.self_model,
-    ...state.profile.sections.decision_context,
-    ...state.profile.sections.patterns,
-  ];
-  const lines = all
-    .filter((n) => n.category === 'observation' || n.category === 'suspicion')
-    .map((n) => `• ${n.text}`);
-  return truncate(lines.join('\n'), 480);
+function buildCognitionLog(doc: LivingDoc, state: EngineState): string {
+  const s = doc.scaffold;
+  const compact = {
+    leading_hypothesis: s.leading_hypothesis || null,
+    temporal_lean: s.temporal_lean,
+    fork: s.fork,
+    axes: Object.keys(s.axes),
+    tells: s.tells.slice(-6),
+    held_count: doc.held.length,
+    close_reason: state.close_reason ?? null,
+    questions_answered: state.picks_log.length,
+  };
+  return JSON.stringify(compact).slice(0, 1900);
 }
 
-function buildCognitionLog(state: EngineState): string {
-  const parts: string[] = [];
-  const inv = state.investigation;
-  if (inv.choice_draft) {
-    parts.push(`Choice (${inv.choice_draft.confidence}, ${inv.choice_draft.is_stated ? 'stated' : 'constructed'}): ${inv.choice_draft.fork}`);
-  }
-  if (inv.contradictions.length > 0) {
-    parts.push('Contradictions:');
-    for (const c of inv.contradictions) {
-      parts.push(`  - [${c.severity}] ${c.description}`);
-    }
-  }
-  if (inv.posture) {
-    parts.push(`Posture: ${inv.posture}`);
-  }
-  parts.push(`Closed on ${state.close_reason} at Q${state.picks_log.length}.`);
-  return truncate(parts.join('\n'), 1900);
+/** Coverage "done" predicate for ready_to_close. In Phase 2 the
+ *  coverage map is empty (no recompute yet), so this is effectively
+ *  false. Phase 3 wires a real heuristic; Phase 5 calibrates against
+ *  the ≥80% fork-named target. */
+function isCoverageDone(doc: LivingDoc): boolean {
+  if (doc.scaffold.fork === null) return false;
+  if (doc.scaffold.temporal_lean === null) return false;
+  if (doc.margin.length < 3) return false;
+  return true;
 }
 
-// ─── helpers ────────────────────────────────────────────────
+// ─── helpers ────────────────────────────────────────────
 
 function formatBirthDate(b: { year: number; month: number; day: number }): string {
   return `${b.year}-${String(b.month).padStart(2, '0')}-${String(b.day).padStart(2, '0')}`;
 }
 function formatBirthMonthDay(b: { year: number; month: number; day: number }): string {
   return `${String(b.month).padStart(2, '0')}-${String(b.day).padStart(2, '0')}`;
-}
-function truncate(s: string, max: number): string {
-  return s.length <= max ? s : s.slice(0, max - 1) + '…';
 }

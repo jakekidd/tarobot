@@ -17,11 +17,16 @@
 
 import type {
   EngineState,
-  Investigation,
+  LivingDoc,
   PickEvent,
   SurveyProfile,
   TimingEvent,
 } from './pipeline/survey';
+
+/** Current Person schema version. Bumped to 2 in the survey-engine-v2
+ *  refactor (replaces Investigation with LivingDoc). purgeLegacyPersons
+ *  drops anything where schema_version !== 2 on app boot. */
+export const PERSON_SCHEMA_VERSION = 2 as const;
 import type { PersonaId } from './pipeline';
 import { DEFAULT_MASCOT_ID, type MascotId } from './ui/scene/mascots';
 
@@ -52,18 +57,22 @@ export function clearApiKey(): void {
 
 export type Person = {
   id: string;
+  /** Schema version. v2 introduces LivingDoc (replacing the legacy
+   *  Investigation). `purgeLegacyPersons` drops anything with a
+   *  different version on boot. */
+  schema_version: typeof PERSON_SCHEMA_VERSION;
   /** Lowercase first name — the primary match key. Original casing is
    *  preserved in `profile.name`. */
   name: string;
   /** Final post-synthesis SurveyProfile (immutable once saved). */
   profile: SurveyProfile;
-  /** Final post-synthesis Investigation (story + hypothesis ladder + cast). */
-  investigation: Investigation;
+  /** Final post-synthesis LivingDoc (scaffold + margin + story + held
+   *  probes + coverage). v2 replacement for the legacy Investigation. */
+  doc: LivingDoc;
   /** Full picks_log from the survey — the Seer reads this as
    *  surveyHistory in the director payloads. */
   picks_log: PickEvent[];
-  /** Optional telemetry log (latency, initial-vs-final picks). Kept for
-   *  algoExtract regeneration if needed; not load-bearing. */
+  /** Optional telemetry log (latency, initial-vs-final picks, z-scores). */
   timing_log?: TimingEvent[];
   /** History of intentions the user has asked (most-recent first).
    *  Each LOAD + new intention prepends here so we can show
@@ -203,7 +212,7 @@ export function completeActiveSession(): void {
  *  intention without re-running the questionnaire. */
 export function savePersonFromFinalState(args: {
   profile: SurveyProfile;
-  investigation: Investigation;
+  doc: LivingDoc;
   picks_log: PickEvent[];
   timing_log?: TimingEvent[];
 }): Person {
@@ -211,9 +220,10 @@ export function savePersonFromFinalState(args: {
   const now = Date.now();
   const person: Person = {
     id: makeId(),
+    schema_version: PERSON_SCHEMA_VERSION,
     name,
     profile: args.profile,
-    investigation: args.investigation,
+    doc: args.doc,
     picks_log: args.picks_log,
     timing_log: args.timing_log,
     intentions: [],
@@ -237,13 +247,20 @@ export function prependIntentionToPerson(person_id: string, intention: string): 
   writePeople(list);
 }
 
-/** Drop any pre-schema-change Persons (the old shape lacked
- *  `investigation` + `picks_log` so they can't be loaded). Called
- *  once from main.tsx at boot. */
+/** Drop any pre-schema-change Persons. v2 records have
+ *  `schema_version === PERSON_SCHEMA_VERSION` (== 2) + `doc` +
+ *  `picks_log`. v1 records (Investigation-shaped) and pre-v1 records
+ *  (no investigation field) all get dropped silently. Called once
+ *  from main.tsx at boot. */
 export function purgeLegacyPersons(): void {
   const list = loadPeopleRaw();
   const survivors = list.filter(
-    (p) => p.investigation && Array.isArray(p.picks_log),
+    (p) =>
+      // Cast through unknown so we can probe legacy shapes that lack
+      // the schema_version field.
+      ((p as unknown as { schema_version?: number }).schema_version === PERSON_SCHEMA_VERSION) &&
+      (p as unknown as { doc?: unknown }).doc != null &&
+      Array.isArray(p.picks_log),
   );
   if (survivors.length !== list.length) {
     writePeople(survivors);

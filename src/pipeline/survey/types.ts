@@ -1,6 +1,29 @@
 // Survey engine types. Internal to the survey module. On close, the
 // engine hands off a pre-built Seer instance (see getSeer()) — no
 // compiler stage, no CompilerOutput intermediate.
+//
+// v2 (Phase 2 — type rip):
+// - Investigation / HypothesisLadder / Hypothesis (9-field) / Note /
+//   ProfileSections / Hook / Contradiction / Choice / ActiveThread
+//   types are GONE. The data model is now LivingDoc (in living-doc.ts)
+//   which the observer single-writes and the detective + coverage
+//   read.
+// - SurveyProfile is slimmed — no more body / hooks / edges /
+//   side_channel / sections. Identity + cast only. The doc owns the
+//   psychological content.
+// - PickEvent + QueueItem now carry `is_engine_authored` (Phase 3+
+//   feature flag; defaults to false / undefined since today's
+//   pool/pillars are all human-authored). The hooks pipeline filters
+//   on this to prevent engine-authored option text from being echoed
+//   back by the Seer as the user's verbatim phrase ("instagram"
+//   guard).
+// - TimingEvent gains `latency_z` for the per-user latency z-score
+//   (computed by algoExtract; treated as a first-class telemetry
+//   channel since latency is the only "body language" tell available).
+// - EngineState.investigation → EngineState.doc (LivingDoc).
+// - EngineState.detective_log dropped (scratchpad lives per-call now).
+
+import type { LivingDoc } from './living-doc';
 
 // ─── Phase ──────────────────────────────────────────────
 
@@ -45,8 +68,8 @@ export type AnswerTuple = [string] | [string, string];
  *
  *  - `surface`     what the literal answer is about
  *  - `inversions`  what answers may invert to — read by the algorithmic
- *                  seeder to drop hypothesis seeds onto the detective's
- *                  board (e.g. values → fears inversion)
+ *                  seeder to drop probe seeds onto doc.held
+ *                  (e.g. values → fears inversion)
  *  - `watch_for`   cross-history confirms / complicates
  *
  *  All fields optional. Legacy single-line `Probe: text` markdown gets
@@ -105,15 +128,7 @@ export type RenderedQuestion = {
   preamble?: string;
 };
 
-// ─── Survey profile (richer than legacy Profile) ────────
-
-export type Note = {
-  text: string;
-  category: 'observation' | 'suspicion' | 'gossip_flag' | 'confirmed_thread' | 'ground_truth';
-  source_picks: string[];
-  confidence: 'low' | 'medium' | 'high';
-  created_at: number;
-};
+// ─── Survey profile (slimmed — identity + cast only in v2) ───
 
 export type CastMember = {
   label: string;
@@ -133,79 +148,37 @@ export type CastMember = {
    *  rerolled via the dice. */
   color?: string;
   /** Observer-derived freeform commentary about this person's role in
-   *  the user's psychology (separate from identity / pronouns / color).
-   *  Bridges structured identity ("Sam is the brother") with freeform
-   *  meaning ("Sam-mentions carry tension"). Only written when there's
-   *  new evidence about this person. */
+   *  the user's psychology. In v2 this is duplicated into
+   *  doc.scaffold.cast_notes[label] for the observer's working view;
+   *  the source of truth for the seer is the cast_notes there.
+   *  Kept on CastMember for back-compat with returning-user storage. */
   notes?: string;
 };
 
-export type Choice = {
-  fork: string;
-  fork_a: { label: string; supporting_picks: string[]; pull_weight: number };
-  fork_b: { label: string; supporting_picks: string[]; pull_weight: number };
-  is_stated: boolean;
-  is_constructed: boolean;
-  stakes_domain: 'relational' | 'occupational' | 'identity' | 'geographic' | 'unknown';
-  confidence: 'low' | 'medium' | 'high';
-  open_questions: string[];
+export type SurveyProfile = {
+  // Populated deterministically from openers (computed in seeder /
+  // engine.applyOpenerDataIfRelevant). The LLM does not produce
+  // these — they are derived from birthday by pure function.
+  name: string;
+  birthday: { year: number; month: number; day: number } | null;
+  sun_sign: string | null;
+  life_path: number | null;
+  birth_card: { number: number; name: string } | null;
+  age_bracket: string | null;
+  birth_time_bracket: 'morning' | 'afternoon_evening' | 'overnight' | 'unknown' | null;
+  /** Relationship status captured at the start of the survey. */
+  relationship_status: RelationshipStatus | null;
+  /** The user's question for the cards, captured at the start of the
+   *  survey (the "intent" opener). Null when the user pressed "I DON'T
+   *  KNOW". At survey close, the IntentConfirm UI uses this to either
+   *  confirm-and-edit or ask freshly. */
+  initial_intention: string | null;
+  /** Cast members the user named via relationship_pick. The actual
+   *  psychological commentary about them lives in `doc.scaffold.cast_notes`. */
+  cast: CastMember[];
 };
 
-export type Hypothesis = {
-  id: string;
-  description: string;
-  supporting_picks: string[];
-  contradicting_picks: string[];
-  confidence: number;            // 0-1 (legacy; ladder rung is the load-bearing signal)
-  status: 'inferred' | 'testing' | 'confirmed' | 'refuted';
-  /** Turn number when this hypothesis was first seeded onto the board.
-   *  Used by the end-of-survey reaper to sort held[] by durability —
-   *  older = more diagnostically interesting (survived without
-   *  refutation or integration). */
-  generated_at?: number;
-  /** Increments each turn the hypothesis stays in `tentative` or `held`
-   *  without moving up the ladder. Zero for new seeds; bumped by the
-   *  engine on each survey tick. */
-  age_in_turns?: number;
-  /** True iff this hypothesis came from the algorithmic seeder (decoder
-   *  inversions) rather than the detective. The observer treats seeded
-   *  hypotheses as suggestions to integrate / refute, not as facts. */
-  seeded?: boolean;
-};
-
-/** The detective's working board: hypotheses sorted into rungs by their
- *  current epistemic status. Replaces the legacy single `hypotheses[]`
- *  array + numeric confidence with a linguistic ladder.
- *
- *  - `confirmed`   direct statement + supporting indirect signal(s)
- *  - `probable`    multiple convergent signals OR one strong one
- *  - `tentative`   single indirect signal · also where algorithmic
- *                  seeds land before observer evaluates them
- *  - `contested`   supporting AND refuting evidence both present —
- *                  theatrical gold; seer hunts here
- *  - `refuted`     direct contradiction or strongly counter-evidenced
- *  - `held`        not integrated AND not refuted; aged in turns;
- *                  surfaced to seer at end as risky probes (older =
- *                  more durable)
- */
-export type HypothesisLadder = {
-  confirmed: Hypothesis[];
-  probable: Hypothesis[];
-  tentative: Hypothesis[];
-  contested: Hypothesis[];
-  refuted: Hypothesis[];
-  held: Hypothesis[];
-};
-
-/** Empty ladder constant. Used for engine init. */
-export const EMPTY_LADDER: HypothesisLadder = {
-  confirmed: [],
-  probable: [],
-  tentative: [],
-  contested: [],
-  refuted: [],
-  held: [],
-};
+// ─── StoryObject (preserved — load-bearing for Augur + Seer) ──
 
 /** A narrative slice across time, anchored to the user's live fork.
  *  Built incrementally by the detective across the survey. Its slots
@@ -248,117 +221,58 @@ export const EMPTY_STORY: StoryObject = {
   hooks: [],
 };
 
-export type Contradiction = {
-  description: string;
-  pick_a: string;
-  pick_b: string;
-  severity: 'minor' | 'notable' | 'load_bearing';
-};
+// ─── Compatibility seams ─────────────────────────────────
 
-export type Hook = {
-  description: string;
-  source: 'pass' | 'latency_outlier' | 'admission' | 'multi_select_pattern' | 'inferred';
-  source_pick?: string;
-};
-
-export type ProfileSections = {
-  identity: Note[];
-  state: Note[];
-  relational: Note[];
-  self_model: Note[];
-  decision_context: Note[];
-  patterns: Note[];
-};
-
-/** Telemetry-derived "side channel" reads — what the user is
- *  transmitting they don't know they're transmitting. The observer
- *  reads these and notes patterns. Each field is a freeform string;
- *  the observer integrates picks-log telemetry into linguistic
- *  observations here. */
+/** Telemetry-derived "side channel" reads. Kept so the frozen Profile
+ *  shape's `observer_side_channel?: SideChannel` still typechecks.
+ *  In v2 the engine fills it from doc.scaffold.tells + algoExtract
+ *  latency-z at the assembly seam — not from a legacy ObserverOutput. */
 export type SideChannel = {
-  /** Latency / hesitation / hover-then-tap patterns. */
   signals?: string;
-  /** Cross-answer recurring themes / topics. */
   patterns?: string;
-  /** Contradictions catalog — Q&A pairs that disagree. */
   contradictions?: string;
-  /** Topics the user sidestepped or hesitated on. */
   avoidances?: string;
 };
 
-export type SurveyProfile = {
-  // Populated deterministically from openers
-  name: string;
-  birthday: { year: number; month: number; day: number } | null;
-  sun_sign: string | null;
-  life_path: number | null;
-  birth_card: { number: number; name: string } | null;
-  age_bracket: string | null;
-  birth_time_bracket: 'morning' | 'afternoon_evening' | 'overnight' | 'unknown' | null;
-  /** Relationship status captured at the start of the survey as a
-   *  derived signal — branches a lot of plausible forks for the seer
-   *  (partnership stakes, identity stakes, family/care stakes). null
-   *  when the user picks "prefer not to say". */
-  relationship_status: RelationshipStatus | null;
-  /** The user's question for the cards, captured at the start of the
-   *  survey (the "intent" opener). Null when the user pressed "I DON'T
-   *  KNOW". At survey close, the IntentConfirm UI uses this to either
-   *  confirm-and-edit or ask freshly. The final value lands on
-   *  EngineState.chosen_intention. */
-  initial_intention: string | null;
-
-  // Populated by the Observer
-  /** Legacy structured notes by section. Retained transitionally
-   *  during the v2 refactor — the observer in Phase G will start
-   *  writing `body` (markdown) instead and this field gets dropped. */
-  sections: ProfileSections;
-  /** Freeform markdown psychological document the observer rewrites
-   *  every turn (Phase G+). Starts as the materials/templates/profile.md
-   *  scaffold with HTML-comment instructions; observer integrates
-   *  evidence into prose. */
-  body: string;
-  /** Concrete verbatim specifics the seer can echo back uncannily
-   *  (a place, a person's name, a sensory detail, a phrase). */
-  hooks: string[];
-  /** Growth surface — what the user almost-knows about themselves but
-   *  hasn't articulated. Where readings that heal land. */
-  edges: string[];
-  /** Telemetry-derived reads from channels the user didn't know were
-   *  open (latency, hesitation, drift, contradictions, avoidances). */
-  side_channel: SideChannel;
-  cast: CastMember[];
+/** Seer-seam compatibility shim. The Seer (untouched in v2) consumes
+ *  `Hypothesis[]` with a `.description` field; the v2 survey produces
+ *  `Probe[]` with `.claim`. The engine maps Probe → Hypothesis at
+ *  the seer-construction boundary. */
+export type Hypothesis = {
+  id: string;
+  description: string;     // = Probe.claim
+  age_in_turns?: number;
+  // Legacy fields tolerated by the seer's director payload but unused
+  // in v2 — kept for type compatibility:
+  supporting_picks?: string[];
+  contradicting_picks?: string[];
+  confidence?: number;
+  status?: string;
+  seeded?: boolean;
+  generated_at?: number;
 };
 
-/** The "Clue tools" — everything the Detective is actively reasoning
- *  about. Lives separately from Profile (facts about the user) because
- *  this is INFERENCE, not record. */
-export type Investigation = {
-  /** Hypothesis board organized into ladder rungs (confirmed / probable /
-   *  tentative / contested / refuted / held). Replaces the legacy
-   *  single `hypotheses[]` array with numeric confidence. */
-  hypotheses: HypothesisLadder;
-  /** The narrative cross-section across time, anchored to the user's
-   *  fork. Detective builds this incrementally. Replaces the legacy
-   *  EngineState.current_understanding (≤3 free-form claims) with a
-   *  structured artifact that maps cleanly onto card positions. */
-  story: StoryObject;
-  choice_draft: Choice | null;
-  contradictions: Contradiction[];
-  hooks: Hook[];
-  active_threads: ActiveThread[];
-  posture: 'warm' | 'careful' | 'direct' | null;
-};
+// (ObserverOutput, DetectiveOutput, LadderRung deleted in Phase 3 —
+// the v2 schemas live in agents/observer/schema.ts and
+// agents/detective/schema.ts; types inferred via z.infer.)
 
 // ─── Events ─────────────────────────────────────────────
 
 export type PickEvent = {
   node_id: string;
   question_text: string;       // post-substitution
-  options_shown: string[];     // full set shown to user (includes interrogator overrides)
+  options_shown: string[];     // full set shown to user (includes engine-authored overrides)
   answer: string | string[];   // string for choice/binary/matrix/text/date
   answered_at: number;
   latency_ms: number;
   prompted_by: string | null;  // thread_id or parent node_id if injected
+  /** v2 flag: true when this pick's question stem and/or chosen option
+   *  was engine-authored (Phase 4 generation pipeline) rather than
+   *  user-typed or human-authored in materials/survey.md. The hooks
+   *  pipeline filters engine-authored picks so the Seer never echoes
+   *  back planted option text as the user's verbatim phrase. Defaults
+   *  to false/undefined for human-authored questions. */
+  is_engine_authored?: boolean;
 };
 
 export type TimingEvent = {
@@ -378,9 +292,14 @@ export type TimingEvent = {
   /** Final committed answer — what gets stored in PickEvent.answer too.
    *  Mirrored here so the timing log is self-contained for analysis. */
   final_pick: string | string[];
+  /** v2: per-user latency z-score. Computed by algoExtract as the
+   *  running mean+stddev over post-opener picks; |z|>1.5 = outlier
+   *  (a flinch — pain or deliberation). First-class telemetry channel,
+   *  not just side-channel. */
+  latency_z?: number;
 };
 
-// ─── Queue + threads ────────────────────────────────────
+// ─── Queue ──────────────────────────────────────────────
 
 export type QueueItem = {
   node_id: string;
@@ -390,16 +309,22 @@ export type QueueItem = {
   /** Investigator-supplied override for the `choice`-format options on
    *  this question. Ignored for any other format. */
   options_override?: string[];
-};
-
-export type ActiveThread = {
-  thread_id: string;
-  description: string;
-  trigger_picks: string[];
-  inject_node_id: string | null;
-  confirm_probe_id: string | null;
-  status: 'open' | 'awaiting_confirm' | 'confirmed' | 'refuted';
-  observer_note?: string;
+  /** v2 flag: true when the question + options were generated by the
+   *  Phase 4 detective/crowd/interrogator pipeline rather than authored
+   *  in materials/survey.md. PickEvent.is_engine_authored is propagated
+   *  from this flag at answer time. */
+  is_engine_authored?: boolean;
+  /** Phase 4 inline question payload — set on engine-authored items
+   *  that have no corresponding TREE.nodes entry. Renderers use this
+   *  in place of `renderQuestion(node_id, ...)` when present. axis_tag
+   *  is the interrogator's dimension label, surfaced to the coverage
+   *  map at picks-log inspect time. */
+  inline?: {
+    text: string;
+    format: AnswerFormat;
+    options: string[];
+    axis_tag?: string;
+  };
 };
 
 // ─── Engine state ───────────────────────────────────────
@@ -409,16 +334,17 @@ export type CloseReason = 'user_exit' | 'queue_exhausted' | 'cap';
 /** Post-question-cap lifecycle:
  *
  *   questions          → user is still answering survey questions
- *   awaiting_intention → cap hit; user is typing/confirming their question
- *                        for the cards (the IntentConfirm UI)
+ *   finalizing         → queue empty; final synthesis running
+ *   awaiting_intention → finalize complete; user is typing/confirming
+ *                        their question (the IntentConfirm UI)
  *   compiling          → user submitted intention; augur + seer constructing
  *   reading_ready      → ready to enter the reading
  */
 export type SurveyStage =
   | 'questions'
-  | 'finalizing'           // queue empty; final observer pass + algo extraction running
-  | 'awaiting_intention'   // finalize complete; show "saved" confirmation then intent
-  | 'compiling'            // intention picked; augur + seer running
+  | 'finalizing'
+  | 'awaiting_intention'
+  | 'compiling'
   | 'reading_ready';
 
 export type EngineState = {
@@ -427,26 +353,24 @@ export type EngineState = {
   tree_version: string;
 
   profile: SurveyProfile;
-  investigation: Investigation;     // the Clue tools live here
+  /** v2: the LivingDoc replaces the legacy Investigation. Observer
+   *  is the sole writer; detective + coverage read. Story + held
+   *  probes survive Investigation's deletion and live here. */
+  doc: LivingDoc;
   is_returning_user: boolean;
   /** When the visitor is a returning Person, these carry over from
    *  their durable record so the engine can dedupe (answered_node_ids
-   *  filtered from starter pool + interrogator basket) and the shaman
-   *  can avoid suggesting an intention they've already pursued. Both
-   *  empty for first-time users. The Person id itself is owned by
-   *  Survey.tsx — engine doesn't need it for any internal logic. */
+   *  filtered from starter pool) and the shaman can avoid suggesting
+   *  an intention they've already pursued. Both empty for first-time
+   *  users. */
   prior_answered_node_ids: string[];
   prior_intentions: string[];
   prior_session_summary?: string;
 
-  /** Detective's running scratchpad — last N `private_thoughts` entries
-   *  fed back to the detective on its next call. Capped at DETECTIVE_LOG_CAP. */
-  detective_log: string[];
-  // current_understanding REMOVED (v2 refactor). Replaced by
-  // Investigation.story (a structured narrative artifact). The
-  // detective in Phase H emits StoryObject instead of free-form claims;
-  // engine ignores any current_understanding the legacy prompt still
-  // tries to emit until Phase H ships.
+  // detective_log REMOVED in v2. The detective's scratchpad lives
+  // per-call (passed through ctx) and isn't persisted across turns
+  // as a separate engine field. The doc.margin captures cross-turn
+  // texture; the leading_hypothesis captures cross-turn commitment.
 
   queue: QueueItem[];
   picks_log: PickEvent[];
@@ -481,15 +405,12 @@ export type BehavioralSignals = {
 };
 
 // ─── Pipeline I/O ───────────────────────────────────────
-//
-// The three agents (Observer → Detective → Interrogator) all share the
-// same input shape: a PipelineContext. The engine mutates it as each
-// agent runs, so each subsequent agent sees the latest profile +
-// investigation.
 
-// BasketItem removed — the detective no longer picks questions. The
-// queue is pre-rolled and the detective edits queued items in place.
-
+/** Phase 2 legacy PipelineContext shape. Per-agent payload builders
+ *  consume this; Phase 3 redefines around LivingDoc directly. For
+ *  Phase 2 we adapt at the call site: build a shim PipelineContext
+ *  with empty investigation when needed by the stubbed agents (which
+ *  throw before reading it). */
 export type PipelineContext = {
   /** 1-based turn number — counts post-opener picks only. */
   index: number;
@@ -499,120 +420,15 @@ export type PipelineContext = {
   options_shown: string[];
   /** The user's pick. */
   answer: string | string[];
-  /** Profile so far — agents read this snapshot at pipeline start.
-   *  Same-pipeline observer updates DO NOT propagate (parallel firing). */
+  /** Profile so far (slim — identity + cast). */
   profile: SurveyProfile;
-  /** Investigation so far — same snapshot semantics as profile. */
-  investigation: Investigation;
+  /** LivingDoc snapshot at pipeline start. */
+  doc: LivingDoc;
   /** Full Q&A history, including this turn. */
   history: PickEvent[];
   /** Questions currently queued AFTER this one (head=next to ask). */
   queue: QueueItem[];
-  // recent_picks REMOVED with Phase G — observer fires every turn now
-  // and reads `history` directly. Multi-turn windowing was the legacy
-  // strategy for catching up across sparse observer firings.
-  /** Detective-only: the running scratchpad from previous turns'
-   *  `private_thoughts`. Most-recent last. */
-  detective_log?: string[];
-  // current_understanding REMOVED — see EngineState comment above.
 };
-
-/** Ladder rung name. Used by observer's hypothesis_ladder_moves. */
-export type LadderRung = 'confirmed' | 'probable' | 'tentative' | 'contested' | 'refuted' | 'held';
-
-/** Observer outputs the full psychological document rewrite +
- *  side-channel reads + ladder moves. Fires every turn (Phase G+).
- *  Replaces the legacy notes_to_append + cast_updates shape. */
-export type ObserverOutput = {
-  /** FULL rewrite of profile.body — markdown with the 9 section
-   *  headers populated where evidence supports filing, otherwise
-   *  leaving the instruction comment intact. */
-  profile_body: string;
-  /** Verbatim concrete specifics the seer can echo back. Append-style:
-   *  observer emits the FULL list each turn; engine replaces. */
-  hooks: string[];
-  /** Growth surface — what the user almost-knows. Append-style replace. */
-  edges: string[];
-  /** Telemetry-derived reads. Each field freeform paragraph; engine replaces. */
-  side_channel: SideChannel;
-  /** Per-CastMember notes updates. Each { label, notes } REPLACES the
-   *  matching CastMember's notes. Only emit for people with new
-   *  evidence this turn. */
-  cast_notes_updates: Array<{
-    label: string;
-    notes: string;
-  }>;
-  /** Hypothesis ladder transitions. Engine routes each id from its
-   *  current rung to the new rung. Emit only moves (no need to
-   *  re-list items that stayed put). */
-  hypothesis_ladder_moves: Array<{
-    id: string;
-    to: LadderRung;
-  }>;
-  /** Private to engine logs — 1-2 sentences on what was filed. */
-  reasoning: string;
-};
-
-/** v2 Detective output. The detective collaborates with the observer
- *  on the hypothesis ladder, AND owns the StoryObject as the narrative
- *  spine. Both replace legacy fields (hypothesis_updates / refutes,
- *  choice_update, current_understanding, queue_edits). */
-export type DetectiveOutput = {
-  /** New hypotheses the detective surfaces. Each lands on `tentative`
-   *  by default; specify `start_at` to land elsewhere (e.g., 'probable'
-   *  when the detective has strong convergent evidence already). */
-  new_hypotheses: Array<{
-    id: string;
-    claim: string;
-    start_at?: LadderRung;
-  }>;
-  /** Hypothesis ladder rung transitions — same shape as observer's. */
-  hypothesis_ladder_moves: Array<{
-    id: string;
-    to: LadderRung;
-  }>;
-  /** Partial StoryObject deltas. Detective emits only fields that
-   *  change this turn. Engine merges:
-   *    fork / present_pressure / past_root / stakes  →  REPLACE
-   *    hooks                                          →  APPEND + dedupe */
-  story_updates: {
-    fork?: { a: string; b: string; is_stasis: boolean };
-    present_pressure?: string;
-    past_root?: string;
-    stakes?: { on_a: string; on_b: string };
-    hooks?: string[];
-  };
-  /** Private scratchpad the detective writes out. Half-or-more of the
-   *  model's response. Appended to engine state's detective_log and
-   *  surfaced on subsequent detective calls as continuity. */
-  private_thoughts: string;
-  /** Private to engine logs — 2-3 sentences on what's now believed. */
-  reasoning: string;
-};
-
-/** Interrogator's only job: pick the next question + optional flavor. */
-export type InterrogatorOutput = {
-  next_question: {
-    /** MUST be an id from basket[]. */
-    node_id: string;
-    /** Optional the cat-voice prefix (rendered above the question text).
-     *  Does NOT modify the question text itself. Empty = no preamble. */
-    preamble?: string;
-    /** Choice-format only. Replaces the default options (can shrink,
-     *  reorder, ADD, or substitute). Ignored for binary/matrix/text/date. */
-    options_override?: string[];
-  };
-  /** Private to engine logs — 1-2 sentences on why this pick. */
-  reasoning: string;
-};
-
-// Shaman types removed — the user provides their own intention via the
-// IntentConfirm UI; no LLM guess. See engine.beginIntentionStage().
-
-// Compiler types removed — survey hands off via a pre-built Seer
-// (see ../seer/seer.ts). The intro pipeline (cognition → persona) is
-// kicked off in the Seer's constructor; there's no separate compiler
-// stage.
 
 // ─── Engine API ─────────────────────────────────────────
 

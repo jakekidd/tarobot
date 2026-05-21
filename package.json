@@ -12,7 +12,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
-    "e2e": "tsx scripts/e2e-survey.ts"
+    "e2e": "node --import ./scripts/register-raw-loader.mjs --import tsx scripts/e2e-survey.ts",
+    "driver": "node --import ./scripts/register-raw-loader.mjs --import tsx scripts/survey-driver.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.95.1",

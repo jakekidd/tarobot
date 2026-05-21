@@ -88,12 +88,14 @@ export async function runSurvey(
     // Pipeline status — wait for the full Observer→Detective→Interrogator chain.
     await engine.waitForQuiescence();
     const state = engine.getState();
-    const noteCount = countNotes(state);
+    // v2: notes / choice_draft are gone. Use doc.margin entries +
+    // doc.scaffold.leading_hypothesis presence as the "progress signal".
+    const noteCount = state.doc.margin.length + Object.keys(state.doc.scaffold.axes).length;
     if (noteCount !== lastObservedNotesCount) {
       lastObservedNotesCount = noteCount;
       logger.observerUpdate(
         noteCount,
-        state.investigation.choice_draft?.confidence ?? null,
+        state.doc.scaffold.leading_hypothesis ? 'high' : null,
         state.heat,
       );
     }
@@ -119,8 +121,6 @@ export async function runSurvey(
   return { final_state, brief: null, transcript };
 }
 
-function countNotes(state: EngineState): number {
-  const s = state.profile.sections;
-  return s.identity.length + s.state.length + s.relational.length
-    + s.self_model.length + s.decision_context.length + s.patterns.length;
-}
+// countNotes removed in v2 — the legacy profile.sections is gone.
+// The observerUpdate progress signal now reads doc.margin /
+// doc.scaffold.axes directly (see inline above).
