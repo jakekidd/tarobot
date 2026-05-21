@@ -39,14 +39,14 @@ export function Menu({ onBegin, onReadDemo, onOpenResume, onSettings, transition
   const [visibleButtons, setVisibleButtons] = useState(0);
 
   // Stable list of buttons so the index → delay mapping is deterministic.
-  // RESUME is always rendered now; it's disabled when there are no prior
-  // profiles (rather than hidden) so the cascade timing is constant
-  // regardless of whether the user has any saved sessions.
+  // RESUME is always rendered and always enabled — even with zero prior
+  // profiles, the ResumeMenu hosts the LOAD DEMO entrypoint, so the
+  // button must remain clickable on a fresh install.
   const buttons = useMemo(() => {
-    const noResume = resumeCount === 0;
+    void resumeCount; // kept in deps for future "0 visits" tinting
     return [
       { key: 'begin',    label: 'BEGIN',     cls: 'btn btn--primary btn--menu', onClick: onBegin,      disabledByState: false },
-      { key: 'resume',   label: 'RESUME',    cls: 'btn btn--primary btn--menu', onClick: onOpenResume, disabledByState: noResume },
+      { key: 'resume',   label: 'RESUME',    cls: 'btn btn--primary btn--menu', onClick: onOpenResume, disabledByState: false },
       { key: 'demo',     label: 'READ DEMO', cls: 'btn btn--ghost btn--menu',   onClick: onReadDemo,   disabledByState: false },
       { key: 'settings', label: 'SETTINGS',  cls: 'btn btn--ghost btn--menu',   onClick: onSettings,   disabledByState: false },
     ];

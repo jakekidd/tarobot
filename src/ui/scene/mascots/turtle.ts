@@ -39,10 +39,23 @@ const BASE_ROTATION = new THREE.Euler(0, Math.PI, 0);
 // stays glued to the body as the bones animate (rather than slipping
 // as he wanders through world space). Two greens lerped by a sine of
 // position.y + uTime; speed and band density tunable here.
+const GRADIENT_DEEP = new THREE.Color(0x041e0e);   // deep shadow — adds depth on under-facing facets
 const GRADIENT_DARK = new THREE.Color(0x0a3818);   // deep moss
 const GRADIENT_LIGHT = new THREE.Color(0x3a9a4a);  // medium green — peak no longer triggers bloom blowout
 const GRADIENT_BAND_FREQ = 4.0;     // bands per unit of local Y — higher = tighter stripes
 const GRADIENT_SPEED = 0.375;       // rad/sec — slow flow (¼ of the original 1.5)
+// ─── Hex pattern + facet shading ─────────────────────────
+// Light hex grid overlay projected onto the body's local XY plane.
+// Reads like a faint tortoise-shell tessellation; kept subtle so the
+// main visual remains the silhouette + gradient.
+const HEX_SCALE = 12.0;              // hex cells per unit local — higher = finer pattern
+const HEX_LINE_INTENSITY = 0.18;     // brightness of the edge highlight (0..1)
+const HEX_LINE_COLOR = new THREE.Color(0x7adb8c);  // pale green edge tint
+// Faceted "low-poly" shading: per-triangle normal via screen-space
+// derivatives. Modulates brightness so adjacent facets read distinct
+// without changing the geometry. Range tuned to feel sculptural, not
+// blocky.
+const FACET_STRENGTH = 0.22;         // 0 = flat smooth (legacy), 1 = max contrast between facets
 
 // Disintegration tuning. The toe-to-head wave sweeps `dissolveCutoffY`
 // from minY to maxY over DISINTEGRATE_WAVE_S; particles activate as
@@ -160,10 +173,15 @@ export function createTurtleMascot(): Mascot {
   const bodyMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
   bodyMat.onBeforeCompile = (shader) => {
     shader.uniforms.uTime = bodyTimeUniform;
+    shader.uniforms.uGradDeep = { value: GRADIENT_DEEP };
     shader.uniforms.uGradDark = { value: GRADIENT_DARK };
     shader.uniforms.uGradLight = { value: GRADIENT_LIGHT };
     shader.uniforms.uBandFreq = { value: GRADIENT_BAND_FREQ };
     shader.uniforms.uSpeed = { value: GRADIENT_SPEED };
+    shader.uniforms.uHexScale = { value: HEX_SCALE };
+    shader.uniforms.uHexLineIntensity = { value: HEX_LINE_INTENSITY };
+    shader.uniforms.uHexLineColor = { value: HEX_LINE_COLOR };
+    shader.uniforms.uFacetStrength = { value: FACET_STRENGTH };
     shader.vertexShader = shader.vertexShader
       .replace(
         '#include <common>',
@@ -178,13 +196,33 @@ export function createTurtleMascot(): Mascot {
         '#include <common>',
         `#include <common>
          uniform float uTime;
+         uniform vec3 uGradDeep;
          uniform vec3 uGradDark;
          uniform vec3 uGradLight;
          uniform float uBandFreq;
          uniform float uSpeed;
+         uniform float uHexScale;
+         uniform float uHexLineIntensity;
+         uniform vec3 uHexLineColor;
+         uniform float uFacetStrength;
          uniform float uDissolveCutoffY;
          uniform float uDissolveMode;
-         varying vec3 vLocalPos;`,
+         varying vec3 vLocalPos;
+
+         // Hex grid — two interlocking rectangular grids, return the
+         // offset to whichever cell-center is closest. Pointy-top hex
+         // orientation (height > width).
+         vec2 hexCellOffset(vec2 p) {
+           const vec2 sz = vec2(1.7320508, 1.0);  // sqrt(3), 1
+           vec2 hs = sz * 0.5;
+           vec2 a = mod(p, sz) - hs;
+           vec2 b = mod(p + hs, sz) - hs;
+           return dot(a, a) < dot(b, b) ? a : b;
+         }
+         float hexEdgeDist(vec2 q) {
+           q = abs(q);
+           return max(dot(q, vec2(0.8660254, 0.5)), q.x);
+         }`,
       )
       .replace(
         '#include <color_fragment>',
@@ -194,8 +232,39 @@ export function createTurtleMascot(): Mascot {
          } else {
            if (vLocalPos.y > uDissolveCutoffY) discard;
          }
+
+         // ── Base gradient (3-color ramp) ──
+         // Existing horizontal bands, now ramping through a deeper
+         // shadow color at the troughs so under-belly facets feel
+         // recessed and the lit side reads bright by contrast.
          float wave = sin(vLocalPos.y * uBandFreq + uTime * uSpeed) * 0.5 + 0.5;
-         diffuseColor.rgb = mix(uGradDark, uGradLight, wave);`,
+         vec3 base = wave < 0.5
+           ? mix(uGradDeep, uGradDark, wave * 2.0)
+           : mix(uGradDark, uGradLight, (wave - 0.5) * 2.0);
+
+         // ── Faceted shading via screen-space derivatives ──
+         // dFdx/dFdy of vLocalPos are constant across each rasterized
+         // triangle, so their cross product is the per-facet normal in
+         // local space. We use the y-component as a cheap "lit from
+         // above" lambert proxy — purely cosmetic since there's no
+         // real light source.
+         vec3 facetN = normalize(cross(dFdx(vLocalPos), dFdy(vLocalPos)));
+         float facetShade = 1.0 - uFacetStrength * (0.5 - clamp(facetN.y * 0.5 + 0.5, 0.0, 1.0));
+         base *= facetShade;
+
+         // ── Hex grid overlay ──
+         // Projected onto the body's local XY plane — sits "on" the
+         // turtle from the camera's POV. Kept light: a thin brightened
+         // edge with a pale green tint.
+         vec2 hexOff = hexCellOffset(vLocalPos.xy * uHexScale);
+         float hexD = hexEdgeDist(hexOff);
+         // Smooth edge band — anti-aliased line at the hex border.
+         // 0.5 is the cell's edge in this metric; we draw a thin
+         // ring just inside it.
+         float edge = smoothstep(0.42, 0.49, hexD) - smoothstep(0.49, 0.5, hexD);
+         base += edge * uHexLineColor * uHexLineIntensity;
+
+         diffuseColor.rgb = base;`,
       );
     shader.uniforms.uDissolveCutoffY = dissolveUniform;
     shader.uniforms.uDissolveMode = dissolveModeUniform;
