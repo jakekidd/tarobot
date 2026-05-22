@@ -25,9 +25,13 @@ import * as THREE from 'three';
 import { getCardsActive, subscribeCardsActive } from './cardsScopeStore';
 import { subscribeBurnCard } from './burnCardStore';
 
-const CARD_W_PX        = 26;
-const CARD_H_PX        = 44;
-const CARD_THICKNESS   = 0.4;
+// Cards visibly orbit the turtle as the answer counter. Sizing tuned
+// so they read as quiet "tarot fragments" rather than dominant scene
+// objects: smaller footprint + slightly thicker depth + capped alpha
+// (see MAX_ALPHA below) keeps them feeling like atmosphere.
+const CARD_W_PX        = 20;     // was 26 — smaller silhouette
+const CARD_H_PX        = 34;     // was 44
+const CARD_THICKNESS   = 0.6;    // was 0.4 — slightly thicker
 const CARD_CAP         = 80;
 const ORBIT_RADIUS_MIN_PX  = 110;
 const ORBIT_RADIUS_JITTER  = 70;
@@ -37,10 +41,10 @@ const ORBIT_PERIOD_JITTER  = 12;
 const SPIN_RANGE_RAD_S     = 0.6;
 const SPAWN_RISE_S         = 1.3;
 const SPAWN_ALPHA_S        = 0.4;
-// Cap final alpha — keeps cards from looking "shiny" / too solid. The
-// originals were full-opacity gold which read as plasticky; sub-1 alpha
-// makes them feel like scene atmosphere instead.
-const MAX_ALPHA            = 0.72;
+// Cap final alpha — keeps cards from looking "shiny" / too solid.
+// Lowered from 0.72 so they read further into atmosphere; combined
+// with the smaller footprint this drops the visual weight noticeably.
+const MAX_ALPHA            = 0.48;
 // When scope flips inactive (user leaves survey), cards fade out over
 // this window before being disposed.
 const SCOPE_FADE_OUT_S     = 0.55;
@@ -425,16 +429,16 @@ export function createOrbitingCards(args: {
       c.group.rotation.y += c.spinY * dt;
       c.group.rotation.z += c.spinZ * dt;
 
-      // Visibility by rotated Z:
-      //   pZ > 0  →  card is between the camera and the anchor (in front
-      //              of the turtle from camera POV). Fade progressively
-      //              to 10% alpha at front-most.
-      //   pZ ≤ 0  →  card is to the side / behind. Fully visible.
-      // Normalized to the orbit's max Z reach so the curve is consistent
-      // across radii.
+      // Visibility by rotated Z magnitude — fade in BOTH directions
+      // when the card is near the camera-Z axis (in front of OR
+      // directly behind the turtle silhouette). Previously only the
+      // front half faded, and with tilted orbital planes the
+      // asymmetry caused cards to flash visible across the turtle's
+      // body on one side. Symmetric fade keeps cards visible only
+      // when nominally to the sides of the orbit.
       const maxZ = c.radius * Z_SCALE;
       const zNorm = Math.max(-1, Math.min(1, pZ / maxZ));
-      const angleAlpha = zNorm > 0 ? (1 - 0.9 * zNorm) : 1;
+      const angleAlpha = 1 - 0.92 * Math.abs(zNorm);
 
       const fadeIn = Math.min(1, c.age / SPAWN_ALPHA_S);
       const alpha = MAX_ALPHA * angleAlpha * fadeIn;

@@ -17,6 +17,7 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { publishDebug, clearDebug } from '../../../debug/debugBus';
 import { subscribeDebugVisible } from '../../../debug/visibilityStorage';
+import { firePulse } from '../pulseStore';
 import type { Mascot, MascotContext } from './types';
 
 const ASSET_URL = '/mascots/turtle/scene.gltf';
@@ -84,23 +85,47 @@ const WANDER_Y_AMP = 0.20;
 const WANDER_X_FREQ = 0.50;   // rad/sec
 const WANDER_Y_FREQ = 0.37;
 
-// ─── Focus-point tilt ────────────────────────────────────
-// Instead of tilting INTO the wander direction (which read as a
-// swing / pendulum), the turtle aims its head at a slowly-drifting
-// focus point near the camera origin. As it wanders, the head
-// stays approximately pointed at the user — the head appears
-// "locked on" with subtle natural drift, not swinging.
-//
-// Focus drifts on a low-amplitude Lissajous around (0, 0). Two
-// incommensurate frequencies so the path never closes.
-const FOCUS_X_AMP = 0.18;
-const FOCUS_Y_AMP = 0.12;
-const FOCUS_X_FREQ = 0.11;    // rad/sec — much slower than wander
-const FOCUS_Y_FREQ = 0.07;
-// Gain mapping (focus - position) → tilt radians. Larger = more
-// aggressive look-at lock. At 0.85 the turtle visibly tracks the
-// focus through its wander without ever feeling stuck.
-const FOCUS_TILT_GAIN = 0.85;
+// ─── Pulse system (heartbeat-shaped wave fired on AI returns) ─
+// Per-agent color hints. Keys are tool names from agentActivityBus
+// (matches the OBSERVER_TOOL.name / DETECTIVE_TOOL.name / etc. in
+// agents/*/prompt.ts). Resilient to unknown labels via
+// DEFAULT_PULSE_COLOR — if an agent gets renamed or a new one
+// added, the pulse still fires with a neutral tint instead of
+// throwing or going silent.
+const AGENT_PULSE_COLORS: Record<string, [number, number, number]> = {
+  observer_metabolize:    [0.45, 0.95, 0.55],   // turtle green
+  detective_step:         [0.70, 0.50, 1.00],   // eye violet
+  crowd_decoys:           [0.30, 0.95, 0.85],   // turquoise (fast tier)
+  interrogator_phrase:    [0.55, 0.90, 0.95],   // pale cyan (fast tier)
+  augur_outline:          [1.00, 0.65, 0.45],   // amber (close-of-survey)
+  freeform:               [1.00, 0.55, 0.40],   // deeper amber (augur fill)
+  // Seer-side agents — useful if pulses ever fire during reading.
+  director_intro:         [0.78, 0.60, 1.00],   // violet
+  director_per_card:      [0.78, 0.60, 1.00],
+  director_closing:       [0.78, 0.60, 1.00],
+  actor_intro:            [0.95, 0.80, 0.55],   // candle warm
+  actor_per_card:         [0.95, 0.80, 0.55],
+  actor_closing:          [0.95, 0.80, 0.55],
+  actor_chat:             [0.95, 0.80, 0.55],
+  mantra:                 [0.85, 0.55, 0.95],   // mantra magenta
+};
+const DEFAULT_PULSE_COLOR: [number, number, number] = [0.55, 0.80, 1.00];
+
+// Min seconds between fires. The user's gut: ~3s. Less = strobe;
+// more = pulses queue up too long for a normal turn.
+const PULSE_STAGGER_S = 3.0;
+const DEFAULT_PULSE_INTENSITY = 0.6;
+
+// ─── Lock-on tilt ────────────────────────────────────────
+// "It sees a tennis ball, tilted/angled toward the center at all
+// times." Tiny gain mapping wander → opposing tilt, so as the
+// turtle drifts to (+x, +y), it counter-rotates a small amount to
+// keep its head approximately aimed at the camera origin. Gain
+// kept small (~0.25) so the rotation is always subtle — never
+// large enough to flip the turtle's apparent orientation. The
+// previous focus-drift Lissajous overshot and produced visibly
+// wrong silhouettes; this is the conservative replacement.
+const LOCK_ON_GAIN = 0.25;
 
 // Depth-illusion "breath" — since the main camera is orthographic, a
 // pure Z translation doesn't change apparent size, so we modulate the
@@ -884,17 +909,17 @@ export function createTurtleMascot(): Mascot {
     const breath = 1 + Math.sin(wt * BREATH_FREQ) * BREATH_AMP;
     group.scale.setScalar(TURTLE_SCALE * breath);
 
-    // Focus-point look-at: the head tracks a slowly-drifting point
-    // near the camera origin. As the turtle wanders, the head
-    // counter-rotates so it stays approximately aimed at the user.
-    // Small-angle approximation: tilt = (focus - position) * gain.
-    // Signs FLIPPED from the legacy `wx * TILT_PER_UNIT` mapping —
-    // the prior code tilted INTO the wander (swing); this tilts
-    // AGAINST the wander (lock-on).
-    const focusX = Math.sin(wt * FOCUS_X_FREQ) * FOCUS_X_AMP;
-    const focusY = Math.cos(wt * FOCUS_Y_FREQ + 1.5) * FOCUS_Y_AMP;
-    tiltGroup.rotation.x = (focusY - wy) * FOCUS_TILT_GAIN;
-    tiltGroup.rotation.z = (focusX - wx) * FOCUS_TILT_GAIN;
+    // Lock-on tilt: head counter-rotates by a small fraction of the
+    // wander offset so it stays angled toward the camera origin.
+    // Sign is negative-of-wander (against motion) — the legacy
+    // `+wander * TILT_PER_UNIT` mapping tilted INTO motion and
+    // read as a swing. Subtle gain (0.25) keeps the rotation tiny
+    // regardless of where the turtle is.
+    tiltGroup.rotation.x = -wy * LOCK_ON_GAIN;
+    tiltGroup.rotation.z = -wx * LOCK_ON_GAIN;
+
+    // Pulse system: drain pending pulses, respecting the stagger.
+    maybeFlushPulse(ctx);
 
     bodyTimeUniform.value = ctx.t;
     if (mixer.value) mixer.value.update(ctx.dt);
@@ -950,7 +975,43 @@ export function createTurtleMascot(): Mascot {
     }
   }
 
-  return { group, update, dispose, ready, disintegrate: startDisintegrate, reset };
+  // ─── Pulse method + stagger queue ───────────────────────
+  // Public surface. Consumer calls `mascot.pulse({ agentLabel })`
+  // on any AI-agent return; the queue absorbs bursts and drains
+  // one pulse per PULSE_STAGGER_S in update(). World-origin is the
+  // turtle's group worldPosition at fire time (computed in flush).
+  type QueuedPulse = { agentLabel?: string; intensity?: number };
+  const pulseQueue: QueuedPulse[] = [];
+  let lastPulseFiredAt = -Infinity;
+  const PULSE_QUEUE_CAP = 6;          // bursts beyond this drop oldest
+
+  function pulse(args: { agentLabel?: string; intensity?: number }): void {
+    pulseQueue.push(args);
+    while (pulseQueue.length > PULSE_QUEUE_CAP) pulseQueue.shift();
+  }
+
+  const pulseWorldPos = new THREE.Vector3();
+  function maybeFlushPulse(ctx: MascotContext): void {
+    if (pulseQueue.length === 0) return;
+    if (ctx.t - lastPulseFiredAt < PULSE_STAGGER_S) return;
+    const next = pulseQueue.shift();
+    if (!next) return;
+    lastPulseFiredAt = ctx.t;
+    const tinted = next.agentLabel ? AGENT_PULSE_COLORS[next.agentLabel] : undefined;
+    const color: [number, number, number] = tinted ?? DEFAULT_PULSE_COLOR;
+    // World position of the turtle at fire time. Stars live in the
+    // ortho scene's world coord system; positionGroup applies the
+    // anchor placement that the mascot is parented under.
+    group.getWorldPosition(pulseWorldPos);
+    firePulse({
+      startTime: ctx.t,
+      origin: { x: pulseWorldPos.x, y: pulseWorldPos.y },
+      color,
+      intensity: next.intensity ?? DEFAULT_PULSE_INTENSITY,
+    });
+  }
+
+  return { group, update, dispose, ready, disintegrate: startDisintegrate, reset, pulse };
 }
 
 function formatRot(r: number): string {

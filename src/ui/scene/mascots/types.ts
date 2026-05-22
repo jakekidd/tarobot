@@ -64,4 +64,15 @@ export type Mascot = {
    *  effects (disintegration, warp-in completion) so the next view
    *  plays the entry animation again. */
   reset?: () => void;
+  /** Optional: fire a Pulse — a subtle heartbeat-shaped wave that
+   *  propagates through the star field. The Mascot owns:
+   *    - staggering (so a flurry of agent returns doesn't strobe)
+   *    - per-agent color mapping (with default fallback for unknown
+   *      labels — kept resilient against future agent additions or
+   *      renames)
+   *    - origin computation (turtle's own world position)
+   *  The consumer just signals "an AI agent returned." Pass the
+   *  agent's tool name (from agentActivityBus) when known so the
+   *  mascot can pick a tinted color; omit for a neutral pulse. */
+  pulse?: (args: { agentLabel?: string; intensity?: number }) => void;
 };

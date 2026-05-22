@@ -27,6 +27,8 @@ import { subscribeDebugVisible } from '../../debug/visibilityStorage';
 import { publishDebug, clearDebug } from '../../debug/debugBus';
 import { flip as playFlipSfx } from '../sound/sound';
 import { subscribeFlyIn, endFlyIn, type FlyInState } from './flyInStore';
+import { subscribePulse, type Pulse } from './pulseStore';
+import { subscribeAgentActivity } from '../../debug/agentActivityBus';
 
 // Time-based intro: when the page first loads the mascot zooms in from
 // a tiny dot to full scale. Once-per-session (the scene only mounts
@@ -531,8 +533,171 @@ export function TarobotScene() {
       depthWrite: false,
       map: particleTex,
     });
+
+    // ─── Pulse uniforms (heartbeat wave through stars) ──
+    // Up to MAX_PULSES concurrent pulses. Each slot is (startTime,
+    // originX, originY, intensity); slot's color in uPulseColors[i].
+    // Inactive slots have intensity = 0 and are skipped in the shader.
+    // pulseStore subscriber below rotates new pulses into the next
+    // slot (ring-buffer).
+    const MAX_PULSES = 3;
+    const pulseUniformData: THREE.Vector4[] = Array.from({ length: MAX_PULSES }, () => new THREE.Vector4(0, 0, 0, 0));
+    const pulseColorData: THREE.Vector3[] = Array.from({ length: MAX_PULSES }, () => new THREE.Vector3(0, 0, 0));
+    const pulseTime = { value: 0 };
+    // Patch the points material to displace + brighten + tint stars
+    // near each active pulse's wave front. Shader chunks are
+    // PointsMaterial-specific; injecting after the standard chunks
+    // keeps the base behavior intact.
+    particleMat.onBeforeCompile = (shader) => {
+      shader.uniforms.uPulseTime = pulseTime;
+      shader.uniforms.uPulses = { value: pulseUniformData };
+      shader.uniforms.uPulseColors = { value: pulseColorData };
+      shader.uniforms.uPulseSpeed = { value: 220.0 };       // world units/sec
+      shader.uniforms.uPulseFalloff = { value: 0.00060 };   // 1/(2σ²), wider = thicker wave front
+      shader.uniforms.uPulseDispAmp = { value: 5.0 };       // max star displacement (world units)
+      shader.vertexShader = shader.vertexShader
+        .replace(
+          '#include <common>',
+          `#include <common>
+           uniform float uPulseTime;
+           uniform vec4 uPulses[${MAX_PULSES}];
+           uniform vec3 uPulseColors[${MAX_PULSES}];
+           uniform float uPulseSpeed;
+           uniform float uPulseFalloff;
+           uniform float uPulseDispAmp;
+           varying vec3 vPulseTint;
+           varying float vPulseGlow;`,
+        )
+        .replace(
+          '#include <begin_vertex>',
+          `#include <begin_vertex>
+           vec3 tint = vec3(0.0);
+           float glow = 0.0;
+           for (int i = 0; i < ${MAX_PULSES}; i++) {
+             float inten = uPulses[i].w;
+             if (inten <= 0.0) continue;
+             float startT = uPulses[i].x;
+             vec2 origin = uPulses[i].yz;
+             vec2 toStar = transformed.xy - origin;
+             float d = length(toStar);
+             float front = (uPulseTime - startT) * uPulseSpeed;
+             float dFront = d - front;
+             float env = exp(-dFront * dFront * uPulseFalloff) * inten;
+             // Radial outward displacement at the wave front.
+             vec2 dir = d > 0.001 ? toStar / d : vec2(0.0);
+             transformed.xy += dir * env * uPulseDispAmp;
+             glow += env;
+             tint += uPulseColors[i] * env;
+           }
+           vPulseTint = tint;
+           vPulseGlow = glow;`,
+        );
+      shader.fragmentShader = shader.fragmentShader
+        .replace(
+          '#include <common>',
+          `#include <common>
+           varying vec3 vPulseTint;
+           varying float vPulseGlow;`,
+        )
+        .replace(
+          '#include <color_fragment>',
+          `#include <color_fragment>
+           // Brightness boost + color tint co-located with the wave.
+           diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb + vPulseTint * 0.9, clamp(vPulseGlow * 1.4, 0.0, 1.0));
+           diffuseColor.rgb *= (1.0 + clamp(vPulseGlow, 0.0, 1.0) * 0.55);`,
+        );
+    };
+
     const particles = new THREE.Points(particleGeom, particleMat);
     particleGroup.add(particles);
+
+    // ─── Pulse "wooom" via Web Audio ──
+    // Low sine + soft envelope. Lazy AudioContext (created on first
+    // pulse so we don't fire one at page load before user gesture).
+    // Pitch shifts subtly with the pulse's color (warm = higher,
+    // cool = lower) so different agents read as distinct tones
+    // without ever being loud enough to call attention.
+    let pulseAudioCtx: AudioContext | null = null;
+    function playPulseSound(p: Pulse): void {
+      try {
+        if (!pulseAudioCtx) {
+          // Use webkitAudioContext for older Safari support.
+          const Ctor = (window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext);
+          if (!Ctor) return;
+          pulseAudioCtx = new Ctor();
+        }
+        const ac = pulseAudioCtx;
+        if (ac.state === 'suspended') void ac.resume();
+        const now = ac.currentTime;
+        const osc = ac.createOscillator();
+        const gain = ac.createGain();
+        osc.type = 'sine';
+        // Map color to pitch: warmer (more R, less B) = higher.
+        const warmth = p.color[0] - p.color[2];
+        const baseHz = 72;
+        osc.frequency.setValueAtTime(baseHz + warmth * 22, now);
+        // Subtle pitch drift over the wooom — anchors it as "alive."
+        osc.frequency.linearRampToValueAtTime(baseHz + warmth * 22 - 6, now + 1.4);
+        // Envelope: slow attack, soft sustain, slow release. Peak gain
+        // is very low — ambient, not foreground.
+        const peak = 0.055 * p.intensity;
+        gain.gain.setValueAtTime(0, now);
+        gain.gain.linearRampToValueAtTime(peak, now + 0.32);
+        gain.gain.linearRampToValueAtTime(peak * 0.6, now + 0.9);
+        gain.gain.linearRampToValueAtTime(0, now + 1.6);
+        osc.connect(gain).connect(ac.destination);
+        osc.start(now);
+        osc.stop(now + 1.65);
+      } catch { /* swallow audio failures — visual still works */ }
+    }
+    function disposePulseAudio(): void {
+      try { void pulseAudioCtx?.close(); } catch { /* swallow */ }
+      pulseAudioCtx = null;
+    }
+
+    // Pulse subscriber: rotate incoming pulses through a ring buffer
+    // of MAX_PULSES uniform slots. New pulse displaces the oldest.
+    let pulseRingIdx = 0;
+    const unsubscribePulse = subscribePulse((p: Pulse) => {
+      const slot = pulseRingIdx % MAX_PULSES;
+      pulseUniformData[slot]!.set(p.startTime, p.origin.x, p.origin.y, p.intensity);
+      pulseColorData[slot]!.set(p.color[0], p.color[1], p.color[2]);
+      pulseRingIdx = (pulseRingIdx + 1) % MAX_PULSES;
+      // Sound: low wooom co-located with the visual.
+      playPulseSound(p);
+    });
+
+    // Agent-activity subscriber: when any LLM call completes, signal
+    // the mascot to enqueue a pulse. The mascot owns staggering +
+    // color mapping; we just pipe the tool name through.
+    let lastAgentEventSeen: string | null = null;
+    const unsubscribeAgentBus = subscribeAgentActivity((events) => {
+      // Find the most recent 'completed' event we haven't seen.
+      for (let i = events.length - 1; i >= 0; i--) {
+        const e = events[i]!;
+        if (e.status !== 'completed') continue;
+        const id = `${e.id}:${e.ended_at ?? 0}`;
+        if (id === lastAgentEventSeen) break;     // already handled
+        // Walk forward from the last seen, firing pulse for each new one.
+        const firstNewIdx = i;
+        // Find earliest unhandled
+        let earliest = firstNewIdx;
+        for (let j = firstNewIdx - 1; j >= 0; j--) {
+          const ej = events[j]!;
+          if (ej.status !== 'completed') continue;
+          const idj = `${ej.id}:${ej.ended_at ?? 0}`;
+          if (idj === lastAgentEventSeen) break;
+          earliest = j;
+        }
+        for (let k = earliest; k <= firstNewIdx; k++) {
+          const ek = events[k]!;
+          if (ek.status !== 'completed') continue;
+          mascot.pulse?.({ agentLabel: ek.label });
+        }
+        lastAgentEventSeen = id;
+        break;
+      }
+    });
 
     // ─── Orbiting cards (answer counter) ──────────────────
     // Each answer/pass fires a flat card that orbits the turtle on a
@@ -929,6 +1094,7 @@ export function TarobotScene() {
       const dt = Math.min((now - lastFrameMs) / 1000, 0.05);
       lastFrameMs = now;
       const t = (now - start) / 1000;
+      pulseTime.value = t;             // star shader reads scene-relative seconds
 
       // ── Anchor → screen position + scale (with one-shot zoom-in) ──
       const anchor = getAnchor();
@@ -1280,6 +1446,9 @@ export function TarobotScene() {
       unsubscribeCardScene();
       unsubscribeDebug();
       unsubscribeFlyIn();
+      unsubscribePulse();
+      unsubscribeAgentBus();
+      disposePulseAudio();
       window.removeEventListener('keydown', onKeyDown);
       clearDebug('card.lift');
       clearDebug('card.ref');
