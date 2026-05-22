@@ -21,8 +21,34 @@ import { firePulse } from '../pulseStore';
 import type { Mascot, MascotContext } from './types';
 
 const ASSET_URL = '/mascots/turtle/scene.gltf';
-const EYE_COLOR = 0xfff7e0;            // warm white — pops inside the silhouette
 const EYE_MESH_NAME = 'Object_38';     // the smaller skinned mesh in the gltf
+// Eye palette. Sclera = warm white (the glow); iris = violet (matches
+// the dialogue accent + the seer's eye violet — same intelligence
+// lives in both phases); pupil = near-black with a tiny blue tint so
+// it never reads as a clean black void inside the glow.
+const EYE_SCLERA_COLOR = new THREE.Color(0xfff7e0);
+const EYE_IRIS_COLOR   = new THREE.Color(0x9d6cff);   // violet
+const EYE_PUPIL_COLOR  = new THREE.Color(0x02000a);   // near-black, hint of blue
+const EYE_SPEC_COLOR   = new THREE.Color(0xffffff);   // catchlight pure white
+// Iris geometry — these are fractions of the eye-local UV (-1..1)
+// where -1 / +1 are the bounding box corners of one eye. Tuned to
+// read as "wide-set sclera, narrow iris, slit pupil" — turtle/alien.
+const EYE_SCLERA_INNER = 0.55;   // start of falloff (alpha 1 below this)
+const EYE_SCLERA_OUTER = 1.00;   // end of falloff (alpha 0 here)
+const EYE_IRIS_INNER   = 0.22;   // inner edge of iris ring
+const EYE_IRIS_OUTER   = 0.55;   // outer edge — matches sclera_inner
+const EYE_PUPIL_HALF_W = 0.05;   // slit half-width (in x)
+const EYE_PUPIL_HALF_H = 0.30;   // slit half-height (in y)
+const EYE_SPEC_OFFSET  = new THREE.Vector2(0.22, 0.28);   // upper-right of each eye
+const EYE_SPEC_RADIUS  = 0.10;
+// Blinking
+const BLINK_MIN_INTERVAL_S = 4.0;
+const BLINK_MAX_INTERVAL_S = 8.0;
+const BLINK_DOWN_S = 0.06;        // squash time
+const BLINK_HOLD_S = 0.04;        // closed pause
+const BLINK_UP_S   = 0.10;        // re-open time (slower than close — feels natural)
+const BLINK_DOUBLE_CHANCE = 0.10;
+const BLINK_GAP_S = 0.18;         // gap between double-blinks
 const ANIMATION_TIME_SCALE = 0.2;      // 5× slower than native — calm paddle
 const TURTLE_SCALE = 2.0;              // 2× larger than the anchor footprint
 // Push back in local Z. With group.scale=2 and the rig's ~100 px/unit
@@ -173,34 +199,142 @@ export function createTurtleMascot(): Mascot {
   const dissolveUniform = { value: -1e9 };
   const dissolveModeUniform = { value: 1.0 };
 
-  // Eye glow — applied in place of the gltf's eye material so the turtle
-  // has visible eyes even when the body uses the original PBR skin.
-  // depthTest=false so the eyes draw THROUGH the head silhouette — the
-  // eye mesh sits inside the eye sockets and would otherwise be occluded.
+  // ── Procedural eyes ──
+  // The single eye mesh in the GLTF contains BOTH eyes (a small skinned
+  // mesh sitting inside the head's eye sockets). We compute per-eye
+  // centers + radii after load (see below) and pass them as uniforms.
+  // The shader then renders concentric: sclera glow → violet iris →
+  // vertical-slit pupil → off-center catchlight. Additive blending
+  // makes the eye bloom through the surrounding silhouette via the
+  // existing UnrealBloomPass.
+  //
+  // depthTest stays false so the eyes draw through the head shell even
+  // when the mesh is technically occluded — but the radial alpha
+  // falloff at the sclera rim means the bleed is soft (no hard edge).
+  // The previous full-opacity capsule was the "lozenge" look the user
+  // complained about; this replaces it.
+  const eyeCenterL = { value: new THREE.Vector3(-0.5, 0, 0) };
+  const eyeCenterR = { value: new THREE.Vector3( 0.5, 0, 0) };
+  const eyeRadiusL = { value: 0.2 };
+  const eyeRadiusR = { value: 0.2 };
   const eyeMat = new THREE.MeshBasicMaterial({
-    color: EYE_COLOR,
-    depthTest: false,
+    color: 0xffffff,                     // overwritten by shader; needs to be non-zero
+    transparent: true,
+    blending: THREE.AdditiveBlending,    // glow through the silhouette via bloom
+    depthWrite: false,
+    depthTest: false,                    // see through head shell
   });
   eyeMat.onBeforeCompile = (shader) => {
     shader.uniforms.uDissolveCutoffY = dissolveUniform;
     shader.uniforms.uDissolveMode = dissolveModeUniform;
+    shader.uniforms.uEyeCenterL = eyeCenterL;
+    shader.uniforms.uEyeCenterR = eyeCenterR;
+    shader.uniforms.uEyeRadiusL = eyeRadiusL;
+    shader.uniforms.uEyeRadiusR = eyeRadiusR;
+    shader.uniforms.uScleraColor = { value: EYE_SCLERA_COLOR };
+    shader.uniforms.uIrisColor   = { value: EYE_IRIS_COLOR };
+    shader.uniforms.uPupilColor  = { value: EYE_PUPIL_COLOR };
+    shader.uniforms.uSpecColor   = { value: EYE_SPEC_COLOR };
+    shader.uniforms.uScleraInner = { value: EYE_SCLERA_INNER };
+    shader.uniforms.uScleraOuter = { value: EYE_SCLERA_OUTER };
+    shader.uniforms.uIrisInner   = { value: EYE_IRIS_INNER };
+    shader.uniforms.uIrisOuter   = { value: EYE_IRIS_OUTER };
+    shader.uniforms.uPupilHalfW  = { value: EYE_PUPIL_HALF_W };
+    shader.uniforms.uPupilHalfH  = { value: EYE_PUPIL_HALF_H };
+    shader.uniforms.uSpecOffset  = { value: EYE_SPEC_OFFSET };
+    shader.uniforms.uSpecRadius  = { value: EYE_SPEC_RADIUS };
+
     shader.vertexShader = shader.vertexShader
       .replace(
         '#include <common>',
-        '#include <common>\nvarying vec3 vLocalPosEye;',
+        `#include <common>
+         uniform vec3 uEyeCenterL;
+         uniform vec3 uEyeCenterR;
+         uniform float uEyeRadiusL;
+         uniform float uEyeRadiusR;
+         varying vec3 vLocalPosEye;
+         varying vec2 vEyeUV;`,
       )
       .replace(
         '#include <begin_vertex>',
-        '#include <begin_vertex>\nvLocalPosEye = position;',
+        `#include <begin_vertex>
+         vLocalPosEye = position;
+         // Pick the closer eye center by sign of x in mesh-local
+         // coords. (The mesh's local origin sits at the head's
+         // midline; both eyes share this mesh, partitioned by x.)
+         bool isLeft = position.x < (uEyeCenterL.x + uEyeCenterR.x) * 0.5;
+         vec3 center = isLeft ? uEyeCenterL : uEyeCenterR;
+         float radius = isLeft ? uEyeRadiusL : uEyeRadiusR;
+         // Eye-local UV in -1..1. The catchlight + pupil + iris geometry
+         // are defined in this normalized space.
+         vEyeUV = (position.xy - center.xy) / max(radius, 0.0001);`,
       );
     shader.fragmentShader = shader.fragmentShader
       .replace(
         '#include <common>',
-        '#include <common>\nuniform float uDissolveCutoffY;\nuniform float uDissolveMode;\nvarying vec3 vLocalPosEye;',
+        `#include <common>
+         uniform float uDissolveCutoffY;
+         uniform float uDissolveMode;
+         uniform vec3 uScleraColor;
+         uniform vec3 uIrisColor;
+         uniform vec3 uPupilColor;
+         uniform vec3 uSpecColor;
+         uniform float uScleraInner;
+         uniform float uScleraOuter;
+         uniform float uIrisInner;
+         uniform float uIrisOuter;
+         uniform float uPupilHalfW;
+         uniform float uPupilHalfH;
+         uniform vec2 uSpecOffset;
+         uniform float uSpecRadius;
+         varying vec3 vLocalPosEye;
+         varying vec2 vEyeUV;`,
       )
       .replace(
         '#include <color_fragment>',
-        '#include <color_fragment>\nif (uDissolveMode < 0.5) { if (vLocalPosEye.y < uDissolveCutoffY) discard; } else { if (vLocalPosEye.y > uDissolveCutoffY) discard; }',
+        `#include <color_fragment>
+         // Dissolve gate (toe-to-head reveal/dissolve).
+         if (uDissolveMode < 0.5) {
+           if (vLocalPosEye.y < uDissolveCutoffY) discard;
+         } else {
+           if (vLocalPosEye.y > uDissolveCutoffY) discard;
+         }
+
+         // Distance from this fragment to its eye center, normalized.
+         float d = length(vEyeUV);
+
+         // Sclera glow — bright at center, falling to alpha 0 at rim.
+         float sclera = 1.0 - smoothstep(uScleraInner, uScleraOuter, d);
+
+         // Iris ring (smooth band) — colored.
+         float iris = smoothstep(uIrisInner * 0.7, uIrisInner, d)
+                    * (1.0 - smoothstep(uIrisOuter * 0.92, uIrisOuter, d));
+
+         // Pupil — a vertical slit. Axis-aligned ellipse (narrow in
+         // x, tall in y). Soft-clamped via smoothstep so the edges
+         // aren't pixelated.
+         float pupilDist = max(
+           abs(vEyeUV.x) / uPupilHalfW,
+           abs(vEyeUV.y) / uPupilHalfH
+         );
+         float pupil = 1.0 - smoothstep(0.85, 1.05, pupilDist);
+
+         // Catchlight — a small bright dot upper-right of center.
+         // Sells "wetness" + reflectivity → "alive."
+         float specDist = length(vEyeUV - uSpecOffset);
+         float spec = pow(1.0 - smoothstep(0.0, uSpecRadius, specDist), 1.5);
+
+         // Compose. Order matters: sclera base → iris mixed in → pupil
+         // punches out → catchlight added on top.
+         vec3 col = uScleraColor;
+         col = mix(col, uIrisColor, iris);
+         col = mix(col, uPupilColor, pupil);
+         col += uSpecColor * spec * 0.85;
+
+         // Diffuse output. Alpha is the sclera envelope so the rim
+         // fades to transparent (bloom carries the bleed beyond).
+         diffuseColor.rgb = col;
+         diffuseColor.a *= sclera;`,
       );
   };
 
@@ -282,6 +416,135 @@ export function createTurtleMascot(): Mascot {
   const liveRotation = BASE_ROTATION.clone();
   let rootRef: THREE.Object3D | null = null;
   let debugVisible = false;
+
+  // Eye mesh ref (captured during GLTF traverse). Used for blink scaling.
+  let eyeMeshRef: THREE.Mesh | null = null;
+
+  // Blink state machine. Driven by ctx.t in update().
+  type BlinkPhase = 'idle' | 'closing' | 'closed' | 'opening' | 'gap';
+  let blinkPhase: BlinkPhase = 'idle';
+  let blinkPhaseStartT = 0;
+  let nextBlinkAt = 0;          // next scheduled blink (absolute ctx.t)
+  let blinkPendingDouble = false;
+
+  /** Compute per-eye centroids + radii from the eye mesh's bind-pose
+   *  position attribute. Both eyes share one mesh; we partition by
+   *  sign(x) about the mesh's mid-x to split left vs right. Centroid
+   *  of each group → eye center. Max distance from center within
+   *  each group → eye radius (used to normalize the UV in the
+   *  shader). Logs a one-line diagnostic so it's obvious from devtools
+   *  whether the partition worked (vertex counts roughly equal). */
+  function computeEyeCenters(mesh: THREE.Mesh): void {
+    const pos = mesh.geometry.getAttribute('position');
+    if (!pos) {
+      console.warn('[turtle eyes] no position attribute on eye mesh; using defaults');
+      return;
+    }
+    // First pass: find mid-x of the mesh.
+    let minX = Infinity, maxX = -Infinity;
+    for (let i = 0; i < pos.count; i++) {
+      const x = pos.getX(i);
+      if (x < minX) minX = x;
+      if (x > maxX) maxX = x;
+    }
+    const midX = (minX + maxX) * 0.5;
+    // Second pass: partition + accumulate centroids.
+    let lCount = 0, rCount = 0;
+    let lx = 0, ly = 0, lz = 0;
+    let rx = 0, ry = 0, rz = 0;
+    for (let i = 0; i < pos.count; i++) {
+      const x = pos.getX(i), y = pos.getY(i), z = pos.getZ(i);
+      if (x < midX) { lx += x; ly += y; lz += z; lCount++; }
+      else          { rx += x; ry += y; rz += z; rCount++; }
+    }
+    if (lCount === 0 || rCount === 0) {
+      console.warn('[turtle eyes] could not partition eyes (one cluster only); shader may look wrong');
+      return;
+    }
+    eyeCenterL.value.set(lx / lCount, ly / lCount, lz / lCount);
+    eyeCenterR.value.set(rx / rCount, ry / rCount, rz / rCount);
+    // Third pass: per-eye radii (max XY-distance from center).
+    let lRad = 0, rRad = 0;
+    for (let i = 0; i < pos.count; i++) {
+      const x = pos.getX(i), y = pos.getY(i);
+      if (x < midX) {
+        const dx = x - eyeCenterL.value.x;
+        const dy = y - eyeCenterL.value.y;
+        const r2 = dx * dx + dy * dy;
+        if (r2 > lRad) lRad = r2;
+      } else {
+        const dx = x - eyeCenterR.value.x;
+        const dy = y - eyeCenterR.value.y;
+        const r2 = dx * dx + dy * dy;
+        if (r2 > rRad) rRad = r2;
+      }
+    }
+    eyeRadiusL.value = Math.sqrt(lRad);
+    eyeRadiusR.value = Math.sqrt(rRad);
+    // One-line diagnostic so the eye verification is obvious in devtools.
+    console.log(
+      `[turtle eyes] partitioned ${pos.count} verts → L:${lCount} (r=${eyeRadiusL.value.toFixed(3)}) R:${rCount} (r=${eyeRadiusR.value.toFixed(3)})`,
+      'centers L', eyeCenterL.value.toArray().map((n) => n.toFixed(3)).join(','),
+      'R', eyeCenterR.value.toArray().map((n) => n.toFixed(3)).join(','),
+    );
+  }
+
+  /** Schedule the next blink. Random interval in [BLINK_MIN, BLINK_MAX]. */
+  function scheduleNextBlink(now: number): void {
+    nextBlinkAt = now + BLINK_MIN_INTERVAL_S + Math.random() * (BLINK_MAX_INTERVAL_S - BLINK_MIN_INTERVAL_S);
+    blinkPendingDouble = Math.random() < BLINK_DOUBLE_CHANCE;
+  }
+
+  /** Drive the blink state machine. Modulates eyeMeshRef.scale.y from
+   *  1.0 (open) to 0.08 (closed) and back. Called from update() each
+   *  frame. Cheap — no GPU work. */
+  function updateBlink(t: number): void {
+    if (!eyeMeshRef) return;
+    if (blinkPhase === 'idle') {
+      if (t >= nextBlinkAt) {
+        blinkPhase = 'closing';
+        blinkPhaseStartT = t;
+      }
+      eyeMeshRef.scale.y = 1.0;
+      return;
+    }
+    const phaseAge = t - blinkPhaseStartT;
+    if (blinkPhase === 'closing') {
+      const u = Math.min(1, phaseAge / BLINK_DOWN_S);
+      eyeMeshRef.scale.y = 1.0 - u * 0.92;
+      if (u >= 1) { blinkPhase = 'closed'; blinkPhaseStartT = t; }
+      return;
+    }
+    if (blinkPhase === 'closed') {
+      eyeMeshRef.scale.y = 0.08;
+      if (phaseAge >= BLINK_HOLD_S) { blinkPhase = 'opening'; blinkPhaseStartT = t; }
+      return;
+    }
+    if (blinkPhase === 'opening') {
+      const u = Math.min(1, phaseAge / BLINK_UP_S);
+      const ease = 1 - Math.pow(1 - u, 2);
+      eyeMeshRef.scale.y = 0.08 + ease * 0.92;
+      if (u >= 1) {
+        if (blinkPendingDouble) {
+          blinkPhase = 'gap';
+          blinkPhaseStartT = t;
+          blinkPendingDouble = false;
+        } else {
+          blinkPhase = 'idle';
+          scheduleNextBlink(t);
+        }
+      }
+      return;
+    }
+    if (blinkPhase === 'gap') {
+      eyeMeshRef.scale.y = 1.0;
+      if (phaseAge >= BLINK_GAP_S) {
+        blinkPhase = 'closing';
+        blinkPhaseStartT = t;
+      }
+      return;
+    }
+  }
 
   // ─── Disintegrate / Materialize state ───────────────────
   // The mascot has two particle effects sharing one pool shape:
@@ -391,8 +654,8 @@ export function createTurtleMascot(): Mascot {
         root.scale.setScalar(1 / maxDim);
 
         // Body meshes get the animated-gradient material; eye mesh gets
-        // the warm-white glow. Original gltf materials are disposed
-        // since we're replacing them all.
+        // the procedural sclera+iris+pupil+spec shader. Original gltf
+        // materials are disposed since we're replacing them all.
         root.traverse((obj) => {
           const m = obj as THREE.Mesh;
           if (!m.isMesh) return;
@@ -400,8 +663,10 @@ export function createTurtleMascot(): Mascot {
           if (Array.isArray(orig)) orig.forEach((mat) => mat.dispose?.());
           else orig?.dispose?.();
           if (m.name === EYE_MESH_NAME) {
+            eyeMeshRef = m;
             m.material = eyeMat;
             m.renderOrder = 10;
+            computeEyeCenters(m);
           } else {
             m.material = bodyMat;
           }
@@ -920,6 +1185,14 @@ export function createTurtleMascot(): Mascot {
 
     // Pulse system: drain pending pulses, respecting the stagger.
     maybeFlushPulse(ctx);
+
+    // Blinks. State machine; cheap. First blink scheduled once
+    // materializeDone flips (so the warp-in isn't broken by a blink
+    // mid-arrival).
+    if (materializeDone) {
+      if (nextBlinkAt === 0) scheduleNextBlink(ctx.t);
+      updateBlink(ctx.t);
+    }
 
     bodyTimeUniform.value = ctx.t;
     if (mixer.value) mixer.value.update(ctx.dt);
