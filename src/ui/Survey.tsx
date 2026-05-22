@@ -344,7 +344,7 @@ export function Survey({ apiKey, session, loadedPerson, onComplete }: Props) {
     // Dialogue carries the prompt for IntentConfirm now — the form below
     // is just the input + confirm button (no duplicate text).
     dialogText = state.profile.initial_intention
-      ? "the question you arrived with. is it still the one?"
+      ? "the question you arrived with. is it still the one you wish to ask?"
       : "do you have a question for the cards now?";
     dialogKey = 'intention';
   } else if (isCompiling) {

@@ -44,17 +44,12 @@ const GRADIENT_DARK = new THREE.Color(0x0a3818);   // deep moss
 const GRADIENT_LIGHT = new THREE.Color(0x3a9a4a);  // medium green — peak no longer triggers bloom blowout
 const GRADIENT_BAND_FREQ = 4.0;     // bands per unit of local Y — higher = tighter stripes
 const GRADIENT_SPEED = 0.375;       // rad/sec — slow flow (¼ of the original 1.5)
-// ─── Hex pattern + facet shading ─────────────────────────
-// Light hex grid overlay projected onto the body's local XY plane.
-// Reads like a faint tortoise-shell tessellation; kept subtle so the
-// main visual remains the silhouette + gradient.
-const HEX_SCALE = 12.0;              // hex cells per unit local — higher = finer pattern
-const HEX_LINE_INTENSITY = 0.18;     // brightness of the edge highlight (0..1)
-const HEX_LINE_COLOR = new THREE.Color(0x7adb8c);  // pale green edge tint
 // Faceted "low-poly" shading: per-triangle normal via screen-space
 // derivatives. Modulates brightness so adjacent facets read distinct
 // without changing the geometry. Range tuned to feel sculptural, not
 // blocky.
+// (Hex grid overlay was tried and rolled back — read as "watermelon"
+//  instead of "tortoise shell". Kept the gradient + facet shading.)
 const FACET_STRENGTH = 0.22;         // 0 = flat smooth (legacy), 1 = max contrast between facets
 
 // Disintegration tuning. The toe-to-head wave sweeps `dissolveCutoffY`
@@ -89,6 +84,24 @@ const WANDER_Y_AMP = 0.20;
 const WANDER_X_FREQ = 0.50;   // rad/sec
 const WANDER_Y_FREQ = 0.37;
 
+// ─── Focus-point tilt ────────────────────────────────────
+// Instead of tilting INTO the wander direction (which read as a
+// swing / pendulum), the turtle aims its head at a slowly-drifting
+// focus point near the camera origin. As it wanders, the head
+// stays approximately pointed at the user — the head appears
+// "locked on" with subtle natural drift, not swinging.
+//
+// Focus drifts on a low-amplitude Lissajous around (0, 0). Two
+// incommensurate frequencies so the path never closes.
+const FOCUS_X_AMP = 0.18;
+const FOCUS_Y_AMP = 0.12;
+const FOCUS_X_FREQ = 0.11;    // rad/sec — much slower than wander
+const FOCUS_Y_FREQ = 0.07;
+// Gain mapping (focus - position) → tilt radians. Larger = more
+// aggressive look-at lock. At 0.85 the turtle visibly tracks the
+// focus through its wander without ever feeling stuck.
+const FOCUS_TILT_GAIN = 0.85;
+
 // Depth-illusion "breath" — since the main camera is orthographic, a
 // pure Z translation doesn't change apparent size, so we modulate the
 // group scale instead. Slow + low-amp so it reads as "swimming a bit
@@ -98,7 +111,9 @@ const BREATH_FREQ = 0.19;     // rad/sec — slowest of the three drives
 
 // Bank-tilt: radians of tilt per unit of wander offset. With max wander
 // of 0.30, that's ~17° tilt at the extreme — readable but not goofy.
-const TILT_PER_UNIT = 1.0;
+// (TILT_PER_UNIT removed — superseded by FOCUS_TILT_GAIN, which maps
+//  the focus-vs-position offset to tilt instead of tilting INTO the
+//  wander direction. The old behavior read as a pendulum swing.)
 
 // Debug rotation: arrow-key increment (radians). ~5.7° per press.
 const DEBUG_ROT_STEP = 0.1;
@@ -178,9 +193,6 @@ export function createTurtleMascot(): Mascot {
     shader.uniforms.uGradLight = { value: GRADIENT_LIGHT };
     shader.uniforms.uBandFreq = { value: GRADIENT_BAND_FREQ };
     shader.uniforms.uSpeed = { value: GRADIENT_SPEED };
-    shader.uniforms.uHexScale = { value: HEX_SCALE };
-    shader.uniforms.uHexLineIntensity = { value: HEX_LINE_INTENSITY };
-    shader.uniforms.uHexLineColor = { value: HEX_LINE_COLOR };
     shader.uniforms.uFacetStrength = { value: FACET_STRENGTH };
     shader.vertexShader = shader.vertexShader
       .replace(
@@ -201,28 +213,10 @@ export function createTurtleMascot(): Mascot {
          uniform vec3 uGradLight;
          uniform float uBandFreq;
          uniform float uSpeed;
-         uniform float uHexScale;
-         uniform float uHexLineIntensity;
-         uniform vec3 uHexLineColor;
          uniform float uFacetStrength;
          uniform float uDissolveCutoffY;
          uniform float uDissolveMode;
-         varying vec3 vLocalPos;
-
-         // Hex grid — two interlocking rectangular grids, return the
-         // offset to whichever cell-center is closest. Pointy-top hex
-         // orientation (height > width).
-         vec2 hexCellOffset(vec2 p) {
-           const vec2 sz = vec2(1.7320508, 1.0);  // sqrt(3), 1
-           vec2 hs = sz * 0.5;
-           vec2 a = mod(p, sz) - hs;
-           vec2 b = mod(p + hs, sz) - hs;
-           return dot(a, a) < dot(b, b) ? a : b;
-         }
-         float hexEdgeDist(vec2 q) {
-           q = abs(q);
-           return max(dot(q, vec2(0.8660254, 0.5)), q.x);
-         }`,
+         varying vec3 vLocalPos;`,
       )
       .replace(
         '#include <color_fragment>',
@@ -234,9 +228,9 @@ export function createTurtleMascot(): Mascot {
          }
 
          // ── Base gradient (3-color ramp) ──
-         // Existing horizontal bands, now ramping through a deeper
-         // shadow color at the troughs so under-belly facets feel
-         // recessed and the lit side reads bright by contrast.
+         // Existing horizontal bands, ramping through a deeper shadow
+         // color at the troughs so under-belly facets feel recessed
+         // and the lit side reads bright by contrast.
          float wave = sin(vLocalPos.y * uBandFreq + uTime * uSpeed) * 0.5 + 0.5;
          vec3 base = wave < 0.5
            ? mix(uGradDeep, uGradDark, wave * 2.0)
@@ -251,18 +245,6 @@ export function createTurtleMascot(): Mascot {
          vec3 facetN = normalize(cross(dFdx(vLocalPos), dFdy(vLocalPos)));
          float facetShade = 1.0 - uFacetStrength * (0.5 - clamp(facetN.y * 0.5 + 0.5, 0.0, 1.0));
          base *= facetShade;
-
-         // ── Hex grid overlay ──
-         // Projected onto the body's local XY plane — sits "on" the
-         // turtle from the camera's POV. Kept light: a thin brightened
-         // edge with a pale green tint.
-         vec2 hexOff = hexCellOffset(vLocalPos.xy * uHexScale);
-         float hexD = hexEdgeDist(hexOff);
-         // Smooth edge band — anti-aliased line at the hex border.
-         // 0.5 is the cell's edge in this metric; we draw a thin
-         // ring just inside it.
-         float edge = smoothstep(0.42, 0.49, hexD) - smoothstep(0.49, 0.5, hexD);
-         base += edge * uHexLineColor * uHexLineIntensity;
 
          diffuseColor.rgb = base;`,
       );
@@ -890,9 +872,10 @@ export function createTurtleMascot(): Mascot {
       return;
     }
 
-    // Steady state: wander + breath + tilt. Time origin is materializeEndT
-    // so wx/wy both start at sin(0)=0 — no snap from the (0,0,0) end-of-
-    // materialize position into the wander cycle.
+    // Steady state: wander (position) + breath (scale) + look-at
+    // (rotation). Time origin is materializeEndT so wx/wy both start
+    // at sin(0)=0 — no snap from the (0,0,0) end-of-materialize
+    // position into the wander cycle.
     const wt = ctx.t - materializeEndT;
     const wx = Math.sin(wt * WANDER_X_FREQ) * WANDER_X_AMP;
     const wy = Math.sin(wt * WANDER_Y_FREQ) * WANDER_Y_AMP;
@@ -901,8 +884,17 @@ export function createTurtleMascot(): Mascot {
     const breath = 1 + Math.sin(wt * BREATH_FREQ) * BREATH_AMP;
     group.scale.setScalar(TURTLE_SCALE * breath);
 
-    tiltGroup.rotation.x = wy * TILT_PER_UNIT;
-    tiltGroup.rotation.z = wx * TILT_PER_UNIT;
+    // Focus-point look-at: the head tracks a slowly-drifting point
+    // near the camera origin. As the turtle wanders, the head
+    // counter-rotates so it stays approximately aimed at the user.
+    // Small-angle approximation: tilt = (focus - position) * gain.
+    // Signs FLIPPED from the legacy `wx * TILT_PER_UNIT` mapping —
+    // the prior code tilted INTO the wander (swing); this tilts
+    // AGAINST the wander (lock-on).
+    const focusX = Math.sin(wt * FOCUS_X_FREQ) * FOCUS_X_AMP;
+    const focusY = Math.cos(wt * FOCUS_Y_FREQ + 1.5) * FOCUS_Y_AMP;
+    tiltGroup.rotation.x = (focusY - wy) * FOCUS_TILT_GAIN;
+    tiltGroup.rotation.z = (focusX - wx) * FOCUS_TILT_GAIN;
 
     bodyTimeUniform.value = ctx.t;
     if (mixer.value) mixer.value.update(ctx.dt);

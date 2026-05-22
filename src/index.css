@@ -481,54 +481,58 @@ a:hover { text-decoration: underline; }
 .intent-form__not-yet-big:hover { filter: brightness(1.18); }
 .intent-form__not-yet-big:active { transform: translateY(1px); }
 
+/* IntentConfirm container — fills the parent .ui-frame (which is
+   already capped at 64ch via .ui-frame's width rule). Previous attempts
+   used `width: min(50rem, calc(100vw - 3rem))`, which is WIDER than
+   the parent .ui-frame and caused the input to overflow horizontally
+   past the right edge of the page. Filling the parent eliminates the
+   overflow and lets the parent's centering carry through. */
 .intent-confirm {
   display: flex;
   flex-direction: column;
   align-items: stretch;
   gap: 0.6rem;
-  width: min(50rem, calc(100vw - 3rem));
-  margin: 0 auto;
+  width: 100%;
+  min-width: 0;             /* allow shrinking inside flex parent */
+  margin: 0;
+  box-sizing: border-box;
 }
 
-/* The wrapped ChatInput inside IntentConfirm: bigger than its usual
-   reading-side appearance, centered, with the typed text shimmering
-   along a turquoise gradient. Placeholder + hint stay neutral. */
+/* The wrapped ChatInput inside IntentConfirm: matches the parent width
+   exactly, so the input flexes to fill — no 50rem expansion. */
 .intent-confirm .reading__chat {
   max-width: none;          /* override the 64ch cap inherited from reading */
+  width: 100%;
+  box-sizing: border-box;
 }
+.intent-confirm .reading__chat-form {
+  width: 100%;
+  box-sizing: border-box;
+}
+/* The input itself: solid bright turquoise text. The previous version
+   used background-clip:text + a gradient shimmer that rendered
+   unreadably faint against the dark background — dropped in favor of
+   a solid color that hits accessibility contrast comfortably. */
 .intent-confirm .reading__chat-input {
-  font-size: 1.4rem;
-  padding: 0.95rem 1.4rem;
+  flex: 1;
+  min-width: 0;             /* allow flex shrink inside the form */
+  font-size: 1.25rem;
+  padding: 0.9rem 1.2rem;
   text-align: center;
   letter-spacing: 0.02em;
   caret-color: #5eead4;
-  /* Color fallback drives the placeholder (which inherits color);
-     -webkit-text-fill-color renders typed text via the gradient. */
-  color: var(--fg-faint);
-  -webkit-text-fill-color: transparent;
-  background-image:
-    linear-gradient(rgba(10, 4, 24, 0.92), rgba(10, 4, 24, 0.92)),
-    linear-gradient(90deg,
-      #4cd6c4 0%,
-      #a7f3d0 25%,
-      #5eead4 50%,
-      #a7f3d0 75%,
-      #4cd6c4 100%);
-  background-clip: padding-box, text;
-  -webkit-background-clip: padding-box, text;
-  background-size: auto, 220% auto;
-  animation: intent-shimmer 3.4s linear infinite;
+  color: #a7f3d0;            /* bright turquoise — readable on dark */
+  background: rgba(10, 4, 24, 0.92);
+  box-sizing: border-box;
 }
 .intent-confirm .reading__chat-input::placeholder {
-  -webkit-text-fill-color: var(--fg-faint);
+  color: var(--fg-faint);
   font-style: italic;
+  opacity: 1;
 }
 .intent-confirm .reading__chat-send {
   width: 3rem;
   height: 3rem;
-}
-@keyframes intent-shimmer {
-  to { background-position: 0 0, -220% 0; }
 }
 
 .intent-confirm__nudge {
