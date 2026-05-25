@@ -38,12 +38,13 @@ import { randomName, MASC_NAMES, FEM_NAMES } from './nameBanks';
 import { DiceIcon } from '../icons/DiceIcon';
 
 type FamilyCategory =
+  | 'self'
   | 'parent' | 'sibling' | 'child'
-  | 'partner' | 'friend';
+  | 'partner' | 'friend' | 'boss';
 
 type SomeoneElseSubcat =
   | 'ex' | 'cousin' | 'best friend' | 'childhood friend'
-  | 'boss' | 'colleague' | 'mentor' | 'therapist' | 'teacher'
+  | 'colleague' | 'mentor' | 'therapist' | 'teacher'
   | 'coach' | 'neighbor' | 'roommate' | 'in-law' | 'stepparent'
   | 'group chat friend' | 'online friend' | 'someone i used to know';
 
@@ -51,6 +52,10 @@ type PickedCategory = FamilyCategory | SomeoneElseSubcat | 'existing';
 
 type Props = {
   cast: CastMember[];
+  /** The current user's first name. Used for the "ME" pick — when the
+   *  user nominates themselves as the center of their life, we submit
+   *  with their own name so the answer is self-referential. */
+  selfName: string;
   onSubmit: (encoded: string) => void;
   onSensingChange?: (state: { name: string; color: string } | null) => void;
 };
@@ -63,10 +68,11 @@ const FAMILY: { id: FamilyCategory; label: string }[] = [
 const OTHER: { id: FamilyCategory; label: string }[] = [
   { id: 'partner', label: 'partner' },
   { id: 'friend',  label: 'friend' },
+  { id: 'boss',    label: 'boss' },
 ];
 const SOMEONE_ELSE: SomeoneElseSubcat[] = [
   'ex', 'cousin', 'best friend', 'childhood friend',
-  'boss', 'colleague', 'mentor', 'therapist', 'teacher', 'coach',
+  'colleague', 'mentor', 'therapist', 'teacher', 'coach',
   'neighbor', 'roommate', 'in-law', 'stepparent',
   'group chat friend', 'online friend', 'someone i used to know',
 ];
@@ -80,7 +86,7 @@ function pickSuggestionPair(): { a: string; b: string } {
   return { a, b };
 }
 
-export function RelationshipPickForm({ cast, onSubmit, onSensingChange }: Props) {
+export function RelationshipPickForm({ cast, selfName, onSubmit, onSensingChange }: Props) {
   const [mode, setMode] = useState<'category' | 'someone-else' | 'who'>('category');
   const [picked, setPicked] = useState<PickedCategory | null>(null);
   const [name, setName] = useState('');
@@ -151,6 +157,17 @@ export function RelationshipPickForm({ cast, onSubmit, onSensingChange }: Props)
   function pickCategory(c: FamilyCategory) {
     setPicked(c);
     setMode('who');
+  }
+
+  /** "ME" pick — user nominates themselves as the center of their life.
+   *  Skips the WHO screen since we already know their name. Engine
+   *  treats category='self' as a no-cast-upsert (the user isn't a
+   *  separate cast member to track), but the answer is recorded. */
+  function pickSelf() {
+    onSubmit(JSON.stringify({
+      category: 'self',
+      name: selfName,
+    }));
   }
 
   function pickSubcategory(c: SomeoneElseSubcat) {
@@ -233,6 +250,14 @@ export function RelationshipPickForm({ cast, onSubmit, onSensingChange }: Props)
               ))}
             </div>
           )}
+
+          <button
+            type="button"
+            className="rel-pick__self"
+            onClick={pickSelf}
+          >
+            me
+          </button>
 
           <div className="rel-pick__grid">
             <ul className="rel-pick__column">

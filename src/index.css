@@ -641,6 +641,29 @@ input, textarea {
 }
 .rel-pick__someone-else:hover { color: var(--accent); border-color: var(--accent); }
 
+/* "ME" pick — wide button at the top of the rel-pick grid. Full width,
+   solid styling like the category buttons but emphasized because it's
+   the self-as-center option. */
+.rel-pick__self {
+  width: 100%;
+  font-family: var(--font-mono);
+  font-size: 1.05rem;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  text-align: center;
+  padding: 0.85rem 0.9rem;
+  background-color: #4a1f88;
+  color: #f2ecff;
+  border: 1px solid #4a1f88;
+  border-radius: 0;
+  cursor: pointer;
+  min-height: 3rem;
+  margin-bottom: 0.5rem;
+  transition: filter 0.1s, transform 0.06s;
+}
+.rel-pick__self:hover { filter: brightness(1.18); }
+.rel-pick__self:active { transform: translateY(1px); }
+
 .rel-pick__sub-head {
   display: flex;
   align-items: baseline;

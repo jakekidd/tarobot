@@ -793,6 +793,11 @@ export class SurveyEngine {
     }
     const name = (parsed.name ?? '').trim();
     if (!name) return;
+    // 'self' pick: the user nominated themselves as the relational
+    // anchor. The answer is recorded in picks_log (downstream agents
+    // see the pick), but we don't upsert the user into their own cast
+    // — they're not a separate cast member to track.
+    if (parsed.category === 'self') return;
     const offLimits = !!parsed.off_limits;
     const role = parsed.category && parsed.category !== 'existing'
       ? parsed.category

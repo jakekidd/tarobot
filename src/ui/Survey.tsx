@@ -59,8 +59,6 @@ import {
   triggerMascotDisintegrate,
 } from './scene/disintegrateStore';
 
-const READY_BUTTON_MIN_TURNS = 6;
-
 type Props = {
   apiKey: string;
   session: Session;
@@ -73,7 +71,7 @@ type Props = {
 };
 
 export function Survey({ apiKey, session, loadedPerson, onComplete }: Props) {
-  const { state, currentQuestion, submitAnswer, submitIntention, skipAhead, canUndo, undo, seer, engine } = useSurveyEngine({
+  const { state, currentQuestion, submitAnswer, submitIntention, canUndo, undo, seer, engine } = useSurveyEngine({
     apiKey,
     sessionId: session.id,
   });
@@ -369,10 +367,6 @@ export function Survey({ apiKey, session, loadedPerson, onComplete }: Props) {
     && postOpenerCount === 12
     && stage === 'questions'
     && currentQuestion !== null;
-  const showReady =
-    stage === 'questions' &&
-    state.picks_log.length >= READY_BUTTON_MIN_TURNS &&
-    !!currentQuestion;
 
   // Last intention from prior visits — soft hint near the intention picker.
   const lastIntention = state.prior_intentions[0] ?? null;
@@ -629,6 +623,7 @@ export function Survey({ apiKey, session, loadedPerson, onComplete }: Props) {
           {!showGag && !modalOpen && currentQuestion?.format === 'relationship_pick' && (
             <RelationshipPickForm
               cast={state.profile.cast}
+              selfName={state.profile.name || 'me'}
               onSubmit={(encoded) => {
                 setSensing(null);
                 void submitAnswer(encoded);
@@ -662,15 +657,10 @@ export function Survey({ apiKey, session, loadedPerson, onComplete }: Props) {
       </div>
 
       <div className="survey__footer">
-        {showReady && (
-          <button
-            className="btn btn--quiet survey__ready"
-            onClick={skipAhead}
-            title="end the survey and proceed to the reading"
-          >
-            ready for the cards →
-          </button>
-        )}
+        {/* "ready for the cards →" button removed in v3.1+ — early-bail
+            doesn't make sense once the detective drives an assertion
+            phase. skipAhead() stays on the engine API for the topbar
+            EXIT and future re-exposure. */}
         {state.stage === 'reading_ready' && seer && farewell === 'idle' && (
           <button
             className="btn btn--big survey__enter"
