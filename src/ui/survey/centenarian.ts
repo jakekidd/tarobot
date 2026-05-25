@@ -65,15 +65,6 @@ export function buildCentenarianLine(age: number, year: number): string {
   return `damn. ${age} years old. ${middle}you're a dinosaur. are you a vampire or the highlander`;
 }
 
-/** The two pre-baked pick responses (turtle's reply after the user
- *  picks). */
-export const CENTENARIAN_RESPONSES = {
-  vampire: "hey, dont put yourself down! you're doing great.",
-  highlander: "congrats! you're the 100th user to pick this answer. anyway",
-} as const;
-
-export type CentenarianPick = keyof typeof CENTENARIAN_RESPONSES;
-
 /** Compute integer age from a birthday at today's wall-clock. */
 export function ageFromBirthday(birthday: { year: number; month: number; day: number }): number {
   const now = new Date();

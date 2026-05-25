@@ -23,13 +23,16 @@ export function BirthdayForm({ onSubmit }: Props) {
 
   function handleMonth(e: ChangeEvent<HTMLInputElement>) {
     const v = digitsOnly(e.target.value, 2);
-    // Clamp at 12. Typing "19" snaps to "12" and advances. The user
-    // who types a hidden-birthyear style "19/19/1919" gets a real
-    // date instead of a stuck form; Survey.tsx hangs the lamp on the
-    // year via the centenarian interlude.
+    // Clamp at 12. Typing "19" snaps to "12" and advances.
     let clamped = v;
     if (v.length > 0 && Number(v) > 12) clamped = '12';
     setMonth(clamped);
+    // Re-clamp the day if the new month allows fewer days than the
+    // current day value (e.g. user types month=02 with day=31).
+    if (clamped.length > 0 && day.length > 0) {
+      const max = daysInMonth(Number(clamped), year ? Number(year) : null);
+      if (Number(day) > max) setDay(max.toString());
+    }
     if (clamped.length === 2 || (v.length === 2 && Number(v) > 12)) {
       dayRef.current?.focus();
     }
@@ -37,12 +40,28 @@ export function BirthdayForm({ onSubmit }: Props) {
 
   function handleDay(e: ChangeEvent<HTMLInputElement>) {
     const v = digitsOnly(e.target.value, 2);
-    setDay(v);
-    if (v.length === 2) yearRef.current?.focus();
+    // Clamp by days-in-month if we know the month. If month is empty
+    // yet, allow up to 31 (max across all months) — month edit will
+    // re-clamp later.
+    const max = month.length > 0
+      ? daysInMonth(Number(month), year ? Number(year) : null)
+      : 31;
+    let clamped = v;
+    if (v.length > 0 && Number(v) > max) clamped = max.toString();
+    setDay(clamped);
+    if (clamped.length === 2 || (v.length === 2 && Number(v) > max)) {
+      yearRef.current?.focus();
+    }
   }
 
   function handleYear(e: ChangeEvent<HTMLInputElement>) {
-    setYear(digitsOnly(e.target.value, 4));
+    const next = digitsOnly(e.target.value, 4);
+    setYear(next);
+    // Feb 29 → 28 if the new year isn't a leap year.
+    if (month.length > 0 && day.length > 0 && next.length === 4) {
+      const max = daysInMonth(Number(month), Number(next));
+      if (Number(day) > max) setDay(max.toString());
+    }
   }
 
   function handleDayKey(e: KeyboardEvent<HTMLInputElement>) {
@@ -123,4 +142,16 @@ export function BirthdayForm({ onSubmit }: Props) {
       </button>
     </form>
   );
+}
+
+/** Days in a given month, accounting for leap years when month=2.
+ *  Year null → assume non-leap (max 28 for Feb). */
+function daysInMonth(month: number, year: number | null): number {
+  if (month === 2) {
+    if (year === null) return 28;
+    const isLeap = year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0);
+    return isLeap ? 29 : 28;
+  }
+  const days = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+  return days[month - 1] ?? 31;
 }

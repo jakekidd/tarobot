@@ -3386,3 +3386,38 @@ input, textarea {
   animation: choice-flash-burst 420ms ease-out forwards;
   pointer-events: none;
 }
+
+/* =====================================================================
+   centenarian interlude — click-to-continue arrow that crops up under
+   the dialogue after the compound line finishes typing.
+   ===================================================================== */
+.centenarian-continue {
+  background: transparent;
+  border: none;
+  color: #b388ff;
+  font-family: var(--font-mono);
+  font-size: 2rem;
+  line-height: 1;
+  padding: 0.6rem 1.2rem;
+  margin: 1.5rem auto 0;
+  display: block;
+  cursor: pointer;
+  opacity: 0;
+  animation: centenarian-arrow-in 320ms ease-out forwards,
+             centenarian-arrow-bob 1.4s ease-in-out 320ms infinite;
+}
+.centenarian-continue:hover {
+  color: #e8e0ff;
+  text-shadow: 0 0 12px rgba(179, 136, 255, 0.6);
+}
+.centenarian-continue__arrow {
+  display: inline-block;
+}
+@keyframes centenarian-arrow-in {
+  from { opacity: 0; transform: translateY(-6px); }
+  to   { opacity: 0.8; transform: translateY(0); }
+}
+@keyframes centenarian-arrow-bob {
+  0%, 100% { transform: translateY(0); opacity: 0.7; }
+  50%      { transform: translateY(4px); opacity: 1; }
+}
