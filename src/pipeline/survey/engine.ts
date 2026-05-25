@@ -13,6 +13,8 @@
 
 import type { LLMAdapter } from '../llm/adapter';
 import { runFinalObserver, runObserver, applyObserverDelta } from './agents/observer';
+import { runProfiler, type ProfilerTrigger } from './agents/profiler';
+import { diffAnchors } from './anchor';
 import { extractHooks, extractSideChannel, computeLatencyZScores } from './algoExtract';
 import { runDetective, applyDetectiveOutput, type DetectiveApplyResult } from './agents/detective';
 import { runAugur } from './agents/augur';
@@ -362,6 +364,11 @@ export class SurveyEngine {
       try {
         await this.runFinalObserverPass();
         this.applyAlgoExtraction();
+        // v3: profiler close pass. Runs after the final observer pass
+        // so it can see the most recent doc state. Opus tier — this is
+        // the artifact that ships to the seer; quality matters more
+        // than latency on the last call.
+        await this.runProfilerTask('close');
       } catch (e) {
         console.warn('[survey] finalize failed', e);
       }
@@ -988,6 +995,17 @@ export class SurveyEngine {
 
     // ── Stage: act on the detective's next_move ──
     await this.applyDetectiveNextMove(detResult.move, postOpenerCount, pillarFloor);
+
+    // ── Stage: profiler heartbeat (every 3 post-opener turns) ──
+    //
+    // v3 §4/§10: profiler runs less often than detective, on resolution
+    // events. In Phase 2 the only available trigger is the turn-mod
+    // heartbeat (Phase 3 instruments will add the correction trigger).
+    // Sequential with detective for Phase 2 — parallel comes in Phase 4
+    // when the queue-ahead architecture lands.
+    if (postOpenerCount > 0 && postOpenerCount % 3 === 0) {
+      await this.runProfilerTask('heartbeat');
+    }
   }
 
   /** Route the detective's next_move into engine state mutations.
@@ -1139,6 +1157,58 @@ export class SurveyEngine {
     } finally {
       this.agentInFlight.detective -= 1; this.publishInflight();
     }
+  }
+
+  /** Run the profiler agent. v3: triggered on resolution events
+   *  (every 3 turns + corrections + close pass), NOT every turn. Writes
+   *  the markdown Subject Anchor whole-doc on each pass. Async,
+   *  non-blocking — detective stays the per-turn latency-critical path.
+   *
+   *  Returns the diff between the prior anchor and the newly-written
+   *  one (or null on failure) so callers can publish change markers to
+   *  the debug bus. */
+  private async runProfilerTask(trigger: ProfilerTrigger): Promise<{
+    raised: string[];
+    dropped: string[];
+    diff: ReturnType<typeof diffAnchors>;
+  } | null> {
+    const based_on_v = this.state.doc.v;
+    const post_opener_turn = this.countPostOpenerPicks();
+    const prev_anchor = this.state.anchor;
+    try {
+      const out = await runProfiler(this.opts.adapter, {
+        state: this.state,
+        trigger,
+        post_opener_turn,
+        detective_state: {
+          leading_hypothesis: this.state.doc.scaffold.leading_hypothesis,
+          candidate_dilemmas: this.state.doc.held.map((h) => h.claim),
+        },
+      });
+      // Staleness gate — discard if doc moved while we were thinking.
+      // The next heartbeat will re-base.
+      if (out.based_on_v !== based_on_v) {
+        return null;
+      }
+      this.setState({ anchor: out.anchor });
+      this.emit();
+      return {
+        raised: out.suspicions_raised,
+        dropped: out.suspicions_dropped,
+        diff: diffAnchors(prev_anchor, out.anchor),
+      };
+    } catch (e) {
+      console.warn('[survey] profiler failed', e);
+      return null;
+    }
+  }
+
+  /** Phase 3+ hook: a correction event (rejection-with-correction on an
+   *  assertion instrument) is the high-signal resolution that warrants
+   *  an immediate profiler pass. Phase 3 instruments will call this; in
+   *  Phase 2 the method exists but has no caller. */
+  triggerProfilerOnCorrection(): void {
+    void this.runProfilerTask('correction');
   }
 
   // Old finalize() was removed — the close path now runs through

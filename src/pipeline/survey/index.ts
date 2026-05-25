@@ -75,6 +75,14 @@ export type {
 export type { ObserverOutput, ObserverDelta } from './agents/observer';
 export type { DetectiveOutput, StoryUpdates } from './agents/detective';
 
+// v3 profiler agent.
+export { runProfiler, pickTier as pickProfilerTier } from './agents/profiler';
+export type {
+  ProfilerOutput,
+  ProfilerTrigger,
+  RunProfilerArgs,
+} from './agents/profiler';
+
 // v2 LivingDoc types — new public surface introduced in Phase 2.
 export type {
   LivingDoc,
