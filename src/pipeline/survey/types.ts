@@ -24,6 +24,7 @@
 // - EngineState.detective_log dropped (scratchpad lives per-call now).
 
 import type { LivingDoc } from './living-doc';
+import type { AssertionResult, Instrument } from './instruments';
 
 // ─── Phase ──────────────────────────────────────────────
 
@@ -39,7 +40,19 @@ export const PHASE_ORDER: Phase[] = ['A', 'B', 'C', 'D', 'E'];
 // (left / bar-stuck-between / right). Options are stored as `left | right`
 // strings; the ForkChoice UI splits the pipe and the answer encoding
 // uses `"left"` / `"right"` / `"between:left/right"`.
-export type AnswerFormat = 'text' | 'date' | 'choice' | 'binary' | 'matrix' | 'intent' | 'relationship_pick' | 'relationship_status' | 'fork';
+export type AnswerFormat =
+  | 'text'
+  | 'date'
+  | 'choice'
+  | 'binary'
+  | 'matrix'
+  | 'intent'
+  | 'relationship_pick'
+  | 'relationship_status'
+  | 'fork'
+  /** v3 detective-emitted instrument formats. carry an `instrument`
+   *  payload on the QueueItem rather than authored options. */
+  | 'assertion';
 
 /** Six tasteful, broadly-inclusive buckets for the relationship-status
  *  opener. Order is load-bearing: "single" first so the answer doesn't
@@ -126,6 +139,11 @@ export type RenderedQuestion = {
   options: string[];
   axes?: [[string, string], [string, string]];
   preamble?: string;
+  /** v3: when the QueueItem carries an instrument payload (assertion,
+   *  etc.), it propagates here for the UI component. `text` carries
+   *  the on-screen statement; `instrument` carries the structured
+   *  metadata (mascot stall lines, correction inversions). */
+  instrument?: Instrument;
 };
 
 // ─── Survey profile (slimmed — identity + cast only in v2) ───
@@ -273,6 +291,11 @@ export type PickEvent = {
    *  back planted option text as the user's verbatim phrase. Defaults
    *  to false/undefined for human-authored questions. */
   is_engine_authored?: boolean;
+  /** v3 structured outcome for instrument-shaped picks (currently only
+   *  assertion). Lets the debug panel + future telemetry rig compute
+   *  the confirm/reject/correct rate without re-parsing the answer
+   *  string. Undefined for non-instrument picks. */
+  instrument_result?: AssertionResult;
 };
 
 export type TimingEvent = {
@@ -325,6 +348,12 @@ export type QueueItem = {
     options: string[];
     axis_tag?: string;
   };
+  /** v3 detective-emitted instrument payload. When set, the queue
+   *  item's UI render uses the instrument-specific component
+   *  (AssertionChoice for kind='assertion', etc.) and `inline.text`
+   *  carries the on-screen statement. PickEvent.instrument_result
+   *  records the structured outcome at answer time. */
+  instrument?: Instrument;
 };
 
 // ─── Engine state ───────────────────────────────────────

@@ -34,6 +34,9 @@ export { RETURN_LINES, pickReturnLine } from './return-lines';
 
 export { appendVerbatim, formatVerbatimEntry, formatVerbatimLog } from './verbatim-log';
 
+export { parseAssertionAnswer, encodeAssertionAnswer } from './instruments';
+export type { Instrument, AssertionInstrument, AssertionResult } from './instruments';
+
 export {
   checkDeadEndSignals,
   isDistributionFlat,
