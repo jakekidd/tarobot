@@ -188,6 +188,8 @@ export function makeDemoPerson(): Person {
       ]),
     ],
     timing_log: [],
+    anchor: '',
+    verbatim_log: [],
     intentions: [],
     created_at: now,
     last_visit_at: now,

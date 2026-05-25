@@ -53,8 +53,10 @@ export type {
   SideChannel,
   StoryObject,
   SurveyProfile,
+  SurveyStage,
   TimingEvent,
   TreeNode,
+  VerbatimEntry,
 } from './types';
 
 // v2 agent output types (live in per-agent schema.ts via z.infer).

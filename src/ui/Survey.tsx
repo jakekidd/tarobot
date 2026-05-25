@@ -81,6 +81,8 @@ export function Survey({ apiKey, session, loadedPerson, onComplete }: Props) {
       engine.loadFromSave({
         profile: loadedPerson.profile,
         doc: loadedPerson.doc,
+        anchor: loadedPerson.anchor,
+        verbatim_log: loadedPerson.verbatim_log,
         picks_log: loadedPerson.picks_log,
         timing_log: loadedPerson.timing_log,
         prior_intentions: loadedPerson.intentions,
@@ -169,6 +171,8 @@ export function Survey({ apiKey, session, loadedPerson, onComplete }: Props) {
     engine.loadFromSave({
       profile: match.profile,
       doc: match.doc,
+      anchor: match.anchor,
+      verbatim_log: match.verbatim_log,
       picks_log: match.picks_log,
       timing_log: match.timing_log,
       prior_intentions: match.prior_intentions,
@@ -209,6 +213,8 @@ export function Survey({ apiKey, session, loadedPerson, onComplete }: Props) {
     const person = savePersonFromFinalState({
       profile: cloneProfile(state.profile),
       doc: JSON.parse(JSON.stringify(state.doc)) as typeof state.doc,
+      anchor: state.anchor,
+      verbatim_log: [...state.verbatim_log],
       picks_log: [...state.picks_log],
       timing_log: [...state.timing_log],
     });

@@ -45,6 +45,7 @@ import type {
   RenderedQuestion,
   SurveyProfile,
   TimingEvent,
+  VerbatimEntry,
 } from './types';
 import type { LivingDoc } from './living-doc';
 import { EMPTY_DOC } from './living-doc';
@@ -375,6 +376,8 @@ export class SurveyEngine {
   loadFromSave(args: {
     profile: SurveyProfile;
     doc: LivingDoc;
+    anchor?: string;
+    verbatim_log?: VerbatimEntry[];
     picks_log: PickEvent[];
     timing_log?: TimingEvent[];
     prior_intentions?: string[];
@@ -382,6 +385,8 @@ export class SurveyEngine {
     this.setState({
       profile: args.profile,
       doc: args.doc,
+      anchor: args.anchor ?? '',
+      verbatim_log: args.verbatim_log ?? [],
       picks_log: args.picks_log,
       timing_log: args.timing_log ?? [],
       asked_node_ids: args.picks_log.map((p) => p.node_id),
@@ -632,6 +637,8 @@ export class SurveyEngine {
       stage: 'questions',
       intentions_offered: [],
       chosen_intention: null,
+      anchor: '',
+      verbatim_log: [],
     };
   }
 
