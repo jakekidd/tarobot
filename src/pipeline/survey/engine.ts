@@ -32,6 +32,7 @@ import { computeAstroProfile, parseBirthDate } from '../astrology';
 import { publishDebug } from '../../debug/debugBus';
 import { publishAnchor } from '../../debug/anchorBus';
 import { publishProfilerActivity } from '../../debug/profilerActivityBus';
+import { publishHypotheses } from '../../debug/hypothesisBus';
 import { pickTier as pickProfilerTier } from './agents/profiler';
 import {
   getNode,
@@ -1362,6 +1363,16 @@ export class SurveyEngine {
           },
         });
         this.emit();
+        publishHypotheses({
+          turn: post_opener_turn,
+          list: next,
+          raised_ids: out.hypothesis_edits
+            .filter((e) => e.op === 'add' || e.op === 'promote' || e.op === 'refine')
+            .map((e) => e.id),
+          dropped_ids: out.hypothesis_edits
+            .filter((e) => e.op === 'drop' || e.op === 'refute')
+            .map((e) => e.id),
+        });
       }
       publishProfilerActivity({
         turn: post_opener_turn,

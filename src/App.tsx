@@ -21,6 +21,7 @@ import { createClaudeClient } from './pipeline/claude';
 import './ui/pipeline.css';
 import { Debug } from './debug/Debug';
 import { ProfilerWorkspace } from './debug/ProfilerWorkspace';
+import { HypothesisView } from './debug/HypothesisView';
 import { AnchorView } from './debug/AnchorView';
 import { loadDebugVisible, saveDebugVisible } from './debug/visibilityStorage';
 import { publishDebug } from './debug/debugBus';
@@ -205,13 +206,14 @@ export function App() {
         </main>
 
       <Debug visible={debugVisible} />
-      {/* v3 left column: profiler workspace (top) + live anchor view
-          (bottom). Survey-phase-only — these surfaces have no meaning
-          outside the survey. Replaces the old DebugQueue (queue
-          introspection isn't central anymore). */}
+      {/* v3.2 left column: profiler workspace (top) + live hypothesis
+          list (middle, where the action is during survey) + anchor
+          view (bottom, populated only at close by the compiler).
+          Survey-phase-only. */}
       {debugVisible && phase.kind === 'survey' && (
         <div className="debug-left-column">
           <ProfilerWorkspace visible={true} />
+          <HypothesisView visible={true} />
           <AnchorView visible={true} />
         </div>
       )}

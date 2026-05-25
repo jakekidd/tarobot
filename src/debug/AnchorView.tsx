@@ -79,7 +79,8 @@ export function AnchorView({ visible }: Props) {
       <section className="anchor-view anchor-view--empty" aria-label="subject anchor">
         <div className="anchor-view__head">SUBJECT ANCHOR</div>
         <div className="anchor-view__placeholder">
-          waiting for the profiler's first pass…
+          builds at survey close (compiler pass). watch the hypothesis
+          list above for live activity.
         </div>
       </section>
     );
