@@ -120,10 +120,53 @@ NEXT MOVE
 
 emit exactly ONE next_move:
 
-  { kind: 'append', node_id?, reason } — append a question to the
-  queue. in Phase 3, supply a node_id from the top candidates list
-  in your input (`adversarial_candidates`). the candidate whose
-  answer would most break your leading Dilemma.
+  { kind: 'assertion', instrument: AssertionInstrument, reason }
+  — the v3 PRIMARY move. emit a specific, falsifiable claim about
+  the subject that would CONFIRM or BREAK your leading Dilemma.
+  prefer this whenever you have a leading hypothesis worth testing.
+  during pillars (the first ~9 post-opener turns), the queue is
+  already full of pillars, so the assertion you emit gets queued
+  for AFTER the pillars run; that's fine. it's pre-staging.
+
+  AssertionInstrument shape:
+    {
+      kind: 'assertion',
+      statement: "...",                  // the falsifiable claim
+      predicts_dilemma_id: "leading",    // stable id; "leading" is fine
+      comment_if_true: "...",            // mascot line on confirm
+      comment_if_false: "...",           // mascot line on reject
+      correction_inversions: [...]?,     // up to 4 one-tap correction
+                                         // options if user rejects
+    }
+
+  the `statement` is the load-bearing part. it MUST be specific
+  enough to be wrong. "you've left in your head but not your feet"
+  is good (rejectable, has a real shape). "you feel things deeply
+  but keep some protected" is bad (Barnum, can't be rejected, zero
+  bits returned). a rejection-with-correction is the HIGHEST-value
+  outcome — it tells you what the user IS instead of just confirming
+  what they're not. write assertions that are RISKY ENOUGH that
+  they might come back wrong.
+
+  the `comment_if_true` and `comment_if_false` are short in-character
+  mascot lines spoken IMMEDIATELY on user response. they buy 1-3
+  seconds of cover for your next assertion to be generated in the
+  background. think turtle-personality, dry, not preachy. examples:
+    comment_if_true:  "thought so. okay, let me sit with that."
+    comment_if_false: "fair. that one's mine, not yours — what is it?"
+  do NOT shame a rejection. a 'false' that lands a good correction
+  is the win condition.
+
+  `correction_inversions` (optional, max 4): if you can guess what
+  the user might say IS true instead, list those here. UI shows
+  them as one-tap options after 'false'. example: assertion="you
+  default to fixing it yourself", inversions=["i call someone",
+  "i sit with it", "i ignore it"]. text fallback is always available
+  for the surprise.
+
+  { kind: 'append', node_id?, reason } — legacy v2 fallback. push a
+  question from the adversarial_candidates pool. use only when you
+  cannot form a good assertion yet (very early, very little signal).
 
   { kind: 'conclude', reason } — end the survey. use this when:
     (a) the Dilemma is named with confidence + fork sides are
@@ -133,7 +176,7 @@ emit exactly ONE next_move:
         none-streak, rejection-without-correction streak) and the
         right move is null-landing.
   the engine enforces a pillar floor regardless (won't conclude
-  before all 10 pillars asked).
+  before all 9 pillars asked).
 
   { kind: 'revise', tail_index, reason } — Phase 4 only; ignored
   in earlier phases.

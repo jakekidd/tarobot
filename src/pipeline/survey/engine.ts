@@ -1063,7 +1063,14 @@ export class SurveyEngine {
    *  flushes only the engine-authored items, preserving any remaining
    *  authored questions. */
   private async applyDetectiveNextMove(
-    move: { kind: string; node_id?: string; intent?: { angle: string; planted_options?: string[] }; reason: string; tail_index?: number },
+    move: {
+      kind: string;
+      node_id?: string;
+      intent?: { angle: string; planted_options?: string[] };
+      instrument?: import('./instruments').Instrument;
+      reason: string;
+      tail_index?: number;
+    },
     postOpenerCount: number,
     pillarFloor: number,
   ): Promise<void> {
@@ -1085,8 +1092,41 @@ export class SurveyEngine {
       // Phase 5: revise queue.tail[tail_index]. For now, no-op.
       return;
     }
+    if (move.kind === 'assertion' && move.instrument && move.instrument.kind === 'assertion') {
+      // v3 PRIMARY path. Detective emitted a specific falsifiable
+      // claim. Push as a queue item with inline + instrument fields;
+      // the AssertionChoice UI component picks it up via the
+      // RenderedQuestion.instrument propagation.
+      const instr = move.instrument;
+      // Defensive: cap how many engine-authored assertions sit in the
+      // queue at once. Avoid runaway loops if the detective is
+      // hyperactive.
+      const enqueuedAssertions = this.state.queue.filter(
+        (q) => q.inline?.format === 'assertion',
+      ).length;
+      if (enqueuedAssertions >= 3) return;
+      this.setState({
+        queue: [
+          ...this.state.queue,
+          {
+            node_id: `assertion_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`,
+            prompted_by: 'detective_assertion',
+            priority: 'normal',
+            is_engine_authored: true,
+            inline: {
+              text: instr.statement,
+              format: 'assertion',
+              options: [],
+            },
+            instrument: instr,
+          },
+        ],
+      });
+      return;
+    }
     if (move.kind === 'append') {
-      // Phase 4 path: detective supplied an `intent` → generate.
+      // Phase 4 legacy path: detective supplied an `intent` → generate.
+      // Kept for compatibility; v3 prefers the assertion move.
       if (move.intent && move.intent.angle.trim().length > 0) {
         await this.appendGeneratedQuestion(move.intent);
         return;

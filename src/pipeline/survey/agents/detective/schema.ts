@@ -33,12 +33,24 @@ export const StoryUpdatesSchema = z.object({
   hooks: z.array(z.string()).optional(),
 }).default({});
 
+/** v3 assertion instrument payload — embedded in MoveSchema's
+ *  'assertion' branch. Mirrors AssertionInstrument in instruments.ts;
+ *  duplicated here as a Zod schema for tool-input validation. */
+export const AssertionInstrumentSchema = z.object({
+  kind: z.literal('assertion'),
+  statement: z.string().min(1),
+  predicts_dilemma_id: z.string().min(1),
+  comment_if_true: z.string().min(1),
+  comment_if_false: z.string().min(1),
+  correction_inversions: z.array(z.string()).max(4).optional(),
+});
+
 export const MoveSchema = z.discriminatedUnion('kind', [
   z.object({
     kind: z.literal('append'),
-    /** Pool node_id to enqueue. Phase 3: pool selection only — no
-     *  generated questions. Phase 4 adds optional `intent` for
-     *  generation. */
+    /** Pool node_id to enqueue. Phase 3+: pool selection only — no
+     *  generated questions via this path anymore (instruments replace
+     *  the old generation pipeline). */
     node_id: z.string().optional(),
     reason: z.string(),
   }),
@@ -50,6 +62,14 @@ export const MoveSchema = z.discriminatedUnion('kind', [
   }),
   z.object({
     kind: z.literal('conclude'),
+    reason: z.string(),
+  }),
+  /** v3 instrument emission. Engine creates a QueueItem with inline +
+   *  instrument fields, pushes to tail (during pillars) or head
+   *  (post-pillars when queue is empty). */
+  z.object({
+    kind: z.literal('assertion'),
+    instrument: AssertionInstrumentSchema,
     reason: z.string(),
   }),
 ]);
