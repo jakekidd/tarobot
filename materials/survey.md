@@ -59,18 +59,22 @@ A few rules so the parser doesn't bite you:
 ## Pillars
 
 These are the always-asked questions, in order, post-openers. Two
-calibration questions warm up the user's register, then an operational /
-relational / values arc, the live-fork pick, and three Dilemma-locating
-questions (the unsaid target, interior cast, avoidance). 10 pillars total.
+calibration questions warm up the user's register, then an operational
+arc (decisions / self-image / values), the live-fork pick, and three
+Dilemma-locating questions (the unsaid target, interior voice,
+avoidance). 9 pillars total in v3.
 
 Authoring note: the deprivation question ("what does your life not have
 enough of?") was dropped in the v2 refactor — too monoculture-prone
-("meaning" tells you nothing). Pillars 8/9/10 were added in v3 to give
-the detective concrete Dilemma-locating signal before the explore phase
-starts. Pillar 10 ("noticed yourself avoiding") includes "nothing — i've
-been facing it" as the structural Cleo-detector for the reinforcement
-case — the engine MUST be able to land on that answer without
-manufacturing a Dilemma.
+("meaning" tells you nothing). The key_person pillar ("who is the most
+important person in your life?") was removed in v3 — relationship-naming
+opener work returns later as its own focused pass once subject-first
+profiling is solid. Pillars 7/8/9 were added in v3 to give the detective
+concrete Dilemma-locating signal before the explore phase starts.
+Pillar 9 ("noticed yourself avoiding") includes "nothing — i've been
+facing it" as the structural Cleo-detector for the reinforcement case —
+the engine MUST be able to land on that answer without manufacturing a
+Dilemma.
 
 ### Template
 
@@ -121,14 +125,6 @@ Options:
   - gut
   - root
   - spirit
-
-### Who is the most important person in your life?
-
-Format: relationship_pick
-Probe:
-  Surface: relational anchor.
-  Inversions: the user picks the central CastMember. their absence or distance from later answers is data. picking "ex" or "someone i used to know" instead of partner/parent is a tell about where the gravity actually is.
-  Watch for: if this person doesn't reappear in later relational questions, the relationship may be aspirational or strained; if they reappear in shadow or insecurity contexts, the bond is conflicted.
 
 ### How do you think others perceive you?
 

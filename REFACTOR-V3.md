@@ -907,7 +907,101 @@ the bus has a noop subscriber in production.
 
 ---
 
-## 18. Open seams — decisions left explicit
+## 18. Post-Phase-2 reassessment — backlog from brainstorm follow-up
+
+Captured after Phase 2 shipped. These don't change Phase 3's direction
+but should be considered before Phase 4 or whenever the survey gets a
+walking test against real users.
+
+### Pillar set is now 9, not 10
+
+The `who_is_the_most_important_person_in_your_life` pillar was removed.
+Reason: relationship/cast naming should be its own focused opener pass
+once subject-first profiling is solid; mixing person-naming into the
+initial Dilemma-locating set diluted both jobs. Pillars 7/8/9 in v3 are
+the unsaid target / interior voice / avoiding question.
+
+A future opener block specifically for relationship-naming (one or two
+short relationship_pick items, before the survey starts hunting) lives
+here in the backlog. Out of scope for the current refactor.
+
+### The "altitude" axis — major / minor arcana mix
+
+The brainstorm with an experienced reader surfaced this as orthogonal
+to domain: major arcana = big archetypal forces, minor = daily-texture
+stuff. The reader classifies by altitude before content. We didn't add
+pillar questions for this in Phase 2, but it's worth considering: 1–2
+short pillars that locate altitude (is this person sitting on something
+life-shaping or texture-of-the-day?) would give the detective a second
+orientation axis cheaply.
+
+Status: backlog. Validate via Phase 4 walkthroughs whether the absence
+of altitude hurts the first-assertion specificity. If yes, propose
+1–2 pillar additions.
+
+### Profile-the-problem-not-the-person — the experiment that reinforced our shape
+
+A side experiment ran three readings (same cards) against three context
+levels: cards-only / dilemma-only / full-profile. The result: profiling
+the **situation** (dilemma) sharpened the reading substantially.
+Profiling the **person's interior** committed the reading to a verdict
+upstream — high reward when right, confidently wrong when off. The
+judge ran an active argument against the dilemma-only version
+(treating it as a live question) but engaged the full-profile version
+as a fait accompli (treating it as a delivery of a foregone conclusion).
+
+This validates the architecture we already built: the Suspicions —
+DO NOT VOICE fence is exactly the discipline this finding asks for.
+The Dilemma section holds the **situation** (asserted, committed).
+Interior reads about the person stay in Suspicions (hedged, fenced,
+never quotable downstream). The reading loop confirms the interior
+live, from reactions, not from a pre-written profile.
+
+What this means practically going into Phase 3:
+- The profiler prompt already says "a guess does not become a fact
+  without a test" — keep enforcing that.
+- When assertions land (rejection-with-correction), the corrections
+  ARE the interior reads — but they survived a test, so they're
+  allowed to leave the Suspicions fence.
+- Be conservative about the profiler promoting tentative interior
+  reads to confident claims in the Unsaid section. The Unsaid is for
+  patterns the **survey evidence** surfaced, not for the profiler's
+  guesses about psychology.
+
+Status: enforce in the Phase 3 detective prompt as part of the
+falsifiability discipline.
+
+### Assertion confirm/reject/correct rate is the v3 health metric
+
+The brainstorm proposed: log every assertion with its outcome
+(confirmed / rejected / rejected-with-correction). Watch the
+rejection-with-correction rate specifically. If corrections are
+frequent and specific, the detective is doing the real thing —
+risky guesses, rich error signal. If everything's getting bland
+confirmations, it's gone Barnum and you'll see it in the log
+without needing a scoring rig.
+
+Phase 3 bakes this in: assertions log their outcome on the PickEvent
+and the debug panel surfaces the rolling rate.
+
+Status: implement as part of Phase 3 instruments wave.
+
+### Defensiveness + over-explanation are stance signals, not pillars
+
+The brainstorm warned against pillar-questioning for people-pleaser /
+defensive-about / burnout — those are **deltas** the detective should
+discover via assertions, not pre-asserted via the survey (cop-sheet
+failure). What is real, though: watching what answers come back with
+defensiveness or over-explanation is free metadata, the closest thing
+text-medium has to the flinch the in-person reader watches for.
+
+Status: backlog. Phase 4+ could add a lightweight "over-explained"
+flag derived from free-text answer length / latency outliers, kept
+purely in the detective's working state. Stays out of the anchor.
+
+---
+
+## 19. Open seams — decisions left explicit
 
 These are knobs the plan deliberately doesn't pin down, so they can flip
 without rewriting:
