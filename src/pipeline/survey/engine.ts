@@ -14,6 +14,8 @@
 import type { LLMAdapter } from '../llm/adapter';
 import { runFinalObserver, runObserver, applyObserverDelta } from './agents/observer';
 import { runProfiler, applyHypothesisEdits, type ProfilerTrigger } from './agents/profiler';
+import { runCompiler } from './agents/compiler';
+import { diffAnchors } from './anchor';
 import { checkDeadEndSignals } from './signals';
 import { extractHooks, extractSideChannel, computeLatencyZScores } from './algoExtract';
 import { runDetective, applyDetectiveOutput, type DetectiveApplyResult } from './agents/detective';
@@ -28,6 +30,7 @@ import { computeAstroProfile, parseBirthDate } from '../astrology';
 // (ReturningMatch import dropped — confirmReturningPerson was removed
 //  in the save-game restructure. Survey UI calls loadFromSave directly.)
 import { publishDebug } from '../../debug/debugBus';
+import { publishAnchor } from '../../debug/anchorBus';
 import { publishProfilerActivity } from '../../debug/profilerActivityBus';
 import { pickTier as pickProfilerTier } from './agents/profiler';
 import {
@@ -422,17 +425,43 @@ export class SurveyEngine {
       try {
         await this.runFinalObserverPass();
         this.applyAlgoExtraction();
-        // v3.2: the close-pass prose generation moves to the new
-        // compiler agent (Wave 4b). Until that wave lands, the anchor
-        // stays empty at handoff — the seer falls back to reading
-        // LivingDoc directly (legacy path). When the compiler ships,
-        // this is where its runCompilerTask() will fire.
+        // v3.2: close-pass prose generation. The compiler reads the
+        // curated hypothesis list + history + verbatim + template and
+        // writes the prose anchor narrowly around the resolved
+        // Dilemma. Opus tier — this is the artifact that ships to
+        // the seer; quality matters more than latency on the last
+        // call.
+        await this.runCompilerTask();
       } catch (e) {
         console.warn('[survey] finalize failed', e);
       }
       this.setState({ stage: 'awaiting_intention', thinking: false });
       this.emit();
     })();
+  }
+
+  /** v3.2 close-pass compiler. Runs ONCE per session, after the final
+   *  observer pass + algo extraction. Reads everything; writes the
+   *  prose Subject Anchor narrowly around the resolved Dilemma. The
+   *  artifact handed to the seer. */
+  private async runCompilerTask(): Promise<void> {
+    const prev_anchor = this.state.anchor;
+    try {
+      const out = await runCompiler(this.opts.adapter, { state: this.state });
+      this.setState({ anchor: out.anchor });
+      this.emit();
+      publishAnchor({
+        turn: this.countPostOpenerPicks(),
+        trigger: 'close',
+        anchor: out.anchor,
+        diff: diffAnchors(prev_anchor, out.anchor),
+      });
+      console.info(
+        `[survey] compiler: dilemma_id=${out.dilemma_id ?? 'null'} — ${out.reasoning}`,
+      );
+    } catch (e) {
+      console.warn('[survey] compiler failed', e);
+    }
   }
 
   /** v3: dead-end terminal stage. Skips intention / augur / seer
