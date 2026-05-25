@@ -138,22 +138,46 @@ to resolve.
   events and updates its own internal distribution. Profile prose is for
   downstream handoff, not for the hunt.
 
-### PROFILER — scribe cognition
+### PROFILER — hypothesis curator (v3.2 pivot)
 
-Metabolizes resolved evidence into the Subject Anchor document. Backward-
-looking, conservative, custodial; wants to record accurately. **Refuses to
-let a guess become a fact** — only tested-and-survived claims become findings;
-everything else is logged as suspicion.
+Curates the working hypothesis list (`doc.held`). Reads history +
+verbatim log + assertion outcomes + detective state, and emits
+`hypothesis_edits` (add / promote / refine / refute / drop). NO PROSE.
+The compiler (separate agent) writes the prose anchor at close.
 
-- **Triggered on:** (a) every 3 turns as heartbeat, (b) every correction event
-  (rejection-with-correction — the high-signal resolution), (c) one final
-  pass at survey close.
-- **Tier ladder by depth:** Haiku in SEED phase (low signal density, doc just
-  starting) → Sonnet in EXPLORE → Opus in EXPLOIT and at close (max quality
-  for the artifact that ships to the seer).
-- **Extended thinking off** for routine passes; on for the final close pass.
-- **Async, non-blocking.** Runs in parallel with the detective when both fire
-  off the same answer event. The detective does not wait for the profiler.
+- **Triggered on:** (a) every 3 turns as heartbeat, (b) every
+  correction event (rejection-with-correction — the high-signal
+  resolution).
+- **Tier ladder by depth:** Haiku in SEED phase (turns 0–9) → Sonnet
+  in EXPLOIT (turns 10+). No Opus tier — the close pass belongs to
+  the compiler now.
+- **Async, non-blocking.** Runs in parallel with the detective.
+
+**The profiler does NOT touch the anchor.** A prior version wrote
+the whole anchor every 3 turns; the experiment finding showed that
+accumulating prose mid-survey was the wrong target — the more
+content, the more the eventual reading became a proof of the profile
+rather than a discovery about the person. v3.2 fixes this
+structurally: working memory = hypothesis list (status-tagged); the
+prose anchor only crystallizes at close, narrowly.
+
+### COMPILER — close-pass anchor writer (new in v3.2)
+
+Runs ONCE per session at survey close. Reads the curated hypothesis
+list + history + verbatim log + anchor template, identifies the
+resolved Dilemma, and writes the prose Subject Anchor narrowly
+around it. Most sections in the template come out short or empty;
+only the Dilemma section earns full weight.
+
+- **Triggered on:** survey close, in `beginIntentionStage` after
+  `runFinalObserverPass` + `applyAlgoExtraction`.
+- **Tier:** deep (Opus). The artifact that ships to the seer; spend
+  on quality.
+- **Hypothesis preference order:** refined_by_correction → confirmed
+  → probing → untested. Refuted hypotheses stay in the list (for
+  trace) but are never written.
+- **Null-landing capable:** if no Dilemma resolved, says so plainly
+  in the Dilemma section. Never manufactures.
 
 ### Why this split
 
@@ -436,11 +460,23 @@ specificity-dial directives. This preserves cache.
 Three distinct stores, with a hard contract on what flows downstream.
 
 **A. Subject Anchor (the profile).** Markdown, prose, template in §12.
-This is the *interpreted, synthesized* picture — what the downstream reading
-reads from. It is **not** JSON and **not** atomic facts; a slot called
-`cast: []` invites a name-list, a prose section invites an observation. The
-profiler owns it. Rewritten whole-doc on every profiler firing (no deltas
-during development).
+The *interpreted, synthesized* picture — what the downstream reading
+reads from. **v3.2: empty during the survey.** Built ONCE by the
+compiler at survey close, narrowly around the resolved Dilemma. Most
+sections come out short or empty; only the Dilemma section earns full
+weight. The profiler does NOT write here — it curates the hypothesis
+list (see C below), which is the compiler's primary input.
+
+**A2. Hypothesis list (`doc.held`).** v3.2 working memory. A
+status-tagged list of candidate hypotheses the engine is tracking.
+The seeder drops seeds from question-level Inversions; the detective
+tests them via assertions; the profiler curates (add / promote /
+refine / refute / drop). Each entry: `{ id, claim, status,
+confidence?, evidence_refs?, born_turn, age_in_turns, source }`.
+Status union: `untested` → `probing` → `confirmed` /
+`refined_by_correction` / `refuted`. Lives on `EngineState.doc.held`
+and gets sorted + rendered live in the debug panel's HypothesisView
+(§17). The compiler reads the final list at close.
 
 **B. Verbatim log (attached context resource, NOT part of the profile).**
 Every free-text user input, captured **deterministically and mechanically**,
@@ -618,7 +654,8 @@ the wager.
 
 | Before                                       | After                                                 | Change                                                              |
 |----------------------------------------------|-------------------------------------------------------|---------------------------------------------------------------------|
-| `agents/observer/`                           | `agents/profiler/`                                    | Resolution-triggered (every 3 turns + corrections + close); writes markdown anchor not LivingDoc deltas |
+| `agents/observer/`                           | `agents/profiler/`                                    | v3.2: hypothesis curator. emits hypothesis_edits (add/promote/refine/refute/drop). NO prose. heartbeat every 3 + on correction. Haiku→Sonnet by depth. |
+| (new — added in v3.2)                        | `agents/compiler/`                                    | close-pass anchor writer. runs ONCE per session. reads curated hypotheses + history + verbatim + template → writes prose anchor narrowly around resolved Dilemma. deep (Opus) tier. |
 | `agents/detective/`                          | `agents/detective/` (unchanged name)                  | Output schema rewritten: emits `Instrument` items, not `next_move`; owns distribution |
 | `agents/interrogator/` + `agents/crowd/`     | `agents/detective/generation/`                        | Folded into detective as instrument-rendering helpers; no longer standalone agents |
 | `adversarial.ts`                             | `distribution.ts`                                     | Token-overlap-vs-coverage scorer → candidate-Dilemma distribution tracker |
@@ -908,6 +945,72 @@ the bus has a noop subscriber in production.
 ---
 
 ## 18. Post-Phase-2 reassessment — backlog from brainstorm follow-up
+
+### v3.2 pivot — profiler is now a curator, not a writer (Phase 4)
+
+**The smoking gun.** A side experiment compared readings produced from
+three context levels: cards-only, dilemma-only, and full-person-profile.
+Result: **the more profile content existed, the more the reading became
+a proof of the profile rather than a discovery about the person.** The
+full-profile arm produced readings that read as confident verdicts
+landed upstream of the cards. The dilemma-only arm engaged the cards
+as live questions. The cold judge (run with both) flagged this on its
+own, hardest on the full-profile arm.
+
+Implication: the v3 profiler-writes-anchor-every-3-turns architecture
+was structurally wrong. We were ACCUMULATING the failure condition.
+
+**The architecture v3.2 ships:**
+
+```
+DETECTIVE     emits assertions per turn (unchanged from v3)
+PROFILER      CURATES the hypothesis list (doc.held).
+              emits hypothesis_edits: add / promote / refine /
+              refute / drop. NO prose. heartbeat every 3 + on
+              correction.
+COMPILER      NEW. runs ONCE at survey close. reads the curated
+              hypothesis list + history + verbatim + template →
+              identifies the Dilemma → writes the prose Subject
+              Anchor narrowly around just-the-Dilemma.
+ANCHOR        empty during survey. populated at close by the
+              compiler. handoff artifact to the seer.
+```
+
+The brainstorm Claude said this back when the v3 doc was first
+drafted ("open hypotheses, each carrying a candidate frame, a
+confidence, the evidence, and a status: proposed / probing /
+confirmed / disconfirmed / parked"). We drifted toward the prose
+profiler; v3.2 pulls us back to the original shape, plus the new
+compiler at close.
+
+**What changed:**
+
+- **§4 Roles** — profiler's job is hypothesis curation, NOT prose
+  writing. New compiler agent owns close-pass anchor generation.
+- **§11 Artifacts** — anchor stays empty during the survey. The
+  hypothesis list (doc.held) is the working memory; the anchor is
+  the close-pass crystallization narrowly around the Dilemma. The
+  verbatim log is unchanged (immutable, attached as context).
+- **§12 Anchor template** — the section set is still configuration
+  and still the same headers, but the compiler is instructed to
+  leave most sections SHORT or EMPTY. Only the Dilemma section
+  earns full weight. "Profile the problem, not the person" is the
+  governing principle.
+- **§15 Migration map** — profiler/ no longer writes prose. New
+  agents/compiler/ folder. Probe type extends with status +
+  confidence + evidence_refs.
+- **§17 Debug panel** — new HypothesisView for the middle of the
+  left column (where the visible thinking lives during survey).
+  AnchorView at bottom is empty until close.
+
+**Status:** shipped in 4 waves on the survey-engine-v3 branch
+(4a profiler pivot, 4b compiler agent, 4c debug view, 4d this note).
+
+### Phase 2 reassessment — backlog from brainstorm follow-up
+
+Older items captured after Phase 2 shipped. These don't change
+direction but should be considered before Phase 5 or whenever the
+survey gets a walking test against real users.
 
 Captured after Phase 2 shipped. These don't change Phase 3's direction
 but should be considered before Phase 4 or whenever the survey gets a
