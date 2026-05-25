@@ -34,6 +34,16 @@ export { RETURN_LINES, pickReturnLine } from './return-lines';
 
 export { appendVerbatim, formatVerbatimEntry, formatVerbatimLog } from './verbatim-log';
 
+export { parseAnchorSections, diffAnchors, isAnchorComplete } from './anchor';
+export type { ParsedSection, AnchorDiff } from './anchor';
+export {
+  ANCHOR_SECTIONS,
+  ANCHOR_TEMPLATE_MD,
+  formatAnchorSectionsForPrompt,
+  anchorSectionHeadings,
+} from './anchor-template';
+export type { AnchorSection } from './anchor-template';
+
 export { shouldClose } from './close';
 export { derivePhase, phaseFromTurns } from './phase';
 
