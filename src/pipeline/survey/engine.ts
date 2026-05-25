@@ -43,6 +43,7 @@ import {
 import { derivePhase } from './phase';
 import { ageHeldProbes, generateSeeds } from './seeder';
 import { appendVerbatim } from './verbatim-log';
+import { parseAssertionAnswer } from './instruments';
 import type {
   EngineListener,
   EngineState,
@@ -86,10 +87,10 @@ const OPENER_NODE_IDS = new Set<string>(getOpeners());
 /** Returning-user lite mode draws exactly this many random pool questions
  *  (dedup'd against prior history). No Pillars on returning visits. */
 export const RETURNING_LITE_COUNT = 6;
-/** New-user surveys queue this many random pool questions after the
- *  Pillars. Pillar count is currently 8 (tarot_prior + spiritual_rel +
- *  6 existing), so total post-opener question count = 8 + 12 = 20. */
-const RANDOM_POOL_COUNT = 12;
+/** v3: how many detective-emitted assertions can land before the
+ *  engine forces beginIntentionStage. Keeps the session bounded if
+ *  the detective never emits 'conclude' on its own. */
+const POST_PILLAR_ASSERTION_CAP = 8;
 /** Back-compat alias for callsites that still reference the old name. */
 export const STARTER_SEED_COUNT = RETURNING_LITE_COUNT;
 
@@ -210,6 +211,16 @@ export class SurveyEngine {
     // history reflects what was on screen, not what the basket says now.
     const renderedNow = renderQueueItem(head, this.state.profile);
 
+    // v3: if this was an assertion-instrument pick, parse the answer
+    // into a structured AssertionResult. Lets the debug panel +
+    // future telemetry rig compute the confirmed / rejected /
+    // rejected_with_correction rate without re-parsing answer strings.
+    const isAssertion =
+      head.instrument?.kind === 'assertion' || head.inline?.format === 'assertion';
+    const assertionResult = isAssertion
+      ? parseAssertionAnswer(answer)
+      : null;
+
     const pick: PickEvent = {
       node_id: head.node_id,
       question_text: renderedNow.text,
@@ -222,6 +233,7 @@ export class SurveyEngine {
       // PickEvent. extractHooks filters these out so planted-option
       // text never becomes a "verbatim" hook the Seer echoes back.
       is_engine_authored: head.is_engine_authored,
+      ...(assertionResult ? { instrument_result: assertionResult } : {}),
     };
     const timing: TimingEvent = {
       node_id: head.node_id,
@@ -255,6 +267,23 @@ export class SurveyEngine {
       asked_node_ids: [...this.state.asked_node_ids, head.node_id],
       queue: this.state.queue.slice(1),
     });
+
+    // v3: assertion-answer side-effects. Rejection-with-correction is
+    // the single highest-value resolution event in the survey — the
+    // user supplies their own contour, and the profiler should
+    // metabolize it RIGHT AWAY (not wait for the next heartbeat).
+    if (assertionResult?.outcome === 'rejected_with_correction') {
+      this.setState({
+        verbatim_log: appendVerbatim(this.state.verbatim_log, {
+          turn: this.countPostOpenerPicks(),
+          source: 'correction',
+          text: assertionResult.correction,
+        }),
+      });
+      // Fire-and-forget — the correction-triggered profiler runs in
+      // parallel with the regular per-turn pipeline that follows.
+      this.triggerProfilerOnCorrection();
+    }
 
     // Populate profile if this was an opener.
     this.applyOpenerDataIfRelevant(head.node_id, answer);
@@ -298,12 +327,17 @@ export class SurveyEngine {
       this.spawnPipeline(pick);
 
       // Transition to IntentConfirm when there's nothing more to ask.
-      // With the queue pre-rolled at fixed size, this fires naturally
-      // when the user has consumed every question. No cap watermark
-      // needed; queue exhaustion IS the close trigger.
+      // v3: pillars exhaust → detective drives assertions until the
+      // POST_PILLAR_ASSERTION_CAP, then we finalize. The pipeline this
+      // turn may still enqueue an assertion (detective hasn't returned
+      // yet) — so when the queue is empty we defer to
+      // maybeTriggerIntentionOnStall, which waits for the pipeline.
       const postOpenerCount = this.countPostOpenerPicks();
       const queueEmpty = this.state.queue.length === 0;
-      if (queueEmpty && postOpenerCount > 0) {
+      const assertionCount = this.countAssertionPicks();
+      const overAssertionCap = assertionCount >= POST_PILLAR_ASSERTION_CAP;
+      if (queueEmpty && postOpenerCount > 0 && overAssertionCap) {
+        // Hard cap: even if the detective wants more, we're done.
         this.beginIntentionStage();
       }
     }
@@ -315,6 +349,12 @@ export class SurveyEngine {
   /** Number of post-opener questions the user has answered. */
   private countPostOpenerPicks(): number {
     return this.state.picks_log.filter((p) => !OPENER_NODE_IDS.has(p.node_id)).length;
+  }
+
+  /** v3: number of assertion-instrument picks the user has answered.
+   *  Used to enforce POST_PILLAR_ASSERTION_CAP. */
+  private countAssertionPicks(): number {
+    return this.state.picks_log.filter((p) => p.instrument_result !== undefined).length;
   }
 
   /** Apply the algorithmic seeder for a fresh post-opener pick.
@@ -846,9 +886,19 @@ export class SurveyEngine {
     return false;
   }
 
-  /** Pre-roll the post-opener queue. New users get the 6 Pillars (in
-   *  order) followed by 14 random pool draws. Returning users get a
-   *  lite-mode 6 random pool draws only (dedup'd against prior history).
+  /** Pre-roll the post-opener queue.
+   *
+   *  v3 (Phase 3+): pillars only. The random pool is gone from the
+   *  pre-roll; post-pillar questions come from detective-emitted
+   *  assertion instruments. The pool questions still live in
+   *  materials/survey.md as reference material for the detective's
+   *  prior, but they're not queued directly anymore.
+   *
+   *  Returning users get a lite-mode 6 random pool draws only
+   *  (dedup'd against prior history) — they've already sat through
+   *  the pillars on a prior visit, and we want a quick re-orient
+   *  rather than a full re-hunt.
+   *
    *  Idempotent — only fires once per session. */
   private seedPostOpenerQueue(): void {
     if (this.starterSeedFired) return;
@@ -858,6 +908,9 @@ export class SurveyEngine {
 
     if (this.state.is_returning_user) {
       // Lite mode: 6 random pool draws, dedup'd against prior visits.
+      // (Returning-user flow stays pool-based for now — the Phase 4
+      // walkthrough will decide whether to switch them to assertions
+      // too, or keep the lighter touch.)
       const pool = getPoolNodeIds().filter(
         (id) => !this.state.asked_node_ids.includes(id) && !priorAnswered.has(id),
       );
@@ -868,15 +921,9 @@ export class SurveyEngine {
       return;
     }
 
-    // First-visit flow: Pillars in order + 14 random pool draws.
+    // First-visit flow: pillars in order. Pool is gone — the detective
+    // emits assertions to fill post-pillar turns.
     for (const id of getPillars()) {
-      this.enqueueDirect(id, null, null);
-    }
-    const pool = getPoolNodeIds().filter(
-      (id) => !this.state.asked_node_ids.includes(id),
-    );
-    const shuffled = shuffleInPlace([...pool]).slice(0, RANDOM_POOL_COUNT);
-    for (const id of shuffled) {
       this.enqueueDirect(id, null, null);
     }
   }
