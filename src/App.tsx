@@ -20,7 +20,9 @@ import { AnthropicAdapter } from './pipeline/survey';
 import { createClaudeClient } from './pipeline/claude';
 import './ui/pipeline.css';
 import { Debug } from './debug/Debug';
-import { DebugQueue } from './debug/DebugQueue';
+import { ProfilerWorkspace } from './debug/ProfilerWorkspace';
+import { HypothesisView } from './debug/HypothesisView';
+import { AnchorView } from './debug/AnchorView';
 import { loadDebugVisible, saveDebugVisible } from './debug/visibilityStorage';
 import { publishDebug } from './debug/debugBus';
 import './debug/debug.css';
@@ -204,7 +206,17 @@ export function App() {
         </main>
 
       <Debug visible={debugVisible} />
-      <DebugQueue visible={debugVisible && phase.kind === 'survey'} />
+      {/* v3.2 left column: profiler workspace (top) + live hypothesis
+          list (middle, where the action is during survey) + anchor
+          view (bottom, populated only at close by the compiler).
+          Survey-phase-only. */}
+      {debugVisible && phase.kind === 'survey' && (
+        <div className="debug-left-column">
+          <ProfilerWorkspace visible={true} />
+          <HypothesisView visible={true} />
+          <AnchorView visible={true} />
+        </div>
+      )}
       {/* Live agent activity stream — debug-only. Toggled via the debug
           chip in the topbar so it doesn't crowd the actual UI during
           normal use. */}

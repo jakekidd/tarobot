@@ -5,18 +5,19 @@
 
 .debug {
   position: fixed;
-  left: 0.75rem;
-  /* sits just below the navbar (which is ~2.4rem tall) */
+  /* v3: moved to top-right corner so the new left column (profiler
+     workspace + anchor view) has the full left edge. */
+  right: 0.75rem;
   top: 3rem;
   z-index: 150;                  /* above CRT (10–13), below modals (200) */
   background: rgba(5, 3, 12, 0.88);
   border: 1px solid rgba(179, 136, 255, 0.45);
   color: #e8e0ff;
   font-family: var(--font-mono);
-  font-size: 0.78rem;
+  font-size: 0.72rem;
   letter-spacing: 0.04em;
-  padding: 0.4rem 0.55rem 0.5rem;
-  min-width: 230px;
+  padding: 0.35rem 0.5rem 0.4rem;
+  min-width: 180px;
   pointer-events: none;          /* never blocks clicks */
   backdrop-filter: blur(2px);
   box-shadow: 0 0 14px rgba(179, 136, 255, 0.18);
@@ -321,4 +322,324 @@
 }
 .agent-activity__resp-label:first-child {
   margin-top: 0;
+}
+
+/* =====================================================================
+   v3: profiler-workspace (top of left column) + anchor-view (bottom).
+   Replaces the old DebugQueue + heavy Debug key-value rows. Shown only
+   when DEBUG chip is on AND the survey phase is active.
+   ===================================================================== */
+
+.debug-left-column {
+  position: fixed;
+  left: 0.75rem;
+  top: 3rem;
+  bottom: 0.75rem;
+  width: 26rem;
+  z-index: 150;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  pointer-events: none;
+  font-family: var(--font-mono);
+  color: #e8e0ff;
+}
+
+.profiler-workspace {
+  flex: 0 0 auto;
+  max-height: 22%;
+  overflow-y: auto;
+  pointer-events: auto;
+  background: rgba(5, 3, 12, 0.88);
+  border: 1px solid rgba(179, 136, 255, 0.45);
+  padding: 0.4rem 0.55rem 0.5rem;
+  font-size: 0.72rem;
+  backdrop-filter: blur(2px);
+  box-shadow: 0 0 14px rgba(179, 136, 255, 0.18);
+}
+
+.profiler-workspace__head {
+  font-size: 0.7rem;
+  letter-spacing: 0.32em;
+  color: #b388ff;
+  text-shadow: 0 0 8px rgba(179, 136, 255, 0.45);
+  padding-bottom: 0.3rem;
+  margin-bottom: 0.35rem;
+  border-bottom: 1px dashed rgba(179, 136, 255, 0.25);
+}
+
+.profiler-workspace__placeholder {
+  color: #6b5a8a;
+  font-style: italic;
+  letter-spacing: 0.04em;
+}
+
+.profiler-workspace__meta {
+  display: flex;
+  gap: 0.6rem;
+  align-items: baseline;
+  font-size: 0.7rem;
+  color: #6b5a8a;
+  margin-bottom: 0.35rem;
+}
+
+.profiler-workspace__tier {
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  font-size: 0.6rem;
+  padding: 0.05rem 0.35rem;
+  border: 1px solid currentColor;
+}
+.profiler-workspace__tier--fast      { color: #86efac; }
+.profiler-workspace__tier--cognition { color: #b388ff; }
+.profiler-workspace__tier--deep      { color: #fbbf24; }
+
+.profiler-workspace__stale {
+  color: #e2536e;
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  font-size: 0.6rem;
+}
+
+.profiler-workspace__reasoning {
+  color: #d6c9f5;
+  margin-bottom: 0.4rem;
+  font-style: italic;
+  line-height: 1.4;
+}
+
+.profiler-workspace__suspicions {
+  border-top: 1px dashed rgba(179, 136, 255, 0.18);
+  padding-top: 0.3rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+.profiler-workspace__susp-raised  { color: #86efac; }
+.profiler-workspace__susp-dropped { color: #6b5a8a; text-decoration: line-through; }
+
+.profiler-workspace__history {
+  margin-top: 0.45rem;
+  color: #6b5a8a;
+  font-size: 0.66rem;
+}
+.profiler-workspace__history summary {
+  cursor: pointer;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  outline: none;
+}
+.profiler-workspace__history-row {
+  padding: 0.1rem 0 0.1rem 0.5rem;
+}
+
+.anchor-view {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  pointer-events: auto;
+  background: rgba(5, 3, 12, 0.88);
+  border: 1px solid rgba(179, 136, 255, 0.45);
+  padding: 0.4rem 0.55rem 0.5rem;
+  font-size: 0.74rem;
+  line-height: 1.45;
+  backdrop-filter: blur(2px);
+  box-shadow: 0 0 14px rgba(179, 136, 255, 0.18);
+}
+
+.anchor-view--empty {
+  flex: 0 0 auto;
+}
+
+.anchor-view__head {
+  font-size: 0.7rem;
+  letter-spacing: 0.32em;
+  color: #b388ff;
+  text-shadow: 0 0 8px rgba(179, 136, 255, 0.45);
+  padding-bottom: 0.3rem;
+  margin-bottom: 0.4rem;
+  border-bottom: 1px dashed rgba(179, 136, 255, 0.25);
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+
+.anchor-view__head-meta {
+  color: #6b5a8a;
+  font-size: 0.62rem;
+  letter-spacing: 0.12em;
+}
+
+.anchor-view__placeholder {
+  color: #6b5a8a;
+  font-style: italic;
+}
+
+.anchor-view__section {
+  margin-bottom: 0.7rem;
+  padding: 0.15rem 0.2rem 0.25rem;
+  transition: background-color 600ms ease-out;
+  border-radius: 1px;
+}
+.anchor-view__section--flash {
+  background-color: rgba(179, 136, 255, 0.15);
+  transition: background-color 50ms ease-in;
+}
+
+.anchor-view__section-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 0.2rem;
+}
+
+.anchor-view__section-title {
+  color: #b388ff;
+  font-weight: 600;
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-transform: lowercase;
+}
+
+.anchor-view__update-marker {
+  color: #6b5a8a;
+  font-size: 0.6rem;
+  letter-spacing: 0.1em;
+}
+
+.anchor-view__section-body {
+  color: #d6c9f5;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+}
+
+.anchor-view__empty-section {
+  color: #6b5a8a;
+  font-style: italic;
+}
+
+/* =====================================================================
+   v3.2: hypothesis-view — middle of left column. live curated list
+   the profiler maintains. anchor view drops to bottom (only fills
+   at close via the compiler).
+   ===================================================================== */
+
+.hypothesis-view {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  pointer-events: auto;
+  background: rgba(5, 3, 12, 0.88);
+  border: 1px solid rgba(179, 136, 255, 0.45);
+  padding: 0.4rem 0.55rem 0.5rem;
+  font-size: 0.72rem;
+  backdrop-filter: blur(2px);
+  box-shadow: 0 0 14px rgba(179, 136, 255, 0.18);
+}
+
+.hypothesis-view--empty {
+  flex: 0 0 auto;
+}
+
+.hypothesis-view__head {
+  font-size: 0.7rem;
+  letter-spacing: 0.32em;
+  color: #b388ff;
+  text-shadow: 0 0 8px rgba(179, 136, 255, 0.45);
+  padding-bottom: 0.3rem;
+  margin-bottom: 0.4rem;
+  border-bottom: 1px dashed rgba(179, 136, 255, 0.25);
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+
+.hypothesis-view__head-meta {
+  color: #6b5a8a;
+  font-size: 0.62rem;
+  letter-spacing: 0.12em;
+}
+
+.hypothesis-view__placeholder {
+  color: #6b5a8a;
+  font-style: italic;
+}
+
+.hypothesis-view__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.hypothesis-view__item {
+  padding: 0.35rem 0.4rem;
+  border-left: 2px solid transparent;
+  transition: background-color 600ms ease-out, border-left-color 600ms ease-out;
+}
+.hypothesis-view__item--flash {
+  background-color: rgba(179, 136, 255, 0.16);
+  transition: background-color 50ms ease-in, border-left-color 50ms ease-in;
+}
+
+.hypothesis-view__item--refined_by_correction { border-left-color: #fbbf24; }
+.hypothesis-view__item--confirmed             { border-left-color: #86efac; }
+.hypothesis-view__item--probing               { border-left-color: #b388ff; }
+.hypothesis-view__item--untested              { border-left-color: rgba(107, 90, 138, 0.45); }
+.hypothesis-view__item--refuted               { border-left-color: rgba(226, 83, 110, 0.45); opacity: 0.55; }
+.hypothesis-view__item--dropped               { display: none; }
+
+.hypothesis-view__item-head {
+  display: flex;
+  gap: 0.5rem;
+  align-items: baseline;
+  margin-bottom: 0.18rem;
+}
+
+.hypothesis-view__badge {
+  display: inline-block;
+  font-size: 0.58rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  padding: 0.03rem 0.32rem;
+  border: 1px solid currentColor;
+  flex: 0 0 auto;
+}
+.hypothesis-view__badge--refined_by_correction { color: #fbbf24; }
+.hypothesis-view__badge--confirmed             { color: #86efac; }
+.hypothesis-view__badge--probing               { color: #b388ff; }
+.hypothesis-view__badge--untested              { color: #6b5a8a; }
+.hypothesis-view__badge--refuted               { color: #e2536e; }
+.hypothesis-view__badge--dropped               { color: #6b5a8a; }
+
+.hypothesis-view__id {
+  color: #d6c9f5;
+  font-size: 0.68rem;
+  letter-spacing: 0.06em;
+  flex: 1 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hypothesis-view__turn {
+  color: #6b5a8a;
+  font-size: 0.6rem;
+  letter-spacing: 0.1em;
+  flex: 0 0 auto;
+}
+
+.hypothesis-view__claim {
+  color: #e8e0ff;
+  font-size: 0.72rem;
+  line-height: 1.4;
+}
+
+.hypothesis-view__evidence {
+  margin-top: 0.18rem;
+  color: #6b5a8a;
+  font-size: 0.62rem;
+  letter-spacing: 0.04em;
 }

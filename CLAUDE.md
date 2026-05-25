@@ -104,7 +104,7 @@ The cards land on story slots (past_root → past card, present_pressure
 prose_brief is built around story; the closing director receives the
 held-probe queue (sorted by age DESC) and may take ONE risky swing.
 
-## Clat (the mascot) is the user-facing voice during survey
+## The mascot (the turtle) is the user-facing voice during survey
 
 Three agents fire per post-opener pick (returning users skip the
 observer + detective):
@@ -376,7 +376,7 @@ tarot birth card). Treat these as ground truth; do not duplicate inline.
 | SeerEngine + agents (director/actor) | `src/pipeline/seer/` |
 | Card draw mechanics | `src/pipeline/cards.ts` |
 | Spread definitions | `src/pipeline/spreads.ts` |
-| three.js scene (Clat + eyes + perspective table/cards + scene stores) | `src/ui/scene/`, `src/ui/scene/TarobotScene.tsx` |
+| three.js scene (turtle + eyes + perspective table/cards + scene stores) | `src/ui/scene/`, `src/ui/scene/TarobotScene.tsx` |
 | Card face/back canvas painters (used by the perspective layer) | `src/ui/cards/cardTexture.ts`, `glyphs.ts` |
 | Survey UI (questions, choices) | `src/ui/Survey.tsx`, `src/ui/choices/` |
 | Reading UI (the Seer screen) | `src/ui/Reading.tsx`, `src/ui/Transcript.tsx` |

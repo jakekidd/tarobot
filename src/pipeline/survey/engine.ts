@@ -13,6 +13,10 @@
 
 import type { LLMAdapter } from '../llm/adapter';
 import { runFinalObserver, runObserver, applyObserverDelta } from './agents/observer';
+import { runProfiler, applyHypothesisEdits, type ProfilerTrigger } from './agents/profiler';
+import { runCompiler } from './agents/compiler';
+import { diffAnchors } from './anchor';
+import { checkDeadEndSignals } from './signals';
 import { extractHooks, extractSideChannel, computeLatencyZScores } from './algoExtract';
 import { runDetective, applyDetectiveOutput, type DetectiveApplyResult } from './agents/detective';
 import { runAugur } from './agents/augur';
@@ -26,6 +30,10 @@ import { computeAstroProfile, parseBirthDate } from '../astrology';
 // (ReturningMatch import dropped — confirmReturningPerson was removed
 //  in the save-game restructure. Survey UI calls loadFromSave directly.)
 import { publishDebug } from '../../debug/debugBus';
+import { publishAnchor } from '../../debug/anchorBus';
+import { publishProfilerActivity } from '../../debug/profilerActivityBus';
+import { publishHypotheses } from '../../debug/hypothesisBus';
+import { pickTier as pickProfilerTier } from './agents/profiler';
 import {
   getNode,
   getOpeners,
@@ -36,6 +44,8 @@ import {
 } from './tree';
 import { derivePhase } from './phase';
 import { ageHeldProbes, generateSeeds } from './seeder';
+import { appendVerbatim } from './verbatim-log';
+import { parseAssertionAnswer } from './instruments';
 import type {
   EngineListener,
   EngineState,
@@ -45,6 +55,7 @@ import type {
   RenderedQuestion,
   SurveyProfile,
   TimingEvent,
+  VerbatimEntry,
 } from './types';
 import type { LivingDoc } from './living-doc';
 import { EMPTY_DOC } from './living-doc';
@@ -78,10 +89,10 @@ const OPENER_NODE_IDS = new Set<string>(getOpeners());
 /** Returning-user lite mode draws exactly this many random pool questions
  *  (dedup'd against prior history). No Pillars on returning visits. */
 export const RETURNING_LITE_COUNT = 6;
-/** New-user surveys queue this many random pool questions after the
- *  Pillars. Pillar count is currently 8 (tarot_prior + spiritual_rel +
- *  6 existing), so total post-opener question count = 8 + 12 = 20. */
-const RANDOM_POOL_COUNT = 12;
+/** v3: how many detective-emitted assertions can land before the
+ *  engine forces beginIntentionStage. Keeps the session bounded if
+ *  the detective never emits 'conclude' on its own. */
+const POST_PILLAR_ASSERTION_CAP = 8;
 /** Back-compat alias for callsites that still reference the old name. */
 export const STARTER_SEED_COUNT = RETURNING_LITE_COUNT;
 
@@ -202,6 +213,16 @@ export class SurveyEngine {
     // history reflects what was on screen, not what the basket says now.
     const renderedNow = renderQueueItem(head, this.state.profile);
 
+    // v3: if this was an assertion-instrument pick, parse the answer
+    // into a structured AssertionResult. Lets the debug panel +
+    // future telemetry rig compute the confirmed / rejected /
+    // rejected_with_correction rate without re-parsing answer strings.
+    const isAssertion =
+      head.instrument?.kind === 'assertion' || head.inline?.format === 'assertion';
+    const assertionResult = isAssertion
+      ? parseAssertionAnswer(answer)
+      : null;
+
     const pick: PickEvent = {
       node_id: head.node_id,
       question_text: renderedNow.text,
@@ -214,6 +235,7 @@ export class SurveyEngine {
       // PickEvent. extractHooks filters these out so planted-option
       // text never becomes a "verbatim" hook the Seer echoes back.
       is_engine_authored: head.is_engine_authored,
+      ...(assertionResult ? { instrument_result: assertionResult } : {}),
     };
     const timing: TimingEvent = {
       node_id: head.node_id,
@@ -247,6 +269,23 @@ export class SurveyEngine {
       asked_node_ids: [...this.state.asked_node_ids, head.node_id],
       queue: this.state.queue.slice(1),
     });
+
+    // v3: assertion-answer side-effects. Rejection-with-correction is
+    // the single highest-value resolution event in the survey — the
+    // user supplies their own contour, and the profiler should
+    // metabolize it RIGHT AWAY (not wait for the next heartbeat).
+    if (assertionResult?.outcome === 'rejected_with_correction') {
+      this.setState({
+        verbatim_log: appendVerbatim(this.state.verbatim_log, {
+          turn: this.countPostOpenerPicks(),
+          source: 'correction',
+          text: assertionResult.correction,
+        }),
+      });
+      // Fire-and-forget — the correction-triggered profiler runs in
+      // parallel with the regular per-turn pipeline that follows.
+      this.triggerProfilerOnCorrection();
+    }
 
     // Populate profile if this was an opener.
     this.applyOpenerDataIfRelevant(head.node_id, answer);
@@ -290,12 +329,17 @@ export class SurveyEngine {
       this.spawnPipeline(pick);
 
       // Transition to IntentConfirm when there's nothing more to ask.
-      // With the queue pre-rolled at fixed size, this fires naturally
-      // when the user has consumed every question. No cap watermark
-      // needed; queue exhaustion IS the close trigger.
+      // v3: pillars exhaust → detective drives assertions until the
+      // POST_PILLAR_ASSERTION_CAP, then we finalize. The pipeline this
+      // turn may still enqueue an assertion (detective hasn't returned
+      // yet) — so when the queue is empty we defer to
+      // maybeTriggerIntentionOnStall, which waits for the pipeline.
       const postOpenerCount = this.countPostOpenerPicks();
       const queueEmpty = this.state.queue.length === 0;
-      if (queueEmpty && postOpenerCount > 0) {
+      const assertionCount = this.countAssertionPicks();
+      const overAssertionCap = assertionCount >= POST_PILLAR_ASSERTION_CAP;
+      if (queueEmpty && postOpenerCount > 0 && overAssertionCap) {
+        // Hard cap: even if the detective wants more, we're done.
         this.beginIntentionStage();
       }
     }
@@ -307,6 +351,12 @@ export class SurveyEngine {
   /** Number of post-opener questions the user has answered. */
   private countPostOpenerPicks(): number {
     return this.state.picks_log.filter((p) => !OPENER_NODE_IDS.has(p.node_id)).length;
+  }
+
+  /** v3: number of assertion-instrument picks the user has answered.
+   *  Used to enforce POST_PILLAR_ASSERTION_CAP. */
+  private countAssertionPicks(): number {
+    return this.state.picks_log.filter((p) => p.instrument_result !== undefined).length;
   }
 
   /** Apply the algorithmic seeder for a fresh post-opener pick.
@@ -354,18 +404,82 @@ export class SurveyEngine {
    *  (it depends on the intention text). */
   private beginIntentionStage(): void {
     if (this.state.stage !== 'questions') return;   // idempotent
+
+    // v3: dead-end gate. Before running the full close pipeline, check
+    // whether content-level signals say the hunt found nothing. If so,
+    // route to null_landing instead — no intention prompt, no augur,
+    // no seer. Phase 2 wires the scaffold; the only signal source live
+    // today is distribution flatness, conservatively thresholded.
+    const deadEnd = checkDeadEndSignals({
+      post_opener_turn: this.countPostOpenerPicks(),
+      coverage: this.state.doc.coverage,
+      picks: this.state.picks_log,
+    });
+    if (deadEnd.fired) {
+      this.beginNullLanding(deadEnd.reasons);
+      return;
+    }
+
     this.setState({ stage: 'finalizing', thinking: true });
     this.emit();
     void (async () => {
       try {
         await this.runFinalObserverPass();
         this.applyAlgoExtraction();
+        // v3.2: close-pass prose generation. The compiler reads the
+        // curated hypothesis list + history + verbatim + template and
+        // writes the prose anchor narrowly around the resolved
+        // Dilemma. Opus tier — this is the artifact that ships to
+        // the seer; quality matters more than latency on the last
+        // call.
+        await this.runCompilerTask();
       } catch (e) {
         console.warn('[survey] finalize failed', e);
       }
       this.setState({ stage: 'awaiting_intention', thinking: false });
       this.emit();
     })();
+  }
+
+  /** v3.2 close-pass compiler. Runs ONCE per session, after the final
+   *  observer pass + algo extraction. Reads everything; writes the
+   *  prose Subject Anchor narrowly around the resolved Dilemma. The
+   *  artifact handed to the seer. */
+  private async runCompilerTask(): Promise<void> {
+    const prev_anchor = this.state.anchor;
+    try {
+      const out = await runCompiler(this.opts.adapter, { state: this.state });
+      this.setState({ anchor: out.anchor });
+      this.emit();
+      publishAnchor({
+        turn: this.countPostOpenerPicks(),
+        trigger: 'close',
+        anchor: out.anchor,
+        diff: diffAnchors(prev_anchor, out.anchor),
+      });
+      console.info(
+        `[survey] compiler: dilemma_id=${out.dilemma_id ?? 'null'} — ${out.reasoning}`,
+      );
+    } catch (e) {
+      console.warn('[survey] compiler failed', e);
+    }
+  }
+
+  /** v3: dead-end terminal stage. Skips intention / augur / seer
+   *  entirely. Logs the reason set so the debug panel can surface why
+   *  the engine landed null. Phase 2 just transitions cleanly; Phase 3+
+   *  may eventually back this with a "light reading" mode in the seer
+   *  (the plan flags this as out of scope for the survey refactor). */
+  private beginNullLanding(reasons: readonly string[]): void {
+    if (this.state.stage !== 'questions') return;
+    console.info('[survey] null landing —', reasons.join(', '));
+    this.setState({
+      stage: 'null_landing',
+      thinking: false,
+      closed: true,
+      close_reason: 'dead_end_signals',
+    });
+    this.emit();
   }
 
   /** Hydrate the engine directly from a saved Person record and jump to
@@ -375,6 +489,8 @@ export class SurveyEngine {
   loadFromSave(args: {
     profile: SurveyProfile;
     doc: LivingDoc;
+    anchor?: string;
+    verbatim_log?: VerbatimEntry[];
     picks_log: PickEvent[];
     timing_log?: TimingEvent[];
     prior_intentions?: string[];
@@ -382,6 +498,8 @@ export class SurveyEngine {
     this.setState({
       profile: args.profile,
       doc: args.doc,
+      anchor: args.anchor ?? '',
+      verbatim_log: args.verbatim_log ?? [],
       picks_log: args.picks_log,
       timing_log: args.timing_log ?? [],
       asked_node_ids: args.picks_log.map((p) => p.node_id),
@@ -413,6 +531,11 @@ export class SurveyEngine {
       chosen_intention: cleaned,
       stage: 'compiling',         // covers final observer + Augur + Seer-construction loading
       thinking: true,
+      verbatim_log: appendVerbatim(this.state.verbatim_log, {
+        turn: this.state.picks_log.filter((p) => !OPENER_NODE_IDS.has(p.node_id)).length,
+        source: 'intent',
+        text: cleaned,
+      }),
     });
     this.emit();
 
@@ -632,6 +755,8 @@ export class SurveyEngine {
       stage: 'questions',
       intentions_offered: [],
       chosen_intention: null,
+      anchor: '',
+      verbatim_log: [],
     };
   }
 
@@ -705,8 +830,19 @@ export class SurveyEngine {
         color,
       });
     }
+    // Capture the verbatim name only when it's a NEW cast addition —
+    // returning users picking an existing person from the list don't
+    // type anything fresh worth logging.
+    const nextLog = existing
+      ? this.state.verbatim_log
+      : appendVerbatim(this.state.verbatim_log, {
+          turn: this.state.picks_log.filter((p) => !OPENER_NODE_IDS.has(p.node_id)).length,
+          source: 'relationship_label',
+          text: name,
+        });
     this.setState({
       profile: { ...this.state.profile, cast: nextCast },
+      verbatim_log: nextLog,
     });
   }
 
@@ -720,7 +856,14 @@ export class SurveyEngine {
 
     if (node_id === 'name') {
       const cleaned = ans.trim();
-      this.setState({ profile: { ...this.state.profile, name: cleaned } });
+      this.setState({
+        profile: { ...this.state.profile, name: cleaned },
+        verbatim_log: appendVerbatim(this.state.verbatim_log, {
+          turn: 0,
+          source: 'name',
+          text: cleaned,
+        }),
+      });
       return false;
     }
     if (node_id === 'birthday') {
@@ -760,15 +903,30 @@ export class SurveyEngine {
           ...this.state.profile,
           initial_intention: trimmed.length > 0 ? trimmed : null,
         },
+        verbatim_log: appendVerbatim(this.state.verbatim_log, {
+          turn: 0,
+          source: 'intent',
+          text: trimmed,
+        }),
       });
       return false;
     }
     return false;
   }
 
-  /** Pre-roll the post-opener queue. New users get the 6 Pillars (in
-   *  order) followed by 14 random pool draws. Returning users get a
-   *  lite-mode 6 random pool draws only (dedup'd against prior history).
+  /** Pre-roll the post-opener queue.
+   *
+   *  v3 (Phase 3+): pillars only. The random pool is gone from the
+   *  pre-roll; post-pillar questions come from detective-emitted
+   *  assertion instruments. The pool questions still live in
+   *  materials/survey.md as reference material for the detective's
+   *  prior, but they're not queued directly anymore.
+   *
+   *  Returning users get a lite-mode 6 random pool draws only
+   *  (dedup'd against prior history) — they've already sat through
+   *  the pillars on a prior visit, and we want a quick re-orient
+   *  rather than a full re-hunt.
+   *
    *  Idempotent — only fires once per session. */
   private seedPostOpenerQueue(): void {
     if (this.starterSeedFired) return;
@@ -778,6 +936,9 @@ export class SurveyEngine {
 
     if (this.state.is_returning_user) {
       // Lite mode: 6 random pool draws, dedup'd against prior visits.
+      // (Returning-user flow stays pool-based for now — the Phase 4
+      // walkthrough will decide whether to switch them to assertions
+      // too, or keep the lighter touch.)
       const pool = getPoolNodeIds().filter(
         (id) => !this.state.asked_node_ids.includes(id) && !priorAnswered.has(id),
       );
@@ -788,15 +949,9 @@ export class SurveyEngine {
       return;
     }
 
-    // First-visit flow: Pillars in order + 14 random pool draws.
+    // First-visit flow: pillars in order. Pool is gone — the detective
+    // emits assertions to fill post-pillar turns.
     for (const id of getPillars()) {
-      this.enqueueDirect(id, null, null);
-    }
-    const pool = getPoolNodeIds().filter(
-      (id) => !this.state.asked_node_ids.includes(id),
-    );
-    const shuffled = shuffleInPlace([...pool]).slice(0, RANDOM_POOL_COUNT);
-    for (const id of shuffled) {
       this.enqueueDirect(id, null, null);
     }
   }
@@ -952,6 +1107,17 @@ export class SurveyEngine {
 
     // ── Stage: act on the detective's next_move ──
     await this.applyDetectiveNextMove(detResult.move, postOpenerCount, pillarFloor);
+
+    // ── Stage: profiler heartbeat (every 3 post-opener turns) ──
+    //
+    // v3 §4/§10: profiler runs less often than detective, on resolution
+    // events. In Phase 2 the only available trigger is the turn-mod
+    // heartbeat (Phase 3 instruments will add the correction trigger).
+    // Sequential with detective for Phase 2 — parallel comes in Phase 4
+    // when the queue-ahead architecture lands.
+    if (postOpenerCount > 0 && postOpenerCount % 3 === 0) {
+      await this.runProfilerTask('heartbeat');
+    }
   }
 
   /** Route the detective's next_move into engine state mutations.
@@ -972,7 +1138,14 @@ export class SurveyEngine {
    *  flushes only the engine-authored items, preserving any remaining
    *  authored questions. */
   private async applyDetectiveNextMove(
-    move: { kind: string; node_id?: string; intent?: { angle: string; planted_options?: string[] }; reason: string; tail_index?: number },
+    move: {
+      kind: string;
+      node_id?: string;
+      intent?: { angle: string; planted_options?: string[] };
+      instrument?: import('./instruments').Instrument;
+      reason: string;
+      tail_index?: number;
+    },
     postOpenerCount: number,
     pillarFloor: number,
   ): Promise<void> {
@@ -994,8 +1167,41 @@ export class SurveyEngine {
       // Phase 5: revise queue.tail[tail_index]. For now, no-op.
       return;
     }
+    if (move.kind === 'assertion' && move.instrument && move.instrument.kind === 'assertion') {
+      // v3 PRIMARY path. Detective emitted a specific falsifiable
+      // claim. Push as a queue item with inline + instrument fields;
+      // the AssertionChoice UI component picks it up via the
+      // RenderedQuestion.instrument propagation.
+      const instr = move.instrument;
+      // Defensive: cap how many engine-authored assertions sit in the
+      // queue at once. Avoid runaway loops if the detective is
+      // hyperactive.
+      const enqueuedAssertions = this.state.queue.filter(
+        (q) => q.inline?.format === 'assertion',
+      ).length;
+      if (enqueuedAssertions >= 3) return;
+      this.setState({
+        queue: [
+          ...this.state.queue,
+          {
+            node_id: `assertion_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`,
+            prompted_by: 'detective_assertion',
+            priority: 'normal',
+            is_engine_authored: true,
+            inline: {
+              text: instr.statement,
+              format: 'assertion',
+              options: [],
+            },
+            instrument: instr,
+          },
+        ],
+      });
+      return;
+    }
     if (move.kind === 'append') {
-      // Phase 4 path: detective supplied an `intent` → generate.
+      // Phase 4 legacy path: detective supplied an `intent` → generate.
+      // Kept for compatibility; v3 prefers the assertion move.
       if (move.intent && move.intent.angle.trim().length > 0) {
         await this.appendGeneratedQuestion(move.intent);
         return;
@@ -1103,6 +1309,92 @@ export class SurveyEngine {
     } finally {
       this.agentInFlight.detective -= 1; this.publishInflight();
     }
+  }
+
+  /** Run the profiler agent. v3.2: the profiler is a hypothesis
+   *  curator, NOT a prose writer. Triggered on heartbeat (every 3
+   *  post-opener turns) + on correction events. Applies a list of
+   *  hypothesis_edits to doc.held; never touches the anchor. The
+   *  close-pass prose generation belongs to the compiler now (Wave
+   *  4b — until that lands, the anchor stays empty until handoff).
+   *  Async, non-blocking — detective stays per-turn latency-critical. */
+  private async runProfilerTask(trigger: ProfilerTrigger): Promise<{
+    raised: string[];
+    dropped: string[];
+  } | null> {
+    const based_on_v = this.state.doc.v;
+    const post_opener_turn = this.countPostOpenerPicks();
+    const tier = pickProfilerTier(post_opener_turn);
+    try {
+      const out = await runProfiler(this.opts.adapter, {
+        state: this.state,
+        trigger,
+        post_opener_turn,
+        detective_state: {
+          leading_hypothesis: this.state.doc.scaffold.leading_hypothesis,
+          candidate_dilemma_claims: this.state.doc.held.map((h) => h.claim),
+        },
+      });
+      // Staleness gate — discard if doc moved while we were thinking.
+      if (out.based_on_v !== based_on_v) {
+        publishProfilerActivity({
+          turn: post_opener_turn,
+          trigger,
+          tier,
+          suspicions_raised: [],
+          suspicions_dropped: [],
+          reasoning: out.reasoning,
+          stale: true,
+        });
+        return null;
+      }
+      // Apply the hypothesis edits to doc.held. bumps doc.v.
+      const { next, raised, dropped } = applyHypothesisEdits(
+        this.state.doc.held,
+        out.hypothesis_edits,
+        post_opener_turn,
+      );
+      if (out.hypothesis_edits.length > 0) {
+        this.setState({
+          doc: {
+            ...this.state.doc,
+            v: this.state.doc.v + 1,
+            held: next,
+          },
+        });
+        this.emit();
+        publishHypotheses({
+          turn: post_opener_turn,
+          list: next,
+          raised_ids: out.hypothesis_edits
+            .filter((e) => e.op === 'add' || e.op === 'promote' || e.op === 'refine')
+            .map((e) => e.id),
+          dropped_ids: out.hypothesis_edits
+            .filter((e) => e.op === 'drop' || e.op === 'refute')
+            .map((e) => e.id),
+        });
+      }
+      publishProfilerActivity({
+        turn: post_opener_turn,
+        trigger,
+        tier,
+        suspicions_raised: raised,
+        suspicions_dropped: dropped,
+        reasoning: out.reasoning,
+      });
+      return { raised, dropped };
+    } catch (e) {
+      console.warn('[survey] profiler failed', e);
+      return null;
+    }
+  }
+
+  /** Phase 3+ hook: a correction event (rejection-with-correction on an
+   *  assertion instrument) is the high-signal resolution that warrants
+   *  an immediate profiler pass. Phase 3 instruments will call this; in
+   *  Phase 2 the method exists but has no caller. */
+  triggerProfilerOnCorrection(): void {
+    void this.runProfilerTask('correction');
   }
 
   // Old finalize() was removed — the close path now runs through

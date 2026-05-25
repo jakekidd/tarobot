@@ -180,7 +180,13 @@ export function renderQuestion(
  *  Engine + driver use this so they don't have to branch at the call
  *  site. */
 export function renderQueueItem(
-  item: { node_id: string; preamble?: string; options_override?: string[]; inline?: { text: string; format: AnswerFormat; options: string[]; axis_tag?: string } },
+  item: {
+    node_id: string;
+    preamble?: string;
+    options_override?: string[];
+    inline?: { text: string; format: AnswerFormat; options: string[]; axis_tag?: string };
+    instrument?: import('./instruments').Instrument;
+  },
   profile: SurveyProfile,
 ): RenderedQuestion {
   if (item.inline) {
@@ -191,6 +197,7 @@ export function renderQueueItem(
       options: item.options_override ?? item.inline.options,
       axes: undefined,
       preamble: item.preamble,
+      instrument: item.instrument,
     };
   }
   return renderQuestion(item.node_id, profile, item.preamble, item.options_override);

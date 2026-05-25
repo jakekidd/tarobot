@@ -23,8 +23,16 @@ export function BirthdayForm({ onSubmit }: Props) {
 
   function handleMonth(e: ChangeEvent<HTMLInputElement>) {
     const v = digitsOnly(e.target.value, 2);
-    setMonth(v);
-    if (v.length === 2) dayRef.current?.focus();
+    // Clamp at 12. Typing "19" snaps to "12" and advances. The user
+    // who types a hidden-birthyear style "19/19/1919" gets a real
+    // date instead of a stuck form; Survey.tsx hangs the lamp on the
+    // year via the centenarian interlude.
+    let clamped = v;
+    if (v.length > 0 && Number(v) > 12) clamped = '12';
+    setMonth(clamped);
+    if (clamped.length === 2 || (v.length === 2 && Number(v) > 12)) {
+      dayRef.current?.focus();
+    }
   }
 
   function handleDay(e: ChangeEvent<HTMLInputElement>) {

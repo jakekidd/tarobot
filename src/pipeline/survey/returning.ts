@@ -6,7 +6,7 @@
 // v2: Person.investigation → Person.doc (LivingDoc).
 
 import { findPeopleByName, type Person } from '../../storage';
-import type { PickEvent, SurveyProfile, TimingEvent } from './types';
+import type { PickEvent, SurveyProfile, TimingEvent, VerbatimEntry } from './types';
 import type { LivingDoc } from './living-doc';
 
 export type ReturningMatch = {
@@ -14,6 +14,10 @@ export type ReturningMatch = {
   profile: SurveyProfile;
   /** Final post-synthesis snapshot — needed for the LOAD path. */
   doc: LivingDoc;
+  /** v3: markdown anchor written by the profiler. Empty for legacy saves. */
+  anchor: string;
+  /** v3: immutable verbatim log of free-text user inputs. */
+  verbatim_log: VerbatimEntry[];
   picks_log: PickEvent[];
   timing_log?: TimingEvent[];
   /** History of past intentions, most-recent first. */
@@ -38,6 +42,8 @@ function toMatch(person: Person): ReturningMatch {
     person_id: person.id,
     profile: person.profile,
     doc: person.doc,
+    anchor: person.anchor ?? '',
+    verbatim_log: [...(person.verbatim_log ?? [])],
     picks_log: person.picks_log,
     timing_log: person.timing_log,
     prior_intentions: [...(person.intentions ?? [])],

@@ -32,6 +32,33 @@ export {
 
 export { RETURN_LINES, pickReturnLine } from './return-lines';
 
+export { appendVerbatim, formatVerbatimEntry, formatVerbatimLog } from './verbatim-log';
+
+export { parseAssertionAnswer, encodeAssertionAnswer } from './instruments';
+export type { Instrument, AssertionInstrument, AssertionResult } from './instruments';
+
+export {
+  checkDeadEndSignals,
+  isDistributionFlat,
+  isNoneStreak,
+  isRejectionWithoutCorrectionStreak,
+  DISTRIBUTION_FLATNESS_TURN_WINDOW,
+  DISTRIBUTION_FLATNESS_CONFIDENCE_FLOOR,
+  NONE_STREAK_THRESHOLD,
+  REJECTION_WITHOUT_CORRECTION_STREAK_THRESHOLD,
+} from './signals';
+export type { DeadEndCheck, DeadEndReason } from './signals';
+
+export { parseAnchorSections, diffAnchors, isAnchorComplete } from './anchor';
+export type { ParsedSection, AnchorDiff } from './anchor';
+export {
+  ANCHOR_SECTIONS,
+  ANCHOR_TEMPLATE_MD,
+  formatAnchorSectionsForPrompt,
+  anchorSectionHeadings,
+} from './anchor-template';
+export type { AnchorSection } from './anchor-template';
+
 export { shouldClose } from './close';
 export { derivePhase, phaseFromTurns } from './phase';
 
@@ -53,13 +80,30 @@ export type {
   SideChannel,
   StoryObject,
   SurveyProfile,
+  SurveyStage,
   TimingEvent,
   TreeNode,
+  VerbatimEntry,
 } from './types';
 
 // v2 agent output types (live in per-agent schema.ts via z.infer).
 export type { ObserverOutput, ObserverDelta } from './agents/observer';
 export type { DetectiveOutput, StoryUpdates } from './agents/detective';
+
+// v3.2 profiler agent — hypothesis curator (no longer writes prose).
+export {
+  runProfiler,
+  pickTier as pickProfilerTier,
+  applyHypothesisEdits,
+} from './agents/profiler';
+export type {
+  ProfilerOutput,
+  ProfilerTrigger,
+  RunProfilerArgs,
+  HypothesisEdit,
+  ProbeStatusV,
+} from './agents/profiler';
+export type { ProbeStatus } from './living-doc';
 
 // v2 LivingDoc types — new public surface introduced in Phase 2.
 export type {

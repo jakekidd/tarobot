@@ -21,16 +21,51 @@
 
 import type { StoryObject } from './types';
 
-/** A probe is a hypothesis the survey couldn't resolve. Seeder drops
- *  them in from question-level Inversions; observer can elevate
- *  (move to scaffold.axes / leading_hypothesis); detective can refute
- *  or restate. Anything still here at survey close is surfaced to the
- *  Seer as a "risky probe to swing for" via the closing director.
- *  Older = more durable = more diagnostically interesting. */
+/** v3.2: a probe is a hypothesis the survey is tracking. The profiler
+ *  is the curator of the hypothesis list (doc.held). Seeder drops fresh
+ *  candidates from question-level Inversions; detective probes them via
+ *  assertions; profiler reads the assertion outcomes + history + verbatim
+ *  log and edits the list (promote / refute / refine / drop / merge).
+ *  The compiler (close-pass agent) reads the final list to identify the
+ *  Dilemma and write the prose anchor.
+ *
+ *  Status semantics (v3.2 upgrade — pre-3.2 Probes had no status field
+ *  and lived purely in `held`, with refute = drop): */
+export type ProbeStatus =
+  /** seeded by the algorithmic Inversions seeder; not yet tested. */
+  | 'untested'
+  /** the detective has emitted (or queued) an assertion against this. */
+  | 'probing'
+  /** an assertion outcome confirmed it. high signal for the compiler. */
+  | 'confirmed'
+  /** the user typed a correction that refined this — the current
+   *  `claim` reflects the corrected version. highest-signal status:
+   *  the user supplied the contour themselves. */
+  | 'refined_by_correction'
+  /** an assertion outcome refuted it. kept around (with this status)
+   *  so the compiler can avoid re-asserting the same dead branch. */
+  | 'refuted'
+  /** profiler explicitly dropped — superseded by a sharper hypothesis
+   *  or no longer worth tracking. removed from the list on next
+   *  apply (status exists only for the transient "just dropped" event
+   *  surfaced to the debug bus). */
+  | 'dropped';
+
 export type Probe = {
   id: string;
   claim: string;
-  source: 'seeder' | 'observer' | 'detective';
+  source: 'seeder' | 'observer' | 'detective' | 'profiler';
+  /** v3.2 status. Defaults to 'untested' on seeder-created probes for
+   *  back-compat with pre-3.2 records. */
+  status?: ProbeStatus;
+  /** 0..1 — profiler's confidence in this hypothesis. Optional;
+   *  hedge-language in the claim itself carries the same signal less
+   *  precisely. */
+  confidence?: number;
+  /** Index references into PickEvent[] (and/or VerbatimEntry[]) that
+   *  support / refute this hypothesis. Lets the compiler trace which
+   *  evidence drove which read. Format: 'pick:3' / 'verbatim:7'. */
+  evidence_refs?: string[];
   born_turn: number;
   /** Engine bumps this each turn the probe stays in held without
    *  being elevated or refuted. */

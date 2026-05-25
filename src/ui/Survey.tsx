@@ -17,9 +17,18 @@ import { Reader } from './reader/Reader';
 import { Dialogue } from './dialogue/Dialogue';
 import { MultipleChoice } from './choices/MultipleChoice';
 import { Matrix2x2Choice } from './choices/Matrix2x2Choice';
+import { AssertionChoice } from './choices/AssertionChoice';
 import { ForkChoice } from './choices/ForkChoice';
 import { Spinner } from './Spinner';
 import { BirthdayForm } from './survey/BirthdayForm';
+import {
+  CENTENARIAN_THRESHOLD,
+  CENTENARIAN_RESPONSES,
+  ageFromBirthday,
+  buildCentenarianLine,
+  type CentenarianPick,
+} from './survey/centenarian';
+import { parseBirthDate } from '../pipeline/astrology';
 import { NameForm } from './survey/NameForm';
 import { IntentForm } from './survey/IntentForm';
 import { RelationshipStatusForm } from './survey/RelationshipStatusForm';
@@ -81,6 +90,8 @@ export function Survey({ apiKey, session, loadedPerson, onComplete }: Props) {
       engine.loadFromSave({
         profile: loadedPerson.profile,
         doc: loadedPerson.doc,
+        anchor: loadedPerson.anchor,
+        verbatim_log: loadedPerson.verbatim_log,
         picks_log: loadedPerson.picks_log,
         timing_log: loadedPerson.timing_log,
         prior_intentions: loadedPerson.intentions,
@@ -90,6 +101,68 @@ export function Survey({ apiKey, session, loadedPerson, onComplete }: Props) {
 
   const [speaking, setSpeaking] = useState(false);
   const persistedFor = useRef<string | null>(null);
+
+  // v3 assertion stall: when the user answers an assertion, the mascot
+  // speaks the detective's pre-baked comment_if_<answer> for ~2 seconds
+  // before the next question's dialogue takes over. Zero LLM latency on
+  // the user-facing acknowledgement — the comment was shipped with the
+  // instrument. The choice widgets advance immediately under the
+  // dialogue; only the spoken line is held.
+  const [assertionStall, setAssertionStall] = useState<{ text: string; ts: number } | null>(null);
+  useEffect(() => {
+    if (!assertionStall) return;
+    const t = window.setTimeout(() => setAssertionStall(null), 2200);
+    return () => window.clearTimeout(t);
+  }, [assertionStall]);
+
+  // Centenarian interlude: when the user enters a birthyear that makes
+  // them >100 (e.g. 19/19/1919 → month clamps to 12 → age ~107), hang
+  // the lamp with a sassy compound dialogue + vampire/highlander pick
+  // before continuing to the relationship_status opener. We can't force
+  // a correct birthyear, but sass IS signal — it tells us the user is
+  // hiding theirs without making them feel like they hit a bug.
+  type CentenarianInterlude =
+    | { stage: 'compound'; iso: string; line: string }
+    | { stage: 'response'; iso: string; response: string };
+  const [centenarian, setCentenarian] = useState<CentenarianInterlude | null>(null);
+  // After the response dialogue plays, advance to the next opener.
+  useEffect(() => {
+    if (centenarian?.stage !== 'response') return;
+    const t = window.setTimeout(() => {
+      const iso = centenarian.iso;
+      setCentenarian(null);
+      void submitAnswer(iso);
+    }, 2600);
+    return () => window.clearTimeout(t);
+  }, [centenarian, submitAnswer]);
+
+  function handleBirthdaySubmit(iso: string): void {
+    const parsed = parseBirthDate(iso);
+    if (!parsed) {
+      // Defensive fallthrough — engine will reject, form stays put.
+      void submitAnswer(iso);
+      return;
+    }
+    const age = ageFromBirthday(parsed);
+    if (age > CENTENARIAN_THRESHOLD) {
+      setCentenarian({
+        stage: 'compound',
+        iso,
+        line: buildCentenarianLine(age, parsed.year),
+      });
+      return;
+    }
+    void submitAnswer(iso);
+  }
+
+  function handleCentenarianPick(pick: CentenarianPick): void {
+    if (centenarian?.stage !== 'compound') return;
+    setCentenarian({
+      stage: 'response',
+      iso: centenarian.iso,
+      response: CENTENARIAN_RESPONSES[pick],
+    });
+  }
 
   // Farewell substate. After the user clicks ENTER on the reading_ready
   // screen we play a slow goodbye line, then trigger the mascot to
@@ -169,6 +242,8 @@ export function Survey({ apiKey, session, loadedPerson, onComplete }: Props) {
     engine.loadFromSave({
       profile: match.profile,
       doc: match.doc,
+      anchor: match.anchor,
+      verbatim_log: match.verbatim_log,
       picks_log: match.picks_log,
       timing_log: match.timing_log,
       prior_intentions: match.prior_intentions,
@@ -209,6 +284,8 @@ export function Survey({ apiKey, session, loadedPerson, onComplete }: Props) {
     const person = savePersonFromFinalState({
       profile: cloneProfile(state.profile),
       doc: JSON.parse(JSON.stringify(state.doc)) as typeof state.doc,
+      anchor: state.anchor,
+      verbatim_log: [...state.verbatim_log],
       picks_log: [...state.picks_log],
       timing_log: [...state.timing_log],
     });
@@ -283,6 +360,7 @@ export function Survey({ apiKey, session, loadedPerson, onComplete }: Props) {
   const isFinalizing = stage === 'finalizing';
   const isAwaitingIntention = stage === 'awaiting_intention';
   const isCompiling = stage === 'compiling';
+  const isNullLanding = stage === 'null_landing';
   // While the confirmation dialogue is on-screen (saving / welcoming),
   // suppress the IntentConfirm widget below.
   const isConfirming = confirm === 'typing' || confirm === 'holding';
@@ -350,6 +428,31 @@ export function Survey({ apiKey, session, loadedPerson, onComplete }: Props) {
   } else if (isCompiling) {
     dialogText = 'the seer is preparing.';
     dialogKey = 'compiling';
+  } else if (isNullLanding) {
+    // v3: dead-end signals fired during the survey. The reading would
+    // be manufacturing where there's nothing to manufacture. Land it
+    // gracefully — no intention prompt, no augur, no seer. The user
+    // can EXIT from the topbar. (Phase 2+ plan flags a "light reading"
+    // mode in the seer as out of scope for this refactor.)
+    dialogText = "nothing's pulling at you today. that's its own kind of reading. come back if something does.";
+    dialogKey = 'null-landing';
+  } else if (assertionStall) {
+    // v3 mascot stall: hold the dialogue on the detective's pre-baked
+    // comment_if_<answer> for a beat after an assertion answer. Zero
+    // LLM latency on the user-facing acknowledgement. Cleared by the
+    // useEffect timer (~2.2s).
+    dialogText = assertionStall.text.toLowerCase();
+    dialogKey = `stall-${assertionStall.ts}`;
+  } else if (centenarian?.stage === 'compound') {
+    // Centenarian compound line: "damn. N years old. CENTURY_BLURB.
+    // you're a dinosaur. are you a vampire or the highlander"
+    dialogText = centenarian.line;
+    dialogKey = 'centenarian-compound';
+  } else if (centenarian?.stage === 'response') {
+    // Turtle's reply to vampire/highlander pick. Auto-advances to the
+    // next opener ~2.6s after this renders.
+    dialogText = centenarian.response;
+    dialogKey = 'centenarian-response';
   } else if (showGag) {
     // Gag dialogue: NO question mark per spec. green color via host class.
     dialogText = 'which is the best animal';
@@ -460,8 +563,27 @@ export function Survey({ apiKey, session, loadedPerson, onComplete }: Props) {
             />
           )}
 
-          {!showGag && !modalOpen && currentQuestion?.format === 'date' && (
-            <BirthdayForm onSubmit={(iso) => void submitAnswer(iso)} />
+          {!showGag && !modalOpen && currentQuestion?.format === 'date' && !centenarian && (
+            <BirthdayForm onSubmit={handleBirthdaySubmit} />
+          )}
+
+          {centenarian?.stage === 'compound' && (
+            <div className="choice-binary">
+              <button
+                type="button"
+                className="choice-button choice-button--binary"
+                onClick={() => handleCentenarianPick('vampire')}
+              >
+                <span className="choice-button__text">yea i suck</span>
+              </button>
+              <button
+                type="button"
+                className="choice-button choice-button--binary"
+                onClick={() => handleCentenarianPick('highlander')}
+              >
+                <span className="choice-button__text">there can only be one</span>
+              </button>
+            </div>
           )}
 
           {!showGag && !modalOpen && currentQuestion?.format === 'matrix' && currentQuestion.axes && (
@@ -506,6 +628,25 @@ export function Survey({ apiKey, session, loadedPerson, onComplete }: Props) {
               key={currentQuestion.node_id}
               options={currentQuestion.options}
               onPick={(v) => void submitAnswer(v)}
+            />
+          )}
+
+          {!showGag
+            && !modalOpen
+            && currentQuestion?.format === 'assertion'
+            && currentQuestion.instrument?.kind === 'assertion' && (
+            <AssertionChoice
+              key={currentQuestion.node_id}
+              correction_inversions={currentQuestion.instrument.correction_inversions}
+              onPick={(v) => {
+                const inst = currentQuestion.instrument;
+                if (inst?.kind === 'assertion') {
+                  const isTrue = v === 'true';
+                  const stall = isTrue ? inst.comment_if_true : inst.comment_if_false;
+                  if (stall) setAssertionStall({ text: stall, ts: Date.now() });
+                }
+                void submitAnswer(v);
+              }}
             />
           )}
 

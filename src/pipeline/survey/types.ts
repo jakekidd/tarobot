@@ -24,6 +24,7 @@
 // - EngineState.detective_log dropped (scratchpad lives per-call now).
 
 import type { LivingDoc } from './living-doc';
+import type { AssertionResult, Instrument } from './instruments';
 
 // ─── Phase ──────────────────────────────────────────────
 
@@ -39,7 +40,19 @@ export const PHASE_ORDER: Phase[] = ['A', 'B', 'C', 'D', 'E'];
 // (left / bar-stuck-between / right). Options are stored as `left | right`
 // strings; the ForkChoice UI splits the pipe and the answer encoding
 // uses `"left"` / `"right"` / `"between:left/right"`.
-export type AnswerFormat = 'text' | 'date' | 'choice' | 'binary' | 'matrix' | 'intent' | 'relationship_pick' | 'relationship_status' | 'fork';
+export type AnswerFormat =
+  | 'text'
+  | 'date'
+  | 'choice'
+  | 'binary'
+  | 'matrix'
+  | 'intent'
+  | 'relationship_pick'
+  | 'relationship_status'
+  | 'fork'
+  /** v3 detective-emitted instrument formats. carry an `instrument`
+   *  payload on the QueueItem rather than authored options. */
+  | 'assertion';
 
 /** Six tasteful, broadly-inclusive buckets for the relationship-status
  *  opener. Order is load-bearing: "single" first so the answer doesn't
@@ -126,6 +139,11 @@ export type RenderedQuestion = {
   options: string[];
   axes?: [[string, string], [string, string]];
   preamble?: string;
+  /** v3: when the QueueItem carries an instrument payload (assertion,
+   *  etc.), it propagates here for the UI component. `text` carries
+   *  the on-screen statement; `instrument` carries the structured
+   *  metadata (mascot stall lines, correction inversions). */
+  instrument?: Instrument;
 };
 
 // ─── Survey profile (slimmed — identity + cast only in v2) ───
@@ -273,6 +291,11 @@ export type PickEvent = {
    *  back planted option text as the user's verbatim phrase. Defaults
    *  to false/undefined for human-authored questions. */
   is_engine_authored?: boolean;
+  /** v3 structured outcome for instrument-shaped picks (currently only
+   *  assertion). Lets the debug panel + future telemetry rig compute
+   *  the confirm/reject/correct rate without re-parsing the answer
+   *  string. Undefined for non-instrument picks. */
+  instrument_result?: AssertionResult;
 };
 
 export type TimingEvent = {
@@ -325,11 +348,17 @@ export type QueueItem = {
     options: string[];
     axis_tag?: string;
   };
+  /** v3 detective-emitted instrument payload. When set, the queue
+   *  item's UI render uses the instrument-specific component
+   *  (AssertionChoice for kind='assertion', etc.) and `inline.text`
+   *  carries the on-screen statement. PickEvent.instrument_result
+   *  records the structured outcome at answer time. */
+  instrument?: Instrument;
 };
 
 // ─── Engine state ───────────────────────────────────────
 
-export type CloseReason = 'user_exit' | 'queue_exhausted' | 'cap';
+export type CloseReason = 'user_exit' | 'queue_exhausted' | 'cap' | 'dead_end_signals';
 
 /** Post-question-cap lifecycle:
  *
@@ -339,13 +368,41 @@ export type CloseReason = 'user_exit' | 'queue_exhausted' | 'cap';
  *                        their question (the IntentConfirm UI)
  *   compiling          → user submitted intention; augur + seer constructing
  *   reading_ready      → ready to enter the reading
- */
+ *   null_landing       → content-level dead-end signals fired; the engine
+ *                        is landing the user gracefully without manufacturing
+ *                        a Dilemma. bypasses augur; routes to a light-reading
+ *                        mode the seer doesn't implement yet (Phase 2 just
+ *                        wires the transition cleanly). */
 export type SurveyStage =
   | 'questions'
   | 'finalizing'
   | 'awaiting_intention'
   | 'compiling'
-  | 'reading_ready';
+  | 'reading_ready'
+  | 'null_landing';
+
+// ─── Verbatim log (immutable user-text store) ─────────────
+
+/** Captures every free-text user input — the exact phrasing the user
+ *  typed. Append-only and never rewritten by any agent. The profiler's
+ *  prose anchor REFERENCES into this log ("said 'preserves rest' — see
+ *  entry 7") rather than reproducing quotes, because LLM paraphrase
+ *  would corrupt the fidelity. This is the sibling artifact the seer
+ *  pulls exact strings from when it wants an uncanny callback. */
+export type VerbatimEntry = {
+  /** 0-based index; preserved across the session. */
+  index: number;
+  /** 1-based turn the entry was captured on. 0 = opener (pre-pillar). */
+  turn: number;
+  /** Where the text came from — drives both the profiler's framing and
+   *  later analysis. */
+  source: 'name' | 'intent' | 'correction' | 'text_fallback' | 'relationship_label';
+  /** Verbatim text. Trimmed of leading/trailing whitespace but otherwise
+   *  preserved (case, punctuation, typos). */
+  text: string;
+  /** Wall-clock timestamp the entry was captured. */
+  captured_at: number;
+};
 
 export type EngineState = {
   session_id: string;
@@ -391,6 +448,18 @@ export type EngineState = {
   intentions_offered: string[];
   /** What the user picked (or wrote in). Populated by submitIntention(). */
   chosen_intention: string | null;
+
+  /** v3: the markdown Subject Anchor — the prose profile the profiler
+   *  rewrites whole-doc on every trigger (every 3 turns + corrections +
+   *  close). Empty string before the first profiler pass. This is the
+   *  artifact handed downstream to the seer (alongside the verbatim
+   *  log). LivingDoc remains as the intermediate working state during
+   *  the Phase 2 transition; the anchor is the new contract. */
+  anchor: string;
+  /** v3: append-only immutable store of user free-text inputs. See
+   *  VerbatimEntry. The anchor references entries by index rather than
+   *  reproducing the text. */
+  verbatim_log: VerbatimEntry[];
 };
 
 // ─── Behavioural events (engine-internal, drive heat) ───
