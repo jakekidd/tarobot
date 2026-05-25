@@ -15,6 +15,7 @@ import type { LLMAdapter } from '../llm/adapter';
 import { runFinalObserver, runObserver, applyObserverDelta } from './agents/observer';
 import { runProfiler, type ProfilerTrigger } from './agents/profiler';
 import { diffAnchors } from './anchor';
+import { checkDeadEndSignals } from './signals';
 import { extractHooks, extractSideChannel, computeLatencyZScores } from './algoExtract';
 import { runDetective, applyDetectiveOutput, type DetectiveApplyResult } from './agents/detective';
 import { runAugur } from './agents/augur';
@@ -358,6 +359,22 @@ export class SurveyEngine {
    *  (it depends on the intention text). */
   private beginIntentionStage(): void {
     if (this.state.stage !== 'questions') return;   // idempotent
+
+    // v3: dead-end gate. Before running the full close pipeline, check
+    // whether content-level signals say the hunt found nothing. If so,
+    // route to null_landing instead — no intention prompt, no augur,
+    // no seer. Phase 2 wires the scaffold; the only signal source live
+    // today is distribution flatness, conservatively thresholded.
+    const deadEnd = checkDeadEndSignals({
+      post_opener_turn: this.countPostOpenerPicks(),
+      coverage: this.state.doc.coverage,
+      picks: this.state.picks_log,
+    });
+    if (deadEnd.fired) {
+      this.beginNullLanding(deadEnd.reasons);
+      return;
+    }
+
     this.setState({ stage: 'finalizing', thinking: true });
     this.emit();
     void (async () => {
@@ -375,6 +392,23 @@ export class SurveyEngine {
       this.setState({ stage: 'awaiting_intention', thinking: false });
       this.emit();
     })();
+  }
+
+  /** v3: dead-end terminal stage. Skips intention / augur / seer
+   *  entirely. Logs the reason set so the debug panel can surface why
+   *  the engine landed null. Phase 2 just transitions cleanly; Phase 3+
+   *  may eventually back this with a "light reading" mode in the seer
+   *  (the plan flags this as out of scope for the survey refactor). */
+  private beginNullLanding(reasons: readonly string[]): void {
+    if (this.state.stage !== 'questions') return;
+    console.info('[survey] null landing —', reasons.join(', '));
+    this.setState({
+      stage: 'null_landing',
+      thinking: false,
+      closed: true,
+      close_reason: 'dead_end_signals',
+    });
+    this.emit();
   }
 
   /** Hydrate the engine directly from a saved Person record and jump to

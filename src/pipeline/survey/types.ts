@@ -329,7 +329,7 @@ export type QueueItem = {
 
 // ─── Engine state ───────────────────────────────────────
 
-export type CloseReason = 'user_exit' | 'queue_exhausted' | 'cap';
+export type CloseReason = 'user_exit' | 'queue_exhausted' | 'cap' | 'dead_end_signals';
 
 /** Post-question-cap lifecycle:
  *

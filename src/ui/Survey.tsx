@@ -289,6 +289,7 @@ export function Survey({ apiKey, session, loadedPerson, onComplete }: Props) {
   const isFinalizing = stage === 'finalizing';
   const isAwaitingIntention = stage === 'awaiting_intention';
   const isCompiling = stage === 'compiling';
+  const isNullLanding = stage === 'null_landing';
   // While the confirmation dialogue is on-screen (saving / welcoming),
   // suppress the IntentConfirm widget below.
   const isConfirming = confirm === 'typing' || confirm === 'holding';
@@ -356,6 +357,14 @@ export function Survey({ apiKey, session, loadedPerson, onComplete }: Props) {
   } else if (isCompiling) {
     dialogText = 'the seer is preparing.';
     dialogKey = 'compiling';
+  } else if (isNullLanding) {
+    // v3: dead-end signals fired during the survey. The reading would
+    // be manufacturing where there's nothing to manufacture. Land it
+    // gracefully — no intention prompt, no augur, no seer. The user
+    // can EXIT from the topbar. (Phase 2+ plan flags a "light reading"
+    // mode in the seer as out of scope for this refactor.)
+    dialogText = "nothing's pulling at you today. that's its own kind of reading. come back if something does.";
+    dialogKey = 'null-landing';
   } else if (showGag) {
     // Gag dialogue: NO question mark per spec. green color via host class.
     dialogText = 'which is the best animal';

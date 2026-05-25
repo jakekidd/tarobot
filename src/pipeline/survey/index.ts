@@ -34,6 +34,18 @@ export { RETURN_LINES, pickReturnLine } from './return-lines';
 
 export { appendVerbatim, formatVerbatimEntry, formatVerbatimLog } from './verbatim-log';
 
+export {
+  checkDeadEndSignals,
+  isDistributionFlat,
+  isNoneStreak,
+  isRejectionWithoutCorrectionStreak,
+  DISTRIBUTION_FLATNESS_TURN_WINDOW,
+  DISTRIBUTION_FLATNESS_CONFIDENCE_FLOOR,
+  NONE_STREAK_THRESHOLD,
+  REJECTION_WITHOUT_CORRECTION_STREAK_THRESHOLD,
+} from './signals';
+export type { DeadEndCheck, DeadEndReason } from './signals';
+
 export { parseAnchorSections, diffAnchors, isAnchorComplete } from './anchor';
 export type { ParsedSection, AnchorDiff } from './anchor';
 export {
