@@ -59,13 +59,18 @@ A few rules so the parser doesn't bite you:
 ## Pillars
 
 These are the always-asked questions, in order, post-openers. Two
-calibration questions warm the seer up to the user's register, then the
-operational/relational/values arc lands the live fork as the final pillar.
+calibration questions warm up the user's register, then an operational /
+relational / values arc, the live-fork pick, and three Dilemma-locating
+questions (the unsaid target, interior cast, avoidance). 10 pillars total.
 
 Authoring note: the deprivation question ("what does your life not have
 enough of?") was dropped in the v2 refactor — too monoculture-prone
-("meaning" tells you nothing). Phase 5 of v2 will add 4-5 new
-calibrators built around discriminative axes (2 per axis).
+("meaning" tells you nothing). Pillars 8/9/10 were added in v3 to give
+the detective concrete Dilemma-locating signal before the explore phase
+starts. Pillar 10 ("noticed yourself avoiding") includes "nothing — i've
+been facing it" as the structural Cleo-detector for the reinforcement
+case — the engine MUST be able to land on that answer without
+manufacturing a Dilemma.
 
 ### Template
 
@@ -108,12 +113,14 @@ Options:
 Format: choice
 Probe:
   Surface: operational style.
-  Inversions: mind = deliberate / analytic — may intellectualize feeling. heart = emotional / valuational — may sacrifice clarity for closeness. gut = intuitive / felt — may not be able to articulate why.
-  Watch for: biases how the seer should frame the closing read — mind-pickers want structure, heart-pickers want resonance, gut-pickers want naming.
+  Inversions: mind = deliberate / analytic — may intellectualize feeling. heart = emotional / valuational — may sacrifice clarity for closeness. gut = intuitive / felt — may not be able to articulate why. root = security / material-survival driven — decisions filtered through "can i afford this," often surfaces money-as-survival not money-as-ambition. spirit = transcendent / values-led — decisions filtered through inherited or chosen meaning frames, often post-religious users still operating from old cosmologies.
+  Watch for: biases how the seer should frame the closing read — mind-pickers want structure, heart-pickers want resonance, gut-pickers want naming, root-pickers want practicality, spirit-pickers want significance.
 Options:
   - mind
   - heart
   - gut
+  - root
+  - spirit
 
 ### Who is the most important person in your life?
 
@@ -144,6 +151,7 @@ Format: choice
 Probe:
   Surface: what they will sacrifice OTHERS for. abstract priorities collapse the rest of the survey.
   Inversions: strong values invert to corresponding fears — love → fear of being unlovable / abandoned; freedom → fear of constraint / entrapment; wisdom → fear of being foolish / deceived; beauty → fear of decay / irrelevance / invisibility; security → fear of chaos / things falling apart; power → fear of powerlessness / humiliation. seed the inverted fear as tentative; later answers either confirm or complicate.
+  Framing helper (DFW worship thesis — internal context for detective/profiler, NOT user-facing): everyone worships; the only choice is what. money worship → worth-output equation; intellect → rationalism as armor; beauty → fear of decay; power → fear of powerlessness; love → fear of being unlovable; freedom → fear of constraint; wisdom → fear of being foolish; security → fear of chaos. the user's pick is the altar.
   Watch for: this is the spine — read every later answer through this lens. cross-reference with spiritual_rel (wisdom + searching = different than wisdom + skeptic).
 Options:
   - love
@@ -170,6 +178,41 @@ Options:
   - control | surrender
   - later | now
   - silence | speak
+
+### What's a true thing you stopped saying out loud?
+
+Format: relationship_pick
+Probe:
+  Surface: the unsaid target. who they stopped saying it TO is the load-bearing data — the content surfaces later via the detective's assertions.
+  Inversions: to a person = a specific relationship carrying acute silence, name the relationship later; to myself = self-deception, the unsaid is internal; in writing = creative or expressive blockage, possibly a yearning that went underground; nowhere — never said it = the deepest answer, the unsaid has never been voiced anywhere.
+  Watch for: cross-reference with key_person and with-whom-unsaid (in pool). if same target, the bond is the question. if "nowhere — never said it" + low engagement = the silence is structural, not situational.
+
+### When you're alone with your thoughts, whose voice do you hear?
+
+Format: choice
+Probe:
+  Surface: interior cast — who's living rent-free in their head.
+  Inversions: mine = grounded in self-narrative; someone real = parental introject, partner-voice, dead-mentor-voice — name them, they become a Hook the reading can echo uncannily; someone i used to know = unresolved relational ghost; no specific voice — just words = either grounded or dissociated.
+  Watch for: "someone real" picks should trigger a follow-up relationship_pick to name them. "someone i used to know" + later mentions of unfinished material = unresolved business with that person. cross-reference with whose voice surfaces in pull-away-when or first-instinct probes.
+Options:
+  - mine
+  - someone real
+  - someone i used to know
+  - no specific voice — just words
+
+### What's the last thing you noticed yourself avoiding?
+
+Format: choice
+Probe:
+  Surface: avoidance object — what they have been not-doing. the "nothing" option is the Cleo-detector for the reinforcement case (true-empty / good-where-they-are).
+  Inversions: a person = relational rupture pending, suspect with-whom-unsaid target; a decision = the live fork, cross-reference with what-have-you-been-putting-off; a feeling = unmetabolized affect, often grief-adjacent; a piece of news = anticipatory dread, possibly health/legal/financial; "nothing — i've been facing it" = either genuinely facing things OR the reinforcement case (no Dilemma to manufacture). distinguish by cross-referencing the rest of the survey: low-content answers across pillars 1-9 + "nothing" here = reinforcement / true-empty; high-engagement-and-specificity + "nothing" = genuinely facing what's hard.
+  Watch for: "nothing — i've been facing it" is the structural signal for the null/light-landing path. do not manufacture a Dilemma over this answer. cross-reference with everything else: if the rest of the survey is rich and a Dilemma surfaces despite this, the user is partially-aware-and-working; if the survey is thin and this lands, route to reinforcement.
+Options:
+  - a person
+  - a decision
+  - a feeling
+  - a piece of news
+  - nothing — i've been facing it :: noted.
 
 ---
 
