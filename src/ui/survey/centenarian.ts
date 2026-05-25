@@ -18,7 +18,11 @@ export const CENTENARIAN_THRESHOLD = 100;
  *  Keys are the lower bound of the century block the year falls into
  *  (e.g. 1800 covers 1800–1899). Looked up via centuryBlurb(year). */
 const CENTURY_BLURBS: Array<{ from: number; blurb: string }> = [
-  { from: 1900, blurb: "your childhood smelled like the 1900s and that's wild" },
+  // 1900s: intentionally no blurb. centenarians born 1900-1925 are
+  // close enough to "normal old" that the bit lands harder when we
+  // skip straight to "you're a dinosaur." anything earlier gets the
+  // era-specific drop.
+  { from: 1900, blurb: '' },
   { from: 1800, blurb: "you watched the entire industrial revolution unfold like a slow movie" },
   { from: 1700, blurb: "you remember when pirates were a current career path" },
   { from: 1600, blurb: "you saw shakespeare's last plays come out as new releases" },
@@ -51,9 +55,14 @@ export function centuryBlurb(year: number): string {
   return CENTURY_BLURBS[CENTURY_BLURBS.length - 1]!.blurb;
 }
 
-/** Build the full compound dialogue for the interlude. */
+/** Build the full compound dialogue for the interlude. When the
+ *  century blurb is empty (e.g. 1900s), skip it cleanly so the line
+ *  reads "damn. N years old. you're a dinosaur. ..." without a
+ *  double-space artifact. */
 export function buildCentenarianLine(age: number, year: number): string {
-  return `damn. ${age} years old. ${centuryBlurb(year)} you're a dinosaur. are you a vampire or the highlander`;
+  const blurb = centuryBlurb(year);
+  const middle = blurb ? `${blurb} ` : '';
+  return `damn. ${age} years old. ${middle}you're a dinosaur. are you a vampire or the highlander`;
 }
 
 /** The two pre-baked pick responses (turtle's reply after the user
