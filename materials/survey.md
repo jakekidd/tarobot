@@ -93,7 +93,7 @@ Options:
   - first option
   - second option :: optional inline comment
 
-### how are the basics right now? (e.g. housing, money, health)
+### how are the basics right now? housing, money, health,
 
 Format: choice
 Probe:
