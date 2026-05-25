@@ -20,7 +20,8 @@ import { AnthropicAdapter } from './pipeline/survey';
 import { createClaudeClient } from './pipeline/claude';
 import './ui/pipeline.css';
 import { Debug } from './debug/Debug';
-import { DebugQueue } from './debug/DebugQueue';
+import { ProfilerWorkspace } from './debug/ProfilerWorkspace';
+import { AnchorView } from './debug/AnchorView';
 import { loadDebugVisible, saveDebugVisible } from './debug/visibilityStorage';
 import { publishDebug } from './debug/debugBus';
 import './debug/debug.css';
@@ -204,7 +205,16 @@ export function App() {
         </main>
 
       <Debug visible={debugVisible} />
-      <DebugQueue visible={debugVisible && phase.kind === 'survey'} />
+      {/* v3 left column: profiler workspace (top) + live anchor view
+          (bottom). Survey-phase-only — these surfaces have no meaning
+          outside the survey. Replaces the old DebugQueue (queue
+          introspection isn't central anymore). */}
+      {debugVisible && phase.kind === 'survey' && (
+        <div className="debug-left-column">
+          <ProfilerWorkspace visible={true} />
+          <AnchorView visible={true} />
+        </div>
+      )}
       {/* Live agent activity stream — debug-only. Toggled via the debug
           chip in the topbar so it doesn't crowd the actual UI during
           normal use. */}

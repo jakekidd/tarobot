@@ -29,6 +29,9 @@ import { computeAstroProfile, parseBirthDate } from '../astrology';
 // (ReturningMatch import dropped — confirmReturningPerson was removed
 //  in the save-game restructure. Survey UI calls loadFromSave directly.)
 import { publishDebug } from '../../debug/debugBus';
+import { publishAnchor } from '../../debug/anchorBus';
+import { publishProfilerActivity } from '../../debug/profilerActivityBus';
+import { pickTier as pickProfilerTier } from './agents/profiler';
 import {
   getNode,
   getOpeners,
@@ -1209,6 +1212,7 @@ export class SurveyEngine {
     const based_on_v = this.state.doc.v;
     const post_opener_turn = this.countPostOpenerPicks();
     const prev_anchor = this.state.anchor;
+    const tier = pickProfilerTier(post_opener_turn, trigger);
     try {
       const out = await runProfiler(this.opts.adapter, {
         state: this.state,
@@ -1222,14 +1226,38 @@ export class SurveyEngine {
       // Staleness gate — discard if doc moved while we were thinking.
       // The next heartbeat will re-base.
       if (out.based_on_v !== based_on_v) {
+        publishProfilerActivity({
+          turn: post_opener_turn,
+          trigger,
+          tier,
+          suspicions_raised: [],
+          suspicions_dropped: [],
+          reasoning: out.reasoning,
+          stale: true,
+        });
         return null;
       }
       this.setState({ anchor: out.anchor });
       this.emit();
+      const diff = diffAnchors(prev_anchor, out.anchor);
+      publishAnchor({
+        turn: post_opener_turn,
+        trigger,
+        anchor: out.anchor,
+        diff,
+      });
+      publishProfilerActivity({
+        turn: post_opener_turn,
+        trigger,
+        tier,
+        suspicions_raised: out.suspicions_raised,
+        suspicions_dropped: out.suspicions_dropped,
+        reasoning: out.reasoning,
+      });
       return {
         raised: out.suspicions_raised,
         dropped: out.suspicions_dropped,
-        diff: diffAnchors(prev_anchor, out.anchor),
+        diff,
       };
     } catch (e) {
       console.warn('[survey] profiler failed', e);
