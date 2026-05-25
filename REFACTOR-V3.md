@@ -709,7 +709,7 @@ Stop and walk through the survey after each before moving on.
 **Validates:** Dilemma framing produces sensible outputs before we tear out
 the queue model.
 
-### Phase 2 — Profiler split + verbatim log + null path
+### Phase 2 — Profiler split + verbatim log + null path + debug rebuild
 
 - Split `agents/observer/` → `agents/profiler/`. New trigger: every 3 turns +
   on correction events + close pass. Tier ladder by phase.
@@ -719,9 +719,13 @@ the queue model.
   light-reading mode yet (out of scope), just terminate cleanly.
 - `signals.ts` v1: distribution flatness, None-streak, rejection-without-
   correction streak.
+- **Debug panel rebuild (see §17).** Delete `DebugQueue.tsx`; shrink
+  `Debug.tsx`. Add `ProfilerWorkspace.tsx` + `AnchorView.tsx` +
+  `anchorBus.ts` + `profilerActivityBus.ts`. Wire profiler runner to
+  publish to both buses on each pass.
 
 **Validates:** Splits ownership. Wires the safety branch. The doc starts
-evolving as prose in the debug panel.
+evolving as prose in the debug panel — visible thinking in real time.
 
 ### Phase 3 — Instruments + adaptive seam
 
@@ -752,7 +756,158 @@ experimentation (alternative section sets).
 
 ---
 
-## 17. Open seams — decisions left explicit
+## 17. Debug panel — visible thinking during the hunt
+
+The current debug surface has two left-column widgets (`Debug` key/value
+snapshot + `DebugQueue` basket view) plus a floating `AgentActivity`
+stream. **The two left-column widgets get replaced by a single live
+"profile-being-built" column.** The `AgentActivity` floating panel stays
+as-is (it tracks LLM call lifecycle, orthogonal concern).
+
+**Why:** visible thinking is the development tool that tells us whether
+the engine is *reasoning* or just *generating*. Watching the anchor doc
+evolve turn-by-turn, with clear markers for *what triggered each update*,
+is the cheapest possible diagnostic for "is the profiler doing real work,
+or is it confabulating." It's also where the read-and-follow tension
+(§0) shows up first — if the doc fills with confident assertions from
+flimsy evidence, the architecture is broken.
+
+### Layout — left column, survey phase only
+
+```
+┌─────────────────────────────────────┐
+│  PROFILER WORKSPACE                 │  ← top 1/3 (or 1/4)
+│  ─────────────────                  │
+│  • last trigger: correction @ T7    │
+│  • model tier: sonnet               │
+│  • draft (not yet committed): …    │
+│  • last 3 suspicions raised/dropped │
+│                                     │
+├─────────────────────────────────────┤
+│  SUBJECT ANCHOR                     │  ← bottom 2/3 (or 3/4)
+│  ─────────────────                  │
+│                                     │
+│  # Subject Anchor — jake            │
+│                                     │
+│  ## The Dilemma  [✱ updated T7]     │
+│  prose prose prose…                 │
+│                                     │
+│  ## Unsaid                          │
+│  prose prose prose…                 │
+│                                     │
+│  ## What They'd Say About Themselves│
+│  prose prose prose…                 │
+│                                     │
+│  …                                  │
+└─────────────────────────────────────┘
+```
+
+### Top region — profiler workspace
+
+A compact strip that surfaces the profiler's **non-committed thinking** —
+anything the AI considered but didn't put in the anchor. Sources:
+
+- **Last trigger** — what fired the latest profiler pass. Either
+  `heartbeat-3 @ T<n>`, `correction @ T<n>`, or `close pass`. (A
+  user-facing engineer should be able to read at a glance *why* the
+  profiler ran, not just *that* it ran.)
+- **Tier in use** — which model the profiler is currently on (`haiku` /
+  `sonnet` / `opus` / `opus+thinking`). Tier ladder is phase-driven (§4,
+  §10); seeing it surface here is the debug feedback loop for the
+  ladder itself.
+- **Draft / scratch output** — if the profiler emits any
+  meta-commentary alongside the anchor rewrite (e.g., reasoning about
+  whether to elevate a suspicion to the Unsaid section), it lands here,
+  not in the committed doc.
+- **Suspicions raised / dropped this pass** — diff of the
+  `Suspicions — DO NOT VOICE` section across the latest write. Helps
+  catch the failure mode where the profiler accumulates suspicions
+  without ever resolving them (which would be the cop-sheet creeping
+  back in via a fenced section).
+
+This region is **agent thinking, not anchor content.** It's the
+profiler's "I considered, but didn't commit" log. Closed by default if
+nothing relevant has happened in the last N turns; expands when activity
+lands.
+
+### Bottom region — the live anchor doc
+
+Renders the markdown Subject Anchor as it currently stands. Re-renders
+on every profiler write. Two visible affordances on top of plain
+markdown:
+
+- **Update markers** — each section header gets a `[✱ updated T<n>]`
+  tag for the most recent profiler-pass that touched it. Helps the
+  developer see which sections are stale (haven't moved in 8 turns —
+  is that because they're solid, or because the profiler is dodging
+  them?) vs. which are live.
+- **Diff flash** — when a section changes on a profiler write, the
+  changed prose briefly highlights (~600ms fade) so the eye catches
+  the *what* of the update without having to read the whole doc each
+  time. Implementation note: track per-section content hashes, flash
+  on change.
+
+**No editing.** This is read-only diagnostic surface. Editing the doc
+mid-session would corrupt the profiler's working state and is a
+non-goal.
+
+### Other affordances
+
+- **Verbatim log access.** A small icon / link at the top of the
+  anchor region opens a separate scrollable list of the verbatim log
+  entries (entry index, source, raw text). This is where you go to
+  resolve `"said it 'preserves rest' — see entry 7"` references in the
+  anchor prose. Doesn't need to be always-visible; collapsed by
+  default.
+- **Distribution snapshot** (optional, post-v1). The detective's live
+  candidate-Dilemma distribution — top 3–5 candidates with confidence
+  scores. Useful for catching the failure mode where one candidate
+  dominates too early and the hunt stops exploring. Tuck into the
+  profiler-workspace region as an expandable.
+
+### Files to add / change
+
+| File                                          | Change                                                                  |
+|-----------------------------------------------|-------------------------------------------------------------------------|
+| `src/debug/Debug.tsx`                         | Delete most key/value rows (keep `fps`, `app.phase`, `audio`, `viewport`, `errors.*`); shrink to a tiny top-right strip |
+| `src/debug/DebugQueue.tsx`                    | **Delete.** Queue introspection is no longer central; if needed for development, fold into the profiler workspace as an expandable |
+| `src/debug/ProfilerWorkspace.tsx`             | **New.** Top-of-left-column. Subscribes to a new `profilerActivityBus`  |
+| `src/debug/AnchorView.tsx`                    | **New.** Bottom-of-left-column. Subscribes to the anchor store; renders markdown with update markers + diff flash |
+| `src/debug/anchorBus.ts`                      | **New.** Pub/sub for anchor writes — emits on every profiler commit     |
+| `src/debug/profilerActivityBus.ts`            | **New.** Pub/sub for profiler trigger + tier + draft output             |
+| `src/debug/AgentActivity.tsx`                 | Unchanged — stays floating, tracks LLM lifecycle                        |
+| `src/App.tsx`                                 | Replace `<DebugQueue />` mount with `<ProfilerWorkspace />` + `<AnchorView />` stack |
+| `src/debug/debug.css`                         | Update left-column layout: full-height single column, top region collapsible, bottom region scrolls |
+
+### Wiring contract
+
+The profiler agent runner publishes to both buses on each pass:
+
+```typescript
+// after the profiler invocation completes:
+publishAnchorWrite({
+  turn: state.turn,
+  trigger: 'heartbeat' | 'correction' | 'close',
+  anchor: newAnchorMarkdown,
+});
+
+publishProfilerActivity({
+  turn: state.turn,
+  trigger,
+  tier: 'haiku' | 'sonnet' | 'opus' | 'opus+thinking',
+  draft_notes: profilerOutput.draft_notes ?? null,
+  suspicions_raised: diffSuspicions(oldAnchor, newAnchor).raised,
+  suspicions_dropped: diffSuspicions(oldAnchor, newAnchor).dropped,
+});
+```
+
+Buses are debug-only — they don't drive any engine behavior, just the
+panel. Profiler runner doesn't know or care if the panel is visible;
+the bus has a noop subscriber in production.
+
+---
+
+## 18. Open seams — decisions left explicit
 
 These are knobs the plan deliberately doesn't pin down, so they can flip
 without rewriting:
