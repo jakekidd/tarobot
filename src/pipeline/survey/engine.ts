@@ -36,6 +36,7 @@ import {
 } from './tree';
 import { derivePhase } from './phase';
 import { ageHeldProbes, generateSeeds } from './seeder';
+import { appendVerbatim } from './verbatim-log';
 import type {
   EngineListener,
   EngineState,
@@ -418,6 +419,11 @@ export class SurveyEngine {
       chosen_intention: cleaned,
       stage: 'compiling',         // covers final observer + Augur + Seer-construction loading
       thinking: true,
+      verbatim_log: appendVerbatim(this.state.verbatim_log, {
+        turn: this.state.picks_log.filter((p) => !OPENER_NODE_IDS.has(p.node_id)).length,
+        source: 'intent',
+        text: cleaned,
+      }),
     });
     this.emit();
 
@@ -712,8 +718,19 @@ export class SurveyEngine {
         color,
       });
     }
+    // Capture the verbatim name only when it's a NEW cast addition —
+    // returning users picking an existing person from the list don't
+    // type anything fresh worth logging.
+    const nextLog = existing
+      ? this.state.verbatim_log
+      : appendVerbatim(this.state.verbatim_log, {
+          turn: this.state.picks_log.filter((p) => !OPENER_NODE_IDS.has(p.node_id)).length,
+          source: 'relationship_label',
+          text: name,
+        });
     this.setState({
       profile: { ...this.state.profile, cast: nextCast },
+      verbatim_log: nextLog,
     });
   }
 
@@ -727,7 +744,14 @@ export class SurveyEngine {
 
     if (node_id === 'name') {
       const cleaned = ans.trim();
-      this.setState({ profile: { ...this.state.profile, name: cleaned } });
+      this.setState({
+        profile: { ...this.state.profile, name: cleaned },
+        verbatim_log: appendVerbatim(this.state.verbatim_log, {
+          turn: 0,
+          source: 'name',
+          text: cleaned,
+        }),
+      });
       return false;
     }
     if (node_id === 'birthday') {
@@ -767,6 +791,11 @@ export class SurveyEngine {
           ...this.state.profile,
           initial_intention: trimmed.length > 0 ? trimmed : null,
         },
+        verbatim_log: appendVerbatim(this.state.verbatim_log, {
+          turn: 0,
+          source: 'intent',
+          text: trimmed,
+        }),
       });
       return false;
     }

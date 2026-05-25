@@ -32,6 +32,8 @@ export {
 
 export { RETURN_LINES, pickReturnLine } from './return-lines';
 
+export { appendVerbatim, formatVerbatimEntry, formatVerbatimLog } from './verbatim-log';
+
 export { shouldClose } from './close';
 export { derivePhase, phaseFromTurns } from './phase';
 
