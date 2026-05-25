@@ -986,6 +986,81 @@ and the debug panel surfaces the rolling rate.
 
 Status: implement as part of Phase 3 instruments wave.
 
+### v3.1 pillar reorg — six pillars now, not nine
+
+The pillar set was reorganized around discriminative axes
+(attachment activation / somatic baseline / contextual grounding).
+Cut three (tarot fluency, spiritual register, mind/heart/gut
+decisions) and replaced with three (`basics`, `goes_quiet`,
+`body_baseline`). Kept `value_most` (added `belonging`) and the
+live `fork`. Reintroduced `center_of_life` (relational anchor)
+authored as plural-friendly. The Cleo-detector moved from a pillar
+question to the engine's content-level dead-end signals
+(signals.ts) — it doesn't need to be a pillar; the absence of
+traction across the assertion loop registers it directly.
+
+Six pillars, in order: basics → goes_quiet → body_baseline →
+center_of_life → value_most → fork.
+
+Status: shipped. Pillar count drops engine-wide via `getPillars()`.
+
+### Plural relationship_pick — CastUnit support
+
+The v3.1 `center_of_life` pillar authors as plural-friendly ("my
+family", "my partnership as a unit", "my chosen people", "my
+crew") — the discriminative claim is that collectivist-shaped
+selves don't anchor on a single person. The current
+RelationshipPickForm is single-pick only; users with a plural
+self-concept will pick one representative until plural-pick UI
+lands.
+
+Implementation sketch when this comes up:
+- Extend SurveyProfile.cast (or add CastUnit) so a unit can carry
+  multiple labels + a shared role
+- RelationshipPickForm gains a "as a unit" toggle that expands the
+  picker to accept additional members
+- Encoded answer JSON gains `members: string[]` alongside `name`
+- Engine applyRelationshipPick upserts a CastUnit instead of a
+  single CastMember when members.length > 1
+
+Status: backlog. Phase 4+ UI work.
+
+### Survival-stage soften — driven by the `basics` pillar
+
+`basics === 'very little'` is a survival-stage candidate. The
+plan: the detective + seer should both back off the
+identity-questions register and shift toward
+witnessed-not-diagnosed framing. The mechanism isn't built yet —
+right now the answer just sits in the picks_log and the detective
+reads it as one of many signals.
+
+Implementation sketch:
+- A `register_floor` field on EngineState that survival-stage
+  answers raise to 'witness'
+- Detective prompt branches on register_floor (avoid identity
+  probes, prefer "what's holding you up right now")
+- Seer downstream reads the same floor and softens the reading
+  delivery accordingly
+
+Status: backlog. Worth doing once the assertion loop has had a
+walkthrough and we see whether the natural detective prompt
+already softens on `basics: very little` or needs an explicit
+floor.
+
+### Demo-save Jake needs re-authoring for v3.1 pillars
+
+`src/demo-save.ts` ships a synthetic Jake Person with hardcoded
+picks for the OLD pillars (tarot fluency / spiritual / decisions
+/ key_person / perceived_as). After the v3.1 reorg those slugs
+don't match current TREE pillars. Demo still works (LOAD DEMO
+routes straight to awaiting_intention; the seer reads
+question_text + answer from PickEvents regardless of slug
+mismatch), but the demo Jake's profile is no longer aligned with
+what a v3.1 survey would actually produce.
+
+Status: backlog cosmetic. Re-author Jake's picks against the
+new pillars when the demo is next touched.
+
 ### Defensiveness + over-explanation are stance signals, not pillars
 
 The brainstorm warned against pillar-questioning for people-pleaser /

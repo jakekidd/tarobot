@@ -58,23 +58,29 @@ A few rules so the parser doesn't bite you:
 
 ## Pillars
 
-These are the always-asked questions, in order, post-openers. Two
-calibration questions warm up the user's register, then an operational
-arc (decisions / self-image / values), the live-fork pick, and three
-Dilemma-locating questions (the unsaid target, interior voice,
-avoidance). 9 pillars total in v3.
+The six always-asked questions, in fixed order. The arc moves from
+external grounding (basics) inward through attachment activation and
+somatic baseline, then through anchor and values, and lands on the
+live fork as the climax.
 
-Authoring note: the deprivation question ("what does your life not have
-enough of?") was dropped in the v2 refactor — too monoculture-prone
-("meaning" tells you nothing). The key_person pillar ("who is the most
-important person in your life?") was removed in v3 — relationship-naming
-opener work returns later as its own focused pass once subject-first
-profiling is solid. Pillars 7/8/9 were added in v3 to give the detective
-concrete Dilemma-locating signal before the explore phase starts.
-Pillar 9 ("noticed yourself avoiding") includes "nothing — i've been
-facing it" as the structural Cleo-detector for the reinforcement case —
-the engine MUST be able to land on that answer without manufacturing a
-Dilemma.
+Authoring note (v3.1 reorg): the pillars were reorganized around
+discriminative axes — attachment activation, somatic baseline, and
+contextual grounding (basics) replaced tarot fluency, spiritual
+register, and mind/heart/gut decision-making. Six pillars total.
+The cut-three / add-three math was deliberate; we kept the relational
+anchor (now `center_of_life`, plural-picks-friendly), kept value_most
+(added `belonging`), and kept the live fork as the closer. The
+Cleo-detector role (true-empty / reinforcement case) moves into the
+detective's null-routing signals — it's not a pillar question
+anymore; the engine reads it from the absence-of-traction across the
+content-level signals (signals.ts).
+
+NOTE on `center_of_life`: the question authors as plural-friendly,
+but the current RelationshipPickForm UI is single-pick only. Plural
+picks (CastUnit) is a Phase 4+ UI follow-on tracked in REFACTOR-V3.md
+§18. Until then, single-pick — users who would have picked plural
+(family / partnership / chosen people / crew) will pick one
+representative and we'll re-prompt later when plural lands.
 
 ### Template
 
@@ -87,74 +93,71 @@ Options:
   - first option
   - second option :: optional inline comment
 
-### Have you done this before?
+### how are the basics right now? (e.g. housing, money, health)
 
 Format: choice
 Probe:
-  Surface: tarot fluency calibration — does the user already speak the language.
-  Inversions: yes = expectations are already shaped, watch for performative familiarity. never = the reading is also an initiation, pace accordingly.
-  Watch for: a "yes" who picks "i don't know" on intent later is likely a believer in flux, not a skeptic.
+  Surface: life-stability prefix — what register the user is actually asking from. identity-questions administered at a survival-stage user read as luxury problems.
+  Inversions: handled = stable platform candidate, the user came for meaning-work; mostly = some active strain, listen for which domain shows up in later answers; some are not = significant load, the reading should soften register and prioritize presence over insight; very little = survival-stage candidate, the agent should ask once whether real-world support is available before going deep.
+  Watch for: "very little" + later "performing + not okay" answers = high mask + survival load. treat the entire reading as a chance to be witnessed rather than diagnosed.
 Options:
-  - yes — i read tarot
-  - yes — i've had readings
-  - sort of
-  - never
+  - handled
+  - mostly
+  - some are not
+  - very little :: we'll come back to this.
 
-### What's your relationship to the spiritual?
+### when someone you love goes quiet, you—
 
 Format: choice
 Probe:
-  Surface: tone calibration for the seer's opening register.
-  Inversions: skeptic = wants the reading to surprise them honestly, suspects the seer wants to convert them; spiritual = brings cosmology, may project meaning onto generic statements; searching = the most diagnostic — usually means they were raised in one frame and have left it without arriving anywhere stable.
-  Watch for: cross-reference with value_most — wisdom-pickers who say "searching" are looking for permission to stop searching.
+  Surface: attachment activation under relational ambiguity.
+  Inversions: reach out = anxious-leaning candidate, low tolerance for unread state in close bonds; wait = could be secure or avoidant — does not discriminate alone, needs cross-check from deep-tier relational items; assume the worst = high attachment-anxiety candidate, possible abandonment hypervigilance; let it go = avoidant-leaning candidate, or genuinely settled — does not discriminate alone.
+  Watch for: cross-reference with pull-away-when (in pool) as the other anchor of the attachment axis. "assume the worst" + later "i need them" type answers on relational items = anxious-attachment + need-shame cluster. "let it go" + with-whom-unsaid pointing to a primary bond = avoidant-with-active-dampening pattern.
 Options:
-  - skeptic
-  - spiritual
-  - searching
+  - reach out
+  - wait
+  - assume the worst
+  - let it go
 
-### How do you make decisions?
+### where do you live in your body, most of the time?
 
-Format: choice
+Format: matrix
 Probe:
-  Surface: operational style.
-  Inversions: mind = deliberate / analytic — may intellectualize feeling. heart = emotional / valuational — may sacrifice clarity for closeness. gut = intuitive / felt — may not be able to articulate why. root = security / material-survival driven — decisions filtered through "can i afford this," often surfaces money-as-survival not money-as-ambition. spirit = transcendent / values-led — decisions filtered through inherited or chosen meaning frames, often post-religious users still operating from old cosmologies.
-  Watch for: biases how the seer should frame the closing read — mind-pickers want structure, heart-pickers want resonance, gut-pickers want naming, root-pickers want practicality, spirit-pickers want significance.
+  Surface: somatic baseline crossed with interoceptive awareness — what state the nervous system sits in, and whether the user can feel it.
+  Inversions: revved up = sympathetic-dominant baseline candidate, often chronic activation or anxiety; shut down = dorsal-vagal-dominant baseline candidate, often depression, exhaustion, or dissociation; aware = interoception intact, somatic probes will land downstream; not aware = low interoception, the reading should not lean on body-based language — pivot to cognitive or narrative framings.
+  Watch for: "shut down + not aware" + "they don't notice" anxiety-presentation (in pool) = dissociative baseline candidate, name gently. "revved up + aware" + "fix it" distress-response (in pool) = hyperfunctioning-anxious candidate. anyone in shut-down should NOT be handed a "powerful insight" — they can't metabolize it. soften register and prefer reflection over revelation.
+Axes:
+  - x: revved up | shut down
+  - y: aware of it | not
 Options:
-  - mind
-  - heart
-  - gut
-  - root
-  - spirit
+  - revved up + aware
+  - revved up + not
+  - shut down + aware :: that's a hard place to live from.
+  - shut down + not
 
-### How do you think others perceive you?
+### who's the center of your life right now?
 
-Format: choice
+Format: relationship_pick
 Probe:
-  Surface: self-image vs social-mirror gap.
-  Inversions: each option indexes a different relational wound or defense. "too much" = has been told they're overwhelming, edits to be palatable. "not enough" = chronic underestimation, the unseen wound. "as the role i play" = career-identity reduction, often successful + lonely. "more put together than i am" = competence as compensation. "i've stopped checking" = disengaged from the social mirror; either evolved, depressed, or dissociated.
-  Watch for: use to read the user's tone in later answers, not to label them. "i've stopped checking" + low engagement = probe for depression vs evolution.
-Options:
-  - too much
-  - not enough
-  - as the role i play
-  - misunderstood
-  - more put together than i am
-  - i've stopped checking
+  Surface: relational anchor. authored as plural-friendly (intended v3.1 design accepts plural picks like "my family", "my partnership as a unit", "my chosen people", "my crew"), but the current UI is single-pick only — users with a plural self-concept will pick one representative until plural-pick UI lands (REFACTOR-V3.md §18 backlog).
+  Inversions: the user picks the central CastMember. absence or distance from later answers is data. picking "ex" or "someone i used to know" instead of a current bond is a tell about where the gravity actually is. when plural picks become available: picking a plural anchor when individuals were also offered is a tell that the self is collectivist-shaped or that no single individual carries the weight.
+  Watch for: if this pick doesn't reappear in later relational answers, the bond is aspirational, strained, or under-functioning. if it reappears in shadow or insecurity contexts, the bond is conflicted. for plural picks (when supported): probe which member of the unit is most active right now.
 
 ### Which of these do you value most?
 
 Format: choice
 Probe:
-  Surface: what they will sacrifice OTHERS for. abstract priorities collapse the rest of the survey.
-  Inversions: strong values invert to corresponding fears — love → fear of being unlovable / abandoned; freedom → fear of constraint / entrapment; wisdom → fear of being foolish / deceived; beauty → fear of decay / irrelevance / invisibility; security → fear of chaos / things falling apart; power → fear of powerlessness / humiliation. seed the inverted fear as tentative; later answers either confirm or complicate.
-  Framing helper (DFW worship thesis — internal context for detective/profiler, NOT user-facing): everyone worships; the only choice is what. money worship → worth-output equation; intellect → rationalism as armor; beauty → fear of decay; power → fear of powerlessness; love → fear of being unlovable; freedom → fear of constraint; wisdom → fear of being foolish; security → fear of chaos. the user's pick is the altar.
-  Watch for: this is the spine — read every later answer through this lens. cross-reference with spiritual_rel (wisdom + searching = different than wisdom + skeptic).
+  Surface: what they will sacrifice OTHERS for. abstract priorities collapse the rest of the survey through this lens.
+  Inversions: strong values invert to corresponding fears — love → fear of being unlovable / abandoned; freedom → fear of constraint / entrapment; wisdom → fear of being foolish / deceived; beauty → fear of decay / irrelevance / invisibility; security → fear of chaos / things falling apart; power → fear of powerlessness / humiliation; belonging → fear of being cast out / not enough for the group. seed the inverted fear as tentative; later answers either confirm or complicate.
+  Framing helper (DFW worship thesis — internal context for detective/profiler, NOT user-facing): everyone worships; the only choice is what. money worship → worth-output equation; intellect → rationalism as armor; beauty → fear of decay; power → fear of powerlessness; love → fear of being unlovable; freedom → fear of constraint; wisdom → fear of being foolish; security → fear of chaos; belonging → identity-as-membership, fear of exile. the user's pick is the altar.
+  Watch for: this is the spine — read every later answer through this lens. a user who picks "belonging" plus a relational anchor that's plural-coded (when plural picks land) is collectivist-coded; do not treat "belonging" as a deficit value, treat it as a different motivational structure.
 Options:
   - love
   - freedom
   - wisdom
   - beauty
   - security
+  - belonging
   - power
 
 ### Which one is your question right now?
@@ -162,8 +165,8 @@ Options:
 Format: fork
 Probe:
   Surface: the live fork the user is standing inside — both side AND being stuck-between are diagnostic.
-  Inversions: each pick seeds a specific suspicion. bet = there's a leap they keep not taking; hold = there's a leap they keep almost taking. stay = there's an exit they're not letting themselves see; go = there's a commitment they've already psychologically left. fit = there's a part of them their people don't know; break = they've broken out and aren't sure if it was worth it. continue = the trajectory is set but no longer chosen; change = mid-arc collapse of a previous identity. close = they wall up because someone got too close; open = someone is waiting at the wall. resist = the thing they're fighting may be themselves; accept = they've started surrendering, unsure if it's wisdom or giving up. control = systemic dread is masking a local choice; surrender = already-burned, looking for what's worth saving. later = they're about to do something irreversible; now = a window is closing they can feel but not name. silence = there's something specific being unsaid to a specific person; speak = they spoke up recently and aren't sure if it was right. bar (stuck-between) = the most diagnostically loaded — they're not committed to a side, the fork is acute.
-  Watch for: if the user picks the bar (stuck-between), weight the fork as the SPINE of the reading. cross-reference with key_person (whose voice is on either side of this fork).
+  Inversions: each pick seeds a specific suspicion. risk = there's a leap they keep not taking; hold = there's a leap they keep almost taking. stay = there's an exit they're not letting themselves see; go = there's a commitment they've already psychologically left. fit = there's a part of them their people don't know; break = they've broken out and aren't sure if it was worth it. continue = the trajectory is set but no longer chosen; change = mid-arc collapse of a previous identity. close = they wall up because someone got too close; open = someone is waiting at the wall. resist = the thing they're fighting may be themselves; accept = they've started surrendering, unsure if it's wisdom or giving up. control = systemic dread is masking a local choice; surrender = already-burned, looking for what's worth saving. later = they're about to do something irreversible; now = a window is closing they can feel but not name. silence = there's something specific being unsaid to a specific person; speak = they spoke up recently and aren't sure if it was right. bar (stuck-between) = the most diagnostically loaded — they're not committed to a side, the fork is acute.
+  Watch for: if the user picks the bar (stuck-between), weight the fork as the SPINE of the reading. cross-reference with center_of_life (whose voice is on either side of this fork). a continue/change pick weights the vocational neighborhood; a close/open or fit/break pick weights the relational neighborhood.
 Options:
   - risk | hold
   - stay | go
@@ -174,41 +177,6 @@ Options:
   - control | surrender
   - later | now
   - silence | speak
-
-### What's a true thing you stopped saying out loud?
-
-Format: relationship_pick
-Probe:
-  Surface: the unsaid target. who they stopped saying it TO is the load-bearing data — the content surfaces later via the detective's assertions.
-  Inversions: to a person = a specific relationship carrying acute silence, name the relationship later; to myself = self-deception, the unsaid is internal; in writing = creative or expressive blockage, possibly a yearning that went underground; nowhere — never said it = the deepest answer, the unsaid has never been voiced anywhere.
-  Watch for: cross-reference with key_person and with-whom-unsaid (in pool). if same target, the bond is the question. if "nowhere — never said it" + low engagement = the silence is structural, not situational.
-
-### When you're alone with your thoughts, whose voice do you hear?
-
-Format: choice
-Probe:
-  Surface: interior cast — who's living rent-free in their head.
-  Inversions: mine = grounded in self-narrative; someone real = parental introject, partner-voice, dead-mentor-voice — name them, they become a Hook the reading can echo uncannily; someone i used to know = unresolved relational ghost; no specific voice — just words = either grounded or dissociated.
-  Watch for: "someone real" picks should trigger a follow-up relationship_pick to name them. "someone i used to know" + later mentions of unfinished material = unresolved business with that person. cross-reference with whose voice surfaces in pull-away-when or first-instinct probes.
-Options:
-  - mine
-  - someone real
-  - someone i used to know
-  - no specific voice — just words
-
-### What's the last thing you noticed yourself avoiding?
-
-Format: choice
-Probe:
-  Surface: avoidance object — what they have been not-doing. the "nothing" option is the Cleo-detector for the reinforcement case (true-empty / good-where-they-are).
-  Inversions: a person = relational rupture pending, suspect with-whom-unsaid target; a decision = the live fork, cross-reference with what-have-you-been-putting-off; a feeling = unmetabolized affect, often grief-adjacent; a piece of news = anticipatory dread, possibly health/legal/financial; "nothing — i've been facing it" = either genuinely facing things OR the reinforcement case (no Dilemma to manufacture). distinguish by cross-referencing the rest of the survey: low-content answers across pillars 1-9 + "nothing" here = reinforcement / true-empty; high-engagement-and-specificity + "nothing" = genuinely facing what's hard.
-  Watch for: "nothing — i've been facing it" is the structural signal for the null/light-landing path. do not manufacture a Dilemma over this answer. cross-reference with everything else: if the rest of the survey is rich and a Dilemma surfaces despite this, the user is partially-aware-and-working; if the survey is thin and this lands, route to reinforcement.
-Options:
-  - a person
-  - a decision
-  - a feeling
-  - a piece of news
-  - nothing — i've been facing it :: noted.
 
 ---
 

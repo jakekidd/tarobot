@@ -176,7 +176,7 @@ emit exactly ONE next_move:
         none-streak, rejection-without-correction streak) and the
         right move is null-landing.
   the engine enforces a pillar floor regardless (won't conclude
-  before all 9 pillars asked).
+  before all pillars asked — currently 6).
 
   { kind: 'revise', tail_index, reason } — Phase 4 only; ignored
   in earlier phases.
