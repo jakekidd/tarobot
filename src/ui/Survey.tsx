@@ -21,6 +21,14 @@ import { AssertionChoice } from './choices/AssertionChoice';
 import { ForkChoice } from './choices/ForkChoice';
 import { Spinner } from './Spinner';
 import { BirthdayForm } from './survey/BirthdayForm';
+import {
+  CENTENARIAN_THRESHOLD,
+  CENTENARIAN_RESPONSES,
+  ageFromBirthday,
+  buildCentenarianLine,
+  type CentenarianPick,
+} from './survey/centenarian';
+import { parseBirthDate } from '../pipeline/astrology';
 import { NameForm } from './survey/NameForm';
 import { IntentForm } from './survey/IntentForm';
 import { RelationshipStatusForm } from './survey/RelationshipStatusForm';
@@ -106,6 +114,55 @@ export function Survey({ apiKey, session, loadedPerson, onComplete }: Props) {
     const t = window.setTimeout(() => setAssertionStall(null), 2200);
     return () => window.clearTimeout(t);
   }, [assertionStall]);
+
+  // Centenarian interlude: when the user enters a birthyear that makes
+  // them >100 (e.g. 19/19/1919 → month clamps to 12 → age ~107), hang
+  // the lamp with a sassy compound dialogue + vampire/highlander pick
+  // before continuing to the relationship_status opener. We can't force
+  // a correct birthyear, but sass IS signal — it tells us the user is
+  // hiding theirs without making them feel like they hit a bug.
+  type CentenarianInterlude =
+    | { stage: 'compound'; iso: string; line: string }
+    | { stage: 'response'; iso: string; response: string };
+  const [centenarian, setCentenarian] = useState<CentenarianInterlude | null>(null);
+  // After the response dialogue plays, advance to the next opener.
+  useEffect(() => {
+    if (centenarian?.stage !== 'response') return;
+    const t = window.setTimeout(() => {
+      const iso = centenarian.iso;
+      setCentenarian(null);
+      void submitAnswer(iso);
+    }, 2600);
+    return () => window.clearTimeout(t);
+  }, [centenarian, submitAnswer]);
+
+  function handleBirthdaySubmit(iso: string): void {
+    const parsed = parseBirthDate(iso);
+    if (!parsed) {
+      // Defensive fallthrough — engine will reject, form stays put.
+      void submitAnswer(iso);
+      return;
+    }
+    const age = ageFromBirthday(parsed);
+    if (age > CENTENARIAN_THRESHOLD) {
+      setCentenarian({
+        stage: 'compound',
+        iso,
+        line: buildCentenarianLine(age, parsed.year),
+      });
+      return;
+    }
+    void submitAnswer(iso);
+  }
+
+  function handleCentenarianPick(pick: CentenarianPick): void {
+    if (centenarian?.stage !== 'compound') return;
+    setCentenarian({
+      stage: 'response',
+      iso: centenarian.iso,
+      response: CENTENARIAN_RESPONSES[pick],
+    });
+  }
 
   // Farewell substate. After the user clicks ENTER on the reading_ready
   // screen we play a slow goodbye line, then trigger the mascot to
@@ -386,6 +443,16 @@ export function Survey({ apiKey, session, loadedPerson, onComplete }: Props) {
     // useEffect timer (~2.2s).
     dialogText = assertionStall.text.toLowerCase();
     dialogKey = `stall-${assertionStall.ts}`;
+  } else if (centenarian?.stage === 'compound') {
+    // Centenarian compound line: "damn. N years old. CENTURY_BLURB.
+    // you're a dinosaur. are you a vampire or the highlander"
+    dialogText = centenarian.line;
+    dialogKey = 'centenarian-compound';
+  } else if (centenarian?.stage === 'response') {
+    // Turtle's reply to vampire/highlander pick. Auto-advances to the
+    // next opener ~2.6s after this renders.
+    dialogText = centenarian.response;
+    dialogKey = 'centenarian-response';
   } else if (showGag) {
     // Gag dialogue: NO question mark per spec. green color via host class.
     dialogText = 'which is the best animal';
@@ -496,8 +563,27 @@ export function Survey({ apiKey, session, loadedPerson, onComplete }: Props) {
             />
           )}
 
-          {!showGag && !modalOpen && currentQuestion?.format === 'date' && (
-            <BirthdayForm onSubmit={(iso) => void submitAnswer(iso)} />
+          {!showGag && !modalOpen && currentQuestion?.format === 'date' && !centenarian && (
+            <BirthdayForm onSubmit={handleBirthdaySubmit} />
+          )}
+
+          {centenarian?.stage === 'compound' && (
+            <div className="choice-binary">
+              <button
+                type="button"
+                className="choice-button choice-button--binary"
+                onClick={() => handleCentenarianPick('vampire')}
+              >
+                <span className="choice-button__text">yea i suck</span>
+              </button>
+              <button
+                type="button"
+                className="choice-button choice-button--binary"
+                onClick={() => handleCentenarianPick('highlander')}
+              >
+                <span className="choice-button__text">there can only be one</span>
+              </button>
+            </div>
           )}
 
           {!showGag && !modalOpen && currentQuestion?.format === 'matrix' && currentQuestion.axes && (

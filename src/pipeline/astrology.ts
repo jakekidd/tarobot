@@ -141,7 +141,12 @@ export function parseBirthDate(s: string): BirthDate | null {
   if (!Number.isFinite(year) || !Number.isFinite(month) || !Number.isFinite(day)) return null;
   if (month < 1 || month > 12) return null;
   if (day < 1 || day > 31) return null;
-  if (year < 1900 || year > 2100) return null;
+  // Year range goes back to 0 AD. The astro math (sun sign / life path /
+  // tarot birth card) works for any year — they're modular ops. Out-of-
+  // band years (1900) just produce centenarian readings; the UI surfaces
+  // a sassy lamp-hang interlude (see Survey.tsx) so users hiding their
+  // real birthyear get acknowledged rather than confused by a rejection.
+  if (year < 0 || year > 2100) return null;
   return { year, month, day };
 }
 
