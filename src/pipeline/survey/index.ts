@@ -90,13 +90,20 @@ export type {
 export type { ObserverOutput, ObserverDelta } from './agents/observer';
 export type { DetectiveOutput, StoryUpdates } from './agents/detective';
 
-// v3 profiler agent.
-export { runProfiler, pickTier as pickProfilerTier } from './agents/profiler';
+// v3.2 profiler agent — hypothesis curator (no longer writes prose).
+export {
+  runProfiler,
+  pickTier as pickProfilerTier,
+  applyHypothesisEdits,
+} from './agents/profiler';
 export type {
   ProfilerOutput,
   ProfilerTrigger,
   RunProfilerArgs,
+  HypothesisEdit,
+  ProbeStatusV,
 } from './agents/profiler';
+export type { ProbeStatus } from './living-doc';
 
 // v2 LivingDoc types — new public surface introduced in Phase 2.
 export type {

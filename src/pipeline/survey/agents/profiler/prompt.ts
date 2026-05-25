@@ -1,6 +1,5 @@
-// Profiler prompt + tool spec. The system body lives in
-// materials/prompts/profiler.md (Vite ?raw import) so non-coders can
-// edit on GitHub and Vercel rebuilds with the new content.
+// Profiler prompt + tool spec. v3.2 hypothesis curator.
+// Body lives in materials/prompts/profiler.md (Vite ?raw import).
 
 import { z } from 'zod';
 import PROFILER_SYSTEM_RAW from '../../../../../materials/prompts/profiler.md?raw';
@@ -10,8 +9,8 @@ import type { ToolDef } from '../../../llm/adapter';
 export const PROFILER_SYSTEM = PROFILER_SYSTEM_RAW;
 
 export const PROFILER_TOOL: ToolDef = {
-  name: 'profiler_write_anchor',
+  name: 'profiler_curate_hypotheses',
   description:
-    'rewrite the full Subject Anchor markdown based on the latest history + verbatim log + detective state. record what survived a test; never manufacture a Dilemma.',
+    'curate the working hypothesis list. add new candidates, promote what survived a test, refine with corrections, refute the dead, drop the stale. never write prose; never compose the final profile.',
   input_schema: z.toJSONSchema(ProfilerOutputSchema) as Record<string, unknown>,
 };

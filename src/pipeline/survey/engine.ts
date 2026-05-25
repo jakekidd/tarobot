@@ -13,8 +13,7 @@
 
 import type { LLMAdapter } from '../llm/adapter';
 import { runFinalObserver, runObserver, applyObserverDelta } from './agents/observer';
-import { runProfiler, type ProfilerTrigger } from './agents/profiler';
-import { diffAnchors } from './anchor';
+import { runProfiler, applyHypothesisEdits, type ProfilerTrigger } from './agents/profiler';
 import { checkDeadEndSignals } from './signals';
 import { extractHooks, extractSideChannel, computeLatencyZScores } from './algoExtract';
 import { runDetective, applyDetectiveOutput, type DetectiveApplyResult } from './agents/detective';
@@ -29,7 +28,6 @@ import { computeAstroProfile, parseBirthDate } from '../astrology';
 // (ReturningMatch import dropped — confirmReturningPerson was removed
 //  in the save-game restructure. Survey UI calls loadFromSave directly.)
 import { publishDebug } from '../../debug/debugBus';
-import { publishAnchor } from '../../debug/anchorBus';
 import { publishProfilerActivity } from '../../debug/profilerActivityBus';
 import { pickTier as pickProfilerTier } from './agents/profiler';
 import {
@@ -424,11 +422,11 @@ export class SurveyEngine {
       try {
         await this.runFinalObserverPass();
         this.applyAlgoExtraction();
-        // v3: profiler close pass. Runs after the final observer pass
-        // so it can see the most recent doc state. Opus tier — this is
-        // the artifact that ships to the seer; quality matters more
-        // than latency on the last call.
-        await this.runProfilerTask('close');
+        // v3.2: the close-pass prose generation moves to the new
+        // compiler agent (Wave 4b). Until that wave lands, the anchor
+        // stays empty at handoff — the seer falls back to reading
+        // LivingDoc directly (legacy path). When the compiler ships,
+        // this is where its runCompilerTask() will fire.
       } catch (e) {
         console.warn('[survey] finalize failed', e);
       }
@@ -1283,23 +1281,20 @@ export class SurveyEngine {
     }
   }
 
-  /** Run the profiler agent. v3: triggered on resolution events
-   *  (every 3 turns + corrections + close pass), NOT every turn. Writes
-   *  the markdown Subject Anchor whole-doc on each pass. Async,
-   *  non-blocking — detective stays the per-turn latency-critical path.
-   *
-   *  Returns the diff between the prior anchor and the newly-written
-   *  one (or null on failure) so callers can publish change markers to
-   *  the debug bus. */
+  /** Run the profiler agent. v3.2: the profiler is a hypothesis
+   *  curator, NOT a prose writer. Triggered on heartbeat (every 3
+   *  post-opener turns) + on correction events. Applies a list of
+   *  hypothesis_edits to doc.held; never touches the anchor. The
+   *  close-pass prose generation belongs to the compiler now (Wave
+   *  4b — until that lands, the anchor stays empty until handoff).
+   *  Async, non-blocking — detective stays per-turn latency-critical. */
   private async runProfilerTask(trigger: ProfilerTrigger): Promise<{
     raised: string[];
     dropped: string[];
-    diff: ReturnType<typeof diffAnchors>;
   } | null> {
     const based_on_v = this.state.doc.v;
     const post_opener_turn = this.countPostOpenerPicks();
-    const prev_anchor = this.state.anchor;
-    const tier = pickProfilerTier(post_opener_turn, trigger);
+    const tier = pickProfilerTier(post_opener_turn);
     try {
       const out = await runProfiler(this.opts.adapter, {
         state: this.state,
@@ -1307,11 +1302,10 @@ export class SurveyEngine {
         post_opener_turn,
         detective_state: {
           leading_hypothesis: this.state.doc.scaffold.leading_hypothesis,
-          candidate_dilemmas: this.state.doc.held.map((h) => h.claim),
+          candidate_dilemma_claims: this.state.doc.held.map((h) => h.claim),
         },
       });
       // Staleness gate — discard if doc moved while we were thinking.
-      // The next heartbeat will re-base.
       if (out.based_on_v !== based_on_v) {
         publishProfilerActivity({
           turn: post_opener_turn,
@@ -1324,28 +1318,31 @@ export class SurveyEngine {
         });
         return null;
       }
-      this.setState({ anchor: out.anchor });
-      this.emit();
-      const diff = diffAnchors(prev_anchor, out.anchor);
-      publishAnchor({
-        turn: post_opener_turn,
-        trigger,
-        anchor: out.anchor,
-        diff,
-      });
+      // Apply the hypothesis edits to doc.held. bumps doc.v.
+      const { next, raised, dropped } = applyHypothesisEdits(
+        this.state.doc.held,
+        out.hypothesis_edits,
+        post_opener_turn,
+      );
+      if (out.hypothesis_edits.length > 0) {
+        this.setState({
+          doc: {
+            ...this.state.doc,
+            v: this.state.doc.v + 1,
+            held: next,
+          },
+        });
+        this.emit();
+      }
       publishProfilerActivity({
         turn: post_opener_turn,
         trigger,
         tier,
-        suspicions_raised: out.suspicions_raised,
-        suspicions_dropped: out.suspicions_dropped,
+        suspicions_raised: raised,
+        suspicions_dropped: dropped,
         reasoning: out.reasoning,
       });
-      return {
-        raised: out.suspicions_raised,
-        dropped: out.suspicions_dropped,
-        diff,
-      };
+      return { raised, dropped };
     } catch (e) {
       console.warn('[survey] profiler failed', e);
       return null;

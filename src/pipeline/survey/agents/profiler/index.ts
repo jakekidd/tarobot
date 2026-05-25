@@ -1,11 +1,20 @@
-// Profiler agent — public surface. Engine imports from here.
+// Profiler agent — v3.2 hypothesis curator. Public surface.
 //
-// The profiler is the scribe half of the v3 cognition split (the
-// detective is the hunter). Triggered on resolution events, not every
-// turn. Owns the markdown Subject Anchor; never speaks to the user.
+// The profiler is the scribe half of the cognition split (the
+// detective is the hunter). v3.2: it CURATES the hypothesis list
+// instead of writing a prose anchor. The close-pass prose generation
+// moves to the new compiler agent.
 
 export { runProfiler, pickTier } from './agent';
-export type { RunProfilerArgs } from './agent';
-export { ProfilerOutputSchema, type ProfilerOutput } from './schema';
+export type { RunProfilerArgs, ProfilerTrigger } from './agent';
+export {
+  ProfilerOutputSchema,
+  HypothesisEditSchema,
+  ProbeStatusSchema,
+  type ProfilerOutput,
+  type HypothesisEdit,
+  type ProbeStatusV,
+} from './schema';
 export { PROFILER_SYSTEM, PROFILER_TOOL } from './prompt';
-export { buildProfilerPayload, type ProfilerPayloadArgs, type ProfilerTrigger } from './payload';
+export { buildProfilerPayload, type ProfilerPayloadArgs } from './payload';
+export { applyHypothesisEdits } from './apply';

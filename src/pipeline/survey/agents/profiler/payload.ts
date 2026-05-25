@@ -1,27 +1,24 @@
-// Profiler input payload builder. The profiler runs much less often
-// than the observer (every 3 turns + corrections + close pass) so we
-// can afford to hand it a richer context than per-turn agents get.
+// Profiler input payload builder — v3.2 hypothesis curator shape.
 //
-// Contract: this payload is stringified into adapter.invoke's `user`
-// field. The profiler's system prompt (materials/prompts/profiler.md)
-// documents what each top-level field means.
+// The profiler reads history + verbatim + existing hypothesis list +
+// detective state, and emits hypothesis_edits. No prior-anchor input;
+// the profiler doesn't produce prose anymore.
 
-import { formatAnchorSectionsForPrompt } from '../../anchor-template';
 import { formatVerbatimLog } from '../../verbatim-log';
 import type { EngineState, PickEvent, VerbatimEntry } from '../../types';
+import type { Probe } from '../../living-doc';
 
-export type ProfilerTrigger = 'heartbeat' | 'correction' | 'close';
+export type ProfilerTrigger = 'heartbeat' | 'correction';
 
 export type ProfilerPayloadArgs = {
   state: EngineState;
   trigger: ProfilerTrigger;
-  /** Optional detective-side excerpt — the scratchpad / leading
-   *  hypothesis from the most recent detective call. Plain strings so
-   *  the profiler can ignore them; not load-bearing for the rewrite. */
+  /** Optional detective-side excerpt — the leading hypothesis + a
+   *  short list of candidate Dilemma claims. The profiler may use
+   *  these as leads. */
   detective_state?: {
     leading_hypothesis?: string;
-    scratchpad_excerpt?: string;
-    candidate_dilemmas?: string[];
+    candidate_dilemma_claims?: string[];
   };
 };
 
@@ -46,26 +43,41 @@ export function buildProfilerPayload(args: ProfilerPayloadArgs): unknown {
     history: state.picks_log.map(toHistoryItem),
     verbatim_log: state.verbatim_log.map(toVerbatimItem),
     verbatim_log_formatted: formatVerbatimLog(state.verbatim_log),
+    existing_hypotheses: state.doc.held.map(toHypothesisItem),
     detective_state: detective_state ?? {},
-    prior_anchor: state.anchor,
     trigger,
-    template_sections: formatAnchorSectionsForPrompt(),
     doc_v: state.doc.v,
   };
 }
 
-function toHistoryItem(p: PickEvent): {
+function toHistoryItem(p: PickEvent, idx: number): {
+  idx: number;
   q: string;
   a: string | string[];
   is_engine_authored?: boolean;
+  instrument_result?: PickEvent['instrument_result'];
 } {
   return {
+    idx,
     q: p.question_text,
     a: p.answer,
     ...(p.is_engine_authored ? { is_engine_authored: true } : {}),
+    ...(p.instrument_result ? { instrument_result: p.instrument_result } : {}),
   };
 }
 
 function toVerbatimItem(v: VerbatimEntry) {
   return { index: v.index, turn: v.turn, source: v.source, text: v.text };
+}
+
+function toHypothesisItem(h: Probe) {
+  return {
+    id: h.id,
+    claim: h.claim,
+    source: h.source,
+    status: h.status ?? 'untested',
+    confidence: h.confidence,
+    evidence_refs: h.evidence_refs,
+    age_in_turns: h.age_in_turns,
+  };
 }
