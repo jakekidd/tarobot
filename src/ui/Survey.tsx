@@ -17,6 +17,7 @@ import { Reader } from './reader/Reader';
 import { Dialogue } from './dialogue/Dialogue';
 import { MultipleChoice } from './choices/MultipleChoice';
 import { Matrix2x2Choice } from './choices/Matrix2x2Choice';
+import { AssertionChoice } from './choices/AssertionChoice';
 import { ForkChoice } from './choices/ForkChoice';
 import { Spinner } from './Spinner';
 import { BirthdayForm } from './survey/BirthdayForm';
@@ -92,6 +93,19 @@ export function Survey({ apiKey, session, loadedPerson, onComplete }: Props) {
 
   const [speaking, setSpeaking] = useState(false);
   const persistedFor = useRef<string | null>(null);
+
+  // v3 assertion stall: when the user answers an assertion, the mascot
+  // speaks the detective's pre-baked comment_if_<answer> for ~2 seconds
+  // before the next question's dialogue takes over. Zero LLM latency on
+  // the user-facing acknowledgement — the comment was shipped with the
+  // instrument. The choice widgets advance immediately under the
+  // dialogue; only the spoken line is held.
+  const [assertionStall, setAssertionStall] = useState<{ text: string; ts: number } | null>(null);
+  useEffect(() => {
+    if (!assertionStall) return;
+    const t = window.setTimeout(() => setAssertionStall(null), 2200);
+    return () => window.clearTimeout(t);
+  }, [assertionStall]);
 
   // Farewell substate. After the user clicks ENTER on the reading_ready
   // screen we play a slow goodbye line, then trigger the mascot to
@@ -365,6 +379,13 @@ export function Survey({ apiKey, session, loadedPerson, onComplete }: Props) {
     // mode in the seer as out of scope for this refactor.)
     dialogText = "nothing's pulling at you today. that's its own kind of reading. come back if something does.";
     dialogKey = 'null-landing';
+  } else if (assertionStall) {
+    // v3 mascot stall: hold the dialogue on the detective's pre-baked
+    // comment_if_<answer> for a beat after an assertion answer. Zero
+    // LLM latency on the user-facing acknowledgement. Cleared by the
+    // useEffect timer (~2.2s).
+    dialogText = assertionStall.text.toLowerCase();
+    dialogKey = `stall-${assertionStall.ts}`;
   } else if (showGag) {
     // Gag dialogue: NO question mark per spec. green color via host class.
     dialogText = 'which is the best animal';
@@ -521,6 +542,25 @@ export function Survey({ apiKey, session, loadedPerson, onComplete }: Props) {
               key={currentQuestion.node_id}
               options={currentQuestion.options}
               onPick={(v) => void submitAnswer(v)}
+            />
+          )}
+
+          {!showGag
+            && !modalOpen
+            && currentQuestion?.format === 'assertion'
+            && currentQuestion.instrument?.kind === 'assertion' && (
+            <AssertionChoice
+              key={currentQuestion.node_id}
+              correction_inversions={currentQuestion.instrument.correction_inversions}
+              onPick={(v) => {
+                const inst = currentQuestion.instrument;
+                if (inst?.kind === 'assertion') {
+                  const isTrue = v === 'true';
+                  const stall = isTrue ? inst.comment_if_true : inst.comment_if_false;
+                  if (stall) setAssertionStall({ text: stall, ts: Date.now() });
+                }
+                void submitAnswer(v);
+              }}
             />
           )}
 
