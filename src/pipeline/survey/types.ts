@@ -492,6 +492,13 @@ export type EngineState = {
    *  RUN_IDX so PSYCH can calibrate explore→consolidate over its
    *  expected runs (typically 3 across a 6-assertion interrogation). */
   psych_run_count: number;
+
+  /** Compiler-as-sieve output. Populated when the compiler runs (after
+   *  the user submits their intention). The structured Dilemma the
+   *  seer reads. state.anchor is the rendered-to-markdown form for
+   *  persistence + legacy profile assembly. Null until the compiler
+   *  has fired. */
+  dilemma: import('./agents/compiler/schema').DilemmaDocument | null;
 };
 
 /** PSYCH's working unit. Maintained as a small set across Interrogation

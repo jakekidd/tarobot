@@ -15,7 +15,7 @@ import type { LLMAdapter } from '../llm/adapter';
 import { runSeeder } from './agents/seeder';
 import { runDetective, blobToQueuedAssertion } from './agents/detective';
 import { runPsych } from './agents/psych';
-import { runCompiler } from './agents/compiler';
+import { runCompiler, renderDilemmaAsAnchor, type DilemmaDocument } from './agents/compiler';
 import { diffAnchors } from './anchor';
 import { checkDeadEndSignals } from './signals';
 import { computeLatencyZScores } from './algoExtract';
@@ -475,15 +475,14 @@ export class SurveyEngine {
     this.emit();
     void (async () => {
       try {
-        // Latency-z extraction (deterministic, fast). No more
-        // runFinalObserverPass — the compiler reads the full history +
-        // seeder notes + verbatim log directly.
+        // Latency-z extraction (deterministic, fast). The compiler
+        // no longer runs here — it has moved AFTER intention submit
+        // so it can filter the PSYCH candidate set through the user's
+        // own framing. See submitIntention.
         this.applyAlgoExtraction();
-        // Block on any still-running PSYCH so the compiler reads the
-        // freshest candidate set. Bounded; a hung Haiku call does not
-        // wedge the close path.
+        // Block on any still-running PSYCH so the intent screen +
+        // compiler both see the freshest candidate set.
         await this.waitForPsychQuiescence();
-        await this.runCompilerTask();
       } catch (e) {
         console.warn('[survey] finalize failed', e);
       }
@@ -521,16 +520,17 @@ export class SurveyEngine {
     }
   }
 
-  /** v3.2 close-pass compiler. Runs ONCE per session, after the final
-   *  observer pass + algo extraction. Reads everything; writes the
-   *  prose Subject Anchor narrowly around the resolved Dilemma. The
-   *  artifact handed to the seer. */
-  private async runCompilerTask(): Promise<void> {
+  /** Compiler-as-sieve. Runs ONCE per session, AFTER the user submits
+   *  their intention. Reads transcript + PSYCH candidates + the user's
+   *  intention; returns a structured DilemmaDocument. The engine
+   *  renders it to a markdown anchor for persistence + the legacy
+   *  Seer profile-assembly path. */
+  private async runCompilerTask(user_intention: string | null): Promise<DilemmaDocument | null> {
     const prev_anchor = this.state.anchor;
     try {
-      const out = await runCompiler(
+      const dilemma = await runCompiler(
         this.opts.adapter,
-        { state: this.state },
+        { state: this.state, user_intention },
         {
           onStart: () => publishCompilerStream({ kind: 'start' }),
           onThinking: (chunk) => publishCompilerStream({ kind: 'thinking', chunk }),
@@ -538,19 +538,22 @@ export class SurveyEngine {
           onEnd: () => publishCompilerStream({ kind: 'end' }),
         },
       );
-      this.setState({ anchor: out.anchor });
+      const anchor = renderDilemmaAsAnchor(dilemma);
+      this.setState({ dilemma, anchor });
       this.emit();
       publishAnchor({
         turn: this.countPostOpenerPicks(),
         trigger: 'close',
-        anchor: out.anchor,
-        diff: diffAnchors(prev_anchor, out.anchor),
+        anchor,
+        diff: diffAnchors(prev_anchor, anchor),
       });
       console.info(
-        `[survey] compiler: dilemma_id=${out.dilemma_id ?? 'null'} — ${out.reasoning}`,
+        `[survey] compiler: label=${dilemma.label}, path=${dilemma.resolution_path}, null=${dilemma.null_landing} — ${dilemma.reasoning}`,
       );
+      return dilemma;
     } catch (e) {
       console.warn('[survey] compiler failed', e);
+      return null;
     }
   }
 
@@ -630,11 +633,14 @@ export class SurveyEngine {
 
     const drawn = drawForSpread(FOUR_CARD_DIAMOND);
 
-    // Synthesis already happened in beginIntentionStage (or never, for
-    // loaded sessions — the saved snapshot IS post-synthesis). Here we
-    // just run Augur (intention-dependent) and build the Seer.
+    // Compiler-as-sieve, then Augur, then build the Seer. The compiler
+    // is gated on state.anchor being empty — loaded sessions
+    // (loadFromSave) already carry an anchor from the prior visit.
     void (async () => {
       try {
+        if (!this.state.anchor) {
+          await this.runCompilerTask(cleaned);
+        }
         // v2: held probes live at doc.held (Probe shape, not Hypothesis).
         // Sort by age DESC so the closing director sees the most-durable
         // probes first.
@@ -811,6 +817,7 @@ export class SurveyEngine {
       psych_candidates: [],
       psych_terminate: false,
       psych_run_count: 0,
+      dilemma: null,
     };
   }
 

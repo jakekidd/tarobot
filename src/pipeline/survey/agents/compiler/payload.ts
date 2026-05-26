@@ -1,19 +1,24 @@
-// Compiler input payload builder. Runs once at survey close. Feeds the
-// unified transcript (primary input), verbatim log, identity, cast,
-// detective state (advisory), PSYCH candidates (when PSYCH ships;
-// null for now), template sections.
+// Compiler input payload builder. Runs once per session, AFTER the
+// user has submitted their intention. The user_intention + PSYCH
+// candidate set are the primary inputs — the compiler is now a sieve
+// that picks (or builds) one Dilemma from the candidate set in light
+// of what the user said they came to ask about.
 
-import { formatAnchorSectionsForPrompt } from '../../anchor-template';
 import { formatVerbatimLog } from '../../verbatim-log';
 import { renderTranscript } from '../../transcript';
 import type { EngineState, VerbatimEntry } from '../../types';
 
 export type CompilerPayloadArgs = {
   state: EngineState;
+  /** The user's submitted question. The compiler reads this as the
+   *  primary filter signal — see the prompt for the three resolution
+   *  paths. Null only when the user pressed "I DON'T KNOW" at the
+   *  intent screen. */
+  user_intention: string | null;
 };
 
 export function buildCompilerPayload(args: CompilerPayloadArgs): unknown {
-  const { state } = args;
+  const { state, user_intention } = args;
   return {
     subject_name: state.profile.name || 'unnamed',
     identity: {
@@ -30,20 +35,21 @@ export function buildCompilerPayload(args: CompilerPayloadArgs): unknown {
       pronouns: m.pronouns,
       off_limits: m.off_limits ?? false,
     })),
-    // Primary input — the unified narrative.
+    // Primary filter signal — what the user said they came to ask.
+    user_intention,
+    // Primary candidate set — PSYCH's curated dilemmas with their
+    // evidence-anchored thoughts. The compiler picks one (or builds a
+    // new one when the intent reveals what PSYCH missed).
+    psych_candidates: state.psych_candidates,
+    // The unified narrative — pillars, seeder observations, assertions
+    // and the user's WARM/COLD responses (with corrections) in
+    // chronological order.
     transcript: renderTranscript(state.transcript),
     verbatim_log: state.verbatim_log.map(toVerbatimItem),
     verbatim_log_formatted: formatVerbatimLog(state.verbatim_log),
-    detective_state: {
-      leading_hypothesis: state.doc.scaffold.leading_hypothesis,
-      hypotheses: state.hypotheses,
-    },
-    // PSYCH ships next — when it does, the engine populates this from
-    // state.psych_candidates. Until then the compiler reads detective_
-    // state directly and treats null here as "no PSYCH metabolization
-    // yet, fall back to detective_state."
-    psych_candidates: null,
-    template_sections: formatAnchorSectionsForPrompt(),
+    // Advisory — the detective's last hypothesis list. The compiler
+    // should not adopt these unless warmth or PSYCH backs them.
+    detective_hypotheses: state.hypotheses,
     doc_v: state.doc.v,
   };
 }

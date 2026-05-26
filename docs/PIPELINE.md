@@ -83,30 +83,48 @@ PHASE 4 — INTENTION (between hunt and close)
   User picks a suggestion OR types own.
   The pick is the highest-quality disambiguation signal in the session.
 
-PHASE 5 — COMPILE (compiler-as-sieve)
-  Compiler now gets the user's INTENTION as primary filter input.
-  Compiler's job: synthesize the Dilemma the user's intention is
-    pointing at, drawing from PSYCH candidates + full transcript.
+PHASE 5 — COMPILE (compiler-as-sieve, fires inside submitIntention)
+  Engine ordering: beginIntentionStage now stops at applyAlgoExtraction
+  + waitForPsychQuiescence and transitions to 'awaiting_intention'.
+  The compiler does NOT fire here anymore.
 
-  Three resolution paths:
-    (a) intent matches a PSYCH candidate → write that Dilemma in detail
-    (b) intent is nonsense / placeholder → ignore literal text, pick
-        the strongest PSYCH candidate (the "juiciest/best") and write it
-    (c) intent reveals something PSYCH + detective MISSED entirely →
-        create a NEW Dilemma from the intent text. trust the user's
-        signal over the agents' coverage.
+  When the user submits their intention (submitIntention), the engine
+  enters 'compiling' and the compiler-as-sieve fires AS THE FIRST step
+  of the post-intent pipeline — before Augur, before Seer. The compiler
+  reads:
+    - user_intention (primary filter)
+    - psych_candidates (the small curated set PSYCH built)
+    - full unified transcript + verbatim_log
+    - detective_hypotheses (advisory)
 
-  Output is the Dilemma document — a structured artifact with explicit
-    fields and freeform regions. Full schema in `docs/DILEMMA-SCHEMA.md`.
-    Key parts:
-      - Dilemma core (label, delta_description, fork.do_nothing_branch +
-        alternative_branch, awareness, confidence, domain_tags,
-        null_landing flag)
-      - critical_hypotheses[] — load-bearing claims with anchored evidence
-      - freeform regions (specifics, holding, suspicions—fenced)
-      - resolution_path provenance (matched / strongest / created / null)
+  Three resolution paths (set on the output as resolution_path):
+    (a) matched-candidate    — intent maps cleanly to a PSYCH
+                                candidate → write that one in detail
+    (b) strongest-candidate  — intent is thin/placeholder → fall back
+                                to the juiciest PSYCH candidate
+    (c) created-from-intent  — intent reveals territory PSYCH +
+                                detective missed → CREATE a new
+                                Dilemma. trust the user.
+    (d) null-landing         — session genuinely thin → emit "no
+                                Dilemma resolved" rather than invent.
+
+  Output is the DilemmaDocument (full schema in
+  `docs/DILEMMA-SCHEMA.md`):
+    - Dilemma core (label, delta_description, fork.do_nothing_branch +
+      alternative_branch, awareness, confidence, domain_tags,
+      null_landing flag)
+    - critical_hypotheses[] — load-bearing claims with anchored evidence
+    - freeform regions (specifics, holding, suspicions—fenced)
+    - resolution_path provenance
+
+  Engine stores both: state.dilemma (structured) + state.anchor
+  (markdown render via renderDilemmaAsAnchor; persisted with the
+  Person record and read by the legacy Seer assembleProfile bridge).
 
   Streaming Opus + extended thinking. Streams to ThinkingStreamView.
+
+  Loaded sessions (loadFromSave with a prior anchor) skip the compiler
+  call — their anchor carries the prior visit's resolved Dilemma.
 
 PHASE 6 — READING (out of scope here)
   Augur (intention-time outcome forecasts) → Seer engine constructed →
