@@ -119,21 +119,21 @@ Options:
   - assume the worst
   - let it go
 
-### where do you live in your body, most of the time?
+### where are you, body and mind?
 
 Format: matrix
 Probe:
-  Surface: somatic baseline crossed with interoceptive awareness — what state the nervous system sits in, and whether the user can feel it.
-  Inversions: revved up = sympathetic-dominant baseline candidate, often chronic activation or anxiety; shut down = dorsal-vagal-dominant baseline candidate, often depression, exhaustion, or dissociation; aware = interoception intact, somatic probes will land downstream; not aware = low interoception, the reading should not lean on body-based language — pivot to cognitive or narrative framings.
-  Watch for: "shut down + not aware" + "they don't notice" anxiety-presentation (in pool) = dissociative baseline candidate, name gently. "revved up + aware" + "fix it" distress-response (in pool) = hyperfunctioning-anxious candidate. anyone in shut-down should NOT be handed a "powerful insight" — they can't metabolize it. soften register and prefer reflection over revelation.
+  Surface: body presence (grounded ↔ numb) crossed with mind presence (present ↔ dissociated). matrix surfaces whether they're integrated, somatically held, intellectualizing, or fully detached.
+  Inversions: grounded = embodied, sensation accessible, body is a place they live in; numb = disconnected from body, dissociative-somatic baseline — can't feel, often chronic. present = mentally here, cognitively engaged with the moment; dissociated = mind elsewhere, derealization / depersonalization / fugue states.
+  Watch for: numb + dissociated = full dissociative baseline candidate, soften register significantly, prefer reflection over revelation. grounded + dissociated = body is holding what the mind can't yet process (somatic-held material — common in trauma survivors who exercise through it). numb + present = intellectualizing-as-defense, the mind is on but the body is offline (anxious-cognitive baseline). grounded + present = integrated whole-self moment, rare enough to be notable — the reading can be direct, the user will hear it.
 Axes:
-  - x: revved up | shut down
-  - y: aware of it | not
+  - x: grounded | numb
+  - y: present | dissociated
 Options:
-  - revved up + aware
-  - revved up + not
-  - shut down + aware :: that's a hard place to live from.
-  - shut down + not
+  - grounded + present
+  - grounded + dissociated :: your body's holding something your mind hasn't caught.
+  - numb + present
+  - numb + dissociated :: that's a hard place to be.
 
 ### who's the center of your life right now?
 

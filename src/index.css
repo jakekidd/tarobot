@@ -3031,7 +3031,9 @@ input, textarea {
   letter-spacing: 0.08em;
   color: #000;
   text-transform: uppercase;
-  opacity: 0;
+  /* v3.3: always visible (mobile has no hover; desktop wants it too).
+     hover/picked still bumps to full brightness. */
+  opacity: 0.78;
   transition: opacity 0.15s;
   text-align: center;
   pointer-events: none;
