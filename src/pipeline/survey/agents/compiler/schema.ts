@@ -1,7 +1,7 @@
 // Compiler output schema — the DilemmaDocument.
 //
 // The compiler-as-sieve runs ONCE per session, AFTER the user has
-// submitted their intention. It reads the unified transcript + PSYCH
+// submitted their intention. It reads the unified transcript + WEAVER
 // candidate set + user_intention and produces the structured Dilemma
 // document the seer consumes. See docs/DILEMMA-SCHEMA.md for the
 // load-bearing intent behind each field.

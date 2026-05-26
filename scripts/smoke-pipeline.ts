@@ -5,7 +5,7 @@
 //
 // This is NOT a quality benchmark — outputs are printed for the human to
 // eyeball. It's the cheapest way to verify the prompt-engineering overhauls
-// (PSYCH, compiler-as-sieve, intention chips, WARM/COLD detective) didn't
+// (WEAVER, compiler-as-sieve, intention chips, WARM/COLD detective) didn't
 // break the contract between agents.
 //
 // Usage:
@@ -16,7 +16,7 @@ import kleur from 'kleur';
 import { createClaudeClient } from '../src/pipeline/claude';
 import { AnthropicAdapter } from '../src/pipeline/llm/adapter-anthropic';
 import { runDetective, blobToQueuedAssertion } from '../src/pipeline/survey/agents/detective';
-import { runPsych } from '../src/pipeline/survey/agents/psych';
+import { runWeaver } from '../src/pipeline/survey/agents/weaver';
 import { runIntentionSuggestor } from '../src/pipeline/survey/intention-suggestor';
 import { runCompiler, DilemmaDocumentSchema, type DilemmaDocument } from '../src/pipeline/survey/agents/compiler';
 import type { TranscriptEntry } from '../src/pipeline/survey/transcript';
@@ -150,9 +150,9 @@ function makeFabricatedState(): EngineState {
     detective_thinking: '',
     hypotheses: [],
     assertion_queue: [],
-    psych_candidates: [],
-    psych_terminate: false,
-    psych_run_count: 0,
+    weaver_candidates: [],
+    weaver_terminate: false,
+    weaver_run_count: 0,
     dilemma: null,
     intention_suggestions: [],
     intention_suggestions_loading: false,
@@ -242,10 +242,10 @@ async function runOne(adapter: AnthropicAdapter, runIdx: number, totalRuns: numb
     }
   }
 
-  // ── PSYCH (fires after 2+ responses; fabricated state has 3) ──
+  // ── WEAVER (fires after 2+ responses; fabricated state has 3) ──
   {
     try {
-      const { value: blob, ms } = await timed(() => runPsych(adapter, { state, run_total: 3 }));
+      const { value: blob, ms } = await timed(() => runWeaver(adapter, { state, run_total: 3 }));
       const labelsValid = blob.candidates.every((c) => /^[a-z][a-z0-9-]*$/.test(c.label));
       const allHaveThoughts = blob.candidates.every((c) => c.thoughts.length > 0);
       const anchoredEvidence = blob.candidates.every((c) =>
@@ -253,7 +253,7 @@ async function runOne(adapter: AnthropicAdapter, runIdx: number, totalRuns: numb
       );
       const passOk = blob.candidates.length > 0 && labelsValid && allHaveThoughts && anchoredEvidence;
       results.push({
-        name: 'PSYCH',
+        name: 'WEAVER',
         pass: passOk,
         ms,
         detail: passOk
@@ -263,17 +263,17 @@ async function runOne(adapter: AnthropicAdapter, runIdx: number, totalRuns: numb
           .map((c) => `${c.label}: ${c.description}\n  ${c.thoughts.slice(0, 2).join('\n  ')}`)
           .join('\n'),
       });
-      state = { ...state, psych_candidates: blob.candidates, psych_terminate: blob.terminate, psych_run_count: state.psych_run_count + 1 };
+      state = { ...state, weaver_candidates: blob.candidates, weaver_terminate: blob.terminate, weaver_run_count: state.weaver_run_count + 1 };
     } catch (e) {
-      results.push({ name: 'PSYCH', pass: false, ms: 0, detail: `threw: ${String(e).slice(0, 400)}` });
+      results.push({ name: 'WEAVER', pass: false, ms: 0, detail: `threw: ${String(e).slice(0, 400)}` });
     }
   }
 
-  // ── INTENTION SUGGESTOR (one per PSYCH candidate, parallel) ──
+  // ── INTENTION SUGGESTOR (one per WEAVER candidate, parallel) ──
   {
-    const candidates: PotentialDilemma[] = state.psych_candidates;
+    const candidates: PotentialDilemma[] = state.weaver_candidates;
     if (candidates.length === 0) {
-      results.push({ name: 'INTENTION SUGGESTOR', pass: false, ms: 0, detail: 'no candidates from PSYCH' });
+      results.push({ name: 'INTENTION SUGGESTOR', pass: false, ms: 0, detail: 'no candidates from WEAVER' });
     } else {
       const start = Date.now();
       const settled = await Promise.allSettled(
@@ -350,7 +350,7 @@ function checkDilemmaDocument(doc: DilemmaDocument): { ok: boolean; issues: stri
     if (doc.resolution_path !== 'null-landing') issues.push(`null_landing but path=${doc.resolution_path}`);
   }
   for (const h of doc.critical_hypotheses) {
-    if (!/entry \d+|assertion \d+|warm|cold|psych/i.test(h.evidence)) {
+    if (!/entry \d+|assertion \d+|warm|cold|weaver/i.test(h.evidence)) {
       issues.push(`unanchored evidence on hypothesis: "${h.claim.slice(0, 40)}…"`);
     }
   }

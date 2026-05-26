@@ -28,7 +28,7 @@ import { STARTER_SEED_COUNT } from '../pipeline/survey';
 // ── Live prompt imports ─────────────────────────────────────
 
 import { DETECTIVE_SYSTEM_TEMPLATE } from '../pipeline/survey/agents/detective';
-import { PSYCH_SYSTEM_TEMPLATE } from '../pipeline/survey/agents/psych';
+import { WEAVER_SYSTEM_TEMPLATE } from '../pipeline/survey/agents/weaver';
 import INTENTION_SUGGESTOR_RAW from '../../materials/prompts/intention-suggestor.md?raw';
 import {
   AUGUR_OUTLINE_SYSTEM,
@@ -111,15 +111,15 @@ const SURVEY_AGENTS: AgentSpec[] = [
     notes: 'Opus, 4K tokens. Hypothesis re-listing = vote. Asserts situation, not interior. WARM/COLD as absolute (COLD eliminates a region, never inverts). Correction text is the gold.',
   },
   {
-    id: 'psych',
-    name: 'Psych',
+    id: 'weaver',
+    name: 'Weaver',
     runtime: 'cloud',
     call_pattern: 'Interrogation phase only. Fires every 2 answered assertions (~3 calls across the 6-assertion ceiling). Haiku tier. Background — does not block the detective. Owns the engagement early-out.',
-    input_type: 'RunPsychArgs',
-    output_type: 'PsychTextBlob',
-    inputs: 'transcript + verbatim_log + detective_hypotheses (advisory) + psych_candidates_so_far + run_idx / run_total',
+    input_type: 'RunWeaverArgs',
+    output_type: 'WeaverTextBlob',
+    inputs: 'transcript + verbatim_log + detective_hypotheses (advisory) + weaver_candidates_so_far + run_idx / run_total',
     outputs: 'free-form thinking, then ===CANDIDATES=== (label / description / evidence-anchored thoughts), then ===TERMINATE=== (yes | no)',
-    prompt: PSYCH_SYSTEM_TEMPLATE,
+    prompt: WEAVER_SYSTEM_TEMPLATE,
     tool_name: 'freeform',
     notes: 'Curates a small set of candidate Dilemmas (situation + fork). Re-listing same label = organic vote. Append-over-add discipline. Terminate fires when no new evidence AND user responses flat — closes the alienation seam.',
   },
@@ -127,14 +127,14 @@ const SURVEY_AGENTS: AgentSpec[] = [
     id: 'intention-suggestor',
     name: 'Intention Suggestor',
     runtime: 'cloud',
-    call_pattern: 'fires N parallel calls — one per PSYCH candidate — right after the transition to awaiting_intention. Sonnet tier. Cheap because short + parallel; latency hides behind the user reading the intent screen.',
+    call_pattern: 'fires N parallel calls — one per WEAVER candidate — right after the transition to awaiting_intention. Sonnet tier. Cheap because short + parallel; latency hides behind the user reading the intent screen.',
     input_type: '{ state, candidate: PotentialDilemma }',
     output_type: 'string (one short sentence)',
-    inputs: 'one PSYCH candidate (label + description + thoughts) + verbatim_log for texture',
+    inputs: 'one WEAVER candidate (label + description + thoughts) + verbatim_log for texture',
     outputs: 'a single first-person sentence the user might plausibly type at the intent screen (rendered as a chip)',
     prompt: INTENTION_SUGGESTOR_RAW,
     tool_name: 'freeform',
-    notes: 'Click submits directly — no edit step. Empty for returning users in lite mode (no PSYCH ran).',
+    notes: 'Click submits directly — no edit step. Empty for returning users in lite mode (no WEAVER ran).',
   },
   {
     id: 'augur-outline',

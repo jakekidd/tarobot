@@ -1,6 +1,6 @@
-// PSYCH text-blob parser.
+// WEAVER text-blob parser.
 //
-// PSYCH emits free-form thinking followed by two labeled sections:
+// WEAVER emits free-form thinking followed by two labeled sections:
 //
 //   <thinking paragraphs>
 //
@@ -30,13 +30,13 @@ const MARKER_TERMINATE = '===TERMINATE===';
 
 const LABEL_LINE_RE = /^([a-z][a-z0-9-]*)\s*:\s*(.*)$/;
 
-export type PsychTextBlob = {
+export type WeaverTextBlob = {
   thinking: string;
   candidates: PotentialDilemma[];
   terminate: boolean;
 };
 
-export function parsePsychTextBlob(raw: string): PsychTextBlob {
+export function parseWeaverTextBlob(raw: string): WeaverTextBlob {
   const c_idx = raw.indexOf(MARKER_CANDIDATES);
   const t_idx = raw.indexOf(MARKER_TERMINATE);
 

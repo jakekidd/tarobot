@@ -480,18 +480,18 @@ export type EngineState = {
    *  re-generation. */
   assertion_queue: QueuedAssertion[];
 
-  /** PSYCH's curated candidate set. Replaced wholesale on each PSYCH
+  /** WEAVER's curated candidate set. Replaced wholesale on each WEAVER
    *  call (re-listing-as-vote is implicit via re-appearance). Read at
    *  close by the intention-suggestor (one suggestion per candidate)
    *  and the compiler (sieve). Empty during pillars. */
-  psych_candidates: PotentialDilemma[];
-  /** PSYCH's engagement read. When true, the engine short-circuits the
+  weaver_candidates: PotentialDilemma[];
+  /** WEAVER's engagement read. When true, the engine short-circuits the
    *  interrogation refill loop. Sticky once set. */
-  psych_terminate: boolean;
-  /** How many PSYCH calls have completed. Surfaced into the prompt as
-   *  RUN_IDX so PSYCH can calibrate explore→consolidate over its
+  weaver_terminate: boolean;
+  /** How many WEAVER calls have completed. Surfaced into the prompt as
+   *  RUN_IDX so WEAVER can calibrate explore→consolidate over its
    *  expected runs (typically 3 across a 6-assertion interrogation). */
-  psych_run_count: number;
+  weaver_run_count: number;
 
   /** Compiler-as-sieve output. Populated when the compiler runs (after
    *  the user submits their intention). The structured Dilemma the
@@ -501,10 +501,10 @@ export type EngineState = {
   dilemma: import('./agents/compiler/schema').DilemmaDocument | null;
 
   /** One-sentence intention suggestions fired off in parallel — one
-   *  per PSYCH candidate — at the intent-confirmation screen. Each
+   *  per WEAVER candidate — at the intent-confirmation screen. Each
    *  resolves independently and pushes into this array, so the UI
    *  can render chips as they arrive. Empty for returning users in
-   *  lite mode (no PSYCH ran) and during pillars / interrogation. */
+   *  lite mode (no WEAVER ran) and during pillars / interrogation. */
   intention_suggestions: string[];
   /** True while one or more intention-suggestion helpers are in
    *  flight. UI uses this to render a "thinking" affordance below
@@ -513,13 +513,13 @@ export type EngineState = {
   intention_suggestions_loading: boolean;
 };
 
-/** PSYCH's working unit. Maintained as a small set across Interrogation
- *  calls. The compiler-as-sieve reads `state.psych_candidates` at close
+/** WEAVER's working unit. Maintained as a small set across Interrogation
+ *  calls. The compiler-as-sieve reads `state.weaver_candidates` at close
  *  to pick or build the final Dilemma. Re-listing across calls is the
  *  organic vote-by-repetition signal — the engine doesn't store a vote
  *  counter; presence in the latest set IS the vote. */
 export type PotentialDilemma = {
-  /** Kebab-case slug. Stable across calls — PSYCH is instructed to
+  /** Kebab-case slug. Stable across calls — WEAVER is instructed to
    *  reuse the exact prior label when keeping a candidate live. */
   label: string;
   /** One-sentence description of the situation + implied fork. */

@@ -13,7 +13,7 @@
 
 import type { LLMAdapter } from '../llm/adapter';
 import { runDetective, blobToQueuedAssertion } from './agents/detective';
-import { runPsych } from './agents/psych';
+import { runWeaver } from './agents/weaver';
 import { runCompiler, renderDilemmaAsAnchor, type DilemmaDocument } from './agents/compiler';
 import { runIntentionSuggestor } from './intention-suggestor';
 import { diffAnchors } from './anchor';
@@ -113,7 +113,7 @@ export class SurveyEngine {
    *  show the spinner when queue is empty + a pipeline is running. */
   private pipelinesInFlight = 0;
   /** Per-agent in-flight counts. Published to debug bus per change. */
-  private agentInFlight = { detective: 0, psych: 0 };
+  private agentInFlight = { detective: 0, weaver: 0 };
   private starterSeedFired = false;
   /** Snapshot of the engine state captured RIGHT BEFORE the most recent
    *  pick was processed. `undo()` restores this. Cleared after restore.
@@ -477,31 +477,31 @@ export class SurveyEngine {
       try {
         // Latency-z extraction (deterministic, fast). The compiler
         // no longer runs here — it has moved AFTER intention submit
-        // so it can filter the PSYCH candidate set through the user's
+        // so it can filter the WEAVER candidate set through the user's
         // own framing. See submitIntention.
         this.applyAlgoExtraction();
-        // Block on any still-running PSYCH so the intent screen +
+        // Block on any still-running WEAVER so the intent screen +
         // compiler both see the freshest candidate set.
-        await this.waitForPsychQuiescence();
+        await this.waitForWeaverQuiescence();
       } catch (e) {
         console.warn('[survey] finalize failed', e);
       }
       this.setState({ stage: 'awaiting_intention', thinking: false });
       this.emit();
-      // Fire intention-suggestion helpers in parallel — one per PSYCH
+      // Fire intention-suggestion helpers in parallel — one per WEAVER
       // candidate. Each resolves independently and pushes into
       // state.intention_suggestions so the UI can render chips as
       // they arrive. Skipped when there are no candidates (returning
-      // users in lite mode, or PSYCH never fired).
+      // users in lite mode, or WEAVER never fired).
       void this.runIntentionSuggestionsTask();
     })();
   }
 
-  /** Fire N parallel intention-suggestion helpers, one per PSYCH
+  /** Fire N parallel intention-suggestion helpers, one per WEAVER
    *  candidate. Pushes each result into state.intention_suggestions
    *  as it lands so the UI can populate chips incrementally. */
   private async runIntentionSuggestionsTask(): Promise<void> {
-    const candidates = this.state.psych_candidates;
+    const candidates = this.state.weaver_candidates;
     if (candidates.length === 0) return;
     this.setState({
       intention_suggestions: [],
@@ -535,7 +535,7 @@ export class SurveyEngine {
   // design beat, driven from the survey-markdown contract.)
 
   /** Compiler-as-sieve. Runs ONCE per session, AFTER the user submits
-   *  their intention. Reads transcript + PSYCH candidates + the user's
+   *  their intention. Reads transcript + WEAVER candidates + the user's
    *  intention; returns a structured DilemmaDocument. The engine
    *  renders it to a markdown anchor for persistence + the legacy
    *  Seer profile-assembly path. */
@@ -828,9 +828,9 @@ export class SurveyEngine {
       detective_thinking: '',
       hypotheses: [],
       assertion_queue: [],
-      psych_candidates: [],
-      psych_terminate: false,
-      psych_run_count: 0,
+      weaver_candidates: [],
+      weaver_terminate: false,
+      weaver_run_count: 0,
       dilemma: null,
       intention_suggestions: [],
       intention_suggestions_loading: false,
@@ -1042,7 +1042,7 @@ export class SurveyEngine {
   private publishInflight(): void {
     publishDebug('survey.inflight', this.pipelinesInFlight);
     publishDebug('survey.agent.detective', this.agentInFlight.detective);
-    publishDebug('survey.agent.psych', this.agentInFlight.psych);
+    publishDebug('survey.agent.weaver', this.agentInFlight.weaver);
   }
 
   /** `thinking` is the UI's "we have nothing to show, wait" hint. True
@@ -1189,12 +1189,12 @@ export class SurveyEngine {
     });
     this.emit();
 
-    // PSYCH fires every PSYCH_CADENCE answered assertions. Background —
-    // doesn't block the next detective pass. waitForPsychQuiescence at
+    // WEAVER fires every WEAVER_CADENCE answered assertions. Background —
+    // doesn't block the next detective pass. waitForWeaverQuiescence at
     // close gates the compiler on the freshest candidate set.
     const responses = this.countResponsesInTranscript();
-    if (responses > 0 && responses % PSYCH_CADENCE === 0 && !this.state.psych_terminate) {
-      void this.runPsychTask();
+    if (responses > 0 && responses % WEAVER_CADENCE === 0 && !this.state.weaver_terminate) {
+      void this.runWeaverTask();
     }
 
     // Refill the assertion queue in the background.
@@ -1244,58 +1244,58 @@ export class SurveyEngine {
   /** Refill the assertion queue to LOOKAHEAD_CAP. Loops detective
    *  calls in the background. Stops when the cap is reached, a pass
    *  fails to emit an assertion, the total interrogation assertion
-   *  count hits the soft ceiling, or PSYCH signals terminate
+   *  count hits the soft ceiling, or WEAVER signals terminate
    *  (engagement read says the room has gone flat). */
   private async refillAssertionQueue(): Promise<void> {
     while (
       this.state.assertion_queue.length < LOOKAHEAD_CAP
       && (this.countAssertionsInTranscript() + this.state.assertion_queue.length) < INTERROGATION_SOFT_CEILING
-      && !this.state.psych_terminate
+      && !this.state.weaver_terminate
     ) {
       const ok = await this.runDetectivePass();
       if (!ok) break;
     }
     // Close conditions: queue drained AND either ceiling reached or
-    // PSYCH signalled stop.
+    // WEAVER signalled stop.
     const hitCeiling = this.countAssertionsInTranscript() >= INTERROGATION_SOFT_CEILING;
-    const psychSaidStop = this.state.psych_terminate;
-    if (this.state.assertion_queue.length === 0 && (hitCeiling || psychSaidStop)) {
+    const weaverSaidStop = this.state.weaver_terminate;
+    if (this.state.assertion_queue.length === 0 && (hitCeiling || weaverSaidStop)) {
       this.beginIntentionStage();
     }
   }
 
-  /** Single PSYCH pass — Haiku, fires every PSYCH_CADENCE answered
-   *  assertions. Replaces psych_candidates wholesale (re-listing-as-
-   *  vote is implicit). May signal psych_terminate when the candidate
+  /** Single WEAVER pass — Haiku, fires every WEAVER_CADENCE answered
+   *  assertions. Replaces weaver_candidates wholesale (re-listing-as-
+   *  vote is implicit). May signal weaver_terminate when the candidate
    *  set has gone flat AND user responses have gone flat. */
-  private async runPsychTask(): Promise<void> {
-    this.agentInFlight.psych += 1;
+  private async runWeaverTask(): Promise<void> {
+    this.agentInFlight.weaver += 1;
     this.publishInflight();
     try {
-      const blob = await runPsych(this.opts.adapter, {
+      const blob = await runWeaver(this.opts.adapter, {
         state: this.state,
-        run_total: PSYCH_TOTAL_RUNS,
+        run_total: WEAVER_TOTAL_RUNS,
       });
       this.setState({
-        psych_candidates: blob.candidates,
-        psych_terminate: this.state.psych_terminate || blob.terminate, // sticky
-        psych_run_count: this.state.psych_run_count + 1,
+        weaver_candidates: blob.candidates,
+        weaver_terminate: this.state.weaver_terminate || blob.terminate, // sticky
+        weaver_run_count: this.state.weaver_run_count + 1,
       });
       this.emit();
     } catch (e) {
-      console.warn('[survey] psych pass failed', e);
+      console.warn('[survey] weaver pass failed', e);
     } finally {
-      this.agentInFlight.psych -= 1;
+      this.agentInFlight.weaver -= 1;
       this.publishInflight();
     }
   }
 
-  /** Block until no PSYCH call is in flight. Used in beginIntentionStage
+  /** Block until no WEAVER call is in flight. Used in beginIntentionStage
    *  so the compiler reads the freshest candidate set. Bounded so a
    *  hung Haiku call doesn't wedge the close path. */
-  private async waitForPsychQuiescence(maxMs = 15000): Promise<void> {
+  private async waitForWeaverQuiescence(maxMs = 15000): Promise<void> {
     const start = Date.now();
-    while (this.agentInFlight.psych > 0 && Date.now() - start < maxMs) {
+    while (this.agentInFlight.weaver > 0 && Date.now() - start < maxMs) {
       await new Promise((r) => setTimeout(r, 25));
     }
   }
@@ -1307,7 +1307,7 @@ export class SurveyEngine {
   }
 
   /** Count user responses to assertions in the transcript. Used to
-   *  pace PSYCH (fires every PSYCH_CADENCE responses). */
+   *  pace WEAVER (fires every WEAVER_CADENCE responses). */
   private countResponsesInTranscript(): number {
     return this.state.transcript.filter((e) => e.kind === 'response').length;
   }
@@ -1321,13 +1321,13 @@ const LOOKAHEAD_CAP = 3;
  *  hard cap (POST_PILLAR_ASSERTION_CAP) is the safety net above it. */
 const INTERROGATION_SOFT_CEILING = 6;
 
-/** PSYCH cadence — fires every N answered assertions during the
+/** WEAVER cadence — fires every N answered assertions during the
  *  Interrogation. Three runs expected across a 6-assertion ceiling. */
-const PSYCH_CADENCE = 2;
+const WEAVER_CADENCE = 2;
 
-/** Expected total PSYCH calls. Surfaced to PSYCH's prompt for
+/** Expected total WEAVER calls. Surfaced to WEAVER's prompt for
  *  explore→consolidate calibration. */
-const PSYCH_TOTAL_RUNS = Math.max(1, Math.floor(INTERROGATION_SOFT_CEILING / PSYCH_CADENCE));
+const WEAVER_TOTAL_RUNS = Math.max(1, Math.floor(INTERROGATION_SOFT_CEILING / WEAVER_CADENCE));
 
 // ─── helpers (module-local) ─────────────────────────────
 

@@ -1,6 +1,6 @@
 // Content-level dead-end detection.
 //
-// Engagement detection has largely moved to PSYCH (state.psych_terminate
+// Engagement detection has largely moved to WEAVER (state.weaver_terminate
 // fires when no candidate gains weight AND user goes flat). The three
 // content-level detectors here are kept as a secondary safety net for
 // the dead-end gate in beginIntentionStage — none currently fire because

@@ -1,7 +1,7 @@
 // Intention-suggestion helper — thin wrapper around invokeFreeform.
 //
-// Wave 2 of the compiler-as-sieve refactor: after PSYCH has settled
-// (via waitForPsychQuiescence in beginIntentionStage), the engine
+// Wave 2 of the compiler-as-sieve refactor: after WEAVER has settled
+// (via waitForWeaverQuiescence in beginIntentionStage), the engine
 // fires one of these per PotentialDilemma in parallel. Each call
 // produces a single short sentence the user could plausibly have
 // typed at the intent screen — first-person, evidence-anchored, in

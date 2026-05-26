@@ -11,6 +11,6 @@ export const COMPILER_SYSTEM = COMPILER_SYSTEM_RAW;
 export const COMPILER_TOOL: ToolDef = {
   name: 'compiler_write_dilemma',
   description:
-    'sift the PSYCH candidate set through the user\'s intention and write the Dilemma document. fork-with-do-nothing structure, critical_hypotheses captured with anchored evidence, freeform regions for relevant detail. one Dilemma. profile the problem, not the person.',
+    'sift the WEAVER candidate set through the user\'s intention and write the Dilemma document. fork-with-do-nothing structure, critical_hypotheses captured with anchored evidence, freeform regions for relevant detail. one Dilemma. profile the problem, not the person.',
   input_schema: z.toJSONSchema(CompilerOutputSchema) as Record<string, unknown>,
 };

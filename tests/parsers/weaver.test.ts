@@ -1,7 +1,7 @@
-// PSYCH text-blob parser fuzz tests.
+// WEAVER text-blob parser fuzz tests.
 
 import { describe, expect, it } from 'vitest';
-import { parsePsychTextBlob } from '../../src/pipeline/survey/agents/psych/parseTextBlob';
+import { parseWeaverTextBlob } from '../../src/pipeline/survey/agents/weaver/parseTextBlob';
 
 const WELL_FORMED = `
 Run 2 of 3. Two warm taps on the identity thread; one cold ruled out
@@ -20,9 +20,9 @@ not shrugging.
     no
 `;
 
-describe('parsePsychTextBlob — well-formed input', () => {
+describe('parseWeaverTextBlob — well-formed input', () => {
   it('extracts candidate set with descriptions and thoughts', () => {
-    const blob = parsePsychTextBlob(WELL_FORMED);
+    const blob = parseWeaverTextBlob(WELL_FORMED);
     expect(blob.candidates).toHaveLength(2);
     expect(blob.candidates[0]!.label).toBe('staying-as-self-protection');
     expect(blob.candidates[0]!.description).toMatch(/day-job is a hedge/);
@@ -31,29 +31,29 @@ describe('parsePsychTextBlob — well-formed input', () => {
   });
 
   it('parses terminate=no', () => {
-    expect(parsePsychTextBlob(WELL_FORMED).terminate).toBe(false);
+    expect(parseWeaverTextBlob(WELL_FORMED).terminate).toBe(false);
   });
 
   it('parses terminate=yes', () => {
     const raw = WELL_FORMED.replace('    no\n', '    yes\n');
-    expect(parsePsychTextBlob(raw).terminate).toBe(true);
+    expect(parseWeaverTextBlob(raw).terminate).toBe(true);
   });
 
   it('captures thinking before the candidates marker', () => {
-    const blob = parsePsychTextBlob(WELL_FORMED);
+    const blob = parseWeaverTextBlob(WELL_FORMED);
     expect(blob.thinking).toContain('Engagement still good');
     expect(blob.thinking).not.toContain('CANDIDATES');
   });
 });
 
-describe('parsePsychTextBlob — KNOWN parser quirks', () => {
+describe('parseWeaverTextBlob — KNOWN parser quirks', () => {
   it('treats labels with capital letters or spaces as thoughts (not headers)', () => {
     const raw = `===CANDIDATES===
     Staying As Self Protection: bad label
         thought one
 ===TERMINATE===
     no`;
-    const blob = parsePsychTextBlob(raw);
+    const blob = parseWeaverTextBlob(raw);
     // The "Staying As..." line fails the kebab-case label regex, so
     // the whole block becomes orphaned thoughts (which then get
     // dropped because there's no candidate to attach to). Zero
@@ -67,7 +67,7 @@ describe('parsePsychTextBlob — KNOWN parser quirks', () => {
         thought (entry 1)
 ===TERMINATE===
     no`;
-    const blob = parsePsychTextBlob(raw);
+    const blob = parseWeaverTextBlob(raw);
     expect(blob.candidates).toHaveLength(1);
     expect(blob.candidates[0]!.label).toBe('leaving-job');
     expect(blob.candidates[0]!.description).toBe('the situation: stay vs. quit, but bigger than that');
@@ -81,7 +81,7 @@ describe('parsePsychTextBlob — KNOWN parser quirks', () => {
         real thought (assertion 1 WARM)
 ===TERMINATE===
     no`;
-    const blob = parsePsychTextBlob(raw);
+    const blob = parseWeaverTextBlob(raw);
     expect(blob.candidates).toHaveLength(1);
     expect(blob.candidates[0]!.label).toBe('real-candidate');
     expect(blob.candidates[0]!.thoughts).toEqual(['real thought (assertion 1 WARM)']);
@@ -95,7 +95,7 @@ describe('parsePsychTextBlob — KNOWN parser quirks', () => {
         · middot bullet (entry 2)
 ===TERMINATE===
     no`;
-    const blob = parsePsychTextBlob(raw);
+    const blob = parseWeaverTextBlob(raw);
     expect(blob.candidates[0]!.thoughts).toEqual([
       'bulleted thought (entry 1)',
       'star bullet (assertion 1 WARM)',
@@ -107,19 +107,19 @@ describe('parsePsychTextBlob — KNOWN parser quirks', () => {
     const raw = `===CANDIDATES===
 ===TERMINATE===
     YES, ending here.`;
-    expect(parsePsychTextBlob(raw).terminate).toBe(true);
+    expect(parseWeaverTextBlob(raw).terminate).toBe(true);
   });
 
   it('terminate is FALSE when neither yes nor no is supplied (default-safe)', () => {
     const raw = `===CANDIDATES===
 ===TERMINATE===`;
-    expect(parsePsychTextBlob(raw).terminate).toBe(false);
+    expect(parseWeaverTextBlob(raw).terminate).toBe(false);
   });
 });
 
-describe('parsePsychTextBlob — graceful degradation', () => {
+describe('parseWeaverTextBlob — graceful degradation', () => {
   it('returns empty everything on garbage input', () => {
-    const blob = parsePsychTextBlob('lol');
+    const blob = parseWeaverTextBlob('lol');
     expect(blob.candidates).toEqual([]);
     expect(blob.terminate).toBe(false);
   });
@@ -128,7 +128,7 @@ describe('parsePsychTextBlob — graceful degradation', () => {
     const raw = `===CANDIDATES===
     cand: desc
         thought (entry 1)`;
-    const blob = parsePsychTextBlob(raw);
+    const blob = parseWeaverTextBlob(raw);
     expect(blob.candidates).toHaveLength(1);
     expect(blob.terminate).toBe(false);
   });

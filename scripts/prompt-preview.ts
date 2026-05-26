@@ -14,10 +14,10 @@
 // labels that drift between prompt + state.
 
 import { DETECTIVE_SYSTEM_TEMPLATE } from '../src/pipeline/survey/agents/detective';
-import { PSYCH_SYSTEM_TEMPLATE } from '../src/pipeline/survey/agents/psych';
+import { WEAVER_SYSTEM_TEMPLATE } from '../src/pipeline/survey/agents/weaver';
 import {
-  formatPsychCandidatesForPrompt,
-} from '../src/pipeline/survey/agents/psych/agent';
+  formatWeaverCandidatesForPrompt,
+} from '../src/pipeline/survey/agents/weaver/agent';
 import { COMPILER_SYSTEM, buildCompilerPayload } from '../src/pipeline/survey/agents/compiler';
 import INTENTION_SUGGESTOR_RAW from '../materials/prompts/intention-suggestor.md?raw';
 import { renderTranscript } from '../src/pipeline/survey/transcript';
@@ -64,14 +64,14 @@ function makeState(): EngineState {
     { kind: 'pick', pillar_idx: 3, question: 'where are you, body and mind?', options_shown: ['grounded + present', 'grounded + dissociated', 'numb + present', 'numb + dissociated'], picked: 'numb + present', negative_space: ['grounded + present', 'grounded + dissociated', 'numb + dissociated'], latency_ms: 6100, latency_z: 1.8 },
     { kind: 'pick', pillar_idx: 4, question: "who's the center of your life right now?", options_shown: ['me', 'partner', 'parent or caretaker', 'sibling', 'friend', 'child', 'boss'], picked: 'partner', negative_space: ['me', 'parent or caretaker', 'sibling', 'friend', 'child', 'boss'], latency_ms: 2800, latency_z: -0.2 },
     { kind: 'pick', pillar_idx: 5, question: 'which of these do you want most?', options_shown: ['love', 'freedom', 'wisdom', 'beauty', 'security', 'belonging', 'power'], picked: 'freedom', negative_space: ['love', 'wisdom', 'beauty', 'security', 'belonging', 'power'], latency_ms: 5300, latency_z: 1.4 },
-    // Two assertions + responses to give PSYCH something to chew on.
+    // Two assertions + responses to give WEAVER something to chew on.
     { kind: 'assertion', assertion_idx: 1, statement: 'the part of you that won\'t quit isn\'t afraid of theo\'s reaction. it\'s afraid of who you become if you do.' },
     { kind: 'response', assertion_idx: 1, direction: 'warm', correction: 'less the job, more what staying says about me', latency_ms: 4200 },
     { kind: 'assertion', assertion_idx: 2, statement: 'staying lets you keep being the person who is still figuring it out, instead of the person whose work just is what it is.' },
     { kind: 'response', assertion_idx: 2, direction: 'cold', correction: 'not theo — he wants me to do it', latency_ms: 3800 },
   ];
 
-  const psych_candidates: PotentialDilemma[] = [
+  const weaver_candidates: PotentialDilemma[] = [
     {
       label: 'staying-as-self-protection',
       description: 'the day-job is a hedge against a version of herself she\'s not sure she wants to be',
@@ -121,9 +121,9 @@ function makeState(): EngineState {
       'theo is supportive — the resistance is internal',
     ],
     assertion_queue: [],
-    psych_candidates,
-    psych_terminate: false,
-    psych_run_count: 1,
+    weaver_candidates,
+    weaver_terminate: false,
+    weaver_run_count: 1,
     dilemma: null,
     intention_suggestions: [],
     intention_suggestions_loading: false,
@@ -148,22 +148,22 @@ function renderDetectivePrompt(state: EngineState): string {
     .replace('{{DETECTIVE_THINKING_TRANSCRIPT}}', thinkingSoFar);
 }
 
-function renderPsychPrompt(state: EngineState): string {
+function renderWeaverPrompt(state: EngineState): string {
   const transcript = renderTranscript(state.transcript) || '(no transcript yet)';
   const verbatim = formatVerbatimLog(state.verbatim_log) || '(none)';
   const detectiveHypotheses = state.hypotheses.map((h) => `    ${h}`).join('\n') || '    (none yet)';
-  const psychSoFar = formatPsychCandidatesForPrompt(state.psych_candidates);
-  return PSYCH_SYSTEM_TEMPLATE
+  const weaverSoFar = formatWeaverCandidatesForPrompt(state.weaver_candidates);
+  return WEAVER_SYSTEM_TEMPLATE
     .replace('{{TRANSCRIPT}}', transcript)
     .replace('{{VERBATIM_LOG}}', verbatim)
     .replace('{{DETECTIVE_HYPOTHESES}}', detectiveHypotheses)
-    .replace('{{PSYCH_CANDIDATES_SO_FAR}}', psychSoFar)
-    .replace('{{RUN_IDX}}', String(state.psych_run_count + 1))
+    .replace('{{WEAVER_CANDIDATES_SO_FAR}}', weaverSoFar)
+    .replace('{{RUN_IDX}}', String(state.weaver_run_count + 1))
     .replace('{{RUN_TOTAL}}', '3');
 }
 
 function renderIntentionSuggestorPrompt(state: EngineState, idx: number): string {
-  const c = state.psych_candidates[idx]!;
+  const c = state.weaver_candidates[idx]!;
   const thoughtLines = c.thoughts.map((t) => `    - ${t}`).join('\n');
   const verbatim = formatVerbatimLog(state.verbatim_log) || '(none)';
   return INTENTION_SUGGESTOR_RAW
@@ -207,9 +207,9 @@ function main(): void {
     console.log(renderDetectivePrompt(state));
   }
 
-  if (want('psych')) {
-    banner('PSYCH (Haiku, freeform, run 2/3 — after 2 answered assertions)');
-    console.log(renderPsychPrompt(state));
+  if (want('weaver')) {
+    banner('WEAVER (Haiku, freeform, run 2/3 — after 2 answered assertions)');
+    console.log(renderWeaverPrompt(state));
   }
 
   if (want('intention')) {

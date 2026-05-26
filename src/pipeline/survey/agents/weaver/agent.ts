@@ -1,42 +1,46 @@
-// PSYCH agent — Haiku, freeform text-blob output. Fires every 2 answered
-// assertions during Interrogation. Maintains state.psych_candidates as a
-// small set; engine replaces the set wholesale on each call (re-listing
-// is the vote signal). Also owns the engagement early-out via the
+// WEAVER agent — Haiku, freeform text-blob output. Fires every 2 answered
+// assertions during Interrogation. Maintains state.weaver_candidates as
+// a small set; engine replaces the set wholesale on each call (re-listing
+// is the persistence signal). Also owns the engagement early-out via the
 // TERMINATE section in the output.
+//
+// (Was 'PSYCH' through the compiler-as-sieve wave. Renamed to WEAVER
+// to match the role-coded naming style of detective/compiler/augur/seer
+// — the agent weaves anchored evidence into candidate-dilemma threads.)
 
 import type { LLMAdapter } from '../../../llm/adapter';
-import { PSYCH_SYSTEM_TEMPLATE } from './prompt';
-import { parsePsychTextBlob, type PsychTextBlob } from './parseTextBlob';
+import { WEAVER_SYSTEM_TEMPLATE } from './prompt';
+import { parseWeaverTextBlob, type WeaverTextBlob } from './parseTextBlob';
 import { renderTranscript } from '../../transcript';
 import { formatVerbatimLog } from '../../verbatim-log';
 import type { EngineState, PotentialDilemma } from '../../types';
 
-export type RunPsychArgs = {
+export type RunWeaverArgs = {
   state: EngineState;
-  /** Expected total PSYCH calls across this Interrogation. Surfaced
+  /** Expected total WEAVER calls across this Interrogation. Surfaced
    *  into the prompt for calibration (early = exploratory, late =
    *  consolidate). Computed by the engine from SOFT_CEILING / cadence. */
   run_total: number;
 };
 
-export async function runPsych(
+export async function runWeaver(
   adapter: LLMAdapter,
-  args: RunPsychArgs,
-): Promise<PsychTextBlob> {
+  args: RunWeaverArgs,
+): Promise<WeaverTextBlob> {
   const { state, run_total } = args;
   const transcript = renderTranscript(state.transcript) || '(no transcript yet)';
   const verbatim = formatVerbatimLog(state.verbatim_log) || '(none)';
   const detectiveHypotheses = state.hypotheses.length > 0
     ? state.hypotheses.map((h) => `    ${h}`).join('\n')
     : '    (none yet)';
-  const psychSoFar = formatPsychCandidatesForPrompt(state.psych_candidates);
-  const runIdx = state.psych_run_count + 1;
+  const weaverSoFar = formatWeaverCandidatesForPrompt(state.weaver_candidates);
+  const runIdx = state.weaver_run_count + 1;
 
-  const system = PSYCH_SYSTEM_TEMPLATE
+  const system = WEAVER_SYSTEM_TEMPLATE
     .replace('{{TRANSCRIPT}}', transcript)
     .replace('{{VERBATIM_LOG}}', verbatim)
     .replace('{{DETECTIVE_HYPOTHESES}}', detectiveHypotheses)
-    .replace('{{PSYCH_CANDIDATES_SO_FAR}}', psychSoFar)
+    .replace('{{WEAVER_CANDIDATES_SO_FAR}}', weaverSoFar)
     .replace('{{RUN_IDX}}', String(runIdx))
     .replace('{{RUN_TOTAL}}', String(run_total));
 
@@ -45,16 +49,16 @@ export async function runPsych(
     user: 'continue.',
     model: 'fast',
     max_tokens: 1500,
-    label: 'psych',
+    label: 'weaver',
   });
 
-  return parsePsychTextBlob(raw);
+  return parseWeaverTextBlob(raw);
 }
 
-/** Render the prior candidate set for PSYCH's next call, in the same
+/** Render the prior candidate set for WEAVER's next call, in the same
  *  format the agent emits. Round-trips through the parser. */
-export function formatPsychCandidatesForPrompt(set: PotentialDilemma[]): string {
-  if (set.length === 0) return '    (none yet — first call, build the set from scratch)';
+export function formatWeaverCandidatesForPrompt(set: PotentialDilemma[]): string {
+  if (set.length === 0) return '    (none yet — first call, weave the set from scratch)';
   const lines: string[] = [];
   for (const c of set) {
     lines.push(`    ${c.label}: ${c.description}`);

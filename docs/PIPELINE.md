@@ -4,7 +4,7 @@ Living doc. The source of truth for "what's actually running" — read this
 before reading REFACTOR-V3.md (which is older planning context).
 
 Last meaningful update: compiler-as-sieve + intention-precedes-compiler
-+ PSYCH agent design.
++ WEAVER agent design.
 
 ---
 
@@ -53,9 +53,9 @@ PHASE 3 — INTERROGATION (detective-driven)
     (d) pop queue head
     (e) refillAssertionQueue() refills in background
 
-  PSYCH (shipped) — Haiku, fires every 2 answered assertions in
+  WEAVER (shipped) — Haiku, fires every 2 answered assertions in
     background (~3 calls across the 6-assertion ceiling):
-    state: state.psych_candidates: PotentialDilemma[] =
+    state: state.weaver_candidates: PotentialDilemma[] =
       { label, description, thoughts[] }
     each call: agent rewrites the full set (re-listing same label IS
       the vote — engine never tells the agent about the counter)
@@ -70,16 +70,16 @@ PHASE 3 — INTERROGATION (detective-driven)
 
   Terminates when:
     - voiced_count >= 6 AND queue empty (budget ceiling), OR
-    - PSYCH signals terminate (no convergence + flat engagement)
-  Then → Phase 4. beginIntentionStage awaits PSYCH quiescence before
+    - WEAVER signals terminate (no convergence + flat engagement)
+  Then → Phase 4. beginIntentionStage awaits WEAVER quiescence before
   running the compiler so the candidate set is fresh.
 
 PHASE 4 — INTENTION (between hunt and close)
   User lands on intention input. beginIntentionStage ran
-  applyAlgoExtraction + waitForPsychQuiescence and transitioned to
+  applyAlgoExtraction + waitForWeaverQuiescence and transitioned to
   'awaiting_intention'. Immediately after the transition, the engine
   fires runIntentionSuggestionsTask:
-    - 1 parallel call per PSYCH candidate (typically 2-5)
+    - 1 parallel call per WEAVER candidate (typically 2-5)
     - tier: cognition (Sonnet) — user-visible chip text needs texture
     - each call pushes its result into state.intention_suggestions
       as it lands; UI renders chips incrementally
@@ -91,7 +91,7 @@ PHASE 4 — INTENTION (between hunt and close)
 
 PHASE 5 — COMPILE (compiler-as-sieve, fires inside submitIntention)
   Engine ordering: beginIntentionStage now stops at applyAlgoExtraction
-  + waitForPsychQuiescence and transitions to 'awaiting_intention'.
+  + waitForWeaverQuiescence and transitions to 'awaiting_intention'.
   The compiler does NOT fire here anymore.
 
   When the user submits their intention (submitIntention), the engine
@@ -99,16 +99,16 @@ PHASE 5 — COMPILE (compiler-as-sieve, fires inside submitIntention)
   of the post-intent pipeline — before Augur, before Seer. The compiler
   reads:
     - user_intention (primary filter)
-    - psych_candidates (the small curated set PSYCH built)
+    - weaver_candidates (the small curated set WEAVER built)
     - full unified transcript + verbatim_log
     - detective_hypotheses (advisory)
 
   Three resolution paths (set on the output as resolution_path):
-    (a) matched-candidate    — intent maps cleanly to a PSYCH
+    (a) matched-candidate    — intent maps cleanly to a WEAVER
                                 candidate → write that one in detail
     (b) strongest-candidate  — intent is thin/placeholder → fall back
-                                to the juiciest PSYCH candidate
-    (c) created-from-intent  — intent reveals territory PSYCH +
+                                to the juiciest WEAVER candidate
+    (c) created-from-intent  — intent reveals territory WEAVER +
                                 detective missed → CREATE a new
                                 Dilemma. trust the user.
     (d) null-landing         — session genuinely thin → emit "no
@@ -145,8 +145,8 @@ PHASE 6 — READING (out of scope here)
 |---|---|---|---|
 | algo-seeder | 2 (pillars) | local, deterministic | Per pillar, no LLM — drops Probe seeds onto doc.held from question Inversions. Upgrade pending. |
 | DETECTIVE | 3 (interrogation) | Opus, freeform | Background loop, 3-ahead lookahead, text-blob output |
-| PSYCH | 3 (interrogation) | Haiku | Every 2 answered assertions, curates candidate set, owns terminate signal |
-| INTENTION-SUGGESTOR | 4 (intention) | Sonnet | Parallel — one short-sentence helper per PSYCH candidate, populates intent chips |
+| WEAVER | 3 (interrogation) | Haiku | Every 2 answered assertions, curates candidate set, owns terminate signal |
+| INTENTION-SUGGESTOR | 4 (intention) | Sonnet | Parallel — one short-sentence helper per WEAVER candidate, populates intent chips |
 | COMPILER | 5 (compile) | Opus + ext.thinking | Streams, once-per-session, sieve-shaped |
 | AUGUR | 6 (reading) | Sonnet→Opus | unchanged legacy |
 
@@ -170,7 +170,7 @@ PHASE 6 — READING (out of scope here)
 - **Detective's leading hypothesis is advisory, not binding.** The
   hunter wanting something to be true is not evidence it is.
 - **Engagement read closes the alienation seam.** Phase 3 can't only
-  terminate on budget. PSYCH owns the early-out.
+  terminate on budget. WEAVER owns the early-out.
 - **Compiler creates the Dilemma in light of the user's intention.**
   It is the sieve. The user's intention is the final filter — and a
   passionate intent that the agents missed CAN override the entire
@@ -189,7 +189,7 @@ PHASE 6 — READING (out of scope here)
    materials/survey.md (not engine code), produce structured priors
    downstream agents can read as a lens rather than adopt as truth.
    See "what to brainstorm" memo (off-thread).
-2. **Rename PSYCH → SEEDER**. Functionally PSYCH seeds the dilemma
+2. **Rename WEAVER → SEEDER**. Functionally WEAVER seeds the dilemma
    candidate set that the compiler later sieves — matches the
    role-coded naming (detective, compiler, augur, seer). The Haiku
    noticer that previously held the name is gone.
@@ -198,8 +198,8 @@ PHASE 6 — READING (out of scope here)
    rather than the mostly-empty doc.scaffold. Task #35.
 4. Detective text-blob streaming (debug-only UI affordance) — #34.
 
-Completed in the PSYCH + compiler-as-sieve wave: PSYCH agent (#27),
-PSYCH engagement early-out (#28), pipeline diagram correction (#30),
+Completed in the WEAVER + compiler-as-sieve wave: WEAVER agent (#27),
+WEAVER engagement early-out (#28), pipeline diagram correction (#30),
 compiler-as-sieve refactor (#31), Dilemma document schema (#32),
 intention-suggestion chips (#29). Plus Haiku-seeder deletion +
 parser fuzz suite + prompt audit (#42).

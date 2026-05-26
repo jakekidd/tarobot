@@ -1,7 +1,7 @@
 // Compiler agent (sieve) — public surface.
 //
 // Runs once per session, AFTER the user submits their intention.
-// Reads the unified transcript + PSYCH candidates + user_intention
+// Reads the unified transcript + WEAVER candidates + user_intention
 // and produces the DilemmaDocument the seer consumes. The engine
 // renders it to a markdown anchor for storage + debug + legacy
 // Seer profile path.

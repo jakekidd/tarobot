@@ -4,7 +4,7 @@
 // bigger), but no NOT YET button — by this point the survey is over,
 // the user has to commit a question or statement. The dialogue above
 // carries the prompt; this widget is input + send + (when available)
-// a column of intention-suggestion chips that PSYCH's candidate set
+// a column of intention-suggestion chips that WEAVER's candidate set
 // produced. Chip click submits directly; user can also type their
 // own.
 //

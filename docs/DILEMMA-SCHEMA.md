@@ -60,8 +60,8 @@ DomainTag =
   | 'family' | 'self' | 'mortality' | 'meaning';
 
 ResolutionPath =
-  | 'matched-candidate'      // intent matched a PSYCH candidate → write that Dilemma
-  | 'strongest-candidate'    // intent was nonsense → fall back to juiciest PSYCH candidate
+  | 'matched-candidate'      // intent matched a WEAVER candidate → write that Dilemma
+  | 'strongest-candidate'    // intent was nonsense → fall back to juiciest WEAVER candidate
   | 'created-from-intent'    // intent revealed something agents missed → new Dilemma
   | 'null-landing';          // no Dilemma resolved; null_landing must also be true
 ```
@@ -181,11 +181,11 @@ Discipline:
 
 ### `resolution_path`
 Provenance — which of the three sieve paths fired:
-1. `matched-candidate` — intent landed on a PSYCH candidate; compiler
+1. `matched-candidate` — intent landed on a WEAVER candidate; compiler
    wrote that one out in detail.
 2. `strongest-candidate` — intent was thin/nonsense; compiler fell
-   back to the juiciest PSYCH candidate.
-3. `created-from-intent` — intent revealed territory PSYCH + detective
+   back to the juiciest WEAVER candidate.
+3. `created-from-intent` — intent revealed territory WEAVER + detective
    missed; compiler built the Dilemma from the intent text. Trust the
    user's signal over the agents' coverage.
 4. `null-landing` — paired with `null_landing === true`.

@@ -29,8 +29,8 @@ function humanizeError(raw: string): string {
   if (/^\s*detective\b|detective pass failed|detective_text/i.test(raw)) {
     return 'the detective\'s output didn\'t parse';
   }
-  if (/^\s*psych\b|psych pass failed/i.test(raw)) {
-    return 'the psych curator stumbled';
+  if (/^\s*weaver\b|weaver pass failed/i.test(raw)) {
+    return 'the weaver stumbled';
   }
   if (/compiler_write_dilemma|compiler failed/i.test(raw)) {
     return 'the compiler couldn\'t resolve a dilemma';

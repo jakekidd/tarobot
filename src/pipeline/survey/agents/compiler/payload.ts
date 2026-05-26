@@ -1,5 +1,5 @@
 // Compiler input payload builder. Runs once per session, AFTER the
-// user has submitted their intention. The user_intention + PSYCH
+// user has submitted their intention. The user_intention + WEAVER
 // candidate set are the primary inputs — the compiler is now a sieve
 // that picks (or builds) one Dilemma from the candidate set in light
 // of what the user said they came to ask about.
@@ -37,10 +37,10 @@ export function buildCompilerPayload(args: CompilerPayloadArgs): unknown {
     })),
     // Primary filter signal — what the user said they came to ask.
     user_intention,
-    // Primary candidate set — PSYCH's curated dilemmas with their
+    // Primary candidate set — WEAVER's curated dilemmas with their
     // evidence-anchored thoughts. The compiler picks one (or builds a
-    // new one when the intent reveals what PSYCH missed).
-    psych_candidates: state.psych_candidates,
+    // new one when the intent reveals what WEAVER missed).
+    weaver_candidates: state.weaver_candidates,
     // The unified narrative — pillars, seeder observations, assertions
     // and the user's WARM/COLD responses (with corrections) in
     // chronological order.
@@ -48,7 +48,7 @@ export function buildCompilerPayload(args: CompilerPayloadArgs): unknown {
     verbatim_log: state.verbatim_log.map(toVerbatimItem),
     verbatim_log_formatted: formatVerbatimLog(state.verbatim_log),
     // Advisory — the detective's last hypothesis list. The compiler
-    // should not adopt these unless warmth or PSYCH backs them.
+    // should not adopt these unless warmth or WEAVER backs them.
     detective_hypotheses: state.hypotheses,
     doc_v: state.doc.v,
   };
