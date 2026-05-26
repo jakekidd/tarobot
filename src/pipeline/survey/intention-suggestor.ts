@@ -42,14 +42,17 @@ export async function runIntentionSuggestor(
     user: 'continue.',
     model: 'cognition',
     max_tokens: 150,
+    label: 'intention_suggestor',
   });
 
   return cleanupSuggestion(raw);
 }
 
 /** Strip model wrappers: leading bullets/quotes/preamble, trailing
- *  whitespace. Returns the first non-empty cleaned line. */
-function cleanupSuggestion(raw: string): string {
+ *  whitespace. Returns the first non-empty cleaned line. Exported for
+ *  unit testing — the per-line tolerance for model variability lives
+ *  here and benefits from explicit coverage. */
+export function cleanupSuggestion(raw: string): string {
   for (const line of raw.split('\n')) {
     const trimmed = line
       .trim()

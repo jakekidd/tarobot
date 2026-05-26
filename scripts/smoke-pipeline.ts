@@ -220,7 +220,7 @@ async function runOne(adapter: AnthropicAdapter, runIdx: number, totalRuns: numb
         sample: lines.slice(0, 4).join('\n'),
       });
     } catch (e) {
-      results.push({ name: 'SEEDER', pass: false, ms: 0, detail: `threw: ${String(e).slice(0, 80)}` });
+      results.push({ name: 'SEEDER', pass: false, ms: 0, detail: `threw: ${String(e).slice(0, 400)}` });
     }
   }
 
@@ -269,7 +269,7 @@ async function runOne(adapter: AnthropicAdapter, runIdx: number, totalRuns: numb
         };
       }
     } catch (e) {
-      results.push({ name: `DETECTIVE pass ${pass}`, pass: false, ms: 0, detail: `threw: ${String(e).slice(0, 80)}` });
+      results.push({ name: `DETECTIVE pass ${pass}`, pass: false, ms: 0, detail: `threw: ${String(e).slice(0, 400)}` });
       break;
     }
   }
@@ -297,7 +297,7 @@ async function runOne(adapter: AnthropicAdapter, runIdx: number, totalRuns: numb
       });
       state = { ...state, psych_candidates: blob.candidates, psych_terminate: blob.terminate, psych_run_count: state.psych_run_count + 1 };
     } catch (e) {
-      results.push({ name: 'PSYCH', pass: false, ms: 0, detail: `threw: ${String(e).slice(0, 80)}` });
+      results.push({ name: 'PSYCH', pass: false, ms: 0, detail: `threw: ${String(e).slice(0, 400)}` });
     }
   }
 
@@ -357,7 +357,7 @@ async function runOne(adapter: AnthropicAdapter, runIdx: number, totalRuns: numb
           doc.critical_hypotheses.slice(0, 2).map((h) => `  - ${h.claim} _(${h.confidence})_\n    evidence: ${h.evidence}`).join('\n'),
       });
     } catch (e) {
-      results.push({ name: 'COMPILER', pass: false, ms: 0, detail: `threw: ${String(e).slice(0, 80)}` });
+      results.push({ name: 'COMPILER', pass: false, ms: 0, detail: `threw: ${String(e).slice(0, 400)}` });
     }
   }
 

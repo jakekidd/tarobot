@@ -53,6 +53,7 @@ export async function runSeeder(
     user: 'continue.',
     model: 'fast',
     max_tokens: 600,
+    label: 'seeder',
   });
 
   return parseSeederLines(raw);

@@ -100,16 +100,17 @@ describe('SurveyEngine — opener flow', () => {
     expect(engine.getState().profile.name).toBe('jake');
   });
 
-  it('seeds the post-opener queue after the last opener (Pillars + random pool)', async () => {
+  it('seeds the post-opener queue with pillars after the last opener', async () => {
     const engine = makeEngine();
     await engine.submitAnswer('jake');
     await engine.submitAnswer('1990-01-15');
     await engine.submitAnswer('single');
     await engine.submitAnswer('what should i do?');
     const queue = engine.getState().queue;
-    // Pillars (8 from materials/survey.md) + 12 random pool = 20.
-    // We just assert it's non-trivially seeded.
-    expect(queue.length).toBeGreaterThanOrEqual(8);
+    // Post-interrogation-pivot: pillars only (5 currently in
+    // materials/survey.md after dropping the fork dichotomy). Random
+    // pool was retired from first-time visits. Assert non-trivial.
+    expect(queue.length).toBeGreaterThanOrEqual(5);
   });
 });
 
@@ -239,7 +240,7 @@ describe('SurveyEngine — relationship_pick parsing', () => {
 });
 
 describe('SurveyEngine — pipeline path (with FakeAdapter)', () => {
-  it('fires observer + detective on post-opener picks (non-returning)', async () => {
+  it('fires the seeder (freeform Haiku) on the first pillar pick', async () => {
     const adapter = makeAdapter();
     const engine = makeEngine({ adapter });
     await engine.submitAnswer('jake');
@@ -249,12 +250,12 @@ describe('SurveyEngine — pipeline path (with FakeAdapter)', () => {
     // First post-opener pick: the first Pillar.
     const q = engine.getCurrentQuestion()!;
     await engine.submitAnswer(q.options[0] ?? 'mind');
-    // Wait for spawned promises to resolve.
-    await new Promise((r) => setTimeout(r, 0));
-    // Should have called both observer + detective at least once.
-    const toolNames = adapter.calls.map((c) => c.tool);
-    expect(toolNames).toContain('observer_metabolize');
-    expect(toolNames).toContain('detective_step');
+    // Background pipeline. Wait for the freeform call to resolve.
+    await engine.waitForQuiescence();
+    // Post-interrogation-pivot: only the seeder fires during pillars
+    // (Haiku freeform). Observer + detective tool calls are gone.
+    expect(adapter.freeformCalls.length).toBeGreaterThan(0);
+    expect(adapter.calls.map((c) => c.tool)).not.toContain('observer_metabolize');
   });
 
   it('returning-user lite mode skips BOTH observer + detective', async () => {

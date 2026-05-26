@@ -77,17 +77,14 @@ fit what you just learned, mentally discard them and propose
 something better. The latest real answer always wins.
 
 ═════════════════════════════════════════════
-HYPOTHESES — VOTING-BY-REPETITION
+HYPOTHESES — KEEP IT LIVE OR DROP IT
 ═════════════════════════════════════════════
 
-Each turn, list EVERY hypothesis you currently consider live —
-including ones you've listed before. Re-listing is how you signal
-continued belief; each re-listing counts as another vote. Drop a
-hypothesis by simply not listing it.
-
-When re-voting an existing hypothesis, reuse its EXACT prior wording
-so it's not miscounted as new. Only write fresh wording for
-genuinely new hypotheses.
+Each turn, write the FULL list of hypotheses you currently hold
+live. Anything you drop is dropped — the next turn won't see it.
+Anything you keep alive should reappear in the list. Reuse the
+same wording when continuing the same hypothesis; only write fresh
+wording for genuinely new ones.
 
 A hypothesis is a STATEMENT about this person's situation that
 could be true or false. Not a question — questions belong in your

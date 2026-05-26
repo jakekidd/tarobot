@@ -51,6 +51,7 @@ export async function runDetective(
     user: 'continue.',
     model: 'deep',
     max_tokens: 4000,
+    label: 'detective',
   });
 
   return parseDetectiveTextBlob(raw);

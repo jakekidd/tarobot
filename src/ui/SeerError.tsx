@@ -23,11 +23,17 @@ function humanizeError(raw: string): string {
   if (/prepare_set/i.test(raw)) {
     return 'the seer stumbled while preparing a card';
   }
-  if (/observer_metabolize|profile_body/i.test(raw)) {
-    return 'the observer\'s notes came back malformed';
+  if (/^\s*seeder\b|seeder failed/i.test(raw)) {
+    return 'the seeder\'s notes came back malformed';
   }
-  if (/detective_step/i.test(raw)) {
+  if (/^\s*detective\b|detective pass failed|detective_text/i.test(raw)) {
     return 'the detective\'s output didn\'t parse';
+  }
+  if (/^\s*psych\b|psych pass failed/i.test(raw)) {
+    return 'the psych curator stumbled';
+  }
+  if (/compiler_write_dilemma|compiler failed/i.test(raw)) {
+    return 'the compiler couldn\'t resolve a dilemma';
   }
   if (/intro|director_intro/i.test(raw)) {
     return 'the seer couldn\'t compose her opening';

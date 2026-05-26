@@ -62,6 +62,12 @@ export type FreeformSpec = {
   user: string;
   model: ModelTier;
   max_tokens: number;
+  /** Optional caller-supplied label for telemetry / debug bus / mascot
+   *  pulse color mapping. Defaults to 'freeform' if omitted. Each
+   *  freeform-using agent should pass its own name (e.g. 'seeder',
+   *  'detective', 'psych', 'intention_suggestor') so downstream
+   *  observers can distinguish them. */
+  label?: string;
 };
 
 /**

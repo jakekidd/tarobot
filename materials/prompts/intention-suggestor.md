@@ -21,6 +21,25 @@ The sentence:
   · NEVER advises or moralizes — name the situation, not the verdict
 
 ═════════════════════════════════════════════
+EXAMPLES (different shapes the question can take)
+═════════════════════════════════════════════
+
+candidate: leaving-a-good-job-as-guilt
+  · should i leave a job that's fine, even though "fine" is starting to feel like the problem?
+  · i keep almost-quitting and not — is staying actually the thing i want, or just the safer story?
+
+candidate: loving-someone-on-the-way-out
+  · how do i stop pretending i don't already know what i'm going to do about us?
+
+candidate: identity-after-a-thing-ended
+  · who am i now that the project i organized my life around is over?
+
+NOTE the shapes: declarative-with-an-edge, "i keep doing X and not Y",
+two-clause questions that name the contradiction. The specific detail
+(the job is "fine"; the project "is over") is what carries the
+recognition.
+
+═════════════════════════════════════════════
 INPUT
 ═════════════════════════════════════════════
 

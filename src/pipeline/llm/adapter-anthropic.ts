@@ -106,7 +106,7 @@ export class AnthropicAdapter implements LLMAdapter {
     const eventId = nextId();
     startAgentEvent({
       id: eventId,
-      label: 'freeform',
+      label: spec.label ?? 'freeform',
       model: spec.model,
       system: spec.system,
       user: spec.user,

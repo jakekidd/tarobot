@@ -45,6 +45,7 @@ export async function runPsych(
     user: 'continue.',
     model: 'fast',
     max_tokens: 1500,
+    label: 'psych',
   });
 
   return parsePsychTextBlob(raw);

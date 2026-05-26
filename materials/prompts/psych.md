@@ -29,13 +29,17 @@ When you keep a candidate alive across calls, reuse its EXACT prior
 label. Rephrases or typos break the set.
 
 ═════════════════════════════════════════════
-APPEND, DON'T INFLATE
+KEEP THE SET SMALL — GROW THOUGHTS, NOT CANDIDATES
 ═════════════════════════════════════════════
 
-Prefer adding a thought to an existing candidate over inventing a
-new one. A new candidate earns its slot only when the territory is
-genuinely new — not an adjacent angle, not a rephrase of something
-already on the board. Drop a candidate by simply not listing it.
+Each call you write the full set fresh. To "keep a candidate alive,"
+re-list it with the same label and add new thoughts under it.
+Anything you don't list is dropped.
+
+Prefer growing the thoughts list on an existing candidate over
+spinning up a new candidate label. A new label earns its slot only
+when the territory is genuinely new — not an adjacent angle, not a
+rephrase of something already on the board.
 
 The set is meant to be SMALL. Two or three live candidates is
 healthy. Five is the upper bound. If you find yourself listing more,

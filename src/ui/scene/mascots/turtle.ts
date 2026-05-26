@@ -112,28 +112,34 @@ const WANDER_X_FREQ = 0.50;   // rad/sec
 const WANDER_Y_FREQ = 0.37;
 
 // ─── Pulse system (heartbeat-shaped wave fired on AI returns) ─
-// Per-agent color hints. Keys are tool names from agentActivityBus
-// (matches the OBSERVER_TOOL.name / DETECTIVE_TOOL.name / etc. in
-// agents/*/prompt.ts). Resilient to unknown labels via
-// DEFAULT_PULSE_COLOR — if an agent gets renamed or a new one
-// added, the pulse still fires with a neutral tint instead of
-// throwing or going silent.
+// Per-agent color hints. Keys are labels from agentActivityBus —
+// either tool names for invoke/invokeStreaming (e.g.
+// 'compiler_write_dilemma') or the explicit `label` each freeform
+// agent now passes (post-interrogation-pivot: every freeform call
+// used to collapse to 'freeform' and pulse identically; agents now
+// self-identify). Resilient via DEFAULT_PULSE_COLOR — unknown labels
+// pulse a neutral tint instead of going silent.
 const AGENT_PULSE_COLORS: Record<string, [number, number, number]> = {
-  observer_metabolize:    [0.45, 0.95, 0.55],   // turtle green
-  detective_step:         [0.70, 0.50, 1.00],   // eye violet
-  crowd_decoys:           [0.30, 0.95, 0.85],   // turquoise (fast tier)
-  interrogator_phrase:    [0.55, 0.90, 0.95],   // pale cyan (fast tier)
-  augur_outline:          [1.00, 0.65, 0.45],   // amber (close-of-survey)
-  freeform:               [1.00, 0.55, 0.40],   // deeper amber (augur fill)
+  // Survey-side freeform agents (post-pivot).
+  seeder:                       [0.45, 0.95, 0.55],   // turtle green (Phase 2 quiet noticer)
+  detective:                    [0.70, 0.50, 1.00],   // eye violet  (Phase 3 hunter)
+  psych:                        [0.30, 0.95, 0.85],   // turquoise   (Phase 3 curator)
+  intention_suggestor:          [0.55, 0.90, 0.95],   // pale cyan   (Phase 4 chip helper)
+  // Tool-based agents (kept as last-known names).
+  augur_outline:                [1.00, 0.65, 0.45],   // amber (close-of-survey)
+  compiler_write_dilemma:       [0.85, 0.70, 1.00],   // dusky violet (sieve)
+  'compiler_write_dilemma [stream]': [0.85, 0.70, 1.00],
+  // Fallback for any agent that doesn't pass a label.
+  freeform:                     [1.00, 0.55, 0.40],   // deeper amber (augur fill)
   // Seer-side agents — useful if pulses ever fire during reading.
-  director_intro:         [0.78, 0.60, 1.00],   // violet
-  director_per_card:      [0.78, 0.60, 1.00],
-  director_closing:       [0.78, 0.60, 1.00],
-  actor_intro:            [0.95, 0.80, 0.55],   // candle warm
-  actor_per_card:         [0.95, 0.80, 0.55],
-  actor_closing:          [0.95, 0.80, 0.55],
-  actor_chat:             [0.95, 0.80, 0.55],
-  mantra:                 [0.85, 0.55, 0.95],   // mantra magenta
+  director_intro:               [0.78, 0.60, 1.00],   // violet
+  director_per_card:            [0.78, 0.60, 1.00],
+  director_closing:             [0.78, 0.60, 1.00],
+  actor_intro:                  [0.95, 0.80, 0.55],   // candle warm
+  actor_per_card:               [0.95, 0.80, 0.55],
+  actor_closing:                [0.95, 0.80, 0.55],
+  actor_chat:                   [0.95, 0.80, 0.55],
+  mantra:                       [0.85, 0.55, 0.95],   // mantra magenta
 };
 const DEFAULT_PULSE_COLOR: [number, number, number] = [0.55, 0.80, 1.00];
 
