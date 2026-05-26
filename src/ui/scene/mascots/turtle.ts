@@ -344,6 +344,15 @@ export function createTurtleMascot(): Mascot {
   // uniform. CPU cost per frame = one uniform write; GPU cost is a
   // single sin + mix per fragment.
   const bodyTimeUniform = { value: 0 };
+  // Pulse-flash uniforms (post-pulse-refactor): the body lights up briefly
+  // in the agent's tint when a pulse fires. Replaces the prior star-wide
+  // wavefront. uPulseFlashTime stores the scene-relative time the pulse
+  // started; uPulseFlashColor the agent tint; uPulseFlashIntensity scales
+  // how much the body brightens. The fragment shader decays this over
+  // ~0.9 seconds with an exp() envelope.
+  const bodyPulseFlashTime = { value: -1e9 };
+  const bodyPulseFlashColor = { value: new THREE.Color(1, 1, 1) };
+  const bodyPulseFlashIntensity = { value: 0 };
   const bodyMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
   bodyMat.onBeforeCompile = (shader) => {
     shader.uniforms.uTime = bodyTimeUniform;
@@ -353,6 +362,9 @@ export function createTurtleMascot(): Mascot {
     shader.uniforms.uBandFreq = { value: GRADIENT_BAND_FREQ };
     shader.uniforms.uSpeed = { value: GRADIENT_SPEED };
     shader.uniforms.uFacetStrength = { value: FACET_STRENGTH };
+    shader.uniforms.uPulseFlashTime = bodyPulseFlashTime;
+    shader.uniforms.uPulseFlashColor = bodyPulseFlashColor;
+    shader.uniforms.uPulseFlashIntensity = bodyPulseFlashIntensity;
     shader.vertexShader = shader.vertexShader
       .replace(
         '#include <common>',
@@ -375,6 +387,9 @@ export function createTurtleMascot(): Mascot {
          uniform float uFacetStrength;
          uniform float uDissolveCutoffY;
          uniform float uDissolveMode;
+         uniform float uPulseFlashTime;
+         uniform vec3 uPulseFlashColor;
+         uniform float uPulseFlashIntensity;
          varying vec3 vLocalPos;`,
       )
       .replace(
@@ -404,6 +419,18 @@ export function createTurtleMascot(): Mascot {
          vec3 facetN = normalize(cross(dFdx(vLocalPos), dFdy(vLocalPos)));
          float facetShade = 1.0 - uFacetStrength * (0.5 - clamp(facetN.y * 0.5 + 0.5, 0.0, 1.0));
          base *= facetShade;
+
+         // ── Pulse flash — agent-tint bloom across the body ──
+         // exp decay envelope: rises fast in the first ~120ms, decays
+         // over ~900ms. Multiplicative so dark facets don't blow out.
+         float pulseT = uTime - uPulseFlashTime;
+         float pulseEnv = 0.0;
+         if (pulseT >= 0.0 && pulseT < 1.5) {
+           float rise = clamp(pulseT / 0.12, 0.0, 1.0);
+           float decay = exp(-pulseT * 2.4);
+           pulseEnv = rise * decay * uPulseFlashIntensity;
+         }
+         base += uPulseFlashColor * pulseEnv * 0.85;
 
          diffuseColor.rgb = base;`,
       );
@@ -1272,15 +1299,23 @@ export function createTurtleMascot(): Mascot {
     lastPulseFiredAt = ctx.t;
     const tinted = next.agentLabel ? AGENT_PULSE_COLORS[next.agentLabel] : undefined;
     const color: [number, number, number] = tinted ?? DEFAULT_PULSE_COLOR;
-    // World position of the turtle at fire time. Stars live in the
-    // ortho scene's world coord system; positionGroup applies the
-    // anchor placement that the mascot is parented under.
+    const intensity = next.intensity ?? DEFAULT_PULSE_INTENSITY;
+    // Body flash — the visible pulse now lives on the mascot itself.
+    // Shader reads these three uniforms and renders a brief bloom in
+    // the agent tint. Replaces the prior star-wide wavefront.
+    bodyPulseFlashTime.value = ctx.t;
+    bodyPulseFlashColor.value.setRGB(color[0], color[1], color[2]);
+    bodyPulseFlashIntensity.value = intensity;
+    // Audio — the wooom subscriber in TarobotScene listens for this.
+    // origin is unused now that there's no star-side visual, but kept
+    // on the Pulse type for backward compatibility / audio panning
+    // affordances.
     group.getWorldPosition(pulseWorldPos);
     firePulse({
       startTime: ctx.t,
       origin: { x: pulseWorldPos.x, y: pulseWorldPos.y },
       color,
-      intensity: next.intensity ?? DEFAULT_PULSE_INTENSITY,
+      intensity,
     });
   }
 

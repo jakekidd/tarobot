@@ -58,22 +58,21 @@ A few rules so the parser doesn't bite you:
 
 ## Pillars
 
-The six always-asked questions, in fixed order. The arc moves from
+The five always-asked questions, in fixed order. The arc moves from
 external grounding (basics) inward through attachment activation and
-somatic baseline, then through anchor and values, and lands on the
-live fork as the climax.
+somatic baseline, then through relational anchor and values. The live
+fork is NO LONGER a pillar — the detective surfaces it via assertions
+during Interrogation, which is both gentler (one fork at a time,
+warm/cold response) and higher-signal (the agent picks the live
+fork rather than asking the user to declare it from a 9x2 matrix).
 
-Authoring note (v3.1 reorg): the pillars were reorganized around
-discriminative axes — attachment activation, somatic baseline, and
-contextual grounding (basics) replaced tarot fluency, spiritual
-register, and mind/heart/gut decision-making. Six pillars total.
-The cut-three / add-three math was deliberate; we kept the relational
-anchor (now `center_of_life`, plural-picks-friendly), kept value_most
-(added `belonging`), and kept the live fork as the closer. The
-Cleo-detector role (true-empty / reinforcement case) moves into the
-detective's null-routing signals — it's not a pillar question
-anymore; the engine reads it from the absence-of-traction across the
-content-level signals (signals.ts).
+Authoring note (v3.1 reorg, post-pivot): pillars were reorganized
+around discriminative axes — attachment activation, somatic baseline,
+and contextual grounding (basics) replaced tarot fluency, spiritual
+register, and mind/heart/gut decision-making. The 9-row dichotomy
+picker ("which one is your question right now?") was the climactic
+6th pillar in v3.1; it was retired when the detective shipped because
+the dichotomy IS what the detective is hunting. Five pillars total.
 
 NOTE on `center_of_life`: the question authors as plural-friendly,
 but the current RelationshipPickForm UI is single-pick only. Plural
@@ -143,11 +142,11 @@ Probe:
   Inversions: the user picks the central CastMember. absence or distance from later answers is data. picking "ex" or "someone i used to know" instead of a current bond is a tell about where the gravity actually is. when plural picks become available: picking a plural anchor when individuals were also offered is a tell that the self is collectivist-shaped or that no single individual carries the weight.
   Watch for: if this pick doesn't reappear in later relational answers, the bond is aspirational, strained, or under-functioning. if it reappears in shadow or insecurity contexts, the bond is conflicted. for plural picks (when supported): probe which member of the unit is most active right now.
 
-### Which of these do you value most?
+### Which of these do you want most?
 
 Format: choice
 Probe:
-  Surface: what they will sacrifice OTHERS for. abstract priorities collapse the rest of the survey through this lens.
+  Surface: what they will sacrifice OTHERS for. abstract priorities collapse the rest of the survey through this lens. framing-note: "want" beats "value" here — "value" pulls toward performed virtue (people answer with what they think they should value); "want" is appetitive and harder to perform humility on, so the answer points closer to the actual altar.
   Inversions: strong values invert to corresponding fears — love → fear of being unlovable / abandoned; freedom → fear of constraint / entrapment; wisdom → fear of being foolish / deceived; beauty → fear of decay / irrelevance / invisibility; security → fear of chaos / things falling apart; power → fear of powerlessness / humiliation; belonging → fear of being cast out / not enough for the group. seed the inverted fear as tentative; later answers either confirm or complicate.
   Framing helper (DFW worship thesis — internal context for detective/profiler, NOT user-facing): everyone worships; the only choice is what. money worship → worth-output equation; intellect → rationalism as armor; beauty → fear of decay; power → fear of powerlessness; love → fear of being unlovable; freedom → fear of constraint; wisdom → fear of being foolish; security → fear of chaos; belonging → identity-as-membership, fear of exile. the user's pick is the altar.
   Watch for: this is the spine — read every later answer through this lens. a user who picks "belonging" plus a relational anchor that's plural-coded (when plural picks land) is collectivist-coded; do not treat "belonging" as a deficit value, treat it as a different motivational structure.
@@ -159,24 +158,6 @@ Options:
   - security
   - belonging
   - power
-
-### Which one is your question right now?
-
-Format: fork
-Probe:
-  Surface: the live fork the user is standing inside — both side AND being stuck-between are diagnostic.
-  Inversions: each pick seeds a specific suspicion. risk = there's a leap they keep not taking; hold = there's a leap they keep almost taking. stay = there's an exit they're not letting themselves see; go = there's a commitment they've already psychologically left. fit = there's a part of them their people don't know; break = they've broken out and aren't sure if it was worth it. continue = the trajectory is set but no longer chosen; change = mid-arc collapse of a previous identity. close = they wall up because someone got too close; open = someone is waiting at the wall. resist = the thing they're fighting may be themselves; accept = they've started surrendering, unsure if it's wisdom or giving up. control = systemic dread is masking a local choice; surrender = already-burned, looking for what's worth saving. later = they're about to do something irreversible; now = a window is closing they can feel but not name. silence = there's something specific being unsaid to a specific person; speak = they spoke up recently and aren't sure if it was right. bar (stuck-between) = the most diagnostically loaded — they're not committed to a side, the fork is acute.
-  Watch for: if the user picks the bar (stuck-between), weight the fork as the SPINE of the reading. cross-reference with center_of_life (whose voice is on either side of this fork). a continue/change pick weights the vocational neighborhood; a close/open or fit/break pick weights the relational neighborhood.
-Options:
-  - risk | hold
-  - stay | go
-  - fit | break
-  - continue | change
-  - close | open
-  - resist | accept
-  - control | surrender
-  - later | now
-  - silence | speak
 
 ---
 

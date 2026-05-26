@@ -1,19 +1,14 @@
 // Content-level dead-end detection.
 //
-// v3 §9 of REFACTOR-V3.md: the engagement-trajectory scalar is killed
-// (latency is pure noise in a virtual / phone medium). Dead-end
-// detection moves to content-level signals — facts about the answer
-// stream itself, not behavioral telemetry.
-//
-// Three detectors land here. Distribution flatness has a real Phase 2
-// signal source (the coverage map). None-streak and rejection-without-
-// correction-streak require Phase 3 instruments (forced_choice_with_none
-// and assertion) — they're wired as no-ops for now and become live
-// when Phase 3 starts populating the underlying counters.
+// Engagement detection has largely moved to PSYCH (state.psych_terminate
+// fires when no candidate gains weight AND user goes flat). The three
+// content-level detectors here are kept as a secondary safety net for
+// the dead-end gate in beginIntentionStage — none currently fire because
+// their data sources (coverage map + Phase 3 instrument counters) were
+// retired in the interrogation pivot. Left as scaffolding for the
+// eventual smoke-test rig + future signal sources.
 //
 // All detectors are pure. Pass them snapshots; they return booleans.
-// Thresholds are tuneable constants here — start conservative, adjust
-// on observation.
 
 import type { CoverageMap } from './living-doc';
 import type { PickEvent } from './types';

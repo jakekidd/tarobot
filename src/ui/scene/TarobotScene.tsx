@@ -534,79 +534,11 @@ export function TarobotScene() {
       map: particleTex,
     });
 
-    // ─── Pulse uniforms (heartbeat wave through stars) ──
-    // Up to MAX_PULSES concurrent pulses. Each slot is (startTime,
-    // originX, originY, intensity); slot's color in uPulseColors[i].
-    // Inactive slots have intensity = 0 and are skipped in the shader.
-    // pulseStore subscriber below rotates new pulses into the next
-    // slot (ring-buffer).
-    const MAX_PULSES = 3;
-    const pulseUniformData: THREE.Vector4[] = Array.from({ length: MAX_PULSES }, () => new THREE.Vector4(0, 0, 0, 0));
-    const pulseColorData: THREE.Vector3[] = Array.from({ length: MAX_PULSES }, () => new THREE.Vector3(0, 0, 0));
-    const pulseTime = { value: 0 };
-    // Patch the points material to displace + brighten + tint stars
-    // near each active pulse's wave front. Shader chunks are
-    // PointsMaterial-specific; injecting after the standard chunks
-    // keeps the base behavior intact.
-    particleMat.onBeforeCompile = (shader) => {
-      shader.uniforms.uPulseTime = pulseTime;
-      shader.uniforms.uPulses = { value: pulseUniformData };
-      shader.uniforms.uPulseColors = { value: pulseColorData };
-      shader.uniforms.uPulseSpeed = { value: 220.0 };       // world units/sec
-      shader.uniforms.uPulseFalloff = { value: 0.00060 };   // 1/(2σ²), wider = thicker wave front
-      shader.uniforms.uPulseDispAmp = { value: 5.0 };       // max star displacement (world units)
-      shader.vertexShader = shader.vertexShader
-        .replace(
-          '#include <common>',
-          `#include <common>
-           uniform float uPulseTime;
-           uniform vec4 uPulses[${MAX_PULSES}];
-           uniform vec3 uPulseColors[${MAX_PULSES}];
-           uniform float uPulseSpeed;
-           uniform float uPulseFalloff;
-           uniform float uPulseDispAmp;
-           varying vec3 vPulseTint;
-           varying float vPulseGlow;`,
-        )
-        .replace(
-          '#include <begin_vertex>',
-          `#include <begin_vertex>
-           vec3 tint = vec3(0.0);
-           float glow = 0.0;
-           for (int i = 0; i < ${MAX_PULSES}; i++) {
-             float inten = uPulses[i].w;
-             if (inten <= 0.0) continue;
-             float startT = uPulses[i].x;
-             vec2 origin = uPulses[i].yz;
-             vec2 toStar = transformed.xy - origin;
-             float d = length(toStar);
-             float front = (uPulseTime - startT) * uPulseSpeed;
-             float dFront = d - front;
-             float env = exp(-dFront * dFront * uPulseFalloff) * inten;
-             // Radial outward displacement at the wave front.
-             vec2 dir = d > 0.001 ? toStar / d : vec2(0.0);
-             transformed.xy += dir * env * uPulseDispAmp;
-             glow += env;
-             tint += uPulseColors[i] * env;
-           }
-           vPulseTint = tint;
-           vPulseGlow = glow;`,
-        );
-      shader.fragmentShader = shader.fragmentShader
-        .replace(
-          '#include <common>',
-          `#include <common>
-           varying vec3 vPulseTint;
-           varying float vPulseGlow;`,
-        )
-        .replace(
-          '#include <color_fragment>',
-          `#include <color_fragment>
-           // Brightness boost + color tint co-located with the wave.
-           diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb + vPulseTint * 0.9, clamp(vPulseGlow * 1.4, 0.0, 1.0));
-           diffuseColor.rgb *= (1.0 + clamp(vPulseGlow, 0.0, 1.0) * 0.55);`,
-        );
-    };
+    // Pulse used to inject a star-wide wavefront here (displacement +
+    // tint + glow on the points shader). It read as too theatrical for
+    // what is meant to be a quiet "AI returned" signal. The pulse is
+    // now mascot-focused: the turtle body flashes the agent color on
+    // its own shader. The audio wooom stays, co-located with the flash.
 
     const particles = new THREE.Points(particleGeom, particleMat);
     particleGroup.add(particles);
@@ -655,15 +587,10 @@ export function TarobotScene() {
       pulseAudioCtx = null;
     }
 
-    // Pulse subscriber: rotate incoming pulses through a ring buffer
-    // of MAX_PULSES uniform slots. New pulse displaces the oldest.
-    let pulseRingIdx = 0;
+    // Pulse subscriber: the visual lives on the turtle body now (color
+    // flash via its own shader). Here we just play the wooom co-located
+    // with whatever the mascot is doing visually.
     const unsubscribePulse = subscribePulse((p: Pulse) => {
-      const slot = pulseRingIdx % MAX_PULSES;
-      pulseUniformData[slot]!.set(p.startTime, p.origin.x, p.origin.y, p.intensity);
-      pulseColorData[slot]!.set(p.color[0], p.color[1], p.color[2]);
-      pulseRingIdx = (pulseRingIdx + 1) % MAX_PULSES;
-      // Sound: low wooom co-located with the visual.
       playPulseSound(p);
     });
 
@@ -1094,7 +1021,6 @@ export function TarobotScene() {
       const dt = Math.min((now - lastFrameMs) / 1000, 0.05);
       lastFrameMs = now;
       const t = (now - start) / 1000;
-      pulseTime.value = t;             // star shader reads scene-relative seconds
 
       // ── Anchor → screen position + scale (with one-shot zoom-in) ──
       const anchor = getAnchor();

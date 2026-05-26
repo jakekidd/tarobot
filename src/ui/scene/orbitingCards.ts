@@ -138,14 +138,32 @@ export function createOrbitingCards(args: {
   const cards: CardInternal[] = [];
   const shards: Shard[] = [];
 
-  // Color wheel: pick from the full HSL hue range, muted saturation, mid
-  // lightness. Avoids the metallic-gold "shiny" feel the user pushed back
-  // on while giving each card its own identity in the orbit.
+  // Curated tarot palette — muted, dusky, deck-coded tones rather than
+  // pure RGB rainbow. Each card picks one at random and applies a small
+  // HSL jitter so repeats don't read as identical. Crimson over pure
+  // red; ochre over yellow; sage over green; etc.
+  const TAROT_PALETTE: number[] = [
+    0x9c2b3c,  // crimson
+    0xb45757,  // soft brick
+    0xb8732d,  // burnt amber
+    0xc9a23a,  // antique gold / ochre
+    0x6b8e4e,  // olive moss
+    0x3a8978,  // deep teal
+    0x4b6b9a,  // dusty indigo
+    0x4a4a8e,  // midnight blue
+    0x6e4b8e,  // dusky violet
+    0x9a4b7a,  // rose-violet
+    0x8b5a3c,  // copper
+    0x5a7a8b,  // slate blue
+  ];
+
   function pickHueColor(): THREE.Color {
-    const hue = Math.random();
-    const sat = 0.42 + Math.random() * 0.22;     // 0.42–0.64 — muted
-    const lit = 0.5 + Math.random() * 0.1;       // 0.5–0.6
-    return new THREE.Color().setHSL(hue, sat, lit);
+    const hex = TAROT_PALETTE[Math.floor(Math.random() * TAROT_PALETTE.length)]!;
+    const c = new THREE.Color(hex);
+    // Tiny HSL jitter — keeps the deck feel but avoids identical repeats.
+    const hueJitter = (Math.random() - 0.5) * 0.04;
+    const litJitter = (Math.random() - 0.5) * 0.06;
+    return c.offsetHSL(hueJitter, 0, litJitter);
   }
 
   function spawnCard(_passed: boolean, clickX: number, clickY: number): void {
