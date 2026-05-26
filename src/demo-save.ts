@@ -119,6 +119,7 @@ export function makeDemoPerson(): Person {
       relational: { confidence: 0.6, contention: 0, gap: 0.4, sources: ['q8', 'q14'] },
       joys: { confidence: 0.55, contention: 0, gap: 0.45, sources: ['q16'] },
     },
+    seeder_notes: [],
   };
 
   return {

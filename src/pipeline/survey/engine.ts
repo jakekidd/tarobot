@@ -14,6 +14,7 @@
 import type { LLMAdapter } from '../llm/adapter';
 import { runFinalObserver, runObserver, applyObserverDelta } from './agents/observer';
 import { runProfiler, applyHypothesisEdits, type ProfilerTrigger } from './agents/profiler';
+import { runSeeder } from './agents/seeder';
 import { runCompiler } from './agents/compiler';
 import { diffAnchors } from './anchor';
 import { checkDeadEndSignals } from './signals';
@@ -439,6 +440,32 @@ export class SurveyEngine {
       this.setState({ stage: 'awaiting_intention', thinking: false });
       this.emit();
     })();
+  }
+
+  /** Seeder agent — Haiku, per-turn, free-form notes. Reads this
+   *  turn's Q&A in context + history + existing notes. Appends 0-6
+   *  short notes to doc.seeder_notes. Cheap by design; latency
+   *  negligible. Staleness-gated on doc.v. */
+  private async runSeederTask(pick: PickEvent): Promise<void> {
+    const based_on_v = this.state.doc.v;
+    try {
+      const out = await runSeeder(this.opts.adapter, {
+        state: this.state,
+        pick,
+      });
+      if (out.based_on_v !== based_on_v) return; // stale, discard
+      if (out.notes.length === 0) return;        // silence is fine
+      this.setState({
+        doc: {
+          ...this.state.doc,
+          v: this.state.doc.v + 1,
+          seeder_notes: [...this.state.doc.seeder_notes, ...out.notes],
+        },
+      });
+      this.emit();
+    } catch (e) {
+      console.warn('[survey] seeder failed', e);
+    }
   }
 
   /** v3.2 close-pass compiler. Runs ONCE per session, after the final
@@ -1104,6 +1131,15 @@ export class SurveyEngine {
       this.beginIntentionStage();
       return;
     }
+
+    // ── Stage: seeder (Haiku, free-form notes) ──
+    //
+    // Reads this turn's Q&A in context (options, negative space,
+    // inversions) + the full history + existing notes. Appends 0-6
+    // short notes to doc.seeder_notes. The detective consumes the
+    // accumulated note list. Cheap (Haiku, 800 tokens) so latency is
+    // negligible per turn.
+    await this.runSeederTask(pick);
 
     // ── Stage: detective (reads doc + coverage + adversarial candidates) ──
     const detCtx: PipelineContext = { ...baseCtx, doc: this.state.doc };
