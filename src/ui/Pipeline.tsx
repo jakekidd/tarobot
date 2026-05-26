@@ -30,6 +30,7 @@ import { STARTER_SEED_COUNT } from '../pipeline/survey';
 import { SEEDER_SYSTEM_TEMPLATE } from '../pipeline/survey/agents/seeder';
 import { DETECTIVE_SYSTEM_TEMPLATE } from '../pipeline/survey/agents/detective';
 import { PSYCH_SYSTEM_TEMPLATE } from '../pipeline/survey/agents/psych';
+import INTENTION_SUGGESTOR_RAW from '../../materials/prompts/intention-suggestor.md?raw';
 import {
   AUGUR_OUTLINE_SYSTEM,
   AUGUR_OUTLINE_TOOL,
@@ -135,6 +136,19 @@ const SURVEY_AGENTS: AgentSpec[] = [
     prompt: PSYCH_SYSTEM_TEMPLATE,
     tool_name: 'freeform',
     notes: 'Curates a small set of candidate Dilemmas (situation + fork). Re-listing same label = organic vote. Append-over-add discipline. Terminate fires when no new evidence AND user responses flat — closes the alienation seam.',
+  },
+  {
+    id: 'intention-suggestor',
+    name: 'Intention Suggestor',
+    runtime: 'cloud',
+    call_pattern: 'fires N parallel calls — one per PSYCH candidate — right after the transition to awaiting_intention. Sonnet tier. Cheap because short + parallel; latency hides behind the user reading the intent screen.',
+    input_type: '{ state, candidate: PotentialDilemma }',
+    output_type: 'string (one short sentence)',
+    inputs: 'one PSYCH candidate (label + description + thoughts) + verbatim_log for texture',
+    outputs: 'a single first-person sentence the user might plausibly type at the intent screen (rendered as a chip)',
+    prompt: INTENTION_SUGGESTOR_RAW,
+    tool_name: 'freeform',
+    notes: 'Click submits directly — no edit step. Empty for returning users in lite mode (no PSYCH ran).',
   },
   {
     id: 'augur-outline',

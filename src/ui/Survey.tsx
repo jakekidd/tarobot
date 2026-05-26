@@ -654,6 +654,8 @@ export function Survey({ apiKey, session, loadedPerson, onComplete }: Props) {
               )}
               <IntentConfirm
                 initialIntention={state.profile.initial_intention}
+                suggestions={state.intention_suggestions}
+                suggestionsLoading={state.intention_suggestions_loading}
                 onSubmit={(text) => submitIntention(text)}
               />
             </div>

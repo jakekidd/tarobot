@@ -499,6 +499,18 @@ export type EngineState = {
    *  persistence + legacy profile assembly. Null until the compiler
    *  has fired. */
   dilemma: import('./agents/compiler/schema').DilemmaDocument | null;
+
+  /** One-sentence intention suggestions fired off in parallel — one
+   *  per PSYCH candidate — at the intent-confirmation screen. Each
+   *  resolves independently and pushes into this array, so the UI
+   *  can render chips as they arrive. Empty for returning users in
+   *  lite mode (no PSYCH ran) and during pillars / interrogation. */
+  intention_suggestions: string[];
+  /** True while one or more intention-suggestion helpers are in
+   *  flight. UI uses this to render a "thinking" affordance below
+   *  the intent input. Resets to false when all parallel calls
+   *  resolve (or all error). */
+  intention_suggestions_loading: boolean;
 };
 
 /** PSYCH's working unit. Maintained as a small set across Interrogation

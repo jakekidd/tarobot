@@ -544,6 +544,94 @@ a:hover { text-decoration: underline; }
   letter-spacing: 0.04em;
 }
 
+/* ─── Intent suggestion chips ───────────────────────────
+   PSYCH-derived candidate intentions, rendered below the input as
+   clickable chips. Click submits directly. Fade in as each parallel
+   helper resolves. Loading dots show when one or more are still in
+   flight. */
+.intent-confirm__suggestions {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.6rem;
+  width: 100%;
+  margin-top: 0.4rem;
+}
+
+.intent-confirm__suggestions-hint {
+  font-family: var(--font-mono);
+  font-style: italic;
+  font-size: 0.8rem;
+  color: var(--fg-faint);
+  letter-spacing: 0.05em;
+}
+
+.intent-confirm__chip-list {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.45rem;
+  width: 100%;
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.intent-confirm__chip {
+  font-family: var(--font-mono);
+  font-size: 0.95rem;
+  line-height: 1.35;
+  text-align: left;
+  letter-spacing: 0.01em;
+  padding: 0.6rem 0.9rem;
+  border-radius: 4px;
+  border: 1px solid rgba(167, 243, 208, 0.22);
+  background: rgba(10, 4, 24, 0.55);
+  color: #a7f3d0;
+  cursor: pointer;
+  transition:
+    background-color 140ms ease,
+    border-color 140ms ease,
+    transform 120ms ease;
+  animation: intent-chip-in 280ms ease-out both;
+}
+
+.intent-confirm__chip:hover {
+  background: rgba(94, 234, 212, 0.08);
+  border-color: rgba(167, 243, 208, 0.55);
+}
+
+.intent-confirm__chip:active {
+  transform: translateY(1px);
+}
+
+@keyframes intent-chip-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.intent-confirm__suggestions-loading {
+  display: inline-flex;
+  gap: 0.32rem;
+  align-items: center;
+  margin-top: 0.15rem;
+}
+
+.intent-confirm__dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: rgba(167, 243, 208, 0.55);
+  animation: intent-dot-pulse 1.1s ease-in-out infinite;
+}
+.intent-confirm__dot:nth-child(2) { animation-delay: 0.18s; }
+.intent-confirm__dot:nth-child(3) { animation-delay: 0.36s; }
+
+@keyframes intent-dot-pulse {
+  0%, 80%, 100% { opacity: 0.25; transform: scale(0.85); }
+  40%           { opacity: 1;    transform: scale(1); }
+}
+
 /* ─── Disable font ligatures on text inputs ─────────────
    (VT323/IM Fell etc. were collapsing "ff" → a single ligature glyph.
    Keep typed input glyph-equivalent to what the user pressed.) */

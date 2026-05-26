@@ -73,14 +73,18 @@ PHASE 3 — INTERROGATION (detective-driven)
   running the compiler so the candidate set is fresh.
 
 PHASE 4 — INTENTION (between hunt and close)
-  User lands on intention input.
-  In parallel: 4-5 intention-suggestion generators fire, each off one
-    PSYCH candidate dilemma. Suggestions render as chips below the input
-    (additive UI, no layout shift). Cheap (Sonnet?) freeform calls.
-    Generator prompt orient: "include the details that make this
-    question unmistakably theirs, leave out the rest" — relevance over
-    strict dilemma-only.
-  User picks a suggestion OR types own.
+  User lands on intention input. beginIntentionStage ran
+  applyAlgoExtraction + waitForPsychQuiescence and transitioned to
+  'awaiting_intention'. Immediately after the transition, the engine
+  fires runIntentionSuggestionsTask:
+    - 1 parallel call per PSYCH candidate (typically 2-5)
+    - tier: cognition (Sonnet) — user-visible chip text needs texture
+    - each call pushes its result into state.intention_suggestions
+      as it lands; UI renders chips incrementally
+    - generator prompt orient: "include the details that make this
+      question unmistakably theirs, leave out the rest" — relevance
+      over strict dilemma-only
+  Chip click submits directly. User can also type their own.
   The pick is the highest-quality disambiguation signal in the session.
 
 PHASE 5 — COMPILE (compiler-as-sieve, fires inside submitIntention)
@@ -140,7 +144,7 @@ PHASE 6 — READING (out of scope here)
 | SEEDER | 2 (pillars) | Haiku, freeform | Per pillar, parallel-after-submit, observations only |
 | DETECTIVE | 3 (interrogation) | Opus, freeform | Background loop, 3-ahead lookahead, text-blob output |
 | PSYCH | 3 (interrogation) | Haiku | Every 2 answered assertions, curates candidate set, owns terminate signal |
-| INTENTION-SUGGESTOR | 4 (intention) | Sonnet (planned) | 4-5 parallel calls, one per PSYCH candidate |
+| INTENTION-SUGGESTOR | 4 (intention) | Sonnet | Parallel — one short-sentence helper per PSYCH candidate, populates intent chips |
 | COMPILER | 5 (compile) | Opus + ext.thinking | Streams, once-per-session, sieve-shaped |
 | AUGUR | 6 (reading) | Sonnet→Opus | unchanged legacy |
 
@@ -176,16 +180,15 @@ PHASE 6 — READING (out of scope here)
 
 ## What's still TODO (high-signal)
 
-1. Intention suggestions from PSYCH candidates (chips under intent
-   input) — task #29
-2. Compiler-as-sieve refactor — accept user_intention input, three
-   resolution paths (match / juiciest / create-new), output the
-   Dilemma document with critical_hypotheses captured. Schema lives
-   in `docs/DILEMMA-SCHEMA.md`. Task #31.
-3. Smoke test rig — fabricated Q&A → fire all agents → check parser
+1. Wire DilemmaDocument structured fields into the Seer's profile
+   assembly so the director sees the real fork + critical hypotheses
+   rather than the mostly-empty doc.scaffold. The load-bearing payoff
+   of the compiler-as-sieve work. Task #35.
+2. Smoke test rig — fabricated Q&A → fire all agents → check parser
    hit rate. Task #33.
-4. Detective text-blob streaming (debug-only UI affordance) — task #34.
+3. Detective text-blob streaming (debug-only UI affordance) — task #34.
 
-Completed in this wave: PSYCH agent (#27), PSYCH engagement early-out
-(#28), Dilemma document schema (#32), pipeline diagram correction
-(#30).
+Completed in the PSYCH + compiler-as-sieve wave: PSYCH agent (#27),
+PSYCH engagement early-out (#28), pipeline diagram correction (#30),
+compiler-as-sieve refactor (#31), Dilemma document schema (#32),
+intention-suggestion chips (#29).

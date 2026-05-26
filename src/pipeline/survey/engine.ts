@@ -16,6 +16,7 @@ import { runSeeder } from './agents/seeder';
 import { runDetective, blobToQueuedAssertion } from './agents/detective';
 import { runPsych } from './agents/psych';
 import { runCompiler, renderDilemmaAsAnchor, type DilemmaDocument } from './agents/compiler';
+import { runIntentionSuggestor } from './intention-suggestor';
 import { diffAnchors } from './anchor';
 import { checkDeadEndSignals } from './signals';
 import { computeLatencyZScores } from './algoExtract';
@@ -488,7 +489,44 @@ export class SurveyEngine {
       }
       this.setState({ stage: 'awaiting_intention', thinking: false });
       this.emit();
+      // Fire intention-suggestion helpers in parallel — one per PSYCH
+      // candidate. Each resolves independently and pushes into
+      // state.intention_suggestions so the UI can render chips as
+      // they arrive. Skipped when there are no candidates (returning
+      // users in lite mode, or PSYCH never fired).
+      void this.runIntentionSuggestionsTask();
     })();
+  }
+
+  /** Fire N parallel intention-suggestion helpers, one per PSYCH
+   *  candidate. Pushes each result into state.intention_suggestions
+   *  as it lands so the UI can populate chips incrementally. */
+  private async runIntentionSuggestionsTask(): Promise<void> {
+    const candidates = this.state.psych_candidates;
+    if (candidates.length === 0) return;
+    this.setState({
+      intention_suggestions: [],
+      intention_suggestions_loading: true,
+    });
+    this.emit();
+    const tasks = candidates.map(async (candidate) => {
+      try {
+        const text = await runIntentionSuggestor(this.opts.adapter, {
+          state: this.state,
+          candidate,
+        });
+        if (!text) return;
+        this.setState({
+          intention_suggestions: [...this.state.intention_suggestions, text],
+        });
+        this.emit();
+      } catch (e) {
+        console.warn('[survey] intention-suggestor failed', e);
+      }
+    });
+    await Promise.allSettled(tasks);
+    this.setState({ intention_suggestions_loading: false });
+    this.emit();
   }
 
   /** Seeder agent — Haiku, fires after each pillar answer. Returns a
@@ -818,6 +856,8 @@ export class SurveyEngine {
       psych_terminate: false,
       psych_run_count: 0,
       dilemma: null,
+      intention_suggestions: [],
+      intention_suggestions_loading: false,
     };
   }
 
