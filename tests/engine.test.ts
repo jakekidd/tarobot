@@ -240,7 +240,7 @@ describe('SurveyEngine — relationship_pick parsing', () => {
 });
 
 describe('SurveyEngine — pipeline path (with FakeAdapter)', () => {
-  it('fires the seeder (freeform Haiku) on the first pillar pick', async () => {
+  it('fires NO LLM calls during pillar phase (algo seeder only)', async () => {
     const adapter = makeAdapter();
     const engine = makeEngine({ adapter });
     await engine.submitAnswer('jake');
@@ -250,12 +250,12 @@ describe('SurveyEngine — pipeline path (with FakeAdapter)', () => {
     // First post-opener pick: the first Pillar.
     const q = engine.getCurrentQuestion()!;
     await engine.submitAnswer(q.options[0] ?? 'mind');
-    // Background pipeline. Wait for the freeform call to resolve.
     await engine.waitForQuiescence();
-    // Post-interrogation-pivot: only the seeder fires during pillars
-    // (Haiku freeform). Observer + detective tool calls are gone.
-    expect(adapter.freeformCalls.length).toBeGreaterThan(0);
-    expect(adapter.calls.map((c) => c.tool)).not.toContain('observer_metabolize');
+    // Post-seeder-deletion: the algorithmic seeder fires inline (no
+    // LLM call); the Haiku seeder is gone. Detective only fires after
+    // the LAST pillar, not on pillar 1. So NO LLM calls expected here.
+    expect(adapter.freeformCalls.length).toBe(0);
+    expect(adapter.calls.length).toBe(0);
   });
 
   it('returning-user lite mode skips BOTH observer + detective', async () => {

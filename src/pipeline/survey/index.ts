@@ -90,8 +90,6 @@ export type {
 export { runDetective, blobToQueuedAssertion } from './agents/detective';
 export type { DetectiveTextBlob } from './agents/detective';
 
-// Seeder — free-form observation lines appended per pillar answer.
-export { runSeeder, parseSeederLines } from './agents/seeder';
 export type { ProbeStatus } from './living-doc';
 
 // Transcript types.

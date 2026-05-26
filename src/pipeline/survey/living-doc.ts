@@ -151,12 +151,6 @@ export type LivingDoc = {
   /** Per-dimension confidence / contention / gap. Recomputed
    *  deterministically after each observer apply. */
   coverage: CoverageMap;
-  /** Seeder pivot: free-form notes appended each post-opener turn.
-   *  Plain text lines, no structure, no status flags. The detective
-   *  reads this list alongside the full history; the compiler reads
-   *  it at close when writing the anchor. Append-only — Seeder never
-   *  edits or drops previously-emitted notes. */
-  seeder_notes: string[];
 };
 
 /** The fresh LivingDoc constant. Used for engine init + reset. */
@@ -180,7 +174,6 @@ export const EMPTY_DOC: LivingDoc = {
   },
   held: [],
   coverage: {},
-  seeder_notes: [],
 };
 
 /** Detective's next move. Each call emits exactly one. */

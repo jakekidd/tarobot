@@ -3,20 +3,14 @@
 // Entries are written incrementally as the survey runs:
 //   - pillar/pick:  the question, its options, the user's pick + what
 //                   they didn't pick (negative space) + latency-z
-//   - seeder_obs:   the seeder's free-form observations, interleaved
-//                   immediately after the pick that prompted them
 //   - assertion:    a detective-emitted assertion (the question voiced
 //                   to the user)
-//   - response:     warmer / colder + optional correction text
-//   - thinking:     the detective's thinking trace, accumulated turn
-//                   over turn (only included in detective payloads,
-//                   not surfaced to user)
+//   - response:     warm / cold + optional correction text
 //
 // The detective payload renders the transcript as one continuous
 // narrative document so the model reads questions, answers, negative
-// space, z-scores, seeder thoughts, prior assertions, and responses
-// in chronological order — the same way a human reader would skim
-// the session.
+// space, z-scores, prior assertions, and responses in chronological
+// order — the same way a human reader would skim the session.
 
 import type { PickEvent } from './types';
 
@@ -33,12 +27,6 @@ export type TranscriptEntry =
       negative_space: string[];
       latency_ms: number;
       latency_z?: number;
-    }
-  | {
-      kind: 'seeder_obs';
-      /** Pillar idx this observation followed. */
-      after_pillar_idx: number;
-      lines: string[];
     }
   | {
       kind: 'assertion';
@@ -75,10 +63,6 @@ export function renderTranscript(entries: readonly TranscriptEntry[]): string {
         if (entry.negative_space.length > 0) {
           lines.push(`    skipped: ${entry.negative_space.join(', ')}`);
         }
-        break;
-      }
-      case 'seeder_obs': {
-        for (const line of entry.lines) lines.push(`    seeder: ${line}`);
         break;
       }
       case 'assertion': {

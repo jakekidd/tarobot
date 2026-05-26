@@ -27,7 +27,6 @@ import { STARTER_SEED_COUNT } from '../pipeline/survey';
 
 // ── Live prompt imports ─────────────────────────────────────
 
-import { SEEDER_SYSTEM_TEMPLATE } from '../pipeline/survey/agents/seeder';
 import { DETECTIVE_SYSTEM_TEMPLATE } from '../pipeline/survey/agents/detective';
 import { PSYCH_SYSTEM_TEMPLATE } from '../pipeline/survey/agents/psych';
 import INTENTION_SUGGESTOR_RAW from '../../materials/prompts/intention-suggestor.md?raw';
@@ -87,29 +86,16 @@ type AgentSpec = {
 
 const SURVEY_AGENTS: AgentSpec[] = [
   {
-    id: 'seeder',
+    id: 'algo-seeder',
     name: 'Algorithmic Seeder',
     runtime: 'local',
-    call_pattern: 'synchronous, deterministic — fires before every post-opener pipeline. No LLM call. Reads the answered node\'s Inversions probe and drops hypothesis seeds into investigation.hypotheses.tentative[].',
+    call_pattern: 'synchronous, deterministic — fires before every post-opener pipeline. No LLM call. Reads the answered node\'s Inversions probe and drops Probe seeds into doc.held (consumed by the Seer\'s closing director as held probes). Pending: upgrade to a richer declarative mark/glyph attachment system driven by the survey markdown — see docs/PIPELINE.md.',
     input_type: 'TreeNode + answer + turn_n',
-    output_type: 'Hypothesis[]',
+    output_type: 'Probe[]',
     inputs: 'answered node (Surface/Inversions/Watch-for probe blocks) + user answer + current turn',
-    outputs: 'Hypothesis[] pushed into investigation.hypotheses.tentative[]; ages existing tentative/held items by 1 turn',
+    outputs: 'Probe[] pushed into doc.held; ages existing held items by 1 turn',
     prompt: '(no prompt — pure TypeScript function in src/pipeline/survey/seeder.ts)',
-    notes: 'Zero LLM cost. Deterministic. Gives the Observer a board to work with on every turn instead of starting from scratch.',
-  },
-  {
-    id: 'seeder',
-    name: 'Seeder',
-    runtime: 'cloud',
-    call_pattern: 'serial — fires after each PILLAR pick (Phase 2 only). Haiku tier. Reads this turn\'s Q&A in context (options, negative space, inversions decoder) + full history + existing notes. Appends 0-6 short free-form notes to doc.seeder_notes + transcript.',
-    input_type: 'SeederInput',
-    output_type: 'string[]',
-    inputs: 'transcript + this_turn (question, options, picked, skipped, decoder) + verbatim_log',
-    outputs: 'plain text — one observation per line, indented',
-    prompt: SEEDER_SYSTEM_TEMPLATE,
-    tool_name: 'freeform',
-    notes: 'Observations only — no hypotheses, no decisions, no forks. Silent during Interrogation. Silence is fine on thin turns.',
+    notes: 'Zero LLM cost. Deterministic. Currently the SOLE pre-interrogation signal layer after the Haiku seeder was deleted (its observations were mostly restatements of transcript data).',
   },
   {
     id: 'detective',

@@ -121,9 +121,8 @@ const WANDER_Y_FREQ = 0.37;
 // pulse a neutral tint instead of going silent.
 const AGENT_PULSE_COLORS: Record<string, [number, number, number]> = {
   // Survey-side freeform agents (post-pivot).
-  seeder:                       [0.45, 0.95, 0.55],   // turtle green (Phase 2 quiet noticer)
   detective:                    [0.70, 0.50, 1.00],   // eye violet  (Phase 3 hunter)
-  psych:                        [0.30, 0.95, 0.85],   // turquoise   (Phase 3 curator)
+  psych:                        [0.30, 0.95, 0.85],   // turquoise   (Phase 3 curator — pending rename)
   intention_suggestor:          [0.55, 0.90, 0.95],   // pale cyan   (Phase 4 chip helper)
   // Tool-based agents (kept as last-known names).
   augur_outline:                [1.00, 0.65, 0.45],   // amber (close-of-survey)

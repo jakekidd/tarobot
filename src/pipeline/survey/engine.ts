@@ -12,7 +12,6 @@
 // See docs/SURVEY_PIPELINE.md for design rationale.
 
 import type { LLMAdapter } from '../llm/adapter';
-import { runSeeder } from './agents/seeder';
 import { runDetective, blobToQueuedAssertion } from './agents/detective';
 import { runPsych } from './agents/psych';
 import { runCompiler, renderDilemmaAsAnchor, type DilemmaDocument } from './agents/compiler';
@@ -529,34 +528,11 @@ export class SurveyEngine {
     this.emit();
   }
 
-  /** Seeder agent — Haiku, fires after each pillar answer. Returns a
-   *  list of free-form observation lines that get appended to both
-   *  doc.seeder_notes (legacy compiler input) and the transcript
-   *  (interleaved as the detective's peripheral-vision data). */
-  private async runSeederTask(pick: PickEvent): Promise<void> {
-    try {
-      const lines = await runSeeder(this.opts.adapter, {
-        state: this.state,
-        pick,
-      });
-      if (lines.length === 0) return; // silence is fine
-      const pillarIdx = this.countPostOpenerPicks();
-      this.setState({
-        doc: {
-          ...this.state.doc,
-          v: this.state.doc.v + 1,
-          seeder_notes: [...this.state.doc.seeder_notes, ...lines],
-        },
-        transcript: [
-          ...this.state.transcript,
-          { kind: 'seeder_obs', after_pillar_idx: pillarIdx, lines },
-        ],
-      });
-      this.emit();
-    } catch (e) {
-      console.warn('[survey] seeder failed', e);
-    }
-  }
+  // (Haiku-seeder agent removed — observations were mostly restatements
+  // of transcript data the downstream Opus agents read anyway. The
+  // algorithmic seeder in src/pipeline/survey/seeder.ts is now the sole
+  // pre-interrogation signal layer; an upgrade to that is the next
+  // design beat, driven from the survey-markdown contract.)
 
   /** Compiler-as-sieve. Runs ONCE per session, AFTER the user submits
    *  their intention. Reads transcript + PSYCH candidates + the user's
@@ -1151,28 +1127,21 @@ export class SurveyEngine {
     this.beginIntentionStage();
   }
 
-  /** Interrogation-pivot pipeline. Pillar phase = seeder only. Last
-   *  pillar answer kicks off the Interrogation detective queue. The
-   *  detective then drives until the assertion soft-ceiling, when the
-   *  engine routes to close. */
+  /** Post-pivot, post-seeder-deletion: pillar phase fires NO per-turn
+   *  LLM call. The algorithmic seeder (applySeeder in submitAnswer)
+   *  has already dropped Probe seeds. When the last pillar lands, kick
+   *  off the Interrogation detective queue. */
   private async runPipeline(pick: PickEvent): Promise<void> {
+    void pick;
     if (this.state.is_returning_user) return; // lite mode
 
     const postOpenerCount = this.countPostOpenerPicks();
     const pillarFloor = getPillars().length;
 
-    if (postOpenerCount <= pillarFloor) {
-      // PILLAR phase: seeder only.
-      await this.runSeederTask(pick);
-      // If the user just answered the LAST pillar, transition to
-      // Interrogation and kick off the detective queue fill.
-      if (postOpenerCount === pillarFloor) {
-        void this.refillAssertionQueue();
-      }
+    if (postOpenerCount === pillarFloor) {
+      void this.refillAssertionQueue();
     }
-    // Else: Interrogation. The detective fires from refillAssertionQueue
-    // which is triggered after each assertion answer (and after the
-    // last pillar above). No per-turn seeder during Interrogation.
+    // Otherwise: no work — wait for the next user answer.
   }
 
   /** User answered a queued assertion (Interrogation phase). Parse

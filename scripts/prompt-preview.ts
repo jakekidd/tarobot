@@ -13,7 +13,6 @@
 // didn't get substituted, transcript continuity gaps, missing fields,
 // labels that drift between prompt + state.
 
-import { SEEDER_SYSTEM_TEMPLATE } from '../src/pipeline/survey/agents/seeder';
 import { DETECTIVE_SYSTEM_TEMPLATE } from '../src/pipeline/survey/agents/detective';
 import { PSYCH_SYSTEM_TEMPLATE } from '../src/pipeline/survey/agents/psych';
 import {
@@ -61,15 +60,10 @@ function makeState(): EngineState {
 
   const transcript: TranscriptEntry[] = [
     { kind: 'pick', pillar_idx: 1, question: 'how are the basics right now?', options_shown: ['handled', 'mostly', 'some are not', 'very little'], picked: 'mostly', negative_space: ['handled', 'some are not', 'very little'], latency_ms: 3200, latency_z: 0.2 },
-    { kind: 'seeder_obs', after_pillar_idx: 1, lines: ['picked mostly — not survival mode, not handled either'] },
     { kind: 'pick', pillar_idx: 2, question: 'when someone you love goes quiet, you—', options_shown: ['reach out', 'wait', 'assume the worst', 'let it go'], picked: 'assume the worst', negative_space: ['reach out', 'wait', 'let it go'], latency_ms: 4800, latency_z: 1.1 },
-    { kind: 'seeder_obs', after_pillar_idx: 2, lines: ['anxious-leaning', 'hesitated then picked the loudest answer'] },
     { kind: 'pick', pillar_idx: 3, question: 'where are you, body and mind?', options_shown: ['grounded + present', 'grounded + dissociated', 'numb + present', 'numb + dissociated'], picked: 'numb + present', negative_space: ['grounded + present', 'grounded + dissociated', 'numb + dissociated'], latency_ms: 6100, latency_z: 1.8 },
-    { kind: 'seeder_obs', after_pillar_idx: 3, lines: ['slow on the body question — z=1.8', 'numb + present = intellectualizing'] },
     { kind: 'pick', pillar_idx: 4, question: "who's the center of your life right now?", options_shown: ['me', 'partner', 'parent or caretaker', 'sibling', 'friend', 'child', 'boss'], picked: 'partner', negative_space: ['me', 'parent or caretaker', 'sibling', 'friend', 'child', 'boss'], latency_ms: 2800, latency_z: -0.2 },
-    { kind: 'seeder_obs', after_pillar_idx: 4, lines: ['picked partner fast — theo is the gravity'] },
     { kind: 'pick', pillar_idx: 5, question: 'which of these do you want most?', options_shown: ['love', 'freedom', 'wisdom', 'beauty', 'security', 'belonging', 'power'], picked: 'freedom', negative_space: ['love', 'wisdom', 'beauty', 'security', 'belonging', 'power'], latency_ms: 5300, latency_z: 1.4 },
-    { kind: 'seeder_obs', after_pillar_idx: 5, lines: ['freedom over security — telling for someone framing it as job-or-no-job', 'slow pick, considered it'] },
     // Two assertions + responses to give PSYCH something to chew on.
     { kind: 'assertion', assertion_idx: 1, statement: 'the part of you that won\'t quit isn\'t afraid of theo\'s reaction. it\'s afraid of who you become if you do.' },
     { kind: 'response', assertion_idx: 1, direction: 'warm', correction: 'less the job, more what staying says about me', latency_ms: 4200 },
@@ -137,32 +131,6 @@ function makeState(): EngineState {
 }
 
 // ─── Renderers (mirror each agent's payload-building logic) ─────
-
-function renderSeederPrompt(state: EngineState): string {
-  const fakePick: PickEvent = {
-    node_id: 'value_most',
-    question_text: 'which of these do you want most?',
-    options_shown: ['love', 'freedom', 'wisdom', 'beauty', 'security', 'belonging', 'power'],
-    answer: 'freedom',
-    answered_at: 0,
-    latency_ms: 5300,
-    prompted_by: null,
-  };
-  const transcript = renderTranscript(state.transcript.slice(0, 10)) || '(empty — first turn)';
-  const skipped = (fakePick.options_shown ?? []).filter((o) => o !== fakePick.answer);
-  const thisTurn = [
-    `Q: ${fakePick.question_text}`,
-    `options: ${(fakePick.options_shown ?? []).join(', ')}`,
-    `picked: ${fakePick.answer as string}`,
-    `skipped: ${skipped.join(', ')}`,
-    'decoder: inversions: strong values invert to corresponding fears — freedom → fear of constraint / entrapment',
-  ].join('\n');
-  const verbatim = formatVerbatimLog(state.verbatim_log) || '(none)';
-  return SEEDER_SYSTEM_TEMPLATE
-    .replace('{{TRANSCRIPT}}', transcript)
-    .replace('{{THIS_TURN}}', thisTurn)
-    .replace('{{VERBATIM_LOG}}', verbatim);
-}
 
 function renderDetectivePrompt(state: EngineState): string {
   const transcript = renderTranscript(state.transcript);
@@ -233,11 +201,6 @@ function main(): void {
   const args = parseArgs(process.argv.slice(2));
   const state = makeState();
   const want = (name: string) => !args.only || args.only === name;
-
-  if (want('seeder')) {
-    banner('SEEDER (Haiku, freeform, fires after each pillar pick)');
-    console.log(renderSeederPrompt(state));
-  }
 
   if (want('detective')) {
     banner('DETECTIVE (Opus, freeform, Interrogation phase — first pass after pillars)');

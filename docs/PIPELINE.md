@@ -16,19 +16,21 @@ PHASE 1 — OPENERS
   deterministic, no AI fires.
   birthday > 100 yrs old triggers centenarian interlude (sassy lamp-hang).
 
-PHASE 2 — PILLARS (6 questions, fixed order)
-  basics / goes_quiet / body_baseline / center_of_life /
-  value_most / fork.
+PHASE 2 — PILLARS (5 questions, fixed order)
+  basics / goes_quiet / body_baseline / center_of_life / want_most.
 
-  Per pillar answer (serial submit, parallel background):
+  Per pillar answer (serial submit, NO LLM calls during pillars):
     (a) submitAnswer captures pick, computes latency-z incrementally,
         pushes pick entry (with negative_space + z-score) to transcript.
-    (b) SEEDER fires (Haiku, freeform):
-          input:  transcript + this_turn + verbatim_log
-          output: 0-6 short observation lines
-        appended to transcript as 'seeder_obs' entries.
+    (b) algorithmic seeder runs inline (deterministic, no LLM):
+          reads node.probe.inversions
+          drops Probe seeds onto state.doc.held
+        These feed the Seer's closing director as 'held probes'.
+        Upgrade pending: a richer declarative mark/glyph attachment
+        system driven by the survey markdown — see TODO at bottom.
 
   Detective DOES NOT fire during pillars. Calibration only.
+  No LLM calls until interrogation begins.
 
 PHASE 3 — INTERROGATION (detective-driven)
   Triggered when last pillar answered.
@@ -141,7 +143,7 @@ PHASE 6 — READING (out of scope here)
 
 | Agent | Phase | Tier | Pattern |
 |---|---|---|---|
-| SEEDER | 2 (pillars) | Haiku, freeform | Per pillar, parallel-after-submit, observations only |
+| algo-seeder | 2 (pillars) | local, deterministic | Per pillar, no LLM — drops Probe seeds onto doc.held from question Inversions. Upgrade pending. |
 | DETECTIVE | 3 (interrogation) | Opus, freeform | Background loop, 3-ahead lookahead, text-blob output |
 | PSYCH | 3 (interrogation) | Haiku | Every 2 answered assertions, curates candidate set, owns terminate signal |
 | INTENTION-SUGGESTOR | 4 (intention) | Sonnet | Parallel — one short-sentence helper per PSYCH candidate, populates intent chips |
@@ -158,13 +160,13 @@ PHASE 6 — READING (out of scope here)
 - **WARM/COLD is absolute, not gradient.** COLD = eliminate a region,
   NEVER invert to the opposite. The detective + compiler both need this.
 - **Corrections (user free-text) are the gold signal.** Above warmth,
-  above seeder threads, above detective leading-hypothesis.
+  above algorithmic priors, above detective leading-hypothesis.
 - **Re-listing as vote (organic).** Never tell the agent the counter
   exists. Pure signal from natural behavior, not actions taken to
   satisfy a mechanic.
-- **Interrogation supersedes seeder calibration.** Seeder runs in
-  Phase 2 only — pre-hunt. When seeder threads disagree with the
-  warm/cold map, the warm/cold map wins (it's later, tested).
+- **Interrogation supersedes pre-hunt calibration.** The
+  algorithmic seeder drops priors during pillars; the warm/cold map
+  is later and tested. When priors disagree with warmth, warmth wins.
 - **Detective's leading hypothesis is advisory, not binding.** The
   hunter wanting something to be true is not evidence it is.
 - **Engagement read closes the alienation seam.** Phase 3 can't only
@@ -180,15 +182,24 @@ PHASE 6 — READING (out of scope here)
 
 ## What's still TODO (high-signal)
 
-1. Wire DilemmaDocument structured fields into the Seer's profile
+1. **Algo-seeder upgrade** (pending Mr Brainstorm output). Replace
+   the loose regex-on-Inversions-text scheme with a richer, still-
+   deterministic mark/glyph attachment system declared per-option in
+   the survey markdown. Goals: stay non-LLM, keep config in
+   materials/survey.md (not engine code), produce structured priors
+   downstream agents can read as a lens rather than adopt as truth.
+   See "what to brainstorm" memo (off-thread).
+2. **Rename PSYCH → SEEDER**. Functionally PSYCH seeds the dilemma
+   candidate set that the compiler later sieves — matches the
+   role-coded naming (detective, compiler, augur, seer). The Haiku
+   noticer that previously held the name is gone.
+3. Wire DilemmaDocument structured fields into the Seer's profile
    assembly so the director sees the real fork + critical hypotheses
-   rather than the mostly-empty doc.scaffold. The load-bearing payoff
-   of the compiler-as-sieve work. Task #35.
-2. Smoke test rig — fabricated Q&A → fire all agents → check parser
-   hit rate. Task #33.
-3. Detective text-blob streaming (debug-only UI affordance) — task #34.
+   rather than the mostly-empty doc.scaffold. Task #35.
+4. Detective text-blob streaming (debug-only UI affordance) — #34.
 
 Completed in the PSYCH + compiler-as-sieve wave: PSYCH agent (#27),
 PSYCH engagement early-out (#28), pipeline diagram correction (#30),
 compiler-as-sieve refactor (#31), Dilemma document schema (#32),
-intention-suggestion chips (#29).
+intention-suggestion chips (#29). Plus Haiku-seeder deletion +
+parser fuzz suite + prompt audit (#42).

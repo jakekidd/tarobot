@@ -15,7 +15,6 @@
 import kleur from 'kleur';
 import { createClaudeClient } from '../src/pipeline/claude';
 import { AnthropicAdapter } from '../src/pipeline/llm/adapter-anthropic';
-import { runSeeder } from '../src/pipeline/survey/agents/seeder';
 import { runDetective, blobToQueuedAssertion } from '../src/pipeline/survey/agents/detective';
 import { runPsych } from '../src/pipeline/survey/agents/psych';
 import { runIntentionSuggestor } from '../src/pipeline/survey/intention-suggestor';
@@ -78,7 +77,6 @@ function makeFabricatedState(): EngineState {
       latency_ms: 3200,
       latency_z: 0.2,
     },
-    { kind: 'seeder_obs', after_pillar_idx: 1, lines: ['picked mostly — not survival mode, but didn\'t pick handled either'] },
     // Pillar 2: attachment
     {
       kind: 'pick',
@@ -90,7 +88,6 @@ function makeFabricatedState(): EngineState {
       latency_ms: 4800,
       latency_z: 1.1,
     },
-    { kind: 'seeder_obs', after_pillar_idx: 2, lines: ['hesitated then picked the loudest answer', 'anxious-leaning'] },
     // Pillar 3: body+mind
     {
       kind: 'pick',
@@ -102,7 +99,6 @@ function makeFabricatedState(): EngineState {
       latency_ms: 6100,
       latency_z: 1.8,
     },
-    { kind: 'seeder_obs', after_pillar_idx: 3, lines: ['slow on the body question (z=1.8)', 'numb + present = intellectualizing as defense'] },
     // Pillar 4: relational anchor
     {
       kind: 'pick',
@@ -114,7 +110,6 @@ function makeFabricatedState(): EngineState {
       latency_ms: 2800,
       latency_z: -0.2,
     },
-    { kind: 'seeder_obs', after_pillar_idx: 4, lines: ['picked partner fast', 'theo is the gravity'] },
     // Pillar 5: want most
     {
       kind: 'pick',
@@ -126,7 +121,6 @@ function makeFabricatedState(): EngineState {
       latency_ms: 5300,
       latency_z: 1.4,
     },
-    { kind: 'seeder_obs', after_pillar_idx: 5, lines: ['freedom over security — telling, given the day-job framing in intent', 'slow pick, considered it'] },
   ];
 
   return {
@@ -197,32 +191,6 @@ async function runOne(adapter: AnthropicAdapter, runIdx: number, totalRuns: numb
   const results: StageResult[] = [];
   console.log(kleur.cyan().bold(`\n═══ run ${runIdx + 1} of ${totalRuns} ═══\n`));
   let state = makeFabricatedState();
-
-  // ── SEEDER ───────────────────────────────────────────────────
-  {
-    const fakePick: PickEvent = {
-      node_id: 'value_most',
-      question_text: 'which of these do you want most?',
-      options_shown: ['love', 'freedom', 'wisdom', 'beauty', 'security', 'belonging', 'power'],
-      answer: 'freedom',
-      answered_at: Date.now(),
-      latency_ms: 5300,
-      prompted_by: null,
-    };
-    try {
-      const { value: lines, ms } = await timed(() => runSeeder(adapter, { state, pick: fakePick }));
-      const pass = lines.length > 0 && lines.every((l) => l.length > 0 && l.length < 240);
-      results.push({
-        name: 'SEEDER',
-        pass,
-        ms,
-        detail: pass ? `${lines.length} observations` : 'returned no usable lines',
-        sample: lines.slice(0, 4).join('\n'),
-      });
-    } catch (e) {
-      results.push({ name: 'SEEDER', pass: false, ms: 0, detail: `threw: ${String(e).slice(0, 400)}` });
-    }
-  }
 
   // ── DETECTIVE (3 passes, with fake WARM/COLD responses between) ──
   for (let pass = 1; pass <= 3; pass++) {
