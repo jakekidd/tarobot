@@ -12,29 +12,21 @@
 // See docs/SURVEY_PIPELINE.md for design rationale.
 
 import type { LLMAdapter } from '../llm/adapter';
-import { runFinalObserver, runObserver, applyObserverDelta } from './agents/observer';
-import { runProfiler, applyHypothesisEdits, type ProfilerTrigger } from './agents/profiler';
 import { runSeeder } from './agents/seeder';
 import { runCompiler } from './agents/compiler';
 import { diffAnchors } from './anchor';
 import { checkDeadEndSignals } from './signals';
-import { extractHooks, extractSideChannel, computeLatencyZScores } from './algoExtract';
-import { runDetective, applyDetectiveOutput, type DetectiveApplyResult } from './agents/detective';
+import { computeLatencyZScores } from './algoExtract';
+import { runDetective, applyDetectiveOutput } from './agents/detective';
 import { runAugur } from './agents/augur';
-import { recomputeCoverage, isCoverageDone } from './coverage';
 import { generateQuestion } from './generation';
 import { Seer } from '../seer';
 import { drawForSpread } from '../cards';
 import { FOUR_CARD_DIAMOND } from '../spreads';
 import { assembleProfile } from './profile-assembly';
 import { computeAstroProfile, parseBirthDate } from '../astrology';
-// (ReturningMatch import dropped — confirmReturningPerson was removed
-//  in the save-game restructure. Survey UI calls loadFromSave directly.)
 import { publishDebug } from '../../debug/debugBus';
 import { publishAnchor } from '../../debug/anchorBus';
-import { publishProfilerActivity } from '../../debug/profilerActivityBus';
-import { publishHypotheses } from '../../debug/hypothesisBus';
-import { pickTier as pickProfilerTier } from './agents/profiler';
 import {
   getNode,
   getOpeners,
@@ -120,7 +112,7 @@ export class SurveyEngine {
    *  show the spinner when queue is empty + a pipeline is running. */
   private pipelinesInFlight = 0;
   /** Per-agent in-flight counts. Published to debug bus per change. */
-  private agentInFlight = { observer: 0, detective: 0 };
+  private agentInFlight = { detective: 0 };
   private starterSeedFired = false;
   /** Snapshot of the engine state captured RIGHT BEFORE the most recent
    *  pick was processed. `undo()` restores this. Cleared after restore.
@@ -271,10 +263,8 @@ export class SurveyEngine {
       queue: this.state.queue.slice(1),
     });
 
-    // v3: assertion-answer side-effects. Rejection-with-correction is
-    // the single highest-value resolution event in the survey — the
-    // user supplies their own contour, and the profiler should
-    // metabolize it RIGHT AWAY (not wait for the next heartbeat).
+    // Assertion correction → log to verbatim. The seeder will pick it
+    // up next turn from existing_notes / verbatim_log.
     if (assertionResult?.outcome === 'rejected_with_correction') {
       this.setState({
         verbatim_log: appendVerbatim(this.state.verbatim_log, {
@@ -283,9 +273,6 @@ export class SurveyEngine {
           text: assertionResult.correction,
         }),
       });
-      // Fire-and-forget — the correction-triggered profiler runs in
-      // parallel with the regular per-turn pipeline that follows.
-      this.triggerProfilerOnCorrection();
     }
 
     // Populate profile if this was an opener.
@@ -425,14 +412,10 @@ export class SurveyEngine {
     this.emit();
     void (async () => {
       try {
-        await this.runFinalObserverPass();
+        // Latency-z extraction (deterministic, fast). No more
+        // runFinalObserverPass — the compiler reads the full history +
+        // seeder notes + verbatim log directly.
         this.applyAlgoExtraction();
-        // v3.2: close-pass prose generation. The compiler reads the
-        // curated hypothesis list + history + verbatim + template and
-        // writes the prose anchor narrowly around the resolved
-        // Dilemma. Opus tier — this is the artifact that ships to
-        // the seer; quality matters more than latency on the last
-        // call.
         await this.runCompilerTask();
       } catch (e) {
         console.warn('[survey] finalize failed', e);
@@ -620,54 +603,12 @@ export class SurveyEngine {
     })();
   }
 
-  /** Final synthesis observer pass. Fires once at survey close before
-   *  Augur runs. Runs the observer once more with the 'final' framing
-   *  (full Q&A history, explicit permission to retroactively revise).
-   *  The delta is applied to the doc; the engine then proceeds to
-   *  applyAlgoExtraction (latency z-scores) and submitIntention. */
-  private async runFinalObserverPass(): Promise<void> {
-    if (this.state.is_returning_user) return;
-    try {
-      const baseCtx: PipelineContext = {
-        index: this.state.picks_log.length,
-        question: '(final synthesis pass — no current turn)',
-        options_shown: [],
-        answer: '',
-        profile: this.state.profile,
-        doc: this.state.doc,
-        history: this.state.picks_log,
-        queue: this.state.queue,
-      };
-      const out = await runFinalObserver(this.opts.adapter, baseCtx);
-      if (out.based_on_v !== this.state.doc.v) {
-        // Stale — unusual at final pass but possible if the
-        // engine state changed mid-call. Discard cleanly.
-        return;
-      }
-      const nextDoc = applyObserverDelta(this.state.doc, out.delta);
-      // Recompute coverage after the final delta lands.
-      const finalCoverage = recomputeCoverage(nextDoc, this.state.picks_log);
-      this.setState({
-        doc: { ...nextDoc, v: nextDoc.v + 1, coverage: finalCoverage },
-      });
-    } catch (e) {
-      console.warn('[survey] final observer pass failed', e);
-    }
-  }
-
-  /** Run algorithmic extraction over picks_log + timing_log. Attaches
-   *  latency z-scores to timing_log (first-class telemetry). The
-   *  hooks + side_channel computation lands at the assembleProfile
-   *  seam (profile-assembly reads doc.story.hooks for the Seer's
-   *  observer_hooks; latency outliers surface via doc.scaffold.tells
-   *  set by the observer). */
+  /** Latency-z extraction over timing_log. Deterministic, fast.
+   *  Telemetry only — the seeder + detective + compiler don't read
+   *  z-scores; this writes them into the export bundle. */
   private applyAlgoExtraction(): void {
     const enrichedTiming = computeLatencyZScores(this.state.timing_log);
     this.setState({ timing_log: enrichedTiming });
-    // Hooks + side_channel still computed for telemetry; the bridge
-    // (profile-assembly.ts) reads doc fields directly for now.
-    extractHooks(this.state.picks_log);
-    extractSideChannel(this.state.timing_log, this.state.picks_log);
   }
 
   /** Exposed to App once stage === 'reading_ready'. App routes to the
@@ -991,7 +932,6 @@ export class SurveyEngine {
   /** Push per-agent + total pipeline counts to the debug bus. */
   private publishInflight(): void {
     publishDebug('survey.inflight', this.pipelinesInFlight);
-    publishDebug('survey.agent.observer', this.agentInFlight.observer);
     publishDebug('survey.agent.detective', this.agentInFlight.detective);
   }
 
@@ -1107,31 +1047,6 @@ export class SurveyEngine {
       queue: this.state.queue,
     };
 
-    // ── Stage: observer (single writer) ──
-    const obsResult = await this.runObserverTask(baseCtx);
-    if (!obsResult) return; // observer failed; abort the cycle
-
-    // ── Stage: coverage recompute (deterministic) ──
-    const nextCoverage = recomputeCoverage(this.state.doc, this.state.picks_log);
-    this.setState({
-      doc: {
-        ...this.state.doc,
-        v: this.state.doc.v + 1,
-        coverage: nextCoverage,
-      },
-    });
-    this.emit();
-
-    // ── Stage: check coverage + pillar floor ──
-    const postOpenerCount = this.countPostOpenerPicks();
-    const pillarFloor = getPillars().length;
-    if (postOpenerCount >= pillarFloor && isCoverageDone(this.state.doc.coverage)) {
-      // Adaptive termination — the coverage map says we have enough.
-      // (Phase 5 calibrates the isCoverageDone heuristic.)
-      this.beginIntentionStage();
-      return;
-    }
-
     // ── Stage: seeder (Haiku, free-form notes) ──
     //
     // Reads this turn's Q&A in context (options, negative space,
@@ -1141,24 +1056,16 @@ export class SurveyEngine {
     // negligible per turn.
     await this.runSeederTask(pick);
 
-    // ── Stage: detective (reads doc + coverage + adversarial candidates) ──
+    const postOpenerCount = this.countPostOpenerPicks();
+    const pillarFloor = getPillars().length;
+
+    // ── Stage: detective (reads seeder notes + history + verbatim) ──
     const detCtx: PipelineContext = { ...baseCtx, doc: this.state.doc };
     const detResult = await this.runDetectiveTask(detCtx);
     if (!detResult) return;
 
     // ── Stage: act on the detective's next_move ──
     await this.applyDetectiveNextMove(detResult.move, postOpenerCount, pillarFloor);
-
-    // ── Stage: profiler heartbeat (every 3 post-opener turns) ──
-    //
-    // v3 §4/§10: profiler runs less often than detective, on resolution
-    // events. In Phase 2 the only available trigger is the turn-mod
-    // heartbeat (Phase 3 instruments will add the correction trigger).
-    // Sequential with detective for Phase 2 — parallel comes in Phase 4
-    // when the queue-ahead architecture lands.
-    if (postOpenerCount > 0 && postOpenerCount % 3 === 0) {
-      await this.runProfilerTask('heartbeat');
-    }
   }
 
   /** Route the detective's next_move into engine state mutations.
@@ -1303,38 +1210,15 @@ export class SurveyEngine {
     return { node_id, prompted_by: 'fallback_pool', priority: 'normal' };
   }
 
-  /** Run the observer agent. Returns true on successful apply, false
-   *  on failure or staleness. Bumps doc.v on success. */
-  private async runObserverTask(baseCtx: PipelineContext): Promise<boolean> {
-    this.agentInFlight.observer += 1; this.publishInflight();
-    try {
-      const out = await runObserver(this.opts.adapter, baseCtx);
-      // Staleness gate: discard if the doc moved while we were
-      // thinking. The next cognition cycle will re-base.
-      if (out.based_on_v !== this.state.doc.v) {
-        return false;
-      }
-      const nextDoc = applyObserverDelta(this.state.doc, out.delta);
-      this.setState({ doc: nextDoc });
-      this.emit();
-      return true;
-    } catch (e) {
-      console.warn('[survey] observer failed', e);
-      return false;
-    } finally {
-      this.agentInFlight.observer -= 1; this.publishInflight();
-    }
-  }
-
   /** Run the detective agent. Applies leading_hypothesis +
    *  story_updates; returns the result (engine inspects next_move).
    *  Bumps doc.v on success when the output mutates doc. */
   private async runDetectiveTask(
     baseCtx: PipelineContext,
-  ): Promise<DetectiveApplyResult | null> {
+  ): Promise<ReturnType<typeof applyDetectiveOutput> | null> {
     this.agentInFlight.detective += 1; this.publishInflight();
     try {
-      const out = await runDetective(this.opts.adapter, baseCtx);
+      const out = await runDetective(this.opts.adapter, baseCtx, this.state);
       if (out.based_on_v !== this.state.doc.v) {
         return null;
       }
@@ -1351,95 +1235,6 @@ export class SurveyEngine {
       this.agentInFlight.detective -= 1; this.publishInflight();
     }
   }
-
-  /** Run the profiler agent. v3.2: the profiler is a hypothesis
-   *  curator, NOT a prose writer. Triggered on heartbeat (every 3
-   *  post-opener turns) + on correction events. Applies a list of
-   *  hypothesis_edits to doc.held; never touches the anchor. The
-   *  close-pass prose generation belongs to the compiler now (Wave
-   *  4b — until that lands, the anchor stays empty until handoff).
-   *  Async, non-blocking — detective stays per-turn latency-critical. */
-  private async runProfilerTask(trigger: ProfilerTrigger): Promise<{
-    raised: string[];
-    dropped: string[];
-  } | null> {
-    const based_on_v = this.state.doc.v;
-    const post_opener_turn = this.countPostOpenerPicks();
-    const tier = pickProfilerTier(post_opener_turn);
-    try {
-      const out = await runProfiler(this.opts.adapter, {
-        state: this.state,
-        trigger,
-        post_opener_turn,
-        detective_state: {
-          leading_hypothesis: this.state.doc.scaffold.leading_hypothesis,
-          candidate_dilemma_claims: this.state.doc.held.map((h) => h.claim),
-        },
-      });
-      // Staleness gate — discard if doc moved while we were thinking.
-      if (out.based_on_v !== based_on_v) {
-        publishProfilerActivity({
-          turn: post_opener_turn,
-          trigger,
-          tier,
-          suspicions_raised: [],
-          suspicions_dropped: [],
-          reasoning: out.reasoning,
-          stale: true,
-        });
-        return null;
-      }
-      // Apply the hypothesis edits to doc.held. bumps doc.v.
-      const { next, raised, dropped } = applyHypothesisEdits(
-        this.state.doc.held,
-        out.hypothesis_edits,
-        post_opener_turn,
-      );
-      if (out.hypothesis_edits.length > 0) {
-        this.setState({
-          doc: {
-            ...this.state.doc,
-            v: this.state.doc.v + 1,
-            held: next,
-          },
-        });
-        this.emit();
-        publishHypotheses({
-          turn: post_opener_turn,
-          list: next,
-          raised_ids: out.hypothesis_edits
-            .filter((e) => e.op === 'add' || e.op === 'promote' || e.op === 'refine')
-            .map((e) => e.id),
-          dropped_ids: out.hypothesis_edits
-            .filter((e) => e.op === 'drop' || e.op === 'refute')
-            .map((e) => e.id),
-        });
-      }
-      publishProfilerActivity({
-        turn: post_opener_turn,
-        trigger,
-        tier,
-        suspicions_raised: raised,
-        suspicions_dropped: dropped,
-        reasoning: out.reasoning,
-      });
-      return { raised, dropped };
-    } catch (e) {
-      console.warn('[survey] profiler failed', e);
-      return null;
-    }
-  }
-
-  /** Phase 3+ hook: a correction event (rejection-with-correction on an
-   *  assertion instrument) is the high-signal resolution that warrants
-   *  an immediate profiler pass. Phase 3 instruments will call this; in
-   *  Phase 2 the method exists but has no caller. */
-  triggerProfilerOnCorrection(): void {
-    void this.runProfilerTask('correction');
-  }
-
-  // Old finalize() was removed — the close path now runs through
-  // beginIntentionStage() → submitIntention() → compiler. See those.
 }
 
 // ─── helpers (module-local) ─────────────────────────────
@@ -1489,11 +1284,8 @@ function shuffleInPlace<T>(arr: T[]): T[] {
 // state machine setup. Production code SHOULD import from the
 // per-agent folders, not from engine.ts.
 
-export { applyObserverDelta as __test_applyObserverDelta } from './agents/observer';
 export {
   applyDetectiveOutput as __test_applyDetectiveOutput,
   mergeStoryUpdates as __test_mergeStoryUpdates,
 } from './agents/detective';
-export { recomputeCoverage as __test_recomputeCoverage, isCoverageDone as __test_isCoverageDone } from './coverage';
-export { rankAdversarial as __test_rankAdversarial } from './adversarial';
 export { computeLatencyZScores as __test_computeLatencyZScores } from './algoExtract';

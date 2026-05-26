@@ -86,23 +86,12 @@ export type {
   VerbatimEntry,
 } from './types';
 
-// v2 agent output types (live in per-agent schema.ts via z.infer).
-export type { ObserverOutput, ObserverDelta } from './agents/observer';
+// Detective output types (per-agent schema.ts via z.infer).
 export type { DetectiveOutput, StoryUpdates } from './agents/detective';
 
-// v3.2 profiler agent — hypothesis curator (no longer writes prose).
-export {
-  runProfiler,
-  pickTier as pickProfilerTier,
-  applyHypothesisEdits,
-} from './agents/profiler';
-export type {
-  ProfilerOutput,
-  ProfilerTrigger,
-  RunProfilerArgs,
-  HypothesisEdit,
-  ProbeStatusV,
-} from './agents/profiler';
+// Seeder pivot — free-form notes appended per turn.
+export { runSeeder } from './agents/seeder';
+export type { SeederOutput, SeederPayloadArgs } from './agents/seeder';
 export type { ProbeStatus } from './living-doc';
 
 // v2 LivingDoc types — new public surface introduced in Phase 2.

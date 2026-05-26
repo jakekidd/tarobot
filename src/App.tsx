@@ -20,8 +20,6 @@ import { AnthropicAdapter } from './pipeline/survey';
 import { createClaudeClient } from './pipeline/claude';
 import './ui/pipeline.css';
 import { Debug } from './debug/Debug';
-import { ProfilerWorkspace } from './debug/ProfilerWorkspace';
-import { HypothesisView } from './debug/HypothesisView';
 import { AnchorView } from './debug/AnchorView';
 import { loadDebugVisible, saveDebugVisible } from './debug/visibilityStorage';
 import { publishDebug } from './debug/debugBus';
@@ -206,14 +204,10 @@ export function App() {
         </main>
 
       <Debug visible={debugVisible} />
-      {/* v3.2 left column: profiler workspace (top) + live hypothesis
-          list (middle, where the action is during survey) + anchor
-          view (bottom, populated only at close by the compiler).
-          Survey-phase-only. */}
+      {/* seeder pivot left column: anchor only (wave D will add the
+          compiler streaming view + seeder notes view). */}
       {debugVisible && phase.kind === 'survey' && (
         <div className="debug-left-column">
-          <ProfilerWorkspace visible={true} />
-          <HypothesisView visible={true} />
           <AnchorView visible={true} />
         </div>
       )}

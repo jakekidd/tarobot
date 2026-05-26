@@ -27,7 +27,7 @@ import { STARTER_SEED_COUNT } from '../pipeline/survey';
 
 // ── Live prompt imports ─────────────────────────────────────
 
-import { OBSERVER_SYSTEM, OBSERVER_TOOL } from '../pipeline/survey/agents/observer';
+import { SEEDER_SYSTEM, SEEDER_TOOL } from '../pipeline/survey/agents/seeder';
 import { DETECTIVE_SYSTEM, DETECTIVE_TOOL } from '../pipeline/survey/agents/detective';
 import {
   AUGUR_OUTLINE_SYSTEM,
@@ -97,17 +97,17 @@ const SURVEY_AGENTS: AgentSpec[] = [
     notes: 'Zero LLM cost. Deterministic. Gives the Observer a board to work with on every turn instead of starting from scratch.',
   },
   {
-    id: 'observer',
-    name: 'Observer',
+    id: 'seeder',
+    name: 'Seeder',
     runtime: 'cloud',
-    call_pattern: 'parallel — fires every post-opener pick (returning users skip in lite mode). Rewrites the whole profile.body each turn.',
-    input_type: 'ObserverInput',
-    output_type: 'ObserverOutput',
-    inputs: 'profile template + current profile.body + full Q&A history + latest Q&A + side-channel telemetry + investigation board + fresh tentative seeds',
-    outputs: 'ObserverOutput { profile_body (full rewrite), hooks, edges, side_channel, cast_notes_updates, hypothesis_ladder_moves }',
-    prompt: OBSERVER_SYSTEM,
-    tool_name: OBSERVER_TOOL.name,
-    notes: 'Profiler with explicit speculation authority. Profile is a living document, not a notes-bin. Routes hypotheses between ladder rungs (confirmed/probable/tentative/contested/refuted/held). Re-evaluates curated early answers as later evidence accumulates.',
+    call_pattern: 'serial — fires every post-opener pick. Haiku tier (cheap). Reads this turn\'s Q&A in context (options, negative space, inversions decoder) + full history + existing notes. Appends 0-6 short free-form notes to doc.seeder_notes.',
+    input_type: 'SeederInput',
+    output_type: 'SeederOutput',
+    inputs: 'this_turn (question, options_shown, picked, negative_space, inversions) + history + existing_notes + verbatim_log',
+    outputs: 'SeederOutput { notes: string[], reasoning, based_on_v }',
+    prompt: SEEDER_SYSTEM,
+    tool_name: SEEDER_TOOL.name,
+    notes: 'Seeds IDEAS into the detective\'s mind, not structured hypotheses. Append-only. Silence is fine on thin turns. Replaces the v3.2 Observer + Profiler.',
   },
   {
     id: 'detective',
