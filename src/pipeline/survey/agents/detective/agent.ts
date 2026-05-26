@@ -1,34 +1,73 @@
-// Detective — v2 prose-shell output, adversarial objective.
+// Detective agent — interrogation pivot.
 //
-// Drops from 'deep' (Opus) to 'cognition' (Sonnet) per locked
-// architecture. The queue model removes the per-turn latency tax
-// that justified the old parallel-firing design, so sequential
-// Sonnet is the right cost/quality point.
+// Single Opus call per detective pass. Writes a free-form thinking
+// trace followed by four labeled sections (===HYPOTHESES===,
+// ===ASSERTION===, ===IF_WARMER===, ===IF_COLDER===). Engine parses
+// the text blob, appends thinking to the running transcript,
+// extracts hypotheses (re-listing = vote), enqueues the assertion.
+//
+// Fires ONLY in Interrogation phase (post-pillars). The detective
+// holds the hunt — there is no observer / profiler anymore.
 
 import type { LLMAdapter } from '../../../llm/adapter';
-import type { EngineState, PipelineContext } from '../../types';
-import { DetectiveOutputSchema, type DetectiveOutput } from './schema';
-import { DETECTIVE_SYSTEM, DETECTIVE_TOOL } from './prompt';
-import { buildDetectivePayload } from './payload';
+import { DETECTIVE_SYSTEM_TEMPLATE } from './prompt';
+import { parseDetectiveTextBlob, type DetectiveTextBlob } from './parseTextBlob';
+import { renderTranscript } from '../../transcript';
+import { formatVerbatimLog } from '../../verbatim-log';
+import type { EngineState, QueuedAssertion } from '../../types';
+
+const OBJECTIVE_LINE =
+  "find this person's live dilemma — a situation they face with a fork in it, where one branch is 'continue as you are.' assert situations and behaviors, not interior verdicts. profile the problem, not the person.";
+
+export type RunDetectiveArgs = {
+  state: EngineState;
+};
 
 export async function runDetective(
   adapter: LLMAdapter,
-  ctx: PipelineContext,
-  state: EngineState,
-): Promise<DetectiveOutput> {
-  return adapter.invoke(
-    {
-      system: DETECTIVE_SYSTEM,
-      user: JSON.stringify(buildDetectivePayload(ctx, state), null, 2),
-      tool: DETECTIVE_TOOL,
-      // 'cognition' tier — Sonnet. The detective's scratchpad is the
-      // largest single output in the survey pipeline so the token
-      // budget stays at 4K; quality at this tier is sufficient for
-      // adversarial selection given the deterministic ranker already
-      // pre-filters the candidate set.
-      model: 'cognition',
-      max_tokens: 4000,
-    },
-    DetectiveOutputSchema,
-  );
+  args: RunDetectiveArgs,
+): Promise<DetectiveTextBlob> {
+  const { state } = args;
+  const transcript = renderTranscript(state.transcript);
+  const hypothesesSoFar = state.hypotheses.length > 0
+    ? state.hypotheses.map((h) => `    ${h}`).join('\n')
+    : '    (none yet)';
+  const queue = state.assertion_queue.length > 0
+    ? state.assertion_queue.map((q) => `    A${q.idx} (queued): ${q.statement}`).join('\n')
+    : '    (queue empty — propose the first interrogation assertion)';
+  const verbatim = formatVerbatimLog(state.verbatim_log) || '(none)';
+  const thinkingSoFar = state.detective_thinking.trim() || '(this is your first thinking pass — start fresh)';
+
+  const system = DETECTIVE_SYSTEM_TEMPLATE
+    .replace('{{OBJECTIVE}}', OBJECTIVE_LINE)
+    .replace('{{TRANSCRIPT}}', transcript || '(no pillar answers yet)')
+    .replace('{{HYPOTHESES_SO_FAR}}', hypothesesSoFar)
+    .replace('{{ASSERTION_QUEUE}}', queue)
+    .replace('{{VERBATIM_LOG}}', verbatim)
+    .replace('{{DETECTIVE_THINKING_TRANSCRIPT}}', thinkingSoFar);
+
+  const raw = await adapter.invokeFreeform({
+    system,
+    user: 'continue.',
+    model: 'deep',
+    max_tokens: 4000,
+  });
+
+  return parseDetectiveTextBlob(raw);
+}
+
+/** Helper for the engine: build a QueuedAssertion from a parsed blob. */
+export function blobToQueuedAssertion(
+  blob: DetectiveTextBlob,
+  next_idx: number,
+  emitted_at_turn: number,
+): QueuedAssertion | null {
+  if (!blob.assertion) return null;
+  return {
+    idx: next_idx,
+    statement: blob.assertion,
+    comment_if_warmer: blob.if_warmer,
+    comment_if_colder: blob.if_colder,
+    emitted_at_turn,
+  };
 }

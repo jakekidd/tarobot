@@ -27,8 +27,8 @@ import { STARTER_SEED_COUNT } from '../pipeline/survey';
 
 // ── Live prompt imports ─────────────────────────────────────
 
-import { SEEDER_SYSTEM, SEEDER_TOOL } from '../pipeline/survey/agents/seeder';
-import { DETECTIVE_SYSTEM, DETECTIVE_TOOL } from '../pipeline/survey/agents/detective';
+import { SEEDER_SYSTEM_TEMPLATE } from '../pipeline/survey/agents/seeder';
+import { DETECTIVE_SYSTEM_TEMPLATE } from '../pipeline/survey/agents/detective';
 import {
   AUGUR_OUTLINE_SYSTEM,
   AUGUR_OUTLINE_TOOL,
@@ -102,25 +102,25 @@ const SURVEY_AGENTS: AgentSpec[] = [
     runtime: 'cloud',
     call_pattern: 'serial — fires every post-opener pick. Haiku tier (cheap). Reads this turn\'s Q&A in context (options, negative space, inversions decoder) + full history + existing notes. Appends 0-6 short free-form notes to doc.seeder_notes.',
     input_type: 'SeederInput',
-    output_type: 'SeederOutput',
-    inputs: 'this_turn (question, options_shown, picked, negative_space, inversions) + history + existing_notes + verbatim_log',
-    outputs: 'SeederOutput { notes: string[], reasoning, based_on_v }',
-    prompt: SEEDER_SYSTEM,
-    tool_name: SEEDER_TOOL.name,
-    notes: 'Seeds IDEAS into the detective\'s mind, not structured hypotheses. Append-only. Silence is fine on thin turns. Replaces the v3.2 Observer + Profiler.',
+    output_type: 'string[]',
+    inputs: 'transcript + this_turn (question, options, picked, skipped, decoder) + verbatim_log',
+    outputs: 'plain text — one observation per line, indented',
+    prompt: SEEDER_SYSTEM_TEMPLATE,
+    tool_name: 'freeform',
+    notes: 'Observations only — no hypotheses, no decisions, no forks. Lines get appended to the transcript. Silence is fine on thin turns.',
   },
   {
     id: 'detective',
     name: 'Detective',
     runtime: 'cloud',
-    call_pattern: 'parallel — fires every post-opener pick (returning users skip in lite mode). Runs alongside Observer; both operate on the same pre-pipeline snapshot.',
+    call_pattern: 'Interrogation phase only. Called repeatedly to refill an assertion queue 3-ahead of the user; latest answer always wins (queue is provisional, not a script).',
     input_type: 'DetectiveInput',
-    output_type: 'DetectiveOutput',
-    inputs: 'snapshot at pipeline start + investigation board (full ladder) + current story',
-    outputs: 'DetectiveOutput { new_hypotheses, hypothesis_ladder_moves, story_updates, private_thoughts }',
-    prompt: DETECTIVE_SYSTEM,
-    tool_name: DETECTIVE_TOOL.name,
-    notes: 'Builds the StoryObject incrementally: fork (or stasis-as-fork fallback), present_pressure, past_root, stakes, hooks. private_thoughts is a scratchpad fed back on the next call. No queue_edits (cut earlier; tracked in TODO).',
+    output_type: 'DetectiveTextBlob',
+    inputs: 'transcript (pillar Q&A + seeder obs + assertions + responses) + hypotheses_so_far (re-vote by repetition) + assertion_queue + verbatim_log + detective_thinking_so_far (continuous transcript)',
+    outputs: 'free-form thinking, then ===HYPOTHESES===, ===ASSERTION===, ===IF_WARMER===, ===IF_COLDER===',
+    prompt: DETECTIVE_SYSTEM_TEMPLATE,
+    tool_name: 'freeform',
+    notes: 'Opus, 4K tokens. Hypothesis re-listing = vote. Asserts situation, not interior. WARMER/COLDER framing; correction text is the gold.',
   },
   {
     id: 'augur-outline',

@@ -3492,3 +3492,113 @@ input, textarea {
   0%, 50% { opacity: 1; }
   51%, 100% { opacity: 0; }
 }
+
+/* =====================================================================
+   WarmerColderChoice — detective assertion response.
+   COLDER on the LEFT (blue), WARMER on the RIGHT (orange).
+   Temperature is universally legible. COLDER is signal, not failure.
+   ===================================================================== */
+
+.warmer-colder {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  width: 100%;
+}
+
+.warmer-colder--primary {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem;
+}
+
+.warmer-colder__prompt {
+  font-family: var(--font-mono);
+  font-size: 0.9rem;
+  letter-spacing: 0.14em;
+  text-transform: lowercase;
+  margin-bottom: 0.2rem;
+}
+.warmer-colder__prompt--warmer { color: #f59e0b; text-shadow: 0 0 8px rgba(245, 158, 11, 0.35); }
+.warmer-colder__prompt--colder { color: #60a5fa; text-shadow: 0 0 8px rgba(96, 165, 250, 0.35); }
+
+.warmer-colder__freeform {
+  display: flex;
+  width: 100%;
+}
+.warmer-colder__input {
+  width: 100%;
+  font-family: var(--font-mono);
+  font-size: 1.05rem;
+  background: rgba(20, 12, 36, 0.4);
+  color: #f2ecff;
+  border: 1px solid #4a1f88;
+  padding: 0.65rem 0.85rem;
+  border-radius: 0;
+  outline: none;
+}
+.warmer-colder__input:focus { border-color: #b388ff; }
+.warmer-colder__input::placeholder { color: #6b5a8a; }
+
+.wc-button {
+  font-family: var(--font-mono);
+  font-size: 1.4rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  padding: 1.1rem 1.4rem;
+  border-radius: 0;
+  cursor: pointer;
+  text-align: center;
+  transition: filter 0.1s, transform 0.06s;
+  width: 100%;
+  min-height: 4rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #f2ecff;
+}
+.wc-button:hover:not(:disabled)  { filter: brightness(1.15); }
+.wc-button:active:not(:disabled) { transform: translateY(1px); }
+.wc-button:disabled              { cursor: default; }
+
+.wc-button--colder {
+  background-color: #1e3a8a;          /* deep blue */
+  border: 1px solid #3b82f6;
+  box-shadow: 0 0 24px rgba(59, 130, 246, 0.25);
+}
+.wc-button--colder:hover:not(:disabled) {
+  box-shadow: 0 0 32px rgba(59, 130, 246, 0.45);
+}
+.wc-button--warmer {
+  background-color: #7c2d12;          /* deep orange */
+  border: 1px solid #f97316;
+  box-shadow: 0 0 24px rgba(249, 115, 22, 0.28);
+}
+.wc-button--warmer:hover:not(:disabled) {
+  box-shadow: 0 0 32px rgba(249, 115, 22, 0.5);
+}
+.wc-button--skip {
+  background: transparent;
+  border: 1px solid rgba(107, 90, 138, 0.4);
+  color: #6b5a8a;
+  font-size: 0.85rem;
+  min-height: 2.3rem;
+  letter-spacing: 0.12em;
+  padding: 0.55rem 0.9rem;
+  margin-top: 0.2rem;
+}
+.wc-button--skip:hover:not(:disabled) {
+  color: #b388ff;
+  border-color: #b388ff;
+}
+.wc-button__text { display: inline-block; }
+
+.wc-button--unpicked {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 180ms ease-out;
+}
+.wc-button--picked {
+  animation: choice-flash-burst 420ms ease-out forwards;
+  pointer-events: none;
+}

@@ -13,14 +13,13 @@
 
 import type { LLMAdapter } from '../llm/adapter';
 import { runSeeder } from './agents/seeder';
+import { runDetective, blobToQueuedAssertion } from './agents/detective';
 import { runCompiler } from './agents/compiler';
 import { diffAnchors } from './anchor';
 import { checkDeadEndSignals } from './signals';
 import { computeLatencyZScores } from './algoExtract';
 import { pickToTranscriptEntry, type TranscriptEntry } from './transcript';
-import { runDetective, applyDetectiveOutput } from './agents/detective';
 import { runAugur } from './agents/augur';
-import { generateQuestion } from './generation';
 import { Seer } from '../seer';
 import { drawForSpread } from '../cards';
 import { FOUR_CARD_DIAMOND } from '../spreads';
@@ -45,7 +44,6 @@ import type {
   EngineListener,
   EngineState,
   PickEvent,
-  PipelineContext,
   QueueItem,
   RenderedQuestion,
   SurveyProfile,
@@ -151,9 +149,30 @@ export class SurveyEngine {
   getCurrentQuestion(): RenderedQuestion | null {
     if (this.state.closed) return null;
     const head = this.state.queue[0];
-    if (!head) return null;
-    this.currentRenderedAt = Date.now();
-    return renderQueueItem(head, this.state.profile);
+    if (head) {
+      this.currentRenderedAt = Date.now();
+      return renderQueueItem(head, this.state.profile);
+    }
+    // Pillar queue exhausted → Interrogation. Render the head of
+    // assertion_queue if there is one.
+    const nextAssertion = this.state.assertion_queue[0];
+    if (nextAssertion) {
+      this.currentRenderedAt = Date.now();
+      return {
+        node_id: `assertion_${nextAssertion.idx}`,
+        text: nextAssertion.statement,
+        format: 'assertion',
+        options: ['warmer', 'colder'],
+        preamble: undefined,
+        instrument: {
+          kind: 'assertion',
+          statement: nextAssertion.statement,
+          comment_if_warmer: nextAssertion.comment_if_warmer,
+          comment_if_colder: nextAssertion.comment_if_colder,
+        },
+      };
+    }
+    return null;
   }
 
   /** True when the user has out-paced the pipeline: queue empty but a
@@ -185,7 +204,13 @@ export class SurveyEngine {
   async submitAnswer(answer: string | string[]): Promise<void> {
     if (this.state.closed) return;
     const head = this.state.queue[0];
-    if (!head) return;
+    if (!head) {
+      // Interrogation: the head is in assertion_queue.
+      if (this.state.assertion_queue.length > 0) {
+        this.submitAssertionResponse(answer);
+      }
+      return;
+    }
     // Engine-authored items have no TREE.nodes entry — `node` will be
     // undefined and that's fine. We use renderQueueItem (which
     // dispatches on inline data) for the user-visible rendering and
@@ -281,16 +306,35 @@ export class SurveyEngine {
       transcript: transcriptEntries,
     });
 
-    // Assertion correction → log to verbatim. The seeder will pick it
-    // up next turn from existing_notes / verbatim_log.
-    if (assertionResult?.outcome === 'rejected_with_correction') {
+    // Assertion correction → log to verbatim + transcript. The detective
+    // sees the response on its next pass.
+    if (assertionResult) {
+      const transcriptResp: TranscriptEntry = {
+        kind: 'response',
+        assertion_idx: this.countAssertionsInTranscript(),
+        direction: assertionResult.direction,
+        ...(assertionResult.correction ? { correction: assertionResult.correction } : {}),
+        latency_ms: latencyMs,
+      };
       this.setState({
-        verbatim_log: appendVerbatim(this.state.verbatim_log, {
-          turn: this.countPostOpenerPicks(),
-          source: 'correction',
-          text: assertionResult.correction,
-        }),
+        transcript: [...this.state.transcript, transcriptResp],
+        ...(assertionResult.correction
+          ? {
+              verbatim_log: appendVerbatim(this.state.verbatim_log, {
+                turn: this.countPostOpenerPicks(),
+                source: 'correction',
+                text: assertionResult.correction,
+              }),
+            }
+          : {}),
       });
+      // Pop the answered assertion from the queue + refill in background.
+      if (this.state.assertion_queue.length > 0) {
+        this.setState({
+          assertion_queue: this.state.assertion_queue.slice(1),
+        });
+      }
+      void this.refillAssertionQueue();
     }
 
     // Populate profile if this was an opener.
@@ -443,29 +487,27 @@ export class SurveyEngine {
     })();
   }
 
-  /** Seeder agent — Haiku, per-turn, free-form notes. Reads this
-   *  turn's Q&A in context + history + existing notes. Appends 0-6
-   *  short notes to doc.seeder_notes. Cheap by design; latency
-   *  negligible. Staleness-gated on doc.v. */
+  /** Seeder agent — Haiku, fires after each pillar answer. Returns a
+   *  list of free-form observation lines that get appended to both
+   *  doc.seeder_notes (legacy compiler input) and the transcript
+   *  (interleaved as the detective's peripheral-vision data). */
   private async runSeederTask(pick: PickEvent): Promise<void> {
-    const based_on_v = this.state.doc.v;
     try {
-      const out = await runSeeder(this.opts.adapter, {
+      const lines = await runSeeder(this.opts.adapter, {
         state: this.state,
         pick,
       });
-      if (out.based_on_v !== based_on_v) return; // stale, discard
-      if (out.notes.length === 0) return;        // silence is fine
-      const pillarIdx = this.countPostOpenerPicks(); // pillar this seeded after
+      if (lines.length === 0) return; // silence is fine
+      const pillarIdx = this.countPostOpenerPicks();
       this.setState({
         doc: {
           ...this.state.doc,
           v: this.state.doc.v + 1,
-          seeder_notes: [...this.state.doc.seeder_notes, ...out.notes],
+          seeder_notes: [...this.state.doc.seeder_notes, ...lines],
         },
         transcript: [
           ...this.state.transcript,
-          { kind: 'seeder_obs', after_pillar_idx: pillarIdx, lines: out.notes },
+          { kind: 'seeder_obs', after_pillar_idx: pillarIdx, lines },
         ],
       });
       this.emit();
@@ -1053,226 +1095,151 @@ export class SurveyEngine {
     this.beginIntentionStage();
   }
 
-  /** v2 sequential cognition core. Replaces the parallel
-   *  observer+detective firing of v1. Flow per post-opener pick:
-   *
-   *    seeder (already ran before this in submitAnswer)
-   *      → observer (single writer) → bumps doc.v
-   *      → coverage map recompute → bumps doc.v
-   *      → if coverage indicates done AND pillar-floor cleared:
-   *          beginIntentionStage()
-   *      → else: detective → applies leading_hypothesis +
-   *          story_updates (bumps doc.v); next_move captured for
-   *          telemetry. Phase 4 wires next_move into queue edits.
-   *
-   *  Staleness discipline: observer + detective both echo `based_on_v`
-   *  matching the doc.v they read. Engine compares against current
-   *  doc.v before applying — stale results discard (the engine moved
-   *  on; the next cognition cycle will reconverge). */
+  /** Interrogation-pivot pipeline. Pillar phase = seeder only. Last
+   *  pillar answer kicks off the Interrogation detective queue. The
+   *  detective then drives until the assertion soft-ceiling, when the
+   *  engine routes to close. */
   private async runPipeline(pick: PickEvent): Promise<void> {
     if (this.state.is_returning_user) return; // lite mode
 
-    const baseCtx: PipelineContext = {
-      index: this.state.picks_log.length,
-      question: pick.question_text,
-      options_shown: pick.options_shown,
-      answer: pick.answer,
-      profile: this.state.profile,
-      doc: this.state.doc,
-      history: this.state.picks_log,
-      queue: this.state.queue,
-    };
-
     const postOpenerCount = this.countPostOpenerPicks();
     const pillarFloor = getPillars().length;
-    const inPillarPhase = postOpenerCount <= pillarFloor;
 
-    if (inPillarPhase) {
-      // ── PILLAR phase: seeder only (Haiku, free-form observations).
-      // The detective doesn't run during pillars — calibration only.
-      // Seeder's observations land in the transcript as the detective's
-      // peripheral-vision data once Interrogation begins.
+    if (postOpenerCount <= pillarFloor) {
+      // PILLAR phase: seeder only.
       await this.runSeederTask(pick);
-      return;
+      // If the user just answered the LAST pillar, transition to
+      // Interrogation and kick off the detective queue fill.
+      if (postOpenerCount === pillarFloor) {
+        void this.refillAssertionQueue();
+      }
     }
-
-    // ── INTERROGATION phase: detective drives. Wave G rewires this
-    // path with the text-blob + queue-ahead detective; for now keep
-    // the existing detective call so the pipeline doesn't break.
-    const detCtx: PipelineContext = { ...baseCtx, doc: this.state.doc };
-    const detResult = await this.runDetectiveTask(detCtx);
-    if (!detResult) return;
-    await this.applyDetectiveNextMove(detResult.move, postOpenerCount, pillarFloor);
+    // Else: Interrogation. The detective fires from refillAssertionQueue
+    // which is triggered after each assertion answer (and after the
+    // last pillar above). No per-turn seeder during Interrogation.
   }
 
-  /** Route the detective's next_move into engine state mutations.
-   *  Phase 4 wiring:
-   *    - 'append' with intent: trigger the generation pipeline
-   *      (interrogator + crowd) and push the result to queue
-   *    - 'append' with node_id only: push that authored question to
-   *      queue (Phase 3-compatible advisory pick)
-   *    - 'revise' tail_index: Phase 5; no-op for now
-   *    - 'conclude': flush engine-authored items + transition to
-   *      finalizing (gated on pillar floor)
-   *
-   *  Note on "queue zones": instead of a structural QueueZone {head,
-   *  tail} type, we use the is_engine_authored flag on QueueItem as
-   *  the logical zone marker. Pillars and authored pool items are
-   *  is_engine_authored=false (committed); generation pipeline items
-   *  are is_engine_authored=true (revisable / flushable). Conclude
-   *  flushes only the engine-authored items, preserving any remaining
-   *  authored questions. */
-  private async applyDetectiveNextMove(
-    move: {
-      kind: string;
-      node_id?: string;
-      intent?: { angle: string; planted_options?: string[] };
-      instrument?: import('./instruments').Instrument;
-      reason: string;
-      tail_index?: number;
-    },
-    postOpenerCount: number,
-    pillarFloor: number,
-  ): Promise<void> {
-    if (move.kind === 'conclude') {
-      if (postOpenerCount < pillarFloor) {
-        // Floor gate: detective can't end early until pillars exhausted.
-        // Phase 5 calibrates the coverage heuristic, then this floor
-        // becomes the safety net rather than the dominant gate.
-        return;
-      }
-      // Flush engine-authored items from the queue, then transition.
-      this.setState({
-        queue: this.state.queue.filter((q) => !q.is_engine_authored),
-      });
-      this.beginIntentionStage();
-      return;
-    }
-    if (move.kind === 'revise') {
-      // Phase 5: revise queue.tail[tail_index]. For now, no-op.
-      return;
-    }
-    if (move.kind === 'assertion' && move.instrument && move.instrument.kind === 'assertion') {
-      // v3 PRIMARY path. Detective emitted a specific falsifiable
-      // claim. Push as a queue item with inline + instrument fields;
-      // the AssertionChoice UI component picks it up via the
-      // RenderedQuestion.instrument propagation.
-      const instr = move.instrument;
-      // Defensive: cap how many engine-authored assertions sit in the
-      // queue at once. Avoid runaway loops if the detective is
-      // hyperactive.
-      const enqueuedAssertions = this.state.queue.filter(
-        (q) => q.inline?.format === 'assertion',
-      ).length;
-      if (enqueuedAssertions >= 3) return;
-      this.setState({
-        queue: [
-          ...this.state.queue,
-          {
-            node_id: `assertion_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`,
-            prompted_by: 'detective_assertion',
-            priority: 'normal',
-            is_engine_authored: true,
-            inline: {
-              text: instr.statement,
-              format: 'assertion',
-              options: [],
-            },
-            instrument: instr,
-          },
-        ],
-      });
-      return;
-    }
-    if (move.kind === 'append') {
-      // Phase 4 legacy path: detective supplied an `intent` → generate.
-      // Kept for compatibility; v3 prefers the assertion move.
-      if (move.intent && move.intent.angle.trim().length > 0) {
-        await this.appendGeneratedQuestion(move.intent);
-        return;
-      }
-      // Phase 3 fallback path: detective picked a node_id from the
-      // adversarial candidates pool. Push the authored item.
-      if (move.node_id) {
-        // Defensive: skip if already asked or already queued.
-        if (this.state.asked_node_ids.includes(move.node_id)) return;
-        if (this.state.queue.some((q) => q.node_id === move.node_id)) return;
-        this.setState({
-          queue: [
-            ...this.state.queue,
-            { node_id: move.node_id, prompted_by: 'detective_append', priority: 'normal' },
-          ],
-        });
-        return;
-      }
-      // No intent + no node_id — empty append. Detective hasn't
-      // committed to a direction yet; no-op.
-    }
+  /** User answered a queued assertion (Interrogation phase). Parse
+   *  warmer/colder + optional correction, push to transcript +
+   *  verbatim log, pop the queue, refill. */
+  private submitAssertionResponse(answer: string | string[]): void {
+    const head = this.state.assertion_queue[0];
+    if (!head) return;
+    const parsed = parseAssertionAnswer(answer);
+    if (!parsed) return;
+    const renderedAt = this.currentRenderedAt || Date.now();
+    const answeredAt = Date.now();
+    const latencyMs = answeredAt - renderedAt;
+
+    // Snapshot for undo.
+    this.previousState = JSON.parse(JSON.stringify(this.state)) as EngineState;
+    this.pickEpoch += 1;
+
+    const respEntry: TranscriptEntry = {
+      kind: 'response',
+      assertion_idx: head.idx,
+      direction: parsed.direction,
+      ...(parsed.correction ? { correction: parsed.correction } : {}),
+      latency_ms: latencyMs,
+    };
+    const transcriptWithAssertionVoiced: TranscriptEntry[] = [
+      ...this.state.transcript,
+      // Tag the assertion as voiced (it was the head of the queue when
+      // the user saw it).
+      { kind: 'assertion', assertion_idx: head.idx, statement: head.statement },
+      respEntry,
+    ];
+    this.setState({
+      transcript: transcriptWithAssertionVoiced,
+      assertion_queue: this.state.assertion_queue.slice(1),
+      ...(parsed.correction
+        ? {
+            verbatim_log: appendVerbatim(this.state.verbatim_log, {
+              turn: this.countPostOpenerPicks(),
+              source: 'correction',
+              text: parsed.correction,
+            }),
+          }
+        : {}),
+    });
+    this.emit();
+    // Refill in the background.
+    void this.refillAssertionQueue();
   }
 
-  /** Trigger the Phase 4 generation pipeline: interrogator + crowd
-   *  → assemble + lint → enqueue with is_engine_authored=true. On
-   *  lint failure (both attempts), falls back to a random
-   *  unanswered pool pick. */
-  private async appendGeneratedQuestion(intent: { angle: string; planted_options?: string[] }): Promise<void> {
-    try {
-      const result = await generateQuestion(this.opts.adapter, intent);
-      if (result) {
-        this.setState({
-          queue: [...this.state.queue, result.item],
-        });
-        return;
-      }
-    } catch (e) {
-      console.warn('[survey] generation pipeline failed', e);
-    }
-    // Fallback: pick a random unanswered authored question.
-    const fallback = this.pickFallbackPoolItem();
-    if (fallback) {
-      this.setState({ queue: [...this.state.queue, fallback] });
-    }
-  }
-
-  /** Return a random unanswered pool QueueItem, or null when the
-   *  pool is exhausted. Used as the static fallback when generation
-   *  fails lint. */
-  private pickFallbackPoolItem(): QueueItem | null {
-    const asked = new Set(this.state.asked_node_ids);
-    const queued = new Set(this.state.queue.map((q) => q.node_id));
-    const candidates = [...getPillars(), ...getPoolNodeIds()].filter(
-      (id) => !asked.has(id) && !queued.has(id),
-    );
-    if (candidates.length === 0) return null;
-    const node_id = candidates[Math.floor(Math.random() * candidates.length)]!;
-    return { node_id, prompted_by: 'fallback_pool', priority: 'normal' };
-  }
-
-  /** Run the detective agent. Applies leading_hypothesis +
-   *  story_updates; returns the result (engine inspects next_move).
-   *  Bumps doc.v on success when the output mutates doc. */
-  private async runDetectiveTask(
-    baseCtx: PipelineContext,
-  ): Promise<ReturnType<typeof applyDetectiveOutput> | null> {
+  /** Single detective pass — calls runDetective, parses the text-blob,
+   *  appends thinking to the running transcript, updates the
+   *  hypothesis list (re-listing as votes — frequency = confidence),
+   *  enqueues the next assertion. Idempotent in the sense that if the
+   *  detective returns nothing usable, state is left untouched. */
+  private async runDetectivePass(): Promise<boolean> {
     this.agentInFlight.detective += 1; this.publishInflight();
     try {
-      const out = await runDetective(this.opts.adapter, baseCtx, this.state);
-      if (out.based_on_v !== this.state.doc.v) {
-        return null;
-      }
-      const applied = applyDetectiveOutput(this.state.doc, out);
-      if (applied.nextDoc !== this.state.doc) {
-        this.setState({ doc: applied.nextDoc });
+      const blob = await runDetective(this.opts.adapter, { state: this.state });
+      const nextIdx = this.countAssertionsInTranscript() + this.state.assertion_queue.length + 1;
+      const queued = blobToQueuedAssertion(blob, nextIdx, this.countPostOpenerPicks());
+      if (!queued) {
+        // No assertion this turn — detective bailed. Still append the
+        // thinking + hypothesis snapshot so the next call sees them.
+        this.setState({
+          detective_thinking: this.state.detective_thinking
+            + (this.state.detective_thinking ? '\n\n' : '')
+            + blob.thinking,
+          hypotheses: blob.hypotheses.length > 0 ? blob.hypotheses : this.state.hypotheses,
+        });
         this.emit();
+        return false;
       }
-      return applied;
+      this.setState({
+        detective_thinking: this.state.detective_thinking
+          + (this.state.detective_thinking ? '\n\n' : '')
+          + blob.thinking,
+        hypotheses: blob.hypotheses,
+        assertion_queue: [...this.state.assertion_queue, queued],
+      });
+      this.emit();
+      return true;
     } catch (e) {
-      console.warn('[survey] detective failed', e);
-      return null;
+      console.warn('[survey] detective pass failed', e);
+      return false;
     } finally {
       this.agentInFlight.detective -= 1; this.publishInflight();
     }
   }
+
+  /** Refill the assertion queue to LOOKAHEAD_CAP. Loops detective
+   *  calls in the background. Stops when the cap is reached, when a
+   *  pass fails to emit an assertion, or when the total interrogation
+   *  assertion count hits the soft ceiling. */
+  private async refillAssertionQueue(): Promise<void> {
+    const SOFT_CEILING = 6;
+    while (
+      this.state.assertion_queue.length < LOOKAHEAD_CAP
+      && (this.countAssertionsInTranscript() + this.state.assertion_queue.length) < SOFT_CEILING
+    ) {
+      const ok = await this.runDetectivePass();
+      if (!ok) break;
+    }
+    // If we've hit the soft ceiling AND the user has answered all
+    // queued assertions, transition to the close path.
+    if (
+      this.state.assertion_queue.length === 0
+      && this.countAssertionsInTranscript() >= SOFT_CEILING
+    ) {
+      this.beginIntentionStage();
+    }
+  }
+
+  /** Count detective-voiced assertions already in the transcript
+   *  (i.e., the user has seen them). Used for the soft ceiling. */
+  private countAssertionsInTranscript(): number {
+    return this.state.transcript.filter((e) => e.kind === 'assertion').length;
+  }
 }
+
+/** Lookahead depth — the detective keeps up to this many assertions
+ *  pre-generated in the queue. Latency hiding + exploration pressure. */
+const LOOKAHEAD_CAP = 3;
 
 // ─── helpers (module-local) ─────────────────────────────
 
@@ -1321,8 +1288,4 @@ function shuffleInPlace<T>(arr: T[]): T[] {
 // state machine setup. Production code SHOULD import from the
 // per-agent folders, not from engine.ts.
 
-export {
-  applyDetectiveOutput as __test_applyDetectiveOutput,
-  mergeStoryUpdates as __test_mergeStoryUpdates,
-} from './agents/detective';
 export { computeLatencyZScores as __test_computeLatencyZScores } from './algoExtract';

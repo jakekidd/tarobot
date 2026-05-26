@@ -86,13 +86,18 @@ export type {
   VerbatimEntry,
 } from './types';
 
-// Detective output types (per-agent schema.ts via z.infer).
-export type { DetectiveOutput, StoryUpdates } from './agents/detective';
+// Detective — text-blob output, no tool call.
+export { runDetective, blobToQueuedAssertion } from './agents/detective';
+export type { DetectiveTextBlob } from './agents/detective';
 
-// Seeder pivot — free-form notes appended per turn.
-export { runSeeder } from './agents/seeder';
-export type { SeederOutput, SeederPayloadArgs } from './agents/seeder';
+// Seeder — free-form observation lines appended per pillar answer.
+export { runSeeder, parseSeederLines } from './agents/seeder';
 export type { ProbeStatus } from './living-doc';
+
+// Transcript types.
+export { renderTranscript, pickToTranscriptEntry } from './transcript';
+export type { TranscriptEntry } from './transcript';
+export type { QueuedAssertion } from './types';
 
 // v2 LivingDoc types — new public surface introduced in Phase 2.
 export type {

@@ -1,19 +1,5 @@
-// Detective agent — public surface. Engine + tests import from here.
+// Detective agent — text-blob output, no tool call.
 
-export { runDetective } from './agent';
-export {
-  DetectiveOutputSchema,
-  StoryUpdatesSchema,
-  MoveSchema,
-  type DetectiveOutput,
-  type StoryUpdates,
-} from './schema';
-// Move type is canonical in living-doc.ts — not re-exported here to
-// avoid duplicate-identifier collisions in the survey/index barrel.
-export { DETECTIVE_SYSTEM, DETECTIVE_TOOL } from './prompt';
-export { buildDetectivePayload } from './payload';
-export {
-  applyDetectiveOutput,
-  mergeStoryUpdates,
-  type DetectiveApplyResult,
-} from './apply';
+export { runDetective, blobToQueuedAssertion } from './agent';
+export { DETECTIVE_SYSTEM_TEMPLATE } from './prompt';
+export { parseDetectiveTextBlob, type DetectiveTextBlob } from './parseTextBlob';

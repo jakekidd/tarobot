@@ -1,16 +1,10 @@
-// Detective prompt + tool spec. Prompt body lives in
-// materials/prompts/detective.md (Vite ?raw) so non-coders edit on
-// GitHub.
+// Detective prompt template. Body lives in materials/prompts/detective.md
+// (Vite ?raw import) so non-coders edit on GitHub.
+//
+// The template uses {{PLACEHOLDER}} tokens the runner substitutes at
+// call time: {{OBJECTIVE}}, {{TRANSCRIPT}}, {{HYPOTHESES_SO_FAR}},
+// {{ASSERTION_QUEUE}}, {{VERBATIM_LOG}}, {{DETECTIVE_THINKING_TRANSCRIPT}}.
 
-import { z } from 'zod';
 import DETECTIVE_SYSTEM_RAW from '../../../../../materials/prompts/detective.md?raw';
-import { DetectiveOutputSchema } from './schema';
-import type { ToolDef } from '../../../llm/adapter';
 
-export const DETECTIVE_SYSTEM = DETECTIVE_SYSTEM_RAW;
-
-export const DETECTIVE_TOOL: ToolDef = {
-  name: 'detective_step',
-  description: 'think out loud, update the investigation, and pick the next question from the basket.',
-  input_schema: z.toJSONSchema(DetectiveOutputSchema) as Record<string, unknown>,
-};
+export const DETECTIVE_SYSTEM_TEMPLATE = DETECTIVE_SYSTEM_RAW;

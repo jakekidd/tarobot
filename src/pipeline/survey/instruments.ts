@@ -1,93 +1,56 @@
-// v3 instruments — the detective's vocabulary for testing candidate
-// Dilemmas.
+// Detective-emitted assertion + answer encoding.
 //
-// Phase 3 ships ONE instrument end-to-end: the assertion. The other
-// three (forced_choice_with_none / compare_ab / near_miss) are
-// scaffolded in the discriminated union but get implemented in a later
-// wave once the assertion loop has been walked.
+// The detective writes assertions for the user to react to. The user
+// picks WARMER (getting closer to true) or COLDER (moving away) —
+// optionally adding a short follow-up correction. The encoding is:
 //
-// Each instrument carries pre-baked mascot lines (comment_if_<answer>)
-// so the user-facing response is zero-LLM-latency. The mascot speaks
-// them immediately on tap; that 1-3s buys cover for the next-instrument
-// generation in the background. They are not just stalls — they're
-// in-character mascot lines that also land the moment.
-//
-// Assertion result encoding (lives on PickEvent.instrument_result):
-//   { outcome: 'confirmed' }
-//   { outcome: 'rejected' }
-//   { outcome: 'rejected_with_correction', correction: <user text> }
-//
-// The PickEvent.answer string remains the wire-format the UI submits
-// ('true' | 'false' | 'corrected:<text>'); the engine parses it into
-// the structured result and into a VerbatimEntry on corrections.
+//   'warmer'                  → { direction: 'warmer' }
+//   'colder'                  → { direction: 'colder' }
+//   'warmer:<text>'           → { direction: 'warmer', correction: <text> }
+//   'colder:<text>'           → { direction: 'colder', correction: <text> }
 
-/** The detective's hypothesis-test vocabulary. Discriminated by `kind`.
- *  Phase 3: only 'assertion' is wired through to the UI and runtime;
- *  the others land in later waves. */
-export type Instrument = AssertionInstrument;
-// Later: | ForcedChoiceWithNoneInstrument | CompareAbInstrument | NearMissInstrument
-
-/** A specific, falsifiable claim about the subject. The most-used
- *  exploit instrument — emitted when the detective wants to confirm
- *  or sharpen a candidate Dilemma. */
+/** A queued assertion the detective has emitted. */
 export type AssertionInstrument = {
   kind: 'assertion';
-  /** The claim itself. MUST be specific enough that the user can
-   *  reject it. "you feel things deeply but keep some protected" is
-   *  Barnum — returns zero bits even when confirmed. */
   statement: string;
-  /** Stable id of the candidate Dilemma this assertion tests. The
-   *  detective owns this id space; for Phase 3 (single-leader model)
-   *  it's typically 'leading'. */
-  predicts_dilemma_id: string;
-  /** Mascot line spoken on user-confirms. Short, in-character. */
-  comment_if_true: string;
-  /** Mascot line spoken on user-rejects. Short, in-character. Should
-   *  NOT shame the rejection — a 'false' that lands a good correction
-   *  is the highest-value outcome of the survey. */
-  comment_if_false: string;
-  /** Optional one-tap correction options shown after 'false'. The
-   *  detective's best-guess inversions of the statement. Text fallback
-   *  is always available; correction_inversions just save the user
-   *  typing when one of the guesses lands. */
-  correction_inversions?: string[];
+  /** Mascot stall line spoken on WARMER. */
+  comment_if_warmer: string;
+  /** Mascot stall line spoken on COLDER. */
+  comment_if_colder: string;
 };
 
-/** Logged outcome of an assertion answer. Stored on PickEvent so the
- *  debug panel (and any future telemetry rig) can compute the
- *  confirmed / rejected / rejected-with-correction rate without
- *  re-parsing the answer string. */
-export type AssertionResult =
-  | { outcome: 'confirmed' }
-  | { outcome: 'rejected' }
-  | { outcome: 'rejected_with_correction'; correction: string };
+/** The user's response to an assertion. Direction is the binary
+ *  signal; optional correction is the gold (user's own words on what
+ *  the real thing is). */
+export type AssertionResult = {
+  direction: 'warmer' | 'colder';
+  correction?: string;
+};
 
-// ─── Wire format helpers ────────────────────────────────
+/** Discriminated union for forward-compat. Only 'assertion' today. */
+export type Instrument = AssertionInstrument;
 
-/** Parse the UI-submitted answer string for an assertion item.
- *  Wire format:
- *    'true'              → confirmed
- *    'false'             → rejected
- *    'corrected:<text>'  → rejected_with_correction. text is trimmed.
- *  Returns null on any unparseable input — caller decides how to
- *  handle (typically: log warning, treat as rejected). */
+const PREFIX_WARMER = 'warmer';
+const PREFIX_COLDER = 'colder';
+
+/** Parse the UI's submitted answer string for an assertion item. */
 export function parseAssertionAnswer(answer: string | string[]): AssertionResult | null {
   const raw = typeof answer === 'string' ? answer : answer[0] ?? '';
-  if (raw === 'true') return { outcome: 'confirmed' };
-  if (raw === 'false') return { outcome: 'rejected' };
-  if (raw.startsWith('corrected:')) {
-    const correction = raw.slice('corrected:'.length).trim();
-    if (correction.length === 0) return { outcome: 'rejected' };
-    return { outcome: 'rejected_with_correction', correction };
+  if (raw === PREFIX_WARMER) return { direction: 'warmer' };
+  if (raw === PREFIX_COLDER) return { direction: 'colder' };
+  if (raw.startsWith(`${PREFIX_WARMER}:`)) {
+    const correction = raw.slice(PREFIX_WARMER.length + 1).trim();
+    return { direction: 'warmer', ...(correction ? { correction } : {}) };
+  }
+  if (raw.startsWith(`${PREFIX_COLDER}:`)) {
+    const correction = raw.slice(PREFIX_COLDER.length + 1).trim();
+    return { direction: 'colder', ...(correction ? { correction } : {}) };
   }
   return null;
 }
 
-/** Encode a UI answer for an assertion item. */
-export function encodeAssertionAnswer(
-  result: AssertionResult,
-): string {
-  if (result.outcome === 'confirmed') return 'true';
-  if (result.outcome === 'rejected') return 'false';
-  return `corrected:${result.correction}`;
+/** Encode an AssertionResult to the wire format. */
+export function encodeAssertionAnswer(result: AssertionResult): string {
+  const prefix = result.direction === 'warmer' ? PREFIX_WARMER : PREFIX_COLDER;
+  return result.correction ? `${prefix}:${result.correction}` : prefix;
 }
