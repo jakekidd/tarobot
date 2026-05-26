@@ -1,15 +1,18 @@
-// Seeder input payload builder. The seeder reads this turn's Q&A in
-// context (options, negative space, inversions) + the full history
-// + existing notes + verbatim log.
+// Seeder input payload builder.
+//
+// Reads the unified transcript (pillar picks with negative space +
+// prior seeder observations interleaved) and the current turn's pick
+// in detail. The seeder appends 0-6 observations to the transcript.
 
 import { formatVerbatimLog } from '../../verbatim-log';
+import { renderTranscript } from '../../transcript';
 import { getNode } from '../../tree';
 import { probeToString } from '../../types';
 import type { EngineState, PickEvent, VerbatimEntry } from '../../types';
 
 export type SeederPayloadArgs = {
   state: EngineState;
-  /** The just-answered pick (this turn). */
+  /** The just-answered pillar pick. */
   pick: PickEvent;
 };
 
@@ -24,30 +27,30 @@ export function buildSeederPayload(args: SeederPayloadArgs): unknown {
     return !pickedRaw.includes(opt);
   });
   const inversions = node ? probeToString(node.probe) : undefined;
+  // The transcript already includes this turn's pick (engine pushed it
+  // before calling the seeder). Render the full thing so the seeder
+  // sees the chronological flow.
+  const transcript = renderTranscript(state.transcript);
 
   return {
     subject_name: state.profile.name || 'unnamed',
+    identity: {
+      sun_sign: state.profile.sun_sign,
+      life_path: state.profile.life_path,
+      birth_card: state.profile.birth_card,
+      age_bracket: state.profile.age_bracket,
+    },
+    transcript,
     this_turn: {
       question: pick.question_text,
       options_shown: optionsShown,
       picked,
-      negative_space: negativeSpace,
+      skipped: negativeSpace,
       inversions: inversions ?? '(no authored decoder)',
     },
-    history: state.picks_log.slice(0, -1).map(toHistoryItem),
-    existing_notes: state.doc.seeder_notes,
     verbatim_log: state.verbatim_log.map(toVerbatimItem),
     verbatim_log_formatted: formatVerbatimLog(state.verbatim_log),
     doc_v: state.doc.v,
-  };
-}
-
-function toHistoryItem(p: PickEvent, idx: number) {
-  return {
-    idx,
-    q: p.question_text,
-    a: p.answer,
-    ...(p.instrument_result ? { instrument_result: p.instrument_result } : {}),
   };
 }
 

@@ -1083,24 +1083,25 @@ export class SurveyEngine {
       queue: this.state.queue,
     };
 
-    // ── Stage: seeder (Haiku, free-form notes) ──
-    //
-    // Reads this turn's Q&A in context (options, negative space,
-    // inversions) + the full history + existing notes. Appends 0-6
-    // short notes to doc.seeder_notes. The detective consumes the
-    // accumulated note list. Cheap (Haiku, 800 tokens) so latency is
-    // negligible per turn.
-    await this.runSeederTask(pick);
-
     const postOpenerCount = this.countPostOpenerPicks();
     const pillarFloor = getPillars().length;
+    const inPillarPhase = postOpenerCount <= pillarFloor;
 
-    // ── Stage: detective (reads seeder notes + history + verbatim) ──
+    if (inPillarPhase) {
+      // ── PILLAR phase: seeder only (Haiku, free-form observations).
+      // The detective doesn't run during pillars — calibration only.
+      // Seeder's observations land in the transcript as the detective's
+      // peripheral-vision data once Interrogation begins.
+      await this.runSeederTask(pick);
+      return;
+    }
+
+    // ── INTERROGATION phase: detective drives. Wave G rewires this
+    // path with the text-blob + queue-ahead detective; for now keep
+    // the existing detective call so the pipeline doesn't break.
     const detCtx: PipelineContext = { ...baseCtx, doc: this.state.doc };
     const detResult = await this.runDetectiveTask(detCtx);
     if (!detResult) return;
-
-    // ── Stage: act on the detective's next_move ──
     await this.applyDetectiveNextMove(detResult.move, postOpenerCount, pillarFloor);
   }
 
