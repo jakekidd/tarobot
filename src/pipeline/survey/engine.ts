@@ -27,6 +27,7 @@ import { assembleProfile } from './profile-assembly';
 import { computeAstroProfile, parseBirthDate } from '../astrology';
 import { publishDebug } from '../../debug/debugBus';
 import { publishAnchor } from '../../debug/anchorBus';
+import { publishCompilerStream } from '../../debug/compilerStreamBus';
 import {
   getNode,
   getOpeners,
@@ -458,7 +459,16 @@ export class SurveyEngine {
   private async runCompilerTask(): Promise<void> {
     const prev_anchor = this.state.anchor;
     try {
-      const out = await runCompiler(this.opts.adapter, { state: this.state });
+      const out = await runCompiler(
+        this.opts.adapter,
+        { state: this.state },
+        {
+          onStart: () => publishCompilerStream({ kind: 'start' }),
+          onThinking: (chunk) => publishCompilerStream({ kind: 'thinking', chunk }),
+          onToolInput: (chunk) => publishCompilerStream({ kind: 'tool_input', chunk }),
+          onEnd: () => publishCompilerStream({ kind: 'end' }),
+        },
+      );
       this.setState({ anchor: out.anchor });
       this.emit();
       publishAnchor({

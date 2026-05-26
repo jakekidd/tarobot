@@ -29,6 +29,28 @@ export type InvocationSpec = {
   tool: ToolDef;
   model: ModelTier;
   max_tokens: number;
+  /** Optional: enable Anthropic extended thinking with this token
+   *  budget. Only meaningful on 'deep' tier; lower tiers may ignore
+   *  or error. The Compiler is currently the only caller that opts in. */
+  thinking_budget?: number;
+};
+
+/** Streaming variant. Same as InvocationSpec but the caller can hook
+ *  into chunked events as they arrive — thinking deltas and the
+ *  accumulating tool-input JSON. Only the Compiler streams (see the
+ *  v3.3 plan: turtle dialogue surfaces the model's thinking as it
+ *  builds the close-pass anchor). */
+export type StreamingInvocationSpec = InvocationSpec & {
+  /** Called for each thinking_delta event. Empty / dropped chunks are
+   *  fine — callers are expected to handle graceful degradation. */
+  onThinking?: (chunk: string) => void;
+  /** Called for each input_json_delta event as the tool input
+   *  accumulates. */
+  onToolInput?: (chunk: string) => void;
+  /** Called once when streaming starts. */
+  onStart?: () => void;
+  /** Called once when streaming ends (success or failure). */
+  onEnd?: () => void;
 };
 
 /** Freeform invocation — no tool, no schema. The model writes prose
@@ -48,6 +70,7 @@ export type FreeformSpec = {
  */
 export interface LLMAdapter {
   invoke<T>(spec: InvocationSpec, schema: ZodType<T>): Promise<T>;
+  invokeStreaming<T>(spec: StreamingInvocationSpec, schema: ZodType<T>): Promise<T>;
   invokeFreeform(spec: FreeformSpec): Promise<string>;
 }
 
