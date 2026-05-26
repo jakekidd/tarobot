@@ -95,9 +95,11 @@ evidence preference, strongest first:
      (verbatim_log, source='correction'). the user drew the real
      contour in their own words. weight ABOVE everything else.
 
-  2. WEAVER CANDIDATE thoughts that cite warmth + verbatim entries.
-     WEAVER already did the work of metabolizing the interrogation;
-     trust its anchored thoughts.
+  2. WEAVER CANDIDATE thoughts that cite warmth + verbatim entries —
+     ESPECIALLY candidates with extension_count >= 2. WEAVER already
+     did the work of metabolizing the interrogation; trust its
+     anchored thoughts, and trust DURABILITY across runs over
+     drive-by appearances.
 
   3. CONCENTRATED WARMTH in the transcript. clusters of warm
      assertions around a theme.
@@ -165,7 +167,18 @@ the user message is a JSON object with:
                                  thin → resolution_path
                                  "strongest-candidate")
   · weaver_candidates           — WEAVER's curated set: { label,
-                                 description, thoughts[] }[]
+                                 description, thoughts[],
+                                 created_at_turn, last_extension_turn,
+                                 extension_count }[].
+                                 The trajectory fields are engine-
+                                 maintained — read them as durability:
+                                 a candidate with extension_count >= 2
+                                 has accumulated evidence across
+                                 multiple WEAVER passes and is more
+                                 trustworthy than one that just
+                                 appeared. extension_count == 0 means
+                                 "showed up but no follow-up evidence
+                                 yet."
   · transcript                 — the unified narrative (pillar Q&A
                                  with negative space + latency,
                                  seeder observations, assertions,

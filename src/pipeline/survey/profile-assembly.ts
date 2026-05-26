@@ -6,21 +6,32 @@
 // the legacy Profile shape. Everything else inside the survey deals
 // in LivingDoc; everything downstream deals in Profile.
 //
-// Phase 2 status: doc is largely empty at assembly time because the
-// observer + detective agents throw not_implemented_v2. The bridge
-// still produces a valid Profile — just with empty/minimal cognition
-// fields. The Seer's director / Augur tolerate empty arrays so the
-// reading degrades to "raw identity + opener answers" but doesn't
-// crash. Phase 3 lights up the real doc content.
+// Post-compiler-as-sieve: when state.dilemma is populated (the
+// structured DilemmaDocument the compiler emits), assembleProfile
+// PREFERS it for the load-bearing fields — candidates, observer_body,
+// observer_edges, observer_hooks, side-channel, brief. The legacy
+// doc.scaffold path stays as a fallback for null-landing sessions and
+// loaded-from-save users whose anchor pre-dates the structured
+// Dilemma. This bridge is the load-bearing payoff of the structured
+// compiler output: it's where the new fork + critical_hypotheses
+// finally reach the Seer's director.
 
 import type {
   CastEntry, Choice, Hunch, Profile, Thread,
 } from '../types';
 import type { EngineState, CastMember } from './types';
 import type { LivingDoc, Probe } from './living-doc';
+import type { DilemmaDocument } from './agents/compiler/schema';
+import { renderDilemmaAsAnchor } from './agents/compiler/render';
 
 export function assembleProfile(state: EngineState, briefSummary: string): Profile {
   const doc = state.doc;
+  const dilemma = state.dilemma;
+  // The structured Dilemma is preferred when present + not null-landing.
+  // Loaded-from-save users without state.dilemma fall through to the
+  // legacy doc.scaffold path (which produces a sparse but valid profile).
+  const useDilemma = dilemma !== null && !dilemma.null_landing;
+
   return {
     identity: {
       name: state.profile.name || undefined,
@@ -36,22 +47,18 @@ export function assembleProfile(state: EngineState, briefSummary: string): Profi
       came_with: undefined,
       notes: collectIdentityNotes(state),
     },
-    candidates: candidatesFromDoc(doc),
+    candidates: useDilemma ? candidatesFromDilemma(dilemma!) : candidatesFromDoc(doc),
     cast: state.profile.cast.map(mapCast),
-    // Director.ts handles empty arrays gracefully. Threads as a
-    // cross-cutting pattern type isn't reconstructed from doc;
-    // similar information surfaces through doc.scaffold.axes and
-    // leading_hypothesis (which feed observer_body).
     threads: [] as Thread[],
-    // Hunches map 1-to-1 from doc.held — each unresolved probe is a
-    // "suspicion the survey didn't settle". Director uses them as
-    // texture for the closing risky-swing.
+    // Hunches: doc.held (algorithmic seeder Probes) — the closing
+    // director takes risky swings at these. Critical hypotheses flow
+    // through observer_edges instead so the two stay distinct: held
+    // probes are "soft priors the seer may surface at the swing,"
+    // critical hypotheses are "structural claims the seer holds
+    // throughout the reading."
     hunches: doc.held.map(mapHunch),
     margin: doc.margin.join(' · ').slice(0, 480),
     cognition_log: buildCognitionLog(doc, state),
-    // Highlights derive from doc.story.hooks (verbatim specifics).
-    // Phase 4's is_engine_authored guard prevents planted-option
-    // text from leaking in here.
     highlights: doc.story.hooks.map((h, i) => ({
       id: `hook-${i}`,
       topic: h,
@@ -60,15 +67,20 @@ export function assembleProfile(state: EngineState, briefSummary: string): Profi
       ttl: 5,
       salience: 'medium' as const,
     })),
-    brief: briefSummary,
-    // Observer-produced texture — Phase 3 fills these. In Phase 2 the
-    // observer throws so these are minimal; the body is a rendering of
-    // whatever scaffold content survived. Empty scaffold → empty body.
-    observer_body: renderScaffoldAsMarkdown(doc),
-    observer_hooks: doc.story.hooks,
-    observer_edges: doc.held.map((p) => p.claim).slice(0, 8),
-    observer_side_channel: {},     // Phase 3 derives from doc.scaffold.tells + algoExtract
-    ready_to_close: isCoverageDone(doc),
+    brief: useDilemma ? buildBriefFromDilemma(dilemma!, briefSummary) : briefSummary,
+    observer_body: useDilemma
+      ? renderDilemmaAsAnchor(dilemma!)
+      : renderScaffoldAsMarkdown(doc),
+    observer_hooks: useDilemma
+      ? collectVerbatimCorrections(state)
+      : doc.story.hooks,
+    observer_edges: useDilemma
+      ? dilemma!.critical_hypotheses.map((h) => h.claim).slice(0, 8)
+      : doc.held.map((p) => p.claim).slice(0, 8),
+    observer_side_channel: useDilemma
+      ? buildSideChannelFromDilemma(dilemma!)
+      : {},
+    ready_to_close: useDilemma ? true : isCoverageDone(doc),
     version: doc.v,
   };
 }
@@ -162,6 +174,71 @@ function mapHunch(p: Probe): Hunch {
   };
 }
 
+// ─── DilemmaDocument adapters ────────────────────────────
+
+/** Build a Choice array from the structured Dilemma. The Seer's
+ *  director reads candidates[0] as the target fork and names the
+ *  cards around it. */
+function candidatesFromDilemma(d: DilemmaDocument): Choice[] {
+  const confMap = { low: 0.4, medium: 0.65, high: 0.85 } as const;
+  const stakesMap = { low: 2, medium: 3, high: 4 } as const;
+  return [{
+    id: `dilemma-${d.label}`,
+    description: d.delta_description,
+    options: [
+      { name: 'continue as you are', summary: d.fork.do_nothing_branch },
+      { name: 'the alternative', summary: d.fork.alternative_branch },
+    ],
+    source: d.resolution_path === 'created-from-intent' ? 'stated' : 'constructed',
+    scores: {
+      stakes: stakesMap[d.confidence],
+      time_proximity: 3,        // unknown — neutral. real time-pressure isn't in the schema.
+      user_engagement: 3,       // ditto.
+    },
+    is_target: true,
+    confidence: confMap[d.confidence],
+    notes: [
+      `domains: ${d.domain_tags.join(', ') || '∅'}`,
+      `awareness: ${d.awareness}`,
+      `resolution: ${d.resolution_path}`,
+    ].join(' · '),
+  }];
+}
+
+/** Synthesize the Profile.brief from the Dilemma's delta_description
+ *  + a thin texture pass from `holding`. brief is the only thing the
+ *  actor reads about who this person is, so keep it natural-prose,
+ *  not list-shaped. */
+function buildBriefFromDilemma(d: DilemmaDocument, fallback: string): string {
+  const parts = [d.delta_description.trim()];
+  if (d.holding && d.holding.trim().length > 0) {
+    parts.push(d.holding.trim());
+  }
+  const joined = parts.join(' ').slice(0, 480);
+  return joined || fallback;
+}
+
+/** observer_hooks: the verbatim phrases the seer can echo. Pulled
+ *  directly from the user's correction texts (the gold signal —
+ *  what they typed in their own words after a WARM/COLD pick). */
+function collectVerbatimCorrections(state: EngineState): string[] {
+  return state.verbatim_log
+    .filter((v) => v.source === 'correction' && v.text.trim().length > 0)
+    .map((v) => v.text);
+}
+
+/** Map Dilemma freeform regions into the Profile.observer_side_channel
+ *  shape. Patterns ← holding (stance + texture). Avoidances ←
+ *  suspicions (fenced — director may steer toward, actor must not
+ *  voice). The cop-sheet failure mode lives or dies on whether
+ *  downstream respects the fence on `avoidances` specifically. */
+function buildSideChannelFromDilemma(d: DilemmaDocument) {
+  return {
+    ...(d.holding.trim().length > 0 ? { patterns: d.holding.trim() } : {}),
+    ...(d.suspicions.trim().length > 0 ? { avoidances: d.suspicions.trim() } : {}),
+  };
+}
+
 // ─── builders ───────────────────────────────────────────
 
 function collectIdentityNotes(state: EngineState): string {
@@ -186,13 +263,30 @@ function collectIdentityNotes(state: EngineState): string {
 
 function buildCognitionLog(doc: LivingDoc, state: EngineState): string {
   const s = doc.scaffold;
+  const d = state.dilemma;
   const compact = {
+    // Dilemma summary (compiler-as-sieve output) — the load-bearing
+    // structural read the seer's director uses. Surfaced near the top
+    // of cognition_log so debug eyeballing is direct.
+    dilemma: d
+      ? {
+          label: d.label,
+          resolution_path: d.resolution_path,
+          confidence: d.confidence,
+          awareness: d.awareness,
+          domains: d.domain_tags,
+          null_landing: d.null_landing,
+          critical_hyp_count: d.critical_hypotheses.length,
+        }
+      : null,
     leading_hypothesis: s.leading_hypothesis || null,
     temporal_lean: s.temporal_lean,
     fork: s.fork,
     axes: Object.keys(s.axes),
     tells: s.tells.slice(-6),
     held_count: doc.held.length,
+    weaver_candidate_count: state.weaver_candidates.length,
+    weaver_runs: state.weaver_run_count,
     close_reason: state.close_reason ?? null,
     questions_answered: state.picks_log.length,
   };

@@ -11,13 +11,13 @@ not shrugging.
 ===CANDIDATES===
     staying-as-self-protection: the day-job is a hedge against a version of herself she's not sure she wants to be
         warm on assertion 1; entry 4 — "less the job, more what staying says about me"
-        seeder noted slow latency-z on the body question (pillar 3, z=1.8)
+        pillar 3 (z=1.8) suggests intellectualizing the choice
     freedom-vs-belonging-with-theo: picked freedom over love+belonging on pillar 5 even though theo is the center of her life
         warm on assertion 2; theo wants her to leave per entry 5
         cold on theo-as-obstacle eliminated the external-resistance region
 
-===TERMINATE===
-    no
+===ENGAGEMENT===
+    live
 `;
 
 describe('parseWeaverTextBlob — well-formed input', () => {
@@ -30,13 +30,23 @@ describe('parseWeaverTextBlob — well-formed input', () => {
     expect(blob.candidates[1]!.label).toBe('freedom-vs-belonging-with-theo');
   });
 
-  it('parses terminate=no', () => {
-    expect(parseWeaverTextBlob(WELL_FORMED).terminate).toBe(false);
+  it('parses engagement=live', () => {
+    expect(parseWeaverTextBlob(WELL_FORMED).engagement).toBe('live');
   });
 
-  it('parses terminate=yes', () => {
-    const raw = WELL_FORMED.replace('    no\n', '    yes\n');
-    expect(parseWeaverTextBlob(raw).terminate).toBe(true);
+  it('parses engagement=wind_down (underscore form)', () => {
+    const raw = WELL_FORMED.replace('    live\n', '    wind_down\n');
+    expect(parseWeaverTextBlob(raw).engagement).toBe('wind_down');
+  });
+
+  it('parses engagement=wind-down (hyphen form, model variability)', () => {
+    const raw = WELL_FORMED.replace('    live\n', '    wind-down\n');
+    expect(parseWeaverTextBlob(raw).engagement).toBe('wind_down');
+  });
+
+  it('parses engagement=flat', () => {
+    const raw = WELL_FORMED.replace('    live\n', '    flat\n');
+    expect(parseWeaverTextBlob(raw).engagement).toBe('flat');
   });
 
   it('captures thinking before the candidates marker', () => {
@@ -46,18 +56,34 @@ describe('parseWeaverTextBlob — well-formed input', () => {
   });
 });
 
+describe('parseWeaverTextBlob — legacy back-compat (===TERMINATE=== yes/no)', () => {
+  it('legacy terminate=yes maps to engagement=flat', () => {
+    const raw = `===CANDIDATES===
+    cand: desc
+        thought (entry 1)
+===TERMINATE===
+    yes`;
+    expect(parseWeaverTextBlob(raw).engagement).toBe('flat');
+  });
+
+  it('legacy terminate=no maps to engagement=live', () => {
+    const raw = `===CANDIDATES===
+    cand: desc
+        thought (entry 1)
+===TERMINATE===
+    no`;
+    expect(parseWeaverTextBlob(raw).engagement).toBe('live');
+  });
+});
+
 describe('parseWeaverTextBlob — KNOWN parser quirks', () => {
   it('treats labels with capital letters or spaces as thoughts (not headers)', () => {
     const raw = `===CANDIDATES===
     Staying As Self Protection: bad label
         thought one
-===TERMINATE===
-    no`;
+===ENGAGEMENT===
+    live`;
     const blob = parseWeaverTextBlob(raw);
-    // The "Staying As..." line fails the kebab-case label regex, so
-    // the whole block becomes orphaned thoughts (which then get
-    // dropped because there's no candidate to attach to). Zero
-    // candidates emerge.
     expect(blob.candidates).toEqual([]);
   });
 
@@ -65,8 +91,8 @@ describe('parseWeaverTextBlob — KNOWN parser quirks', () => {
     const raw = `===CANDIDATES===
     leaving-job: the situation: stay vs. quit, but bigger than that
         thought (entry 1)
-===TERMINATE===
-    no`;
+===ENGAGEMENT===
+    live`;
     const blob = parseWeaverTextBlob(raw);
     expect(blob.candidates).toHaveLength(1);
     expect(blob.candidates[0]!.label).toBe('leaving-job');
@@ -79,8 +105,8 @@ describe('parseWeaverTextBlob — KNOWN parser quirks', () => {
     another orphan
     real-candidate: legit one
         real thought (assertion 1 WARM)
-===TERMINATE===
-    no`;
+===ENGAGEMENT===
+    live`;
     const blob = parseWeaverTextBlob(raw);
     expect(blob.candidates).toHaveLength(1);
     expect(blob.candidates[0]!.label).toBe('real-candidate');
@@ -93,8 +119,8 @@ describe('parseWeaverTextBlob — KNOWN parser quirks', () => {
         - bulleted thought (entry 1)
         * star bullet (assertion 1 WARM)
         · middot bullet (entry 2)
-===TERMINATE===
-    no`;
+===ENGAGEMENT===
+    live`;
     const blob = parseWeaverTextBlob(raw);
     expect(blob.candidates[0]!.thoughts).toEqual([
       'bulleted thought (entry 1)',
@@ -103,17 +129,18 @@ describe('parseWeaverTextBlob — KNOWN parser quirks', () => {
     ]);
   });
 
-  it('terminate field accepts case-insensitive "yes" with surrounding noise', () => {
+  it('engagement defaults to live when neither marker present', () => {
     const raw = `===CANDIDATES===
-===TERMINATE===
-    YES, ending here.`;
-    expect(parseWeaverTextBlob(raw).terminate).toBe(true);
+    cand: desc
+        thought (entry 1)`;
+    expect(parseWeaverTextBlob(raw).engagement).toBe('live');
   });
 
-  it('terminate is FALSE when neither yes nor no is supplied (default-safe)', () => {
+  it('engagement defaults to live when ENGAGEMENT block is empty / malformed', () => {
     const raw = `===CANDIDATES===
-===TERMINATE===`;
-    expect(parseWeaverTextBlob(raw).terminate).toBe(false);
+===ENGAGEMENT===
+    something else entirely`;
+    expect(parseWeaverTextBlob(raw).engagement).toBe('live');
   });
 });
 
@@ -121,15 +148,15 @@ describe('parseWeaverTextBlob — graceful degradation', () => {
   it('returns empty everything on garbage input', () => {
     const blob = parseWeaverTextBlob('lol');
     expect(blob.candidates).toEqual([]);
-    expect(blob.terminate).toBe(false);
+    expect(blob.engagement).toBe('live');
   });
 
-  it('returns empty when only CANDIDATES marker, no TERMINATE marker', () => {
+  it('returns candidates when only CANDIDATES marker, no ENGAGEMENT marker', () => {
     const raw = `===CANDIDATES===
     cand: desc
         thought (entry 1)`;
     const blob = parseWeaverTextBlob(raw);
     expect(blob.candidates).toHaveLength(1);
-    expect(blob.terminate).toBe(false);
+    expect(blob.engagement).toBe('live');
   });
 });

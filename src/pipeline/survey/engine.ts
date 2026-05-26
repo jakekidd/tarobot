@@ -829,7 +829,7 @@ export class SurveyEngine {
       hypotheses: [],
       assertion_queue: [],
       weaver_candidates: [],
-      weaver_terminate: false,
+      weaver_engagement: 'live',
       weaver_run_count: 0,
       dilemma: null,
       intention_suggestions: [],
@@ -1193,7 +1193,7 @@ export class SurveyEngine {
     // doesn't block the next detective pass. waitForWeaverQuiescence at
     // close gates the compiler on the freshest candidate set.
     const responses = this.countResponsesInTranscript();
-    if (responses > 0 && responses % WEAVER_CADENCE === 0 && !this.state.weaver_terminate) {
+    if (responses > 0 && responses % WEAVER_CADENCE === 0 && this.state.weaver_engagement !== 'flat') {
       void this.runWeaverTask();
     }
 
@@ -1250,7 +1250,7 @@ export class SurveyEngine {
     while (
       this.state.assertion_queue.length < LOOKAHEAD_CAP
       && (this.countAssertionsInTranscript() + this.state.assertion_queue.length) < INTERROGATION_SOFT_CEILING
-      && !this.state.weaver_terminate
+      && this.state.weaver_engagement === 'live'
     ) {
       const ok = await this.runDetectivePass();
       if (!ok) break;
@@ -1258,16 +1258,18 @@ export class SurveyEngine {
     // Close conditions: queue drained AND either ceiling reached or
     // WEAVER signalled stop.
     const hitCeiling = this.countAssertionsInTranscript() >= INTERROGATION_SOFT_CEILING;
-    const weaverSaidStop = this.state.weaver_terminate;
+    const weaverSaidStop = this.state.weaver_engagement !== 'live';
     if (this.state.assertion_queue.length === 0 && (hitCeiling || weaverSaidStop)) {
       this.beginIntentionStage();
     }
   }
 
   /** Single WEAVER pass — Haiku, fires every WEAVER_CADENCE answered
-   *  assertions. Replaces weaver_candidates wholesale (re-listing-as-
-   *  vote is implicit). May signal weaver_terminate when the candidate
-   *  set has gone flat AND user responses have gone flat. */
+   *  assertions. Engine merges the new candidate set with prior
+   *  trajectory (created_at_turn / last_extension_turn /
+   *  extension_count) so downstream sees "stable across N weavings
+   *  vs. just appeared" — pure observability, no behavior change.
+   *  May signal engagement ∈ {wind_down, flat}, ratchet-only-down. */
   private async runWeaverTask(): Promise<void> {
     this.agentInFlight.weaver += 1;
     this.publishInflight();
@@ -1276,12 +1278,21 @@ export class SurveyEngine {
         state: this.state,
         run_total: WEAVER_TOTAL_RUNS,
       });
+      const runIdx = this.state.weaver_run_count + 1;
+      const merged = mergeWeaverTrajectory(this.state.weaver_candidates, blob.candidates, runIdx);
       this.setState({
-        weaver_candidates: blob.candidates,
-        weaver_terminate: this.state.weaver_terminate || blob.terminate, // sticky
-        weaver_run_count: this.state.weaver_run_count + 1,
+        weaver_candidates: merged,
+        weaver_engagement: ratchetEngagement(this.state.weaver_engagement, blob.engagement),
+        weaver_run_count: runIdx,
       });
       this.emit();
+      // 'flat' = drop the queue NOW (user finishes current screen, then close).
+      // 'wind_down' = don't refill but let queue drain naturally — handled in
+      // refillAssertionQueue.
+      if (this.state.weaver_engagement === 'flat' && this.state.assertion_queue.length > 0) {
+        this.setState({ assertion_queue: [] });
+        this.emit();
+      }
     } catch (e) {
       console.warn('[survey] weaver pass failed', e);
     } finally {
@@ -1328,6 +1339,52 @@ const WEAVER_CADENCE = 2;
 /** Expected total WEAVER calls. Surfaced to WEAVER's prompt for
  *  explore→consolidate calibration. */
 const WEAVER_TOTAL_RUNS = Math.max(1, Math.floor(INTERROGATION_SOFT_CEILING / WEAVER_CADENCE));
+
+/** Merge the prior candidate set's trajectory metadata into the new
+ *  set the agent just emitted. Engine-owned bookkeeping — the agent
+ *  never writes these fields. A candidate that disappears from the
+ *  new set is dropped (organic vote-by-omission); a candidate that
+ *  re-appears with the same label carries its trajectory forward; a
+ *  brand-new label gets fresh trajectory at the current run. */
+function mergeWeaverTrajectory(
+  prior: import('./types').PotentialDilemma[],
+  next: import('./types').PotentialDilemma[],
+  runIdx: number,
+): import('./types').PotentialDilemma[] {
+  const priorByLabel = new Map(prior.map((c) => [c.label, c]));
+  return next.map((c) => {
+    const before = priorByLabel.get(c.label);
+    if (!before) {
+      // New candidate — fresh trajectory.
+      return {
+        ...c,
+        created_at_turn: runIdx,
+        last_extension_turn: runIdx,
+        extension_count: 0,
+      };
+    }
+    const thoughtsGrew = c.thoughts.length > before.thoughts.length;
+    return {
+      ...c,
+      created_at_turn: before.created_at_turn ?? runIdx,
+      last_extension_turn: thoughtsGrew
+        ? runIdx
+        : (before.last_extension_turn ?? before.created_at_turn ?? runIdx),
+      extension_count: (before.extension_count ?? 0) + (thoughtsGrew ? 1 : 0),
+    };
+  });
+}
+
+/** Ratchet-only-down engagement state. Live can move to wind_down or
+ *  flat. wind_down can move to flat. flat is sticky. */
+function ratchetEngagement(
+  current: import('./types').EngineState['weaver_engagement'],
+  next: import('./types').EngineState['weaver_engagement'],
+): import('./types').EngineState['weaver_engagement'] {
+  if (current === 'flat') return 'flat';
+  if (current === 'wind_down') return next === 'flat' ? 'flat' : 'wind_down';
+  return next; // current === 'live' — any new state takes hold
+}
 
 // ─── helpers (module-local) ─────────────────────────────
 

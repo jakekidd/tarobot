@@ -55,22 +55,33 @@ PHASE 3 — INTERROGATION (detective-driven)
 
   WEAVER (shipped) — Haiku, fires every 2 answered assertions in
     background (~3 calls across the 6-assertion ceiling):
-    state: state.weaver_candidates: PotentialDilemma[] =
-      { label, description, thoughts[] }
-    each call: agent rewrites the full set (re-listing same label IS
-      the vote — engine never tells the agent about the counter)
-    discipline: prefer appending over adding; small set (2–3 healthy,
-      5 max); evidence-anchored thoughts only (cite warmth + verbatim
-      entries)
+    state: state.weaver_candidates: PotentialDilemma[] = {
+      label, description, thoughts[],
+      created_at_turn, last_extension_turn, extension_count
+    }
+    each call: agent rewrites the full set (label/description/
+      thoughts only — engine merges trajectory). Re-listing same
+      label IS the vote — engine never tells the agent about the
+      counter. Engine maintains trajectory fields by diffing the new
+      set against the prior set; surfaces durability to the compiler.
+    discipline: prefer growing thoughts on an existing label over
+      adding new ones; small set (2–3 healthy, 5 max); evidence-
+      anchored thoughts only (cite warmth + verbatim entries).
     knows: run_idx + run_total (calibration awareness, the one
-      exception to "no machinery in prompts")
-    owns the engagement read — signals terminate=true when no
-      candidate gains weight AND user responses flat (both must
-      hold). closes the alienation seam.
+      exception to "no machinery in prompts").
+    owns a THREE-STATE engagement read (Mr Brainstorm middle-rung
+      addition; ratchet-only-down):
+      - 'live'      — at least one candidate gaining new evidence
+                      OR user still anchoring with corrections. keep
+                      going.
+      - 'wind_down' — borderline. stop refilling but let the queued
+                      assertions ride out gracefully, then close.
+      - 'flat'      — clear disengagement. drop the queue NOW, close
+                      after the current question.
 
   Terminates when:
     - voiced_count >= 6 AND queue empty (budget ceiling), OR
-    - WEAVER signals terminate (no convergence + flat engagement)
+    - WEAVER engagement ∈ {wind_down, flat} AND queue drained.
   Then → Phase 4. beginIntentionStage awaits WEAVER quiescence before
   running the compiler so the candidate set is fresh.
 
@@ -182,24 +193,24 @@ PHASE 6 — READING (out of scope here)
 
 ## What's still TODO (high-signal)
 
-1. **Algo-seeder upgrade** (pending Mr Brainstorm output). Replace
-   the loose regex-on-Inversions-text scheme with a richer, still-
-   deterministic mark/glyph attachment system declared per-option in
-   the survey markdown. Goals: stay non-LLM, keep config in
-   materials/survey.md (not engine code), produce structured priors
-   downstream agents can read as a lens rather than adopt as truth.
-   See "what to brainstorm" memo (off-thread).
-2. **Rename WEAVER → SEEDER**. Functionally WEAVER seeds the dilemma
-   candidate set that the compiler later sieves — matches the
-   role-coded naming (detective, compiler, augur, seer). The Haiku
-   noticer that previously held the name is gone.
-3. Wire DilemmaDocument structured fields into the Seer's profile
-   assembly so the director sees the real fork + critical hypotheses
-   rather than the mostly-empty doc.scaffold. Task #35.
-4. Detective text-blob streaming (debug-only UI affordance) — #34.
+1. **Algo-seeder upgrade** — Mr Brainstorm's Loom sketch in hand:
+   axes-with-variance (not flat tags), per-option declarative
+   attachments in the survey markdown (`toward / away from <axis>`
+   with mild/clear/strong strength keywords), accumulation surfaces
+   contradiction as high variance, drop the age modulator (hand age
+   as soft context to LLM agents, not as a mechanical rotor).
+   Pending: design doc + implementation.
+2. Live playtest of the WEAVER + compiler pipeline once API credits
+   are restocked. The audit-style critique above is structural; some
+   suspected weaknesses may evaporate when WEAVER faces real WARM/
+   COLD signal.
+3. Detective text-blob streaming (debug-only UI affordance) — #34.
 
 Completed in the WEAVER + compiler-as-sieve wave: WEAVER agent (#27),
-WEAVER engagement early-out (#28), pipeline diagram correction (#30),
+engagement early-out (#28), pipeline diagram correction (#30),
 compiler-as-sieve refactor (#31), Dilemma document schema (#32),
-intention-suggestion chips (#29). Plus Haiku-seeder deletion +
-parser fuzz suite + prompt audit (#42).
+intention-suggestion chips (#29), Seer profile wiring (#35), WEAVER
+trajectory tracking (engine-maintained durability per candidate),
+WEAVER three-state engagement (live / wind_down / flat ratchet-
+only-down). Plus Haiku-seeder deletion, parser fuzz suite, prompt
+audit, per-agent freeform labels, and the PSYCH→WEAVER rename.

@@ -151,7 +151,7 @@ function makeFabricatedState(): EngineState {
     hypotheses: [],
     assertion_queue: [],
     weaver_candidates: [],
-    weaver_terminate: false,
+    weaver_engagement: 'live',
     weaver_run_count: 0,
     dilemma: null,
     intention_suggestions: [],
@@ -257,13 +257,18 @@ async function runOne(adapter: AnthropicAdapter, runIdx: number, totalRuns: numb
         pass: passOk,
         ms,
         detail: passOk
-          ? `${blob.candidates.length} candidates, terminate=${blob.terminate}`
+          ? `${blob.candidates.length} candidates, engagement=${blob.engagement}`
           : `labels=${labelsValid} thoughts=${allHaveThoughts} anchored=${anchoredEvidence}`,
         sample: blob.candidates
           .map((c) => `${c.label}: ${c.description}\n  ${c.thoughts.slice(0, 2).join('\n  ')}`)
           .join('\n'),
       });
-      state = { ...state, weaver_candidates: blob.candidates, weaver_terminate: blob.terminate, weaver_run_count: state.weaver_run_count + 1 };
+      state = {
+        ...state,
+        weaver_candidates: blob.candidates,
+        weaver_engagement: blob.engagement,
+        weaver_run_count: state.weaver_run_count + 1,
+      };
     } catch (e) {
       results.push({ name: 'WEAVER', pass: false, ms: 0, detail: `threw: ${String(e).slice(0, 400)}` });
     }

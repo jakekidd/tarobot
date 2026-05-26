@@ -122,7 +122,7 @@ function makeState(): EngineState {
     ],
     assertion_queue: [],
     weaver_candidates,
-    weaver_terminate: false,
+    weaver_engagement: 'live',
     weaver_run_count: 1,
     dilemma: null,
     intention_suggestions: [],

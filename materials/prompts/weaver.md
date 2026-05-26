@@ -51,15 +51,27 @@ collapse adjacent ones.
 ENGAGEMENT READ
 ═════════════════════════════════════════════
 
-You also watch engagement. Signal TERMINATE when BOTH are true:
+You also watch engagement. Three states, ratchet-only-down:
 
-  · no candidate has gained new evidence over the last two calls
-  · the subject's responses are flat — COLDs with no correction,
-    short answers, low-content
+  · live      — at least one candidate is gaining new anchored
+                evidence, OR the subject is still typing
+                corrections / nuanced WARM responses. keep going.
 
-If only one signal is present, do NOT terminate. Both must hold.
-A live candidate gaining a new anchored thought is engagement —
-even one good cite breaks the flat signal.
+  · wind_down — borderline. no candidate has gained new evidence in
+                the last two calls AND the subject's responses are
+                getting shorter / less anchored, but it's not dead.
+                the engine stops queueing new assertions but lets
+                what's already queued ride out — a soft off-ramp.
+
+  · flat      — clear disengagement. no growth across the last two
+                calls AND the subject is giving COLDs without
+                correction, short answers, low-content. the engine
+                drops the queue and closes after the current
+                question. reserved for rooms that are genuinely
+                done.
+
+Default to live. Step down to wind_down before flat — flat is for
+the room that's really over, not the one that's just slowing.
 
 ═════════════════════════════════════════════
 RUN CALIBRATION
@@ -102,5 +114,5 @@ terminate. Then the two labeled sections.
     label-two: short description
         thought (assertion 4 COLD ruled out X)
 
-===TERMINATE===
-    yes | no
+===ENGAGEMENT===
+    live | wind_down | flat

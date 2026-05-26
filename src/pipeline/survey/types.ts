@@ -485,9 +485,19 @@ export type EngineState = {
    *  close by the intention-suggestor (one suggestion per candidate)
    *  and the compiler (sieve). Empty during pillars. */
   weaver_candidates: PotentialDilemma[];
-  /** WEAVER's engagement read. When true, the engine short-circuits the
-   *  interrogation refill loop. Sticky once set. */
-  weaver_terminate: boolean;
+  /** WEAVER's engagement read. Three-state, ratchet-only-down:
+   *    'live'      — refill the queue normally
+   *    'wind_down' — stop refilling; let the current queue (up to 3
+   *                  pre-rolled assertions) drain gracefully, then
+   *                  transition to close. Borderline-engaged user
+   *                  gets a soft off-ramp.
+   *    'flat'      — drop the queue NOW. User answers the question
+   *                  currently on screen, then close. Reserved for
+   *                  clear disengagement.
+   *  Mr Brainstorm's middle-rung addition — the prior boolean was
+   *  one-sided (no graceful exit). Sticky downgrades only: state can
+   *  ratchet live → wind_down → flat but never back up. */
+  weaver_engagement: 'live' | 'wind_down' | 'flat';
   /** How many WEAVER calls have completed. Surfaced into the prompt as
    *  RUN_IDX so WEAVER can calibrate explore→consolidate over its
    *  expected runs (typically 3 across a 6-assertion interrogation). */
@@ -517,7 +527,16 @@ export type EngineState = {
  *  calls. The compiler-as-sieve reads `state.weaver_candidates` at close
  *  to pick or build the final Dilemma. Re-listing across calls is the
  *  organic vote-by-repetition signal — the engine doesn't store a vote
- *  counter; presence in the latest set IS the vote. */
+ *  counter; presence in the latest set IS the vote.
+ *
+ *  Trajectory fields (created_at_turn, last_extension_turn,
+ *  extension_count) are engine-maintained — WEAVER never writes them.
+ *  Engine diffs the new set against the prior set on each WEAVER pass
+ *  and updates these so downstream (the compiler) can see "this
+ *  candidate has been stable across 3 weavings with growing evidence"
+ *  vs. "this just appeared." Pure observability — no behavior change.
+ *  Optional for back-compat with snapshots taken before trajectory
+ *  shipped. */
 export type PotentialDilemma = {
   /** Kebab-case slug. Stable across calls — WEAVER is instructed to
    *  reuse the exact prior label when keeping a candidate live. */
@@ -527,6 +546,17 @@ export type PotentialDilemma = {
   /** Evidence-anchored thought notes accumulated across calls. Each
    *  thought cites at least one `entry N` / `assertion N WARM|COLD`. */
   thoughts: string[];
+  /** Engine-maintained: the WEAVER run on which this candidate first
+   *  appeared in the set. */
+  created_at_turn?: number;
+  /** Engine-maintained: the most recent WEAVER run on which this
+   *  candidate's thoughts grew. Initially equals created_at_turn. */
+  last_extension_turn?: number;
+  /** Engine-maintained: number of WEAVER runs on which this candidate
+   *  gained new thoughts (i.e. evidence accumulated). Lets the
+   *  compiler weight stable-with-growing-evidence candidates above
+   *  drive-by appearances. */
+  extension_count?: number;
 };
 
 /** A detective-emitted assertion queued for the user. The detective
