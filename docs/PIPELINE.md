@@ -51,20 +51,26 @@ PHASE 3 — INTERROGATION (detective-driven)
     (d) pop queue head
     (e) refillAssertionQueue() refills in background
 
-  PSYCH (planned, not yet built) — fires every 2 answered assertions:
-    private set: state.psych_candidates: PotentialDilemma[] =
+  PSYCH (shipped) — Haiku, fires every 2 answered assertions in
+    background (~3 calls across the 6-assertion ceiling):
+    state: state.psych_candidates: PotentialDilemma[] =
       { label, description, thoughts[] }
-    op: 'add' new candidate OR 'append' thought to existing
-    discipline: prefer appending; adding is for genuinely new territory
-    thoughts must be evidence-anchored (cite warmth + verbatim entries)
-    PSYCH knows run_idx + runs_remaining (calibration awareness)
-    PSYCH OWNS the engagement read — can signal terminate=true when no
-      candidate gains weight + user goes flat. closes the alienation seam.
+    each call: agent rewrites the full set (re-listing same label IS
+      the vote — engine never tells the agent about the counter)
+    discipline: prefer appending over adding; small set (2–3 healthy,
+      5 max); evidence-anchored thoughts only (cite warmth + verbatim
+      entries)
+    knows: run_idx + run_total (calibration awareness, the one
+      exception to "no machinery in prompts")
+    owns the engagement read — signals terminate=true when no
+      candidate gains weight AND user responses flat (both must
+      hold). closes the alienation seam.
 
   Terminates when:
     - voiced_count >= 6 AND queue empty (budget ceiling), OR
     - PSYCH signals terminate (no convergence + flat engagement)
-  Then → Phase 4.
+  Then → Phase 4. beginIntentionStage awaits PSYCH quiescence before
+  running the compiler so the candidate set is fresh.
 
 PHASE 4 — INTENTION (between hunt and close)
   User lands on intention input.
@@ -90,14 +96,15 @@ PHASE 5 — COMPILE (compiler-as-sieve)
         create a NEW Dilemma from the intent text. trust the user's
         signal over the agents' coverage.
 
-  Output is the Dilemma document — a filled template, not just a prose
-    anchor. Includes:
-      - the Dilemma (label, delta, fork-with-do-nothing-branch)
-      - CRITICAL HYPOTHESES captured (load-bearing claims the seer needs)
-      - flexible freeform regions for relevant detail / specifics /
-        verbatim quotes
-      - awareness flag (does the user seem to know?)
-      - confidence + null-landing escape ("nothing resolved")
+  Output is the Dilemma document — a structured artifact with explicit
+    fields and freeform regions. Full schema in `docs/DILEMMA-SCHEMA.md`.
+    Key parts:
+      - Dilemma core (label, delta_description, fork.do_nothing_branch +
+        alternative_branch, awareness, confidence, domain_tags,
+        null_landing flag)
+      - critical_hypotheses[] — load-bearing claims with anchored evidence
+      - freeform regions (specifics, holding, suspicions—fenced)
+      - resolution_path provenance (matched / strongest / created / null)
 
   Streaming Opus + extended thinking. Streams to ThinkingStreamView.
 
@@ -114,7 +121,7 @@ PHASE 6 — READING (out of scope here)
 |---|---|---|---|
 | SEEDER | 2 (pillars) | Haiku, freeform | Per pillar, parallel-after-submit, observations only |
 | DETECTIVE | 3 (interrogation) | Opus, freeform | Background loop, 3-ahead lookahead, text-blob output |
-| PSYCH | 3 (interrogation) | Haiku (planned) | Every 2 answered assertions, curates candidate set |
+| PSYCH | 3 (interrogation) | Haiku | Every 2 answered assertions, curates candidate set, owns terminate signal |
 | INTENTION-SUGGESTOR | 4 (intention) | Sonnet (planned) | 4-5 parallel calls, one per PSYCH candidate |
 | COMPILER | 5 (compile) | Opus + ext.thinking | Streams, once-per-session, sieve-shaped |
 | AUGUR | 6 (reading) | Sonnet→Opus | unchanged legacy |
@@ -151,18 +158,16 @@ PHASE 6 — READING (out of scope here)
 
 ## What's still TODO (high-signal)
 
-1. PSYCH agent — task #27
-2. PSYCH-owned engagement early-out — task #28
-3. Intention suggestions from PSYCH candidates (chips under intent
+1. Intention suggestions from PSYCH candidates (chips under intent
    input) — task #29
-4. Compiler-as-sieve refactor — accept user_intention input, three
+2. Compiler-as-sieve refactor — accept user_intention input, three
    resolution paths (match / juiciest / create-new), output the
-   Dilemma document with critical_hypotheses captured. NEW TASK
-   (supersedes the current compiler.md which is sieve-unaware).
-5. Define Dilemma document schema — what fields the seer actually
-   reads. NEW TASK.
-6. Smoke test rig — fabricated Q&A → fire all agents → check parser
-   hit rate.
-7. ThinkingStreamView optionally subscribes to detective stream
-   (deferrable).
-8. Pipeline diagram update — task #30.
+   Dilemma document with critical_hypotheses captured. Schema lives
+   in `docs/DILEMMA-SCHEMA.md`. Task #31.
+3. Smoke test rig — fabricated Q&A → fire all agents → check parser
+   hit rate. Task #33.
+4. Detective text-blob streaming (debug-only UI affordance) — task #34.
+
+Completed in this wave: PSYCH agent (#27), PSYCH engagement early-out
+(#28), Dilemma document schema (#32), pipeline diagram correction
+(#30).

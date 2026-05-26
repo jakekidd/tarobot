@@ -14,6 +14,7 @@
 import type { LLMAdapter } from '../llm/adapter';
 import { runSeeder } from './agents/seeder';
 import { runDetective, blobToQueuedAssertion } from './agents/detective';
+import { runPsych } from './agents/psych';
 import { runCompiler } from './agents/compiler';
 import { diffAnchors } from './anchor';
 import { checkDeadEndSignals } from './signals';
@@ -112,7 +113,7 @@ export class SurveyEngine {
    *  show the spinner when queue is empty + a pipeline is running. */
   private pipelinesInFlight = 0;
   /** Per-agent in-flight counts. Published to debug bus per change. */
-  private agentInFlight = { detective: 0 };
+  private agentInFlight = { detective: 0, psych: 0 };
   private starterSeedFired = false;
   /** Snapshot of the engine state captured RIGHT BEFORE the most recent
    *  pick was processed. `undo()` restores this. Cleared after restore.
@@ -478,6 +479,10 @@ export class SurveyEngine {
         // runFinalObserverPass — the compiler reads the full history +
         // seeder notes + verbatim log directly.
         this.applyAlgoExtraction();
+        // Block on any still-running PSYCH so the compiler reads the
+        // freshest candidate set. Bounded; a hung Haiku call does not
+        // wedge the close path.
+        await this.waitForPsychQuiescence();
         await this.runCompilerTask();
       } catch (e) {
         console.warn('[survey] finalize failed', e);
@@ -803,6 +808,9 @@ export class SurveyEngine {
       detective_thinking: '',
       hypotheses: [],
       assertion_queue: [],
+      psych_candidates: [],
+      psych_terminate: false,
+      psych_run_count: 0,
     };
   }
 
@@ -1011,6 +1019,7 @@ export class SurveyEngine {
   private publishInflight(): void {
     publishDebug('survey.inflight', this.pipelinesInFlight);
     publishDebug('survey.agent.detective', this.agentInFlight.detective);
+    publishDebug('survey.agent.psych', this.agentInFlight.psych);
   }
 
   /** `thinking` is the UI's "we have nothing to show, wait" hint. True
@@ -1163,7 +1172,16 @@ export class SurveyEngine {
         : {}),
     });
     this.emit();
-    // Refill in the background.
+
+    // PSYCH fires every PSYCH_CADENCE answered assertions. Background —
+    // doesn't block the next detective pass. waitForPsychQuiescence at
+    // close gates the compiler on the freshest candidate set.
+    const responses = this.countResponsesInTranscript();
+    if (responses > 0 && responses % PSYCH_CADENCE === 0 && !this.state.psych_terminate) {
+      void this.runPsychTask();
+    }
+
+    // Refill the assertion queue in the background.
     void this.refillAssertionQueue();
   }
 
@@ -1208,25 +1226,61 @@ export class SurveyEngine {
   }
 
   /** Refill the assertion queue to LOOKAHEAD_CAP. Loops detective
-   *  calls in the background. Stops when the cap is reached, when a
-   *  pass fails to emit an assertion, or when the total interrogation
-   *  assertion count hits the soft ceiling. */
+   *  calls in the background. Stops when the cap is reached, a pass
+   *  fails to emit an assertion, the total interrogation assertion
+   *  count hits the soft ceiling, or PSYCH signals terminate
+   *  (engagement read says the room has gone flat). */
   private async refillAssertionQueue(): Promise<void> {
-    const SOFT_CEILING = 6;
     while (
       this.state.assertion_queue.length < LOOKAHEAD_CAP
-      && (this.countAssertionsInTranscript() + this.state.assertion_queue.length) < SOFT_CEILING
+      && (this.countAssertionsInTranscript() + this.state.assertion_queue.length) < INTERROGATION_SOFT_CEILING
+      && !this.state.psych_terminate
     ) {
       const ok = await this.runDetectivePass();
       if (!ok) break;
     }
-    // If we've hit the soft ceiling AND the user has answered all
-    // queued assertions, transition to the close path.
-    if (
-      this.state.assertion_queue.length === 0
-      && this.countAssertionsInTranscript() >= SOFT_CEILING
-    ) {
+    // Close conditions: queue drained AND either ceiling reached or
+    // PSYCH signalled stop.
+    const hitCeiling = this.countAssertionsInTranscript() >= INTERROGATION_SOFT_CEILING;
+    const psychSaidStop = this.state.psych_terminate;
+    if (this.state.assertion_queue.length === 0 && (hitCeiling || psychSaidStop)) {
       this.beginIntentionStage();
+    }
+  }
+
+  /** Single PSYCH pass — Haiku, fires every PSYCH_CADENCE answered
+   *  assertions. Replaces psych_candidates wholesale (re-listing-as-
+   *  vote is implicit). May signal psych_terminate when the candidate
+   *  set has gone flat AND user responses have gone flat. */
+  private async runPsychTask(): Promise<void> {
+    this.agentInFlight.psych += 1;
+    this.publishInflight();
+    try {
+      const blob = await runPsych(this.opts.adapter, {
+        state: this.state,
+        run_total: PSYCH_TOTAL_RUNS,
+      });
+      this.setState({
+        psych_candidates: blob.candidates,
+        psych_terminate: this.state.psych_terminate || blob.terminate, // sticky
+        psych_run_count: this.state.psych_run_count + 1,
+      });
+      this.emit();
+    } catch (e) {
+      console.warn('[survey] psych pass failed', e);
+    } finally {
+      this.agentInFlight.psych -= 1;
+      this.publishInflight();
+    }
+  }
+
+  /** Block until no PSYCH call is in flight. Used in beginIntentionStage
+   *  so the compiler reads the freshest candidate set. Bounded so a
+   *  hung Haiku call doesn't wedge the close path. */
+  private async waitForPsychQuiescence(maxMs = 15000): Promise<void> {
+    const start = Date.now();
+    while (this.agentInFlight.psych > 0 && Date.now() - start < maxMs) {
+      await new Promise((r) => setTimeout(r, 25));
     }
   }
 
@@ -1235,11 +1289,29 @@ export class SurveyEngine {
   private countAssertionsInTranscript(): number {
     return this.state.transcript.filter((e) => e.kind === 'assertion').length;
   }
+
+  /** Count user responses to assertions in the transcript. Used to
+   *  pace PSYCH (fires every PSYCH_CADENCE responses). */
+  private countResponsesInTranscript(): number {
+    return this.state.transcript.filter((e) => e.kind === 'response').length;
+  }
 }
 
 /** Lookahead depth — the detective keeps up to this many assertions
  *  pre-generated in the queue. Latency hiding + exploration pressure. */
 const LOOKAHEAD_CAP = 3;
+
+/** Soft ceiling on voiced assertions across the Interrogation. The
+ *  hard cap (POST_PILLAR_ASSERTION_CAP) is the safety net above it. */
+const INTERROGATION_SOFT_CEILING = 6;
+
+/** PSYCH cadence — fires every N answered assertions during the
+ *  Interrogation. Three runs expected across a 6-assertion ceiling. */
+const PSYCH_CADENCE = 2;
+
+/** Expected total PSYCH calls. Surfaced to PSYCH's prompt for
+ *  explore→consolidate calibration. */
+const PSYCH_TOTAL_RUNS = Math.max(1, Math.floor(INTERROGATION_SOFT_CEILING / PSYCH_CADENCE));
 
 // ─── helpers (module-local) ─────────────────────────────
 

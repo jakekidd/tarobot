@@ -479,6 +479,35 @@ export type EngineState = {
    *  (3). Provisional — latest user answer can invalidate and trigger
    *  re-generation. */
   assertion_queue: QueuedAssertion[];
+
+  /** PSYCH's curated candidate set. Replaced wholesale on each PSYCH
+   *  call (re-listing-as-vote is implicit via re-appearance). Read at
+   *  close by the intention-suggestor (one suggestion per candidate)
+   *  and the compiler (sieve). Empty during pillars. */
+  psych_candidates: PotentialDilemma[];
+  /** PSYCH's engagement read. When true, the engine short-circuits the
+   *  interrogation refill loop. Sticky once set. */
+  psych_terminate: boolean;
+  /** How many PSYCH calls have completed. Surfaced into the prompt as
+   *  RUN_IDX so PSYCH can calibrate explore→consolidate over its
+   *  expected runs (typically 3 across a 6-assertion interrogation). */
+  psych_run_count: number;
+};
+
+/** PSYCH's working unit. Maintained as a small set across Interrogation
+ *  calls. The compiler-as-sieve reads `state.psych_candidates` at close
+ *  to pick or build the final Dilemma. Re-listing across calls is the
+ *  organic vote-by-repetition signal — the engine doesn't store a vote
+ *  counter; presence in the latest set IS the vote. */
+export type PotentialDilemma = {
+  /** Kebab-case slug. Stable across calls — PSYCH is instructed to
+   *  reuse the exact prior label when keeping a candidate live. */
+  label: string;
+  /** One-sentence description of the situation + implied fork. */
+  description: string;
+  /** Evidence-anchored thought notes accumulated across calls. Each
+   *  thought cites at least one `entry N` / `assertion N WARM|COLD`. */
+  thoughts: string[];
 };
 
 /** A detective-emitted assertion queued for the user. The detective

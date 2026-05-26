@@ -29,6 +29,7 @@ import { STARTER_SEED_COUNT } from '../pipeline/survey';
 
 import { SEEDER_SYSTEM_TEMPLATE } from '../pipeline/survey/agents/seeder';
 import { DETECTIVE_SYSTEM_TEMPLATE } from '../pipeline/survey/agents/detective';
+import { PSYCH_SYSTEM_TEMPLATE } from '../pipeline/survey/agents/psych';
 import {
   AUGUR_OUTLINE_SYSTEM,
   AUGUR_OUTLINE_TOOL,
@@ -100,14 +101,14 @@ const SURVEY_AGENTS: AgentSpec[] = [
     id: 'seeder',
     name: 'Seeder',
     runtime: 'cloud',
-    call_pattern: 'serial — fires every post-opener pick. Haiku tier (cheap). Reads this turn\'s Q&A in context (options, negative space, inversions decoder) + full history + existing notes. Appends 0-6 short free-form notes to doc.seeder_notes.',
+    call_pattern: 'serial — fires after each PILLAR pick (Phase 2 only). Haiku tier. Reads this turn\'s Q&A in context (options, negative space, inversions decoder) + full history + existing notes. Appends 0-6 short free-form notes to doc.seeder_notes + transcript.',
     input_type: 'SeederInput',
     output_type: 'string[]',
     inputs: 'transcript + this_turn (question, options, picked, skipped, decoder) + verbatim_log',
     outputs: 'plain text — one observation per line, indented',
     prompt: SEEDER_SYSTEM_TEMPLATE,
     tool_name: 'freeform',
-    notes: 'Observations only — no hypotheses, no decisions, no forks. Lines get appended to the transcript. Silence is fine on thin turns.',
+    notes: 'Observations only — no hypotheses, no decisions, no forks. Silent during Interrogation. Silence is fine on thin turns.',
   },
   {
     id: 'detective',
@@ -117,10 +118,23 @@ const SURVEY_AGENTS: AgentSpec[] = [
     input_type: 'DetectiveInput',
     output_type: 'DetectiveTextBlob',
     inputs: 'transcript (pillar Q&A + seeder obs + assertions + responses) + hypotheses_so_far (re-vote by repetition) + assertion_queue + verbatim_log + detective_thinking_so_far (continuous transcript)',
-    outputs: 'free-form thinking, then ===HYPOTHESES===, ===ASSERTION===, ===IF_WARMER===, ===IF_COLDER===',
+    outputs: 'free-form thinking, then ===HYPOTHESES===, ===ASSERTION===, ===IF_WARM===, ===IF_COLD===',
     prompt: DETECTIVE_SYSTEM_TEMPLATE,
     tool_name: 'freeform',
-    notes: 'Opus, 4K tokens. Hypothesis re-listing = vote. Asserts situation, not interior. WARMER/COLDER framing; correction text is the gold.',
+    notes: 'Opus, 4K tokens. Hypothesis re-listing = vote. Asserts situation, not interior. WARM/COLD as absolute (COLD eliminates a region, never inverts). Correction text is the gold.',
+  },
+  {
+    id: 'psych',
+    name: 'Psych',
+    runtime: 'cloud',
+    call_pattern: 'Interrogation phase only. Fires every 2 answered assertions (~3 calls across the 6-assertion ceiling). Haiku tier. Background — does not block the detective. Owns the engagement early-out.',
+    input_type: 'RunPsychArgs',
+    output_type: 'PsychTextBlob',
+    inputs: 'transcript + verbatim_log + detective_hypotheses (advisory) + psych_candidates_so_far + run_idx / run_total',
+    outputs: 'free-form thinking, then ===CANDIDATES=== (label / description / evidence-anchored thoughts), then ===TERMINATE=== (yes | no)',
+    prompt: PSYCH_SYSTEM_TEMPLATE,
+    tool_name: 'freeform',
+    notes: 'Curates a small set of candidate Dilemmas (situation + fork). Re-listing same label = organic vote. Append-over-add discipline. Terminate fires when no new evidence AND user responses flat — closes the alienation seam.',
   },
   {
     id: 'augur-outline',
