@@ -5,6 +5,11 @@ trades implementation detail for principle, because the implementation is
 churning faster than docs can keep up. When a section starts to feel brittle,
 delete it rather than patch it.
 
+**For the current pipeline shape, read `docs/PIPELINE.md` FIRST.** That doc
+is the living source of truth for which agents fire in which phase, what
+they read, what they emit, and the load-bearing principles. The
+REFACTOR-V3.md doc is older planning context and lags behind reality.
+
 ---
 
 ## What this is
