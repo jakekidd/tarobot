@@ -15,6 +15,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Reader } from './reader/Reader';
 import { Dialogue } from './dialogue/Dialogue';
+import { ThinkingStreamView } from './ThinkingStreamView';
 import { MultipleChoice } from './choices/MultipleChoice';
 import { Matrix2x2Choice } from './choices/Matrix2x2Choice';
 import { AssertionChoice } from './choices/AssertionChoice';
@@ -477,6 +478,11 @@ export function Survey({ apiKey, session, loadedPerson, onComplete }: Props) {
       }>
         {sensing ? (
           <SensingLine name={sensing.name} color={sensing.color} />
+        ) : isFinalizing ? (
+          // v3.3: during the close-pass Compiler run, the dialogue
+          // surface swaps to the streamed thinking trace. The Compiler
+          // is offstage; the dialogue is just the channel.
+          <ThinkingStreamView visible={true} />
         ) : (
           <Dialogue
             key={dialogKey}
