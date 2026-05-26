@@ -162,13 +162,13 @@ export class SurveyEngine {
         node_id: `assertion_${nextAssertion.idx}`,
         text: nextAssertion.statement,
         format: 'assertion',
-        options: ['warmer', 'colder'],
+        options: ['warm', 'cold'],
         preamble: undefined,
         instrument: {
           kind: 'assertion',
           statement: nextAssertion.statement,
-          comment_if_warmer: nextAssertion.comment_if_warmer,
-          comment_if_colder: nextAssertion.comment_if_colder,
+          comment_if_warm: nextAssertion.comment_if_warm,
+          comment_if_cold: nextAssertion.comment_if_cold,
         },
       };
     }

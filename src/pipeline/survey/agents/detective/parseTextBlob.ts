@@ -12,36 +12,40 @@
 //   ===ASSERTION===
 //       the single assertion to voice this turn
 //
-//   ===IF_WARMER===
+//   ===IF_WARM===
 //       short mascot comment if the user picks WARMER
 //
-//   ===IF_COLDER===
+//   ===IF_COLD===
 //       short mascot comment if the user picks COLDER
 //
 // Parser is forgiving: missing sections return empty; first occurrence
-// of each marker wins; section content is trimmed and the inside-
-// section convention (period truncates each line) is applied to the
-// short single-line sections (assertion, if_warmer, if_colder).
-// Hypotheses are kept as a list of trimmed strings.
+// of each marker wins.
+//
+// Period semantics: HYPOTHESES lines truncate at the first period
+// (they're fragments by design). ASSERTION / IF_WARM / IF_COLD do
+// NOT truncate — the assertion is the user-facing line and a good
+// pointed assertion sometimes needs the rhythm a period gives
+// ("you keep almost-deciding. and not."). Same for the mascot
+// stall comments.
 
 export type DetectiveTextBlob = {
   thinking: string;
   hypotheses: string[];
   assertion: string;
-  if_warmer: string;
-  if_colder: string;
+  if_warm: string;
+  if_cold: string;
 };
 
 const MARKER_HYPOTHESES = '===HYPOTHESES===';
 const MARKER_ASSERTION = '===ASSERTION===';
-const MARKER_IF_WARMER = '===IF_WARMER===';
-const MARKER_IF_COLDER = '===IF_COLDER===';
+const MARKER_IF_WARM = '===IF_WARM===';
+const MARKER_IF_COLD = '===IF_COLD===';
 
 export function parseDetectiveTextBlob(raw: string): DetectiveTextBlob {
   const h_idx = raw.indexOf(MARKER_HYPOTHESES);
   const a_idx = raw.indexOf(MARKER_ASSERTION);
-  const w_idx = raw.indexOf(MARKER_IF_WARMER);
-  const c_idx = raw.indexOf(MARKER_IF_COLDER);
+  const w_idx = raw.indexOf(MARKER_IF_WARM);
+  const c_idx = raw.indexOf(MARKER_IF_COLD);
 
   // Thinking is everything before HYPOTHESES (or the whole blob if
   // the marker is missing — that's a malformed output but we keep
@@ -57,17 +61,17 @@ export function parseDetectiveTextBlob(raw: string): DetectiveTextBlob {
     .map((line) => truncateAtPeriod(line.trim()))
     .filter((line) => line.length > 0);
 
-  // Single-line sections — assertion / if_warmer / if_colder.
+  // Single-line sections — assertion / if_warm / if_cold.
   const assertion = extractSingleLine(raw, a_idx, MARKER_ASSERTION, [w_idx, c_idx, raw.length]);
-  const if_warmer = extractSingleLine(raw, w_idx, MARKER_IF_WARMER, [c_idx, raw.length]);
-  const if_colder = extractSingleLine(raw, c_idx, MARKER_IF_COLDER, [raw.length]);
+  const if_warm = extractSingleLine(raw, w_idx, MARKER_IF_WARM, [c_idx, raw.length]);
+  const if_cold = extractSingleLine(raw, c_idx, MARKER_IF_COLD, [raw.length]);
 
-  return { thinking, hypotheses, assertion, if_warmer, if_colder };
+  return { thinking, hypotheses, assertion, if_warm, if_cold };
 }
 
-/** Pull the content of a single-line section. Trims, joins indented
- *  lines, takes the first non-empty line, truncates at the first
- *  period. */
+/** Pull the content of a single-line section. Joins indented lines
+ *  into one trimmed line. NO period-truncation — the assertion / mascot
+ *  comments are user-facing and may use punctuation for rhythm. */
 function extractSingleLine(
   raw: string,
   marker_idx: number,
@@ -79,9 +83,9 @@ function extractSingleLine(
   const end = Math.min(...candidate_ends.filter((e) => e > marker_idx));
   const block = raw.slice(start, end).trim();
   if (!block) return '';
-  // First non-empty line is the content.
-  const firstLine = block.split('\n').map((l) => l.trim()).find((l) => l.length > 0) ?? '';
-  return truncateAtPeriod(firstLine);
+  // Collapse multi-line indented content into one space-joined string,
+  // since model may wrap an assertion across lines.
+  return block.split('\n').map((l) => l.trim()).filter((l) => l.length > 0).join(' ');
 }
 
 /** Take everything before the first period. The detective's protocol

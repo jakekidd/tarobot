@@ -1,56 +1,54 @@
 // Detective-emitted assertion + answer encoding.
 //
-// The detective writes assertions for the user to react to. The user
-// picks WARMER (getting closer to true) or COLDER (moving away) —
-// optionally adding a short follow-up correction. The encoding is:
+// The user picks WARM (this assertion is in the right neighborhood)
+// or COLD (this neighborhood is wrong) — optionally with a short
+// follow-up correction. WARM/COLD is an ABSOLUTE signal, not
+// comparative — the detective reads COLD as "eliminate this region,"
+// not "reverse direction." This avoids hill-climbing oversteer.
 //
-//   'warmer'                  → { direction: 'warmer' }
-//   'colder'                  → { direction: 'colder' }
-//   'warmer:<text>'           → { direction: 'warmer', correction: <text> }
-//   'colder:<text>'           → { direction: 'colder', correction: <text> }
+// Wire format:
+//   'warm'              → { direction: 'warm' }
+//   'cold'              → { direction: 'cold' }
+//   'warm:<text>'       → { direction: 'warm', correction: <text> }
+//   'cold:<text>'       → { direction: 'cold', correction: <text> }
 
 /** A queued assertion the detective has emitted. */
 export type AssertionInstrument = {
   kind: 'assertion';
   statement: string;
-  /** Mascot stall line spoken on WARMER. */
-  comment_if_warmer: string;
-  /** Mascot stall line spoken on COLDER. */
-  comment_if_colder: string;
+  /** Mascot stall line spoken on WARM. */
+  comment_if_warm: string;
+  /** Mascot stall line spoken on COLD. */
+  comment_if_cold: string;
 };
 
-/** The user's response to an assertion. Direction is the binary
- *  signal; optional correction is the gold (user's own words on what
- *  the real thing is). */
+/** The user's response to an assertion. */
 export type AssertionResult = {
-  direction: 'warmer' | 'colder';
+  direction: 'warm' | 'cold';
   correction?: string;
 };
 
-/** Discriminated union for forward-compat. Only 'assertion' today. */
 export type Instrument = AssertionInstrument;
 
-const PREFIX_WARMER = 'warmer';
-const PREFIX_COLDER = 'colder';
+const PREFIX_WARM = 'warm';
+const PREFIX_COLD = 'cold';
 
-/** Parse the UI's submitted answer string for an assertion item. */
 export function parseAssertionAnswer(answer: string | string[]): AssertionResult | null {
   const raw = typeof answer === 'string' ? answer : answer[0] ?? '';
-  if (raw === PREFIX_WARMER) return { direction: 'warmer' };
-  if (raw === PREFIX_COLDER) return { direction: 'colder' };
-  if (raw.startsWith(`${PREFIX_WARMER}:`)) {
-    const correction = raw.slice(PREFIX_WARMER.length + 1).trim();
-    return { direction: 'warmer', ...(correction ? { correction } : {}) };
+  if (raw === PREFIX_WARM) return { direction: 'warm' };
+  if (raw === PREFIX_COLD) return { direction: 'cold' };
+  if (raw.startsWith(`${PREFIX_WARM}:`)) {
+    const correction = raw.slice(PREFIX_WARM.length + 1).trim();
+    return { direction: 'warm', ...(correction ? { correction } : {}) };
   }
-  if (raw.startsWith(`${PREFIX_COLDER}:`)) {
-    const correction = raw.slice(PREFIX_COLDER.length + 1).trim();
-    return { direction: 'colder', ...(correction ? { correction } : {}) };
+  if (raw.startsWith(`${PREFIX_COLD}:`)) {
+    const correction = raw.slice(PREFIX_COLD.length + 1).trim();
+    return { direction: 'cold', ...(correction ? { correction } : {}) };
   }
   return null;
 }
 
-/** Encode an AssertionResult to the wire format. */
 export function encodeAssertionAnswer(result: AssertionResult): string {
-  const prefix = result.direction === 'warmer' ? PREFIX_WARMER : PREFIX_COLDER;
+  const prefix = result.direction === 'warm' ? PREFIX_WARM : PREFIX_COLD;
   return result.correction ? `${prefix}:${result.correction}` : prefix;
 }

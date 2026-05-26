@@ -1,16 +1,15 @@
-// WarmerColderChoice — UI for detective-emitted assertions.
+// WarmColdChoice — UI for detective-emitted assertions.
 //
-// Two big buttons: WARMER (orange, "getting closer to true") and
-// COLDER (blue, "moving away"). After the primary pick, an optional
-// text input invites a short correction. COLDER is signal, not
-// failure — it's a directional vector pointing at where the truth
-// isn't.
+// Two big buttons: COLD (blue, "this neighborhood is wrong") on the
+// left and WARM (orange, "this neighborhood is right") on the right.
+// After the primary pick, an optional text input invites a short
+// correction. COLD is signal, not failure — it eliminates a region.
 //
 // Wire format submitted via onPick:
-//   'warmer'           — primary, no correction
-//   'colder'           — primary, no correction
-//   'warmer:<text>'    — primary + correction text
-//   'colder:<text>'    — primary + correction text
+//   'warm'           — primary, no correction
+//   'cold'           — primary, no correction
+//   'warm:<text>'    — primary + correction text
+//   'cold:<text>'    — primary + correction text
 
 import { useState } from 'react';
 import { fireImpact } from '../scene/impactStore';
@@ -27,14 +26,14 @@ const BEACON_DELAY_MS = 220;
 type Phase = 'primary' | 'follow-up';
 type PickState = 'idle' | 'picked' | 'unpicked';
 
-export function WarmerColderChoice({ disabled, onPick }: Props) {
+export function WarmColdChoice({ disabled, onPick }: Props) {
   const [phase, setPhase] = useState<Phase>('primary');
-  const [direction, setDirection] = useState<'warmer' | 'colder' | null>(null);
+  const [direction, setDirection] = useState<'warm' | 'cold' | null>(null);
   const [text, setText] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const ready = useChoiceReady();
 
-  function pickPrimary(dir: 'warmer' | 'colder', x: number, y: number) {
+  function pickPrimary(dir: 'warm' | 'cold', x: number, y: number) {
     if (submitting) return;
     setDirection(dir);
     window.setTimeout(() => fireImpact({ x, y }), BEACON_DELAY_MS);
@@ -54,20 +53,20 @@ export function WarmerColderChoice({ disabled, onPick }: Props) {
     const stateFor = (key: string): PickState =>
       direction === null ? 'idle' : `${direction}` === key ? 'picked' : 'unpicked';
     return (
-      <div className="warmer-colder warmer-colder--primary">
+      <div className="warm-cold warm-cold--primary">
         <WCButton
-          label="colder"
-          variant="colder"
-          state={stateFor('colder')}
+          label="cold"
+          variant="cold"
+          state={stateFor('cold')}
           disabled={lockedDisabled}
-          onClick={(x, y) => pickPrimary('colder', x, y)}
+          onClick={(x, y) => pickPrimary('cold', x, y)}
         />
         <WCButton
-          label="warmer"
-          variant="warmer"
-          state={stateFor('warmer')}
+          label="warm"
+          variant="warm"
+          state={stateFor('warm')}
           disabled={lockedDisabled}
-          onClick={(x, y) => pickPrimary('warmer', x, y)}
+          onClick={(x, y) => pickPrimary('warm', x, y)}
         />
       </div>
     );
@@ -75,14 +74,14 @@ export function WarmerColderChoice({ disabled, onPick }: Props) {
 
   // phase === 'follow-up' — gather optional correction text, OR submit
   // bare direction with the skip button.
-  const skipValue = direction === 'warmer' ? 'warmer' : 'colder';
+  const skipValue = direction === 'warm' ? 'warm' : 'cold';
   return (
-    <div className="warmer-colder warmer-colder--follow-up">
-      <div className={`warmer-colder__prompt warmer-colder__prompt--${direction}`}>
-        {direction === 'warmer' ? "what's even closer?" : "what's closer to true?"}
+    <div className="warm-cold warm-cold--follow-up">
+      <div className={`warm-cold__prompt warm-cold__prompt--${direction}`}>
+        {direction === 'warm' ? "what's closer to true?" : "what's actually true?"}
       </div>
       <form
-        className="warmer-colder__freeform"
+        className="warm-cold__freeform"
         onSubmit={(e) => {
           e.preventDefault();
           const trimmed = text.trim();
@@ -98,7 +97,7 @@ export function WarmerColderChoice({ disabled, onPick }: Props) {
           placeholder="say more (optional)"
           disabled={lockedDisabled}
           autoFocus
-          className="warmer-colder__input"
+          className="warm-cold__input"
         />
       </form>
       <WCButton
@@ -120,7 +119,7 @@ function WCButton({
   onClick,
 }: {
   label: string;
-  variant: 'warmer' | 'colder' | 'skip';
+  variant: 'warm' | 'cold' | 'skip';
   state: PickState;
   disabled?: boolean;
   onClick: (clickX: number, clickY: number) => void;

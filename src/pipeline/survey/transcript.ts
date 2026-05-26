@@ -49,7 +49,7 @@ export type TranscriptEntry =
   | {
       kind: 'response';
       assertion_idx: number;
-      direction: 'warmer' | 'colder';
+      direction: 'warm' | 'cold';
       /** Optional follow-up text the user typed after picking. */
       correction?: string;
       latency_ms: number;

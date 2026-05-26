@@ -3495,38 +3495,38 @@ input, textarea {
 
 /* =====================================================================
    WarmerColderChoice — detective assertion response.
-   COLDER on the LEFT (blue), WARMER on the RIGHT (orange).
-   Temperature is universally legible. COLDER is signal, not failure.
+   COLD on the LEFT (blue), WARM on the RIGHT (orange).
+   Temperature is universally legible. COLD is signal, not failure.
    ===================================================================== */
 
-.warmer-colder {
+.warm-cold {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
   width: 100%;
 }
 
-.warmer-colder--primary {
+.warm-cold--primary {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 0.5rem;
 }
 
-.warmer-colder__prompt {
+.warm-cold__prompt {
   font-family: var(--font-mono);
   font-size: 0.9rem;
   letter-spacing: 0.14em;
   text-transform: lowercase;
   margin-bottom: 0.2rem;
 }
-.warmer-colder__prompt--warmer { color: #f59e0b; text-shadow: 0 0 8px rgba(245, 158, 11, 0.35); }
-.warmer-colder__prompt--colder { color: #60a5fa; text-shadow: 0 0 8px rgba(96, 165, 250, 0.35); }
+.warm-cold__prompt--warm { color: #f59e0b; text-shadow: 0 0 8px rgba(245, 158, 11, 0.35); }
+.warm-cold__prompt--cold { color: #60a5fa; text-shadow: 0 0 8px rgba(96, 165, 250, 0.35); }
 
-.warmer-colder__freeform {
+.warm-cold__freeform {
   display: flex;
   width: 100%;
 }
-.warmer-colder__input {
+.warm-cold__input {
   width: 100%;
   font-family: var(--font-mono);
   font-size: 1.05rem;
@@ -3537,8 +3537,8 @@ input, textarea {
   border-radius: 0;
   outline: none;
 }
-.warmer-colder__input:focus { border-color: #b388ff; }
-.warmer-colder__input::placeholder { color: #6b5a8a; }
+.warm-cold__input:focus { border-color: #b388ff; }
+.warm-cold__input::placeholder { color: #6b5a8a; }
 
 .wc-button {
   font-family: var(--font-mono);
@@ -3561,20 +3561,20 @@ input, textarea {
 .wc-button:active:not(:disabled) { transform: translateY(1px); }
 .wc-button:disabled              { cursor: default; }
 
-.wc-button--colder {
+.wc-button--cold {
   background-color: #1e3a8a;          /* deep blue */
   border: 1px solid #3b82f6;
   box-shadow: 0 0 24px rgba(59, 130, 246, 0.25);
 }
-.wc-button--colder:hover:not(:disabled) {
+.wc-button--cold:hover:not(:disabled) {
   box-shadow: 0 0 32px rgba(59, 130, 246, 0.45);
 }
-.wc-button--warmer {
+.wc-button--warm {
   background-color: #7c2d12;          /* deep orange */
   border: 1px solid #f97316;
   box-shadow: 0 0 24px rgba(249, 115, 22, 0.28);
 }
-.wc-button--warmer:hover:not(:disabled) {
+.wc-button--warm:hover:not(:disabled) {
   box-shadow: 0 0 32px rgba(249, 115, 22, 0.5);
 }
 .wc-button--skip {

@@ -18,7 +18,7 @@ import { Dialogue } from './dialogue/Dialogue';
 import { ThinkingStreamView } from './ThinkingStreamView';
 import { MultipleChoice } from './choices/MultipleChoice';
 import { Matrix2x2Choice } from './choices/Matrix2x2Choice';
-import { WarmerColderChoice } from './choices/WarmerColderChoice';
+import { WarmColdChoice } from './choices/WarmColdChoice';
 import { ForkChoice } from './choices/ForkChoice';
 import { Spinner } from './Spinner';
 import { BirthdayForm } from './survey/BirthdayForm';
@@ -607,13 +607,13 @@ export function Survey({ apiKey, session, loadedPerson, onComplete }: Props) {
             && !modalOpen
             && currentQuestion?.format === 'assertion'
             && currentQuestion.instrument?.kind === 'assertion' && (
-            <WarmerColderChoice
+            <WarmColdChoice
               key={currentQuestion.node_id}
               onPick={(v) => {
                 const inst = currentQuestion.instrument;
                 if (inst?.kind === 'assertion') {
-                  const isWarmer = v.startsWith('warmer');
-                  const stall = isWarmer ? inst.comment_if_warmer : inst.comment_if_colder;
+                  const isWarm = v.startsWith('warm');
+                  const stall = isWarm ? inst.comment_if_warm : inst.comment_if_cold;
                   if (stall) setAssertionStall({ text: stall, ts: Date.now() });
                 }
                 void submitAnswer(v);

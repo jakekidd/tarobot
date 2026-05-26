@@ -489,10 +489,10 @@ export type QueuedAssertion = {
   /** 1-based index across the Interrogation phase. */
   idx: number;
   statement: string;
-  /** Mascot stall line spoken on WARMER. */
-  comment_if_warmer: string;
-  /** Mascot stall line spoken on COLDER. */
-  comment_if_colder: string;
+  /** Mascot stall line spoken on WARM. */
+  comment_if_warm: string;
+  /** Mascot stall line spoken on COLD. */
+  comment_if_cold: string;
   /** When the detective emitted this assertion (post-opener turn count). */
   emitted_at_turn: number;
 };

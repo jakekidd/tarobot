@@ -66,8 +66,8 @@ export function blobToQueuedAssertion(
   return {
     idx: next_idx,
     statement: blob.assertion,
-    comment_if_warmer: blob.if_warmer,
-    comment_if_colder: blob.if_colder,
+    comment_if_warm: blob.if_warm,
+    comment_if_cold: blob.if_cold,
     emitted_at_turn,
   };
 }
