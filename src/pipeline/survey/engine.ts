@@ -17,6 +17,7 @@ import { runCompiler } from './agents/compiler';
 import { diffAnchors } from './anchor';
 import { checkDeadEndSignals } from './signals';
 import { computeLatencyZScores } from './algoExtract';
+import { pickToTranscriptEntry, type TranscriptEntry } from './transcript';
 import { runDetective, applyDetectiveOutput } from './agents/detective';
 import { runAugur } from './agents/augur';
 import { generateQuestion } from './generation';
@@ -257,11 +258,27 @@ export class SurveyEngine {
       return;
     }
 
+    // Per-pillar latency-z (deterministic, cheap — fold in now so the
+    // detective sees z-scores inline in the transcript). Computes
+    // against the full post-opener timing window each turn.
+    const enrichedTiming = computeLatencyZScores([...this.state.timing_log, timing]);
+    const justTiming = enrichedTiming[enrichedTiming.length - 1]!;
+
+    // Push to transcript for post-opener picks (openers are identity
+    // gathers, not part of the detective's narrative).
+    const isOpener = OPENER_NODE_IDS.has(head.node_id);
+    const transcriptEntries: TranscriptEntry[] = [...this.state.transcript];
+    if (!isOpener) {
+      const pillarIdx = this.countPostOpenerPicks() + 1; // 1-based
+      transcriptEntries.push(pickToTranscriptEntry(pick, pillarIdx, justTiming.latency_z));
+    }
+
     this.setState({
       picks_log: [...this.state.picks_log, pick],
-      timing_log: [...this.state.timing_log, timing],
+      timing_log: enrichedTiming,
       asked_node_ids: [...this.state.asked_node_ids, head.node_id],
       queue: this.state.queue.slice(1),
+      transcript: transcriptEntries,
     });
 
     // Assertion correction → log to verbatim. The seeder will pick it
@@ -439,12 +456,17 @@ export class SurveyEngine {
       });
       if (out.based_on_v !== based_on_v) return; // stale, discard
       if (out.notes.length === 0) return;        // silence is fine
+      const pillarIdx = this.countPostOpenerPicks(); // pillar this seeded after
       this.setState({
         doc: {
           ...this.state.doc,
           v: this.state.doc.v + 1,
           seeder_notes: [...this.state.doc.seeder_notes, ...out.notes],
         },
+        transcript: [
+          ...this.state.transcript,
+          { kind: 'seeder_obs', after_pillar_idx: pillarIdx, lines: out.notes },
+        ],
       });
       this.emit();
     } catch (e) {
@@ -735,6 +757,10 @@ export class SurveyEngine {
       chosen_intention: null,
       anchor: '',
       verbatim_log: [],
+      transcript: [],
+      detective_thinking: '',
+      hypotheses: [],
+      assertion_queue: [],
     };
   }
 

@@ -460,6 +460,41 @@ export type EngineState = {
    *  VerbatimEntry. The anchor references entries by index rather than
    *  reproducing the text. */
   verbatim_log: VerbatimEntry[];
+
+  /** Interrogation pivot: the unified narrative the detective reads.
+   *  Built incrementally — pillar picks + seeder observations during
+   *  the pillar phase; assertions + responses during Interrogation. */
+  transcript: import('./transcript').TranscriptEntry[];
+  /** Interrogation pivot: the detective's accumulated thinking
+   *  transcript across calls. Appended every detective output (the
+   *  free-form section before ===HYPOTHESES===). Surfaces back into
+   *  the next detective payload so reasoning stays continuous. */
+  detective_thinking: string;
+  /** Interrogation pivot: the latest extracted hypothesis list from
+   *  detective output. Re-listing-as-votes — repetition across turns
+   *  signals confidence. The compiler reads this at close. */
+  hypotheses: string[];
+  /** Interrogation pivot: queued assertions the detective has emitted
+   *  but the user hasn't answered yet. Length capped at LOOKAHEAD_CAP
+   *  (3). Provisional — latest user answer can invalidate and trigger
+   *  re-generation. */
+  assertion_queue: QueuedAssertion[];
+};
+
+/** A detective-emitted assertion queued for the user. The detective
+ *  may have generated this several calls ahead; each real answer
+ *  prompts the engine to reconcile the queue against the latest
+ *  evidence. */
+export type QueuedAssertion = {
+  /** 1-based index across the Interrogation phase. */
+  idx: number;
+  statement: string;
+  /** Mascot stall line spoken on WARMER. */
+  comment_if_warmer: string;
+  /** Mascot stall line spoken on COLDER. */
+  comment_if_colder: string;
+  /** When the detective emitted this assertion (post-opener turn count). */
+  emitted_at_turn: number;
 };
 
 // ─── Behavioural events (engine-internal, drive heat) ───
