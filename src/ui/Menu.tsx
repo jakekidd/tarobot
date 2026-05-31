@@ -10,6 +10,10 @@ type Props = {
   onReadDemo: () => void;
   onOpenResume: () => void;
   onSettings: () => void;
+  /** Open the Bench — dev/inspection app for the pipeline. Lives in
+   *  src/lab/. Designer can vibe-code src/ui/ safely without touching
+   *  it; logic iteration happens there. */
+  onBench: () => void;
   /** True once a transition out of the menu has started (e.g. READ DEMO
    *  fired, turtle is mid-disintegrate). UI fades out so the visual
    *  focus is on the turtle dissolving, not on the buttons we're
@@ -29,7 +33,7 @@ const T_DIALOGUE_TYPE_MS = 1900;   // typewriter begins after the line has expan
 const T_BUTTON_BASE_MS   = 2400;   // first button appears
 const T_BUTTON_STEP_MS   = 220;    // gap between successive buttons
 
-export function Menu({ onBegin, onReadDemo, onOpenResume, onSettings, transitioning }: Props) {
+export function Menu({ onBegin, onReadDemo, onOpenResume, onSettings, onBench, transitioning }: Props) {
   const [resumeCount] = useState(() => listPeople().length);
   const [speaking, setSpeaking] = useState(false);
 
@@ -48,9 +52,10 @@ export function Menu({ onBegin, onReadDemo, onOpenResume, onSettings, transition
       { key: 'begin',    label: 'BEGIN',     cls: 'btn btn--primary btn--menu', onClick: onBegin,      disabledByState: false },
       { key: 'resume',   label: 'RESUME',    cls: 'btn btn--primary btn--menu', onClick: onOpenResume, disabledByState: false },
       { key: 'demo',     label: 'READ DEMO', cls: 'btn btn--ghost btn--menu',   onClick: onReadDemo,   disabledByState: false },
+      { key: 'bench',    label: 'BENCH',     cls: 'btn btn--ghost btn--menu',   onClick: onBench,      disabledByState: false },
       { key: 'settings', label: 'SETTINGS',  cls: 'btn btn--ghost btn--menu',   onClick: onSettings,   disabledByState: false },
     ];
-  }, [resumeCount, onBegin, onOpenResume, onReadDemo, onSettings]);
+  }, [resumeCount, onBegin, onOpenResume, onReadDemo, onBench, onSettings]);
 
   useEffect(() => { chime(); }, []);
 

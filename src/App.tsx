@@ -14,6 +14,7 @@ import { Settings } from './ui/Settings';
 import { Survey as SurveyScreen } from './ui/Survey';
 import { Reading } from './ui/Reading';
 import { Pipeline } from './ui/Pipeline';
+import { Bench } from './lab/Bench';
 import { TarobotScene } from './ui/scene/TarobotScene';
 import { buildMarisolDemoSeer } from './pipeline/seer';
 import { AnthropicAdapter } from './pipeline/survey';
@@ -38,7 +39,8 @@ type Phase =
   | { kind: 'settings' }
   | { kind: 'survey'; session: Session; loadedPerson?: Person | null }
   | { kind: 'reading'; session: Session; seer: Seer }
-  | { kind: 'pipeline' };
+  | { kind: 'pipeline' }
+  | { kind: 'bench' };
 
 export function App() {
   const [apiKey, setApiKey] = useState<string | null>(() => loadApiKey());
@@ -116,51 +118,59 @@ export function App() {
     setPhase({ kind: 'reading', session, seer });
   }
 
+  // Bench is its own world — no CRT filter, no Three.js scene, no
+  // main-app topbar. The lab/ subtree owns its entire visual surface.
+  const inBench = phase.kind === 'bench';
+
   return (
     <div className="app">
-      {/* Full-screen Three.js scene — renders the cat wherever a ReaderAnchor is mounted */}
-      <TarobotScene />
+      {!inBench && (
+        <>
+          {/* Full-screen Three.js scene — renders the cat wherever a ReaderAnchor is mounted */}
+          <TarobotScene />
 
-      <header className="app__topbar">
-        <div className="app__brand-block">
-          <span className="app__brand">tarobot</span>
-          <span className="app__version">v0.0.2-{__APP_COMMIT__}</span>
-          <button
-            type="button"
-            className={`debug-chip ${debugVisible ? 'debug-chip--on' : ''}`}
-            onClick={toggleDebug}
-            title="toggle debug overlay"
-          >
-            debug
-          </button>
-          {phase.kind !== 'pipeline' && (
-            <button
-              type="button"
-              className="pipeline-chip"
-              onClick={() => setPhase({ kind: 'pipeline' })}
-              title="open pipeline — live audit of all agents + prompts"
-            >
-              pipeline
-            </button>
-          )}
-        </div>
-        <div className="app__topbar-actions">
-          <AudioWakeBadge />
-          {phase.kind !== 'menu' && phase.kind !== 'key' && phase.kind !== 'pipeline' && (
-            <button className="btn btn--quiet" onClick={goMenu}>
-              exit
-            </button>
-          )}
-        </div>
-      </header>
+          <header className="app__topbar">
+            <div className="app__brand-block">
+              <span className="app__brand">tarobot</span>
+              <span className="app__version">v0.0.2-{__APP_COMMIT__}</span>
+              <button
+                type="button"
+                className={`debug-chip ${debugVisible ? 'debug-chip--on' : ''}`}
+                onClick={toggleDebug}
+                title="toggle debug overlay"
+              >
+                debug
+              </button>
+              {phase.kind !== 'pipeline' && (
+                <button
+                  type="button"
+                  className="pipeline-chip"
+                  onClick={() => setPhase({ kind: 'pipeline' })}
+                  title="open pipeline — live audit of all agents + prompts"
+                >
+                  pipeline
+                </button>
+              )}
+            </div>
+            <div className="app__topbar-actions">
+              <AudioWakeBadge />
+              {phase.kind !== 'menu' && phase.kind !== 'key' && phase.kind !== 'pipeline' && (
+                <button className="btn btn--quiet" onClick={goMenu}>
+                  exit
+                </button>
+              )}
+            </div>
+          </header>
 
-      {/* CRT overlay covers the entire viewport; navbar floats above via z-index. */}
-      <div className="crt-overlay" aria-hidden>
-        <div className="crt__scanlines" />
-        <div className="crt__vignette" />
-        <div className="crt__aberration" />
-        <div className="crt__flicker" />
-      </div>
+          {/* CRT overlay covers the entire viewport; navbar floats above via z-index. */}
+          <div className="crt-overlay" aria-hidden>
+            <div className="crt__scanlines" />
+            <div className="crt__vignette" />
+            <div className="crt__aberration" />
+            <div className="crt__flicker" />
+          </div>
+        </>
+      )}
 
       <main className={`app__main ${phase.kind === 'reading' ? 'app__main--full' : ''}`}>
           {phase.kind === 'key' && (
@@ -173,6 +183,7 @@ export function App() {
               onReadDemo={startReadDemo}
               onOpenResume={() => setPhase({ kind: 'resume' })}
               onSettings={() => setPhase({ kind: 'settings' })}
+              onBench={() => setPhase({ kind: 'bench' })}
               transitioning={menuTransitioning}
             />
           )}
@@ -201,6 +212,10 @@ export function App() {
           )}
 
           {phase.kind === 'pipeline' && <Pipeline onBack={goMenu} />}
+
+          {phase.kind === 'bench' && apiKey && (
+            <Bench apiKey={apiKey} onExit={goMenu} />
+          )}
         </main>
 
       <Debug visible={debugVisible} />
