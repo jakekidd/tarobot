@@ -36,15 +36,34 @@ on A3. So the friction lives elsewhere.
 `;
 
 describe('parseDetectiveTextBlob — well-formed input', () => {
-  it('extracts all four sections (preserves periods in single-line sections)', () => {
+  it('extracts all sections (preserves periods in single-line sections)', () => {
     const blob = parseDetectiveTextBlob(WELL_FORMED);
     expect(blob.thinking.length).toBeGreaterThan(50);
     expect(blob.hypotheses).toHaveLength(3);
     expect(blob.assertion).toContain('afraid of who you become');
-    // assertion / if_warm / if_cold do NOT truncate at periods — rhythm
-    // matters and the assertion is user-facing. Only HYPOTHESES truncates.
+    // assertion / if_warm / if_cold / if_hot do NOT truncate at periods —
+    // rhythm matters and these are user-facing. Only HYPOTHESES truncates.
     expect(blob.if_warm).toBe('there it is.');
     expect(blob.if_cold).toBe('let me try a different angle.');
+    // IF_HOT absent in this fixture — returns empty string by design.
+    expect(blob.if_hot).toBe('');
+  });
+
+  it('extracts IF_HOT when present (regardless of section order)', () => {
+    const raw = `===HYPOTHESES===
+    one
+===ASSERTION===
+    you've been almost-deciding.
+===IF_COLD===
+    let me try elsewhere.
+===IF_WARM===
+    close.
+===IF_HOT===
+    there it is — that's the one.`;
+    const blob = parseDetectiveTextBlob(raw);
+    expect(blob.if_cold).toBe('let me try elsewhere.');
+    expect(blob.if_warm).toBe('close.');
+    expect(blob.if_hot).toBe("there it is — that's the one.");
   });
 
   it('truncates hypotheses at the first period (fragments contract)', () => {

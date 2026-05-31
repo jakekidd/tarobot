@@ -32,20 +32,23 @@ export type DetectiveTextBlob = {
   thinking: string;
   hypotheses: string[];
   assertion: string;
-  if_warm: string;
   if_cold: string;
+  if_warm: string;
+  if_hot: string;
 };
 
 const MARKER_HYPOTHESES = '===HYPOTHESES===';
 const MARKER_ASSERTION = '===ASSERTION===';
-const MARKER_IF_WARM = '===IF_WARM===';
 const MARKER_IF_COLD = '===IF_COLD===';
+const MARKER_IF_WARM = '===IF_WARM===';
+const MARKER_IF_HOT  = '===IF_HOT===';
 
 export function parseDetectiveTextBlob(raw: string): DetectiveTextBlob {
   const h_idx = raw.indexOf(MARKER_HYPOTHESES);
   const a_idx = raw.indexOf(MARKER_ASSERTION);
-  const w_idx = raw.indexOf(MARKER_IF_WARM);
   const c_idx = raw.indexOf(MARKER_IF_COLD);
+  const w_idx = raw.indexOf(MARKER_IF_WARM);
+  const ht_idx = raw.indexOf(MARKER_IF_HOT);
 
   // Thinking is everything before HYPOTHESES (or the whole blob if
   // the marker is missing — that's a malformed output but we keep
@@ -61,12 +64,15 @@ export function parseDetectiveTextBlob(raw: string): DetectiveTextBlob {
     .map((line) => truncateAtPeriod(line.trim()))
     .filter((line) => line.length > 0);
 
-  // Single-line sections — assertion / if_warm / if_cold.
-  const assertion = extractSingleLine(raw, a_idx, MARKER_ASSERTION, [w_idx, c_idx, raw.length]);
-  const if_warm = extractSingleLine(raw, w_idx, MARKER_IF_WARM, [c_idx, raw.length]);
-  const if_cold = extractSingleLine(raw, c_idx, MARKER_IF_COLD, [raw.length]);
+  // Single-line sections. Section bounds are the next-marker offsets
+  // among c/w/ht. Sections may appear in any order; missing sections
+  // return empty.
+  const assertion = extractSingleLine(raw, a_idx, MARKER_ASSERTION, [c_idx, w_idx, ht_idx, raw.length]);
+  const if_cold   = extractSingleLine(raw, c_idx, MARKER_IF_COLD,   [w_idx, ht_idx, raw.length]);
+  const if_warm   = extractSingleLine(raw, w_idx, MARKER_IF_WARM,   [c_idx, ht_idx, raw.length]);
+  const if_hot    = extractSingleLine(raw, ht_idx, MARKER_IF_HOT,   [c_idx, w_idx, raw.length]);
 
-  return { thinking, hypotheses, assertion, if_warm, if_cold };
+  return { thinking, hypotheses, assertion, if_cold, if_warm, if_hot };
 }
 
 /** Pull the content of a single-line section. Joins indented lines

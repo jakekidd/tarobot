@@ -69,6 +69,7 @@ export function blobToQueuedAssertion(
     statement: blob.assertion,
     comment_if_warm: blob.if_warm,
     comment_if_cold: blob.if_cold,
+    comment_if_hot: blob.if_hot,
     emitted_at_turn,
   };
 }

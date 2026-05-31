@@ -1,11 +1,15 @@
 // Bench — entry point for the dev app.
 //
-// Single-route in v1: Run (the live session inspector). The shell
-// renders a header with title + nav back to main menu, and the active
-// view below.
+// Tabs across the top — DETECTIVE (focus rig for refining the
+// detective prompt against a known persona) and ALL (the full
+// pipeline inspector). Bench owns its whole visual surface;
+// App.tsx hides the main-app chrome (CRT filter, three.js scene)
+// when phase.kind === 'bench'.
 
 import './bench.css';
+import { useState } from 'react';
 import { Button } from './lib';
+import { Detective } from './views/Detective';
 import { Run } from './views/Run';
 
 type Props = {
@@ -13,7 +17,16 @@ type Props = {
   onExit: () => void;
 };
 
+type Tab = 'detective' | 'all';
+
+const TABS: { id: Tab; label: string }[] = [
+  { id: 'detective', label: 'detective' },
+  { id: 'all', label: 'all' },
+];
+
 export function Bench({ apiKey, onExit }: Props) {
+  const [tab, setTab] = useState<Tab>('detective');
+
   return (
     <div className="bench">
       <div className="bench__shell">
@@ -26,8 +39,23 @@ export function Bench({ apiKey, onExit }: Props) {
             <Button onClick={onExit} variant="ghost">← back to menu</Button>
           </div>
         </header>
+        <nav className="bench__tabs" role="tablist">
+          {TABS.map((t) => (
+            <button
+              key={t.id}
+              type="button"
+              role="tab"
+              aria-selected={tab === t.id}
+              className={`bench__tab ${tab === t.id ? 'bench__tab--active' : ''}`}
+              onClick={() => setTab(t.id)}
+            >
+              {t.label}
+            </button>
+          ))}
+        </nav>
         <main className="bench__main">
-          <Run apiKey={apiKey} />
+          {tab === 'detective' && <Detective apiKey={apiKey} />}
+          {tab === 'all' && <Run apiKey={apiKey} />}
         </main>
       </div>
     </div>

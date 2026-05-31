@@ -571,6 +571,9 @@ export type QueuedAssertion = {
   comment_if_warm: string;
   /** Mascot stall line spoken on COLD. */
   comment_if_cold: string;
+  /** Mascot stall line spoken on HOT. Optional for back-compat with
+   *  detective blobs that pre-date the HOT addition. */
+  comment_if_hot?: string;
   /** When the detective emitted this assertion (post-opener turn count). */
   emitted_at_turn: number;
 };

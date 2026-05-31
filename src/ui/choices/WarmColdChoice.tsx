@@ -1,15 +1,22 @@
 // WarmColdChoice — UI for detective-emitted assertions.
 //
-// Two big buttons: COLD (blue, "this neighborhood is wrong") on the
-// left and WARM (orange, "this neighborhood is right") on the right.
-// After the primary pick, an optional text input invites a short
-// correction. COLD is signal, not failure — it eliminates a region.
+// Three big buttons: COLD (blue, "wrong neighbourhood; eliminate the
+// region"), WARM (orange, "right neighbourhood; refine"), HOT (red,
+// "dead on — that's the live wire"). After the primary pick, an
+// optional text input invites a short correction. All three are
+// useful signal — COLD eliminates, WARM refines, HOT confirms.
+//
+// HOT measures CHARGE, not truth: it's the subject saying "that's
+// the one I'd actually ask about." A statement can be perfectly
+// accurate and still get COLD if it isn't where the charge is.
 //
 // Wire format submitted via onPick:
-//   'warm'           — primary, no correction
 //   'cold'           — primary, no correction
-//   'warm:<text>'    — primary + correction text
+//   'warm'           — primary, no correction
+//   'hot'            — primary, no correction
 //   'cold:<text>'    — primary + correction text
+//   'warm:<text>'    — primary + correction text
+//   'hot:<text>'     — primary + correction text
 
 import { useState } from 'react';
 import { fireImpact } from '../scene/impactStore';
@@ -25,15 +32,16 @@ const BEACON_DELAY_MS = 220;
 
 type Phase = 'primary' | 'follow-up';
 type PickState = 'idle' | 'picked' | 'unpicked';
+type Direction = 'cold' | 'warm' | 'hot';
 
 export function WarmColdChoice({ disabled, onPick }: Props) {
   const [phase, setPhase] = useState<Phase>('primary');
-  const [direction, setDirection] = useState<'warm' | 'cold' | null>(null);
+  const [direction, setDirection] = useState<Direction | null>(null);
   const [text, setText] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const ready = useChoiceReady();
 
-  function pickPrimary(dir: 'warm' | 'cold', x: number, y: number) {
+  function pickPrimary(dir: Direction, x: number, y: number) {
     if (submitting) return;
     setDirection(dir);
     window.setTimeout(() => fireImpact({ x, y }), BEACON_DELAY_MS);
@@ -68,17 +76,29 @@ export function WarmColdChoice({ disabled, onPick }: Props) {
           disabled={lockedDisabled}
           onClick={(x, y) => pickPrimary('warm', x, y)}
         />
+        <WCButton
+          label="hot"
+          variant="hot"
+          state={stateFor('hot')}
+          disabled={lockedDisabled}
+          onClick={(x, y) => pickPrimary('hot', x, y)}
+        />
       </div>
     );
   }
 
   // phase === 'follow-up' — gather optional correction text, OR submit
   // bare direction with the skip button.
-  const skipValue = direction === 'warm' ? 'warm' : 'cold';
+  const skipValue: Direction = direction ?? 'cold';
+  const promptText = direction === 'hot'
+    ? 'in your own words?'
+    : direction === 'warm'
+    ? "what's closer to true?"
+    : "what's actually true?";
   return (
     <div className="warm-cold warm-cold--follow-up">
       <div className={`warm-cold__prompt warm-cold__prompt--${direction}`}>
-        {direction === 'warm' ? "what's closer to true?" : "what's actually true?"}
+        {promptText}
       </div>
       <form
         className="warm-cold__freeform"
@@ -119,7 +139,7 @@ function WCButton({
   onClick,
 }: {
   label: string;
-  variant: 'warm' | 'cold' | 'skip';
+  variant: 'warm' | 'cold' | 'hot' | 'skip';
   state: PickState;
   disabled?: boolean;
   onClick: (clickX: number, clickY: number) => void;

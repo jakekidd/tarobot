@@ -23,8 +23,11 @@ full set — the candidates you currently see. Each candidate has:
 
 Every thought MUST cite its anchor:
   · `entry N`            verbatim entry index
-  · `assertion N WARM`   warmth event at that assertion
   · `assertion N COLD`   elimination event at that assertion
+  · `assertion N WARM`   warmth event at that assertion
+  · `assertion N HOT`    bullseye event at that assertion — the
+                         subject signalled "that's the one"; the
+                         strongest evidence the channel produces.
 Unanchored thoughts are speculation — leave them out.
 
 When you keep a candidate alive across calls, reuse its EXACT prior

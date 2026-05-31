@@ -3617,6 +3617,7 @@ input, textarea {
 }
 .warm-cold__prompt--warm { color: #f59e0b; text-shadow: 0 0 8px rgba(245, 158, 11, 0.35); }
 .warm-cold__prompt--cold { color: #60a5fa; text-shadow: 0 0 8px rgba(96, 165, 250, 0.35); }
+.warm-cold__prompt--hot  { color: #ef4444; text-shadow: 0 0 8px rgba(239, 68, 68, 0.4); }
 
 .warm-cold__freeform {
   display: flex;
@@ -3672,6 +3673,14 @@ input, textarea {
 }
 .wc-button--warm:hover:not(:disabled) {
   box-shadow: 0 0 32px rgba(249, 115, 22, 0.5);
+}
+.wc-button--hot {
+  background-color: #7a1818;          /* deep crimson */
+  border: 1px solid #e0381c;
+  box-shadow: 0 0 28px rgba(224, 56, 28, 0.32);
+}
+.wc-button--hot:hover:not(:disabled) {
+  box-shadow: 0 0 36px rgba(224, 56, 28, 0.55);
 }
 .wc-button--skip {
   background: transparent;

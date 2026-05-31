@@ -612,8 +612,11 @@ export function Survey({ apiKey, session, loadedPerson, onComplete }: Props) {
               onPick={(v) => {
                 const inst = currentQuestion.instrument;
                 if (inst?.kind === 'assertion') {
-                  const isWarm = v.startsWith('warm');
-                  const stall = isWarm ? inst.comment_if_warm : inst.comment_if_cold;
+                  const stall = v.startsWith('hot')
+                    ? (inst.comment_if_hot ?? inst.comment_if_warm)
+                    : v.startsWith('warm')
+                    ? inst.comment_if_warm
+                    : inst.comment_if_cold;
                   if (stall) setAssertionStall({ text: stall, ts: Date.now() });
                 }
                 void submitAnswer(v);

@@ -14,7 +14,7 @@ import { Button, Pill, Row, Stack } from '../lib';
 import { ChoicePick } from '../inputs/ChoicePick';
 import { TextEntry } from '../inputs/TextEntry';
 import { DateEntry } from '../inputs/DateEntry';
-import { WarmCold } from '../inputs/WarmCold';
+import { ColdWarmHot } from '../inputs/ColdWarmHot';
 import { RelPickEntry } from '../inputs/RelPickEntry';
 import { PhasePanel } from '../panels/PhasePanel';
 import { TranscriptPanel } from '../panels/TranscriptPanel';
@@ -209,7 +209,7 @@ function QuestionInput({
   const submit = (v: string | string[]) => { void onSubmit(v); };
 
   if (q.format === 'assertion') {
-    return <WarmCold onPick={submit} />;
+    return <ColdWarmHot onPick={submit} />;
   }
   if (q.format === 'choice' || q.format === 'matrix') {
     return <ChoicePick options={q.options} onPick={submit} />;

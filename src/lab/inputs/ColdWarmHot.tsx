@@ -1,8 +1,16 @@
-// Bench input — WarmCold.
-// Two large equal targets for assertion responses, plus an optional
-// correction input that appears after the primary pick. Wire format
-// matches the engine's parseAssertionAnswer:
-//   'warm' | 'cold' | 'warm:<correction>' | 'cold:<correction>'
+// Bench input — ColdWarmHot.
+//
+// Three equal targets for assertion responses: COLD (wrong
+// neighbourhood; eliminate), WARM (right neighbourhood; refine),
+// HOT (dead on; you've struck a live wire). Plus an optional
+// correction text field that appears after the primary pick.
+//
+// HOT measures CHARGE, not truth. A statement can be perfectly
+// accurate and still cold if it isn't where the charge is. Resist
+// the urge to map this to a yes/no axis.
+//
+// Wire format matches the engine's parseAssertionAnswer:
+//   'cold' | 'warm' | 'hot' | 'cold:<text>' | 'warm:<text>' | 'hot:<text>'
 
 import { useState, type FormEvent } from 'react';
 import { Button } from '../lib';
@@ -12,14 +20,14 @@ type Props = {
 };
 
 type Phase = 'primary' | 'follow-up';
-type Direction = 'warm' | 'cold' | null;
+type Direction = 'cold' | 'warm' | 'hot';
 
-export function WarmCold({ onPick }: Props) {
+export function ColdWarmHot({ onPick }: Props) {
   const [phase, setPhase] = useState<Phase>('primary');
-  const [direction, setDirection] = useState<Direction>(null);
+  const [direction, setDirection] = useState<Direction | null>(null);
   const [correction, setCorrection] = useState('');
 
-  function pickPrimary(d: 'warm' | 'cold') {
+  function pickPrimary(d: Direction) {
     setDirection(d);
     setPhase('follow-up');
   }
@@ -33,29 +41,43 @@ export function WarmCold({ onPick }: Props) {
 
   if (phase === 'primary') {
     return (
-      <div className="bench__wc">
+      <div className="bench__cwh">
         <button
           type="button"
-          className="bench__wc-btn bench__wc-btn--cold"
+          className="bench__cwh-btn bench__cwh-btn--cold"
           onClick={() => pickPrimary('cold')}
         >
           cold
         </button>
         <button
           type="button"
-          className="bench__wc-btn bench__wc-btn--warm"
+          className="bench__cwh-btn bench__cwh-btn--warm"
           onClick={() => pickPrimary('warm')}
         >
           warm
+        </button>
+        <button
+          type="button"
+          className="bench__cwh-btn bench__cwh-btn--hot"
+          onClick={() => pickPrimary('hot')}
+        >
+          hot
         </button>
       </div>
     );
   }
 
+  const promptText =
+    direction === 'hot'
+      ? 'in your own words?'
+      : direction === 'warm'
+      ? "what's closer to true?"
+      : "what's actually true?";
+
   return (
     <form className="bench__stack bench__stack--gap-3" onSubmit={submitFinal}>
-      <div className={`bench__field-label`}>
-        {direction === 'warm' ? "what's closer to true?" : "what's actually true?"}
+      <div className="bench__field-label">
+        {promptText}
         <span className="bench__text-faint" style={{ marginLeft: 8, fontWeight: 400 }}>
           (optional)
         </span>
@@ -70,7 +92,11 @@ export function WarmCold({ onPick }: Props) {
       />
       <div className="bench__row bench__row--gap-2 bench__row--end">
         <Button onClick={() => submitFinal()} variant="ghost">nothing to add</Button>
-        <Button onClick={() => submitFinal()} variant="primary" disabled={correction.trim().length === 0}>
+        <Button
+          onClick={() => submitFinal()}
+          variant="primary"
+          disabled={correction.trim().length === 0}
+        >
           submit
         </Button>
       </div>

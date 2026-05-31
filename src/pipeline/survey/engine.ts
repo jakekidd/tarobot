@@ -76,6 +76,16 @@ export type EngineOpts = {
    *  pickEpoch, seer) are NOT serialized; they start fresh per
    *  invocation and that's fine for the per-turn driver model. */
   initialState?: EngineState;
+  /** How many assertions the detective keeps queued ahead of the
+   *  subject. Default 3 (latency hiding in production). Bench's
+   *  detective-focus mode passes 1 for strict serialization — one
+   *  assertion at a time, no speculative ahead-of-time generation. */
+  lookaheadCap?: number;
+  /** Soft ceiling on voiced assertions across the Interrogation. Once
+   *  reached + the queue drained, the engine transitions to the close
+   *  path. Default 6 for production. Bench can bump it (or set high)
+   *  to let the detective cook on prompt-refinement runs. */
+  softCeiling?: number;
 };
 
 const OPENER_NODE_IDS = new Set<string>(getOpeners());
@@ -1241,15 +1251,30 @@ export class SurveyEngine {
     }
   }
 
-  /** Refill the assertion queue to LOOKAHEAD_CAP. Loops detective
+  /** Resolved lookahead — opts override or production default. */
+  private lookaheadCap(): number {
+    return this.opts.lookaheadCap ?? DEFAULT_LOOKAHEAD_CAP;
+  }
+
+  /** Resolved soft ceiling — opts override or production default. */
+  private softCeiling(): number {
+    return this.opts.softCeiling ?? DEFAULT_INTERROGATION_SOFT_CEILING;
+  }
+
+  /** Resolved WEAVER total-runs (depends on softCeiling + cadence). */
+  private weaverTotalRuns(): number {
+    return Math.max(1, Math.floor(this.softCeiling() / WEAVER_CADENCE));
+  }
+
+  /** Refill the assertion queue to lookaheadCap. Loops detective
    *  calls in the background. Stops when the cap is reached, a pass
    *  fails to emit an assertion, the total interrogation assertion
    *  count hits the soft ceiling, or WEAVER signals terminate
    *  (engagement read says the room has gone flat). */
   private async refillAssertionQueue(): Promise<void> {
     while (
-      this.state.assertion_queue.length < LOOKAHEAD_CAP
-      && (this.countAssertionsInTranscript() + this.state.assertion_queue.length) < INTERROGATION_SOFT_CEILING
+      this.state.assertion_queue.length < this.lookaheadCap()
+      && (this.countAssertionsInTranscript() + this.state.assertion_queue.length) < this.softCeiling()
       && this.state.weaver_engagement === 'live'
     ) {
       const ok = await this.runDetectivePass();
@@ -1257,7 +1282,7 @@ export class SurveyEngine {
     }
     // Close conditions: queue drained AND either ceiling reached or
     // WEAVER signalled stop.
-    const hitCeiling = this.countAssertionsInTranscript() >= INTERROGATION_SOFT_CEILING;
+    const hitCeiling = this.countAssertionsInTranscript() >= this.softCeiling();
     const weaverSaidStop = this.state.weaver_engagement !== 'live';
     if (this.state.assertion_queue.length === 0 && (hitCeiling || weaverSaidStop)) {
       this.beginIntentionStage();
@@ -1276,7 +1301,7 @@ export class SurveyEngine {
     try {
       const blob = await runWeaver(this.opts.adapter, {
         state: this.state,
-        run_total: WEAVER_TOTAL_RUNS,
+        run_total: this.weaverTotalRuns(),
       });
       const runIdx = this.state.weaver_run_count + 1;
       const merged = mergeWeaverTrajectory(this.state.weaver_candidates, blob.candidates, runIdx);
@@ -1325,20 +1350,24 @@ export class SurveyEngine {
 }
 
 /** Lookahead depth — the detective keeps up to this many assertions
- *  pre-generated in the queue. Latency hiding + exploration pressure. */
-const LOOKAHEAD_CAP = 3;
+ *  pre-generated in the queue. Latency hiding + exploration pressure
+ *  in production. Bench's detective-focus mode passes opts.lookaheadCap
+ *  = 1 for strict serialization (one assertion at a time, no
+ *  speculative ahead-of-time generation). */
+const DEFAULT_LOOKAHEAD_CAP = 3;
 
 /** Soft ceiling on voiced assertions across the Interrogation. The
- *  hard cap (POST_PILLAR_ASSERTION_CAP) is the safety net above it. */
-const INTERROGATION_SOFT_CEILING = 6;
+ *  hard cap (POST_PILLAR_ASSERTION_CAP) is the safety net above it.
+ *  Bench can bump this via opts.softCeiling to let the detective cook
+ *  unbounded during prompt-refinement runs. */
+const DEFAULT_INTERROGATION_SOFT_CEILING = 6;
 
 /** WEAVER cadence — fires every N answered assertions during the
  *  Interrogation. Three runs expected across a 6-assertion ceiling. */
 const WEAVER_CADENCE = 2;
 
-/** Expected total WEAVER calls. Surfaced to WEAVER's prompt for
- *  explore→consolidate calibration. */
-const WEAVER_TOTAL_RUNS = Math.max(1, Math.floor(INTERROGATION_SOFT_CEILING / WEAVER_CADENCE));
+// WEAVER_TOTAL_RUNS moved to engine.weaverTotalRuns() — depends on
+// the per-instance softCeiling, which can be overridden via EngineOpts.
 
 /** Merge the prior candidate set's trajectory metadata into the new
  *  set the agent just emitted. Engine-owned bookkeeping — the agent

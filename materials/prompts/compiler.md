@@ -70,18 +70,26 @@ room to reveal who the person is in relation to the fork.
 HOW TO READ THE EVIDENCE
 ═════════════════════════════════════════════
 
-the detective's assertions were answered WARM or COLD — read these
-as a MAP of territory, not a path.
-
-  · WARM = right neighborhood. one warm tap is weak; SEVERAL clustered
-    around the same theme is strong evidence for where the Dilemma
-    lives.
+the detective's assertions were answered COLD, WARM, or HOT — read
+these as a MAP of territory, not a path. HOT measures CHARGE, not
+truth — the subject signalled "that's the live wire," not merely
+"that's accurate."
 
   · COLD = ELIMINATE a region. NEVER read it as "now flip and guess
     the opposite." cold rules out a whole class of guesses; it does
     NOT point a direction. this is the single instruction most likely
     to get violated under pressure. resist the inversion pull. say
     it again: cold is elimination, not reversal.
+
+  · WARM = right neighborhood. one warm tap is weak; SEVERAL clustered
+    around the same theme is strong evidence for where the Dilemma
+    lives.
+
+  · HOT = the subject confirmed this as one of their live questions.
+    the highest-signal answer the channel produces. a HOT-anchored
+    claim, especially with a correction, is the strongest evidence
+    you have. treat it as load-bearing unless contradicted by a
+    later correction.
 
   · WISHY COLD = NEUTRAL. a vague assertion that earned a shrug-cold
     with no correction carries zero info. only sharp, specific COLDs
@@ -128,7 +136,8 @@ claims the seer needs to hold while reading. each entry has:
 
   · evidence    citations. at least one anchor:
                   - `entry N` for a verbatim entry
-                  - `assertion N WARM` or `assertion N COLD`
+                  - `assertion N COLD`, `assertion N WARM`, or
+                    `assertion N HOT`
                   - "WEAVER thought on candidate X"
                 no anchorless claims. if you cannot cite, drop it.
 
