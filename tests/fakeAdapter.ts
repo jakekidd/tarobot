@@ -49,6 +49,23 @@ export class FakeAdapter implements LLMAdapter {
     if (this.freeformResponder) return this.freeformResponder(spec);
     return '';
   }
+
+  // Test fake mirrors the production streaming method but emits the
+  // entire response as a single chunk synchronously. Tests that care
+  // about chunk timing can ignore this; tests that just need the
+  // streaming-aware engine path to work get the full text.
+  async invokeFreeformStreaming(spec: FreeformSpec & {
+    onChunk?: (chunk: string) => void;
+    onStart?: () => void;
+    onEnd?: () => void;
+  }): Promise<string> {
+    this.freeformCalls.push(spec);
+    spec.onStart?.();
+    const text = this.freeformResponder ? this.freeformResponder(spec) : '';
+    if (text) spec.onChunk?.(text);
+    spec.onEnd?.();
+    return text;
+  }
 }
 
 // ─── canned outputs for the v2 (Phase 3) agent shapes ─────

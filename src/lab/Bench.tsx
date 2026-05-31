@@ -11,17 +11,19 @@ import { useState } from 'react';
 import { Button } from './lib';
 import { Detective } from './views/Detective';
 import { Run } from './views/Run';
+import { Sandbox } from './views/Sandbox';
 
 type Props = {
   apiKey: string;
   onExit: () => void;
 };
 
-type Tab = 'detective' | 'all';
+type Tab = 'detective' | 'all' | 'sandbox';
 
 const TABS: { id: Tab; label: string }[] = [
   { id: 'detective', label: 'detective' },
   { id: 'all', label: 'all' },
+  { id: 'sandbox', label: 'sandbox' },
 ];
 
 export function Bench({ apiKey, onExit }: Props) {
@@ -53,9 +55,10 @@ export function Bench({ apiKey, onExit }: Props) {
             </button>
           ))}
         </nav>
-        <main className="bench__main">
+        <main className={`bench__main ${tab === 'sandbox' ? 'bench__main--wide' : ''}`}>
           {tab === 'detective' && <Detective apiKey={apiKey} />}
           {tab === 'all' && <Run apiKey={apiKey} />}
+          {tab === 'sandbox' && <Sandbox apiKey={apiKey} />}
         </main>
       </div>
     </div>

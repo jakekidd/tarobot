@@ -70,6 +70,20 @@ export type FreeformSpec = {
   label?: string;
 };
 
+/** Streaming variant of FreeformSpec. The model's prose response is
+ *  streamed back as text_delta chunks; the returned promise resolves
+ *  to the full concatenated text. Used by Bench's sandbox so each
+ *  agent's thinking surfaces live in the right-side shelf as it
+ *  generates, instead of dumping all at once at the end. */
+export type FreeformStreamingSpec = FreeformSpec & {
+  /** Called for each text_delta chunk as it arrives. */
+  onChunk?: (chunk: string) => void;
+  /** Called once when streaming starts. */
+  onStart?: () => void;
+  /** Called once when streaming ends (success or failure). */
+  onEnd?: () => void;
+};
+
 /**
  * The adapter primitives. Concrete impls handle retries, malformed-
  * output fallbacks, and provider-specific quirks.
@@ -78,5 +92,6 @@ export interface LLMAdapter {
   invoke<T>(spec: InvocationSpec, schema: ZodType<T>): Promise<T>;
   invokeStreaming<T>(spec: StreamingInvocationSpec, schema: ZodType<T>): Promise<T>;
   invokeFreeform(spec: FreeformSpec): Promise<string>;
+  invokeFreeformStreaming(spec: FreeformStreamingSpec): Promise<string>;
 }
 

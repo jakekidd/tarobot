@@ -1128,12 +1128,29 @@ export class SurveyEngine {
 
   /** Belt-and-suspenders close trigger. If async pipelines complete AFTER
    *  the user has consumed every queue item, this fires the intention
-   *  stage. Mirrors the inline check in submitAnswer. */
+   *  stage. Mirrors the inline check in submitAnswer.
+   *
+   *  Bail-safety: require that the Interrogation actually happened —
+   *  at least one voiced assertion OR a hard reason to close (soft
+   *  ceiling reached / WEAVER engagement signalled stop). Without this,
+   *  a detective that fails on its first call (network blip, empty
+   *  output, API error) silently advances the session to
+   *  awaiting_intention with 0 assertions, which the user reads as
+   *  "the detective ran" when it actually didn't fire at all. */
   private maybeTriggerIntentionOnStall(): void {
     if (this.state.stage !== 'questions') return;
     if (this.state.queue.length > 0) return;
     if (this.pipelinesInFlight > 0) return;
     if (this.countPostOpenerPicks() === 0) return;
+    const voicedAssertions = this.countAssertionsInTranscript();
+    const hitCeiling = voicedAssertions >= this.softCeiling();
+    const weaverSaidStop = this.state.weaver_engagement !== 'live';
+    if (voicedAssertions === 0 && !hitCeiling && !weaverSaidStop) {
+      // Interrogation never actually ran (detective failed / empty).
+      // Stay in 'questions' so the next user nudge can retry rather
+      // than the session silently collapsing.
+      return;
+    }
     this.beginIntentionStage();
   }
 

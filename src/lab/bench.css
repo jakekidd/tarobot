@@ -143,6 +143,12 @@
   margin: 0 auto;
 }
 
+/* Sandbox needs the full window width — three columns, fixed sizing. */
+.bench__main--wide {
+  max-width: none;
+  padding: 0;
+}
+
 /* ── Button (text-button style, no boxes) ──────────────── */
 
 .bench__btn {
@@ -573,4 +579,342 @@
 @keyframes bench-pulse {
   0%, 100% { opacity: 0.4; }
   50% { opacity: 1; }
+}
+
+/* ═════════════════════════════════════════════════════════
+ * SANDBOX — DIY agent pipeline workspace
+ * ═════════════════════════════════════════════════════════
+ *
+ * Desktop-only, fixed-width three-column grid:
+ *   STATE shelf  ·  center (dossier + flow)  ·  THINK shelf
+ *
+ * Marbles are clickable circles. MarbleFlow is two rows (pipeline
+ * top, inventory bottom). AgentDossier sits above the flow; selecting
+ * a marble swaps the dossier contents.
+ */
+
+.sb-grid {
+  display: grid;
+  grid-template-columns: 260px 1fr 360px;
+  gap: 0;
+  min-height: calc(100vh - 98px);   /* total height minus header + tabs */
+}
+
+.sb-grid__left {
+  border-right: 1px solid var(--rule);
+  padding: var(--p4);
+  overflow-y: auto;
+  max-height: calc(100vh - 98px);
+}
+
+.sb-grid__center {
+  display: grid;
+  grid-template-rows: 1fr auto;
+  padding: var(--p4);
+  min-width: 0;
+  overflow: hidden;
+}
+
+.sb-grid__dossier {
+  overflow-y: auto;
+  padding-bottom: var(--p5);
+  min-height: 0;
+}
+
+.sb-grid__flow {
+  border-top: 1px solid var(--rule);
+  padding-top: var(--p4);
+}
+
+.sb-grid__right {
+  border-left: 1px solid var(--rule);
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100vh - 98px);
+}
+
+/* ─── State shelf (left) ─────────────────────────────── */
+
+.sb-state-shelf { display: flex; flex-direction: column; gap: var(--p3); }
+
+.sb-state-shelf__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: var(--p2);
+  border-bottom: 1px solid var(--rule);
+}
+
+.sb-state-shelf__add { padding: var(--p2) 0; }
+
+.sb-state-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--p1);
+}
+
+.sb-state-row { display: flex; flex-direction: column; }
+
+.sb-state-row__head {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: var(--p2);
+  align-items: center;
+  padding: var(--p2) var(--p3);
+  background: transparent;
+  border: 0;
+  border-radius: var(--r1);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--fg);
+  text-align: left;
+  cursor: pointer;
+  width: 100%;
+}
+.sb-state-row__head:hover { background: var(--bg-alt); }
+.sb-state-row--expanded .sb-state-row__head { background: var(--accent-faint); }
+
+.sb-state-row__name { color: var(--fg); font-weight: 600; }
+.sb-state-row__preview {
+  color: var(--fg-faint);
+  font-size: 11px;
+  max-width: 130px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: right;
+}
+
+.sb-state-row__body {
+  padding: var(--p3);
+  background: var(--bg-alt);
+  display: flex;
+  flex-direction: column;
+  gap: var(--p2);
+}
+
+/* ─── Think shelf (right) ────────────────────────────── */
+
+.sb-think-shelf {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+.sb-think-shelf__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--p4);
+  border-bottom: 1px solid var(--rule);
+  background: var(--bg);
+}
+
+.sb-think-shelf__active {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: lowercase;
+}
+
+.sb-think-shelf__scroll {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--p4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--p4);
+}
+
+.sb-think-group { display: flex; flex-direction: column; gap: var(--p1); }
+.sb-think-group__head {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+}
+.sb-think-group__text {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.55;
+  padding: var(--p2) var(--p3);
+  border-left: 2px solid;
+  color: var(--fg);
+  white-space: pre-wrap;
+  background: var(--bg-alt);
+}
+
+/* ─── Marble + MarbleFlow ────────────────────────────── */
+
+.sb-flow { display: flex; flex-direction: column; gap: var(--p3); }
+
+.sb-flow__row {
+  display: flex;
+  align-items: center;
+  gap: var(--p3);
+  padding: var(--p3) 0;
+  min-height: 96px;
+}
+
+.sb-flow__row--pipeline { border-bottom: 1px dashed var(--rule); }
+.sb-flow__row--inventory { /* row two */ }
+
+.sb-flow__spacer { flex: 1; }
+
+.sb-flow__hint {
+  color: var(--fg-faint);
+  font-style: italic;
+  font-size: 12px;
+  padding: 0 var(--p3);
+}
+
+.sb-marble-wrap { position: relative; }
+.sb-marble-wrap--running::after {
+  content: '';
+  position: absolute;
+  inset: -4px;
+  border: 2px solid currentColor;
+  border-radius: 50%;
+  animation: bench-pulse 1.2s ease-in-out infinite;
+  pointer-events: none;
+}
+
+.sb-marble {
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  border: 2px solid;
+  background: transparent;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 4px;
+  transition: transform 100ms ease, box-shadow 100ms ease;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+}
+.sb-marble:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
+.sb-marble--selected {
+  box-shadow: 0 0 0 3px currentColor inset, 0 4px 12px rgba(0,0,0,0.1);
+}
+.sb-marble--add {
+  border-style: dashed;
+  border-color: var(--rule);
+  color: var(--fg-faint);
+}
+.sb-marble--add:hover { border-color: var(--accent); color: var(--accent); }
+
+.sb-marble__label {
+  word-break: break-word;
+  line-height: 1.15;
+  max-height: 60px;
+  overflow: hidden;
+}
+
+/* ─── Agent dossier ──────────────────────────────────── */
+
+.sb-dossier {
+  border-left: 3px solid var(--accent);
+  padding: var(--p4);
+  background: var(--bg-alt);
+  display: flex;
+  flex-direction: column;
+  gap: var(--p3);
+}
+
+.sb-dossier--empty {
+  background: transparent;
+  border-left-color: var(--rule);
+  color: var(--fg-faint);
+  font-style: italic;
+}
+
+.sb-dossier__dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.sb-dossier__name {
+  font-family: var(--font-mono);
+  font-size: 14px;
+  font-weight: 700;
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid transparent;
+  padding: var(--p1) 0;
+  color: var(--fg);
+  width: 220px;
+  outline: none;
+}
+.sb-dossier__name:hover, .sb-dossier__name:focus { border-bottom-color: var(--rule); }
+
+.sb-dossier__divider {
+  border-top: 1px solid var(--rule);
+  margin: var(--p1) 0;
+}
+
+/* ─── Color swatches ─────────────────────────────────── */
+
+.sb-color-swatch {
+  width: 22px; height: 22px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  cursor: pointer;
+}
+.sb-color-swatch:hover { transform: scale(1.08); }
+.sb-color-swatch--active { border-color: var(--fg); }
+
+/* ─── Input chip multi-select (declared state vars) ───── */
+
+.sb-input-chip {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--rule);
+  background: var(--bg);
+  color: var(--fg-muted);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.sb-input-chip:hover { border-color: var(--fg-muted); }
+.sb-input-chip--active {
+  background: var(--accent-faint);
+  border-color: var(--accent);
+  color: var(--accent);
+  font-weight: 600;
+}
+.sb-input-chip__idx {
+  font-size: 9px;
+  background: var(--accent);
+  color: #fff;
+  border-radius: 50%;
+  width: 14px; height: 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* ─── Run error ──────────────────────────────────────── */
+
+.sb-run-error {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--hot);
+  padding: var(--p2) var(--p3);
+  border-left: 2px solid var(--hot);
+  background: rgba(184, 40, 26, 0.05);
+  margin-bottom: var(--p3);
 }

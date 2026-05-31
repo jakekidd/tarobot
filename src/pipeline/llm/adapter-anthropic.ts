@@ -6,6 +6,7 @@ import type { ZodType } from 'zod';
 import type { ClaudeClient } from '../claude';
 import type {
   FreeformSpec,
+  FreeformStreamingSpec,
   InvocationSpec,
   LLMAdapter,
   ModelTier,
@@ -141,6 +142,66 @@ export class AnthropicAdapter implements LLMAdapter {
       if (e instanceof Error) failAgentEvent({ id: eventId, error: e.message });
       throw e;
     } finally {
+      inFlightCount = Math.max(0, inFlightCount - 1);
+    }
+  }
+
+  async invokeFreeformStreaming(spec: FreeformStreamingSpec): Promise<string> {
+    inFlightCount += 1;
+    lastTier = spec.model;
+    const eventId = nextId();
+    startAgentEvent({
+      id: eventId,
+      label: spec.label ?? 'freeform',
+      model: spec.model,
+      system: spec.system,
+      user: spec.user,
+    });
+    spec.onStart?.();
+    try {
+      const modelId = MODEL_FOR[spec.model];
+      const stream = this.client.messages.stream({
+        model: modelId,
+        max_tokens: spec.max_tokens,
+        system: spec.system,
+        messages: [{ role: 'user', content: spec.user }],
+        stream: true,
+      });
+      let acc = '';
+      stream.on('streamEvent', (event) => {
+        try {
+          if (event.type === 'content_block_delta' && event.delta.type === 'text_delta') {
+            acc += event.delta.text;
+            spec.onChunk?.(event.delta.text);
+          }
+        } catch { /* swallow listener errors so the stream keeps flowing */ }
+      });
+      const finalMessage = await stream.finalMessage();
+      if (this.onUsage && finalMessage.usage) {
+        this.onUsage(modelId, {
+          input_tokens: finalMessage.usage.input_tokens ?? 0,
+          output_tokens: finalMessage.usage.output_tokens ?? 0,
+        });
+      }
+      // Prefer the streamed accumulator (we caught every chunk); fall
+      // back to extracting from finalMessage if the accumulator is
+      // empty for any reason.
+      const text = acc || finalMessage.content
+        .filter((b): b is Anthropic.TextBlock => b.type === 'text')
+        .map((b) => b.text)
+        .join('');
+      if (!text) {
+        const errMsg = `adapter.invokeFreeformStreaming: model returned no text (stop_reason=${finalMessage.stop_reason})`;
+        failAgentEvent({ id: eventId, error: errMsg });
+        throw new Error(errMsg);
+      }
+      completeAgentEvent({ id: eventId, response: text });
+      return text;
+    } catch (e) {
+      if (e instanceof Error) failAgentEvent({ id: eventId, error: e.message });
+      throw e;
+    } finally {
+      spec.onEnd?.();
       inFlightCount = Math.max(0, inFlightCount - 1);
     }
   }
