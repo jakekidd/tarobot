@@ -65,7 +65,7 @@ export type FreeformSpec = {
   /** Optional caller-supplied label for telemetry / debug bus / mascot
    *  pulse color mapping. Defaults to 'freeform' if omitted. Each
    *  freeform-using agent should pass its own name (e.g. 'seeder',
-   *  'dowser', 'weaver', 'intention_suggestor') so downstream
+   *  'diviner', 'weaver', 'intention_suggestor') so downstream
    *  observers can distinguish them. */
   label?: string;
 };

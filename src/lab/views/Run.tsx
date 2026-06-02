@@ -20,7 +20,7 @@ import { PhasePanel } from '../panels/PhasePanel';
 import { TranscriptPanel } from '../panels/TranscriptPanel';
 import { VerbatimPanel } from '../panels/VerbatimPanel';
 import { WeaverPanel } from '../panels/WeaverPanel';
-import { DowserPanel } from '../panels/DowserPanel';
+import { DivinerPanel } from '../panels/DivinerPanel';
 import { AgentPanel } from '../panels/AgentPanel';
 import { DilemmaPanel } from '../panels/DilemmaPanel';
 import { RELATIONSHIP_STATUS_OPTIONS } from '../../pipeline/antechamber/types';
@@ -65,7 +65,7 @@ export function Run({ apiKey }: Props) {
         </Stack>
         <Stack gap={4}>
           <WeaverPanel state={state} />
-          <DowserPanel state={state} />
+          <DivinerPanel state={state} />
           <AgentPanel />
         </Stack>
       </div>

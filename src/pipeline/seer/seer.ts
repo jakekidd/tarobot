@@ -67,7 +67,7 @@ export type SeerOpts = {
   intention: string;
   drawn: DrawnCards;
   outcomes: Outcome[];
-  /** The narrative cross-section the dowser built during the antechamber.
+  /** The narrative cross-section the diviner built during the antechamber.
    *  Threaded into directorIntro as the SPINE of prose_brief (replaces
    *  the legacy surveySynthesis ≤3-claim list with a structured
    *  artifact whose slots map onto card positions). */

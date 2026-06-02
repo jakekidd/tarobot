@@ -7,13 +7,13 @@
 //
 // Or filter to a single agent:
 //
-//   pnpm preview -- --only=dowser
+//   pnpm preview -- --only=diviner
 //
 // Catches things that fail silently in live calls — placeholders that
 // didn't get substituted, transcript continuity gaps, missing fields,
 // labels that drift between prompt + state.
 
-import { DOWSER_SYSTEM_TEMPLATE } from '../src/pipeline/antechamber/agents/dowser';
+import { DIVINER_SYSTEM_TEMPLATE } from '../src/pipeline/antechamber/agents/diviner';
 import { WEAVER_SYSTEM_TEMPLATE } from '../src/pipeline/antechamber/agents/weaver';
 import {
   formatWeaverCandidatesForPrompt,
@@ -114,7 +114,7 @@ function makeState(): EngineState {
     anchor: '',
     verbatim_log,
     transcript,
-    dowser_thinking: 'Earlier I noted she picked freedom over security — that\'s telling given the job framing. The latency on the body question (z=1.8) was the strongest pillar tell. My first guess targeted identity-cost-of-staying and earned a corrected warm.',
+    diviner_thinking: 'Earlier I noted she picked freedom over security — that\'s telling given the job framing. The latency on the body question (z=1.8) was the strongest pillar tell. My first guess targeted identity-cost-of-staying and earned a corrected warm.',
     hypotheses: [
       'am i clinging to this job because leaving it would force me to become someone i don\'t yet recognise?',
       'is this fork really about theo, or about my own self-image?',
@@ -132,31 +132,31 @@ function makeState(): EngineState {
 
 // ─── Renderers (mirror each agent's payload-building logic) ─────
 
-function renderDowserPrompt(state: EngineState): string {
+function renderDivinerPrompt(state: EngineState): string {
   const transcript = renderTranscript(state.transcript);
   const hypothesesSoFar = state.hypotheses.map((h) => `    ${h}`).join('\n');
   const queue = '    (queue empty — propose the first interrogation guess)';
   const verbatim = formatVerbatimLog(state.verbatim_log) || '(none)';
-  const thinkingSoFar = state.dowser_thinking || '(this is your first thinking pass — start fresh)';
+  const thinkingSoFar = state.diviner_thinking || '(this is your first thinking pass — start fresh)';
   const OBJECTIVE = "find this person's live dilemma — a situation they face with a fork in it, where one branch is 'continue as you are.' assert situations and behaviors, not interior verdicts. profile the problem, not the person.";
-  return DOWSER_SYSTEM_TEMPLATE
+  return DIVINER_SYSTEM_TEMPLATE
     .replace('{{OBJECTIVE}}', OBJECTIVE)
     .replace('{{TRANSCRIPT}}', transcript || '(no pillar answers yet)')
     .replace('{{HYPOTHESES_SO_FAR}}', hypothesesSoFar)
     .replace('{{GUESS_QUEUE}}', queue)
     .replace('{{VERBATIM_LOG}}', verbatim)
-    .replace('{{DOWSER_THINKING_TRANSCRIPT}}', thinkingSoFar);
+    .replace('{{DIVINER_THINKING_TRANSCRIPT}}', thinkingSoFar);
 }
 
 function renderWeaverPrompt(state: EngineState): string {
   const transcript = renderTranscript(state.transcript) || '(no transcript yet)';
   const verbatim = formatVerbatimLog(state.verbatim_log) || '(none)';
-  const dowserHypotheses = state.hypotheses.map((h) => `    ${h}`).join('\n') || '    (none yet)';
+  const divinerHypotheses = state.hypotheses.map((h) => `    ${h}`).join('\n') || '    (none yet)';
   const weaverSoFar = formatWeaverCandidatesForPrompt(state.weaver_candidates);
   return WEAVER_SYSTEM_TEMPLATE
     .replace('{{TRANSCRIPT}}', transcript)
     .replace('{{VERBATIM_LOG}}', verbatim)
-    .replace('{{DOWSER_HYPOTHESES}}', dowserHypotheses)
+    .replace('{{DIVINER_HYPOTHESES}}', divinerHypotheses)
     .replace('{{WEAVER_CANDIDATES_SO_FAR}}', weaverSoFar)
     .replace('{{RUN_IDX}}', String(state.weaver_run_count + 1))
     .replace('{{RUN_TOTAL}}', '3');
@@ -202,9 +202,9 @@ function main(): void {
   const state = makeState();
   const want = (name: string) => !args.only || args.only === name;
 
-  if (want('dowser')) {
-    banner('DOWSER (Opus, freeform, Interrogation phase — first pass after pillars)');
-    console.log(renderDowserPrompt(state));
+  if (want('diviner')) {
+    banner('DIVINER (Opus, freeform, Interrogation phase — first pass after pillars)');
+    console.log(renderDivinerPrompt(state));
   }
 
   if (want('weaver')) {

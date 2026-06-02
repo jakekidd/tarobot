@@ -47,9 +47,9 @@ export function buildCompilerPayload(args: CompilerPayloadArgs): unknown {
     transcript: renderTranscript(state.transcript),
     verbatim_log: state.verbatim_log.map(toVerbatimItem),
     verbatim_log_formatted: formatVerbatimLog(state.verbatim_log),
-    // Advisory — the dowser's last hypothesis list. The compiler
+    // Advisory — the diviner's last hypothesis list. The compiler
     // should not adopt these unless warmth or WEAVER backs them.
-    dowser_hypotheses: state.hypotheses,
+    diviner_hypotheses: state.hypotheses,
     doc_v: state.doc.v,
   };
 }

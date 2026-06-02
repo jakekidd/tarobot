@@ -1,4 +1,4 @@
-// WarmColdChoice — UI for dowser-emitted guesses.
+// WarmColdChoice — UI for diviner-emitted guesses.
 //
 // Three big buttons: COLD (blue, "wrong neighbourhood; eliminate the
 // region"), WARM (orange, "right neighbourhood; refine"), HOT (red,

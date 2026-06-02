@@ -6,7 +6,7 @@
 // the prompt text pulled LIVE from the source files.
 //
 // Runtime categorization (the load-bearing axis):
-//   - local : observer / dowser / interrogator + all seer actor agents
+//   - local : observer / diviner / interrogator + all seer actor agents
 //             — designated to run on a local OSS LLM on the booth's
 //             on-prem computer in prod. Today fulfilled by Claude.
 //   - cloud : shaman / augur + all seer director agents — stays cloud
@@ -27,7 +27,7 @@ import { STARTER_SEED_COUNT } from '../pipeline/antechamber';
 
 // ── Live prompt imports ─────────────────────────────────────
 
-import { DOWSER_SYSTEM_TEMPLATE } from '../pipeline/antechamber/agents/dowser';
+import { DIVINER_SYSTEM_TEMPLATE } from '../pipeline/antechamber/agents/diviner';
 import { WEAVER_SYSTEM_TEMPLATE } from '../pipeline/antechamber/agents/weaver';
 import INTENTION_SUGGESTOR_RAW from '../../materials/prompts/intention-suggestor.md?raw';
 import {
@@ -98,15 +98,15 @@ const ANTECHAMBER_AGENTS: AgentSpec[] = [
     notes: 'Zero LLM cost. Deterministic. Currently the SOLE pre-interrogation signal layer after the Haiku seeder was deleted (its observations were mostly restatements of transcript data).',
   },
   {
-    id: 'dowser',
-    name: 'Dowser',
+    id: 'diviner',
+    name: 'Diviner',
     runtime: 'cloud',
     call_pattern: 'Interrogation phase only. Called repeatedly to refill an guess queue 3-ahead of the user; latest answer always wins (queue is provisional, not a script).',
-    input_type: 'DowserInput',
-    output_type: 'DowserTextBlob',
-    inputs: 'transcript (pillar Q&A + seeder obs + guesses + responses) + hypotheses_so_far (re-vote by repetition) + guess_queue + verbatim_log + dowser_thinking_so_far (continuous transcript)',
+    input_type: 'DivinerInput',
+    output_type: 'DivinerTextBlob',
+    inputs: 'transcript (pillar Q&A + seeder obs + guesses + responses) + hypotheses_so_far (re-vote by repetition) + guess_queue + verbatim_log + diviner_thinking_so_far (continuous transcript)',
     outputs: 'free-form thinking, then ===HYPOTHESES===, ===GUESS===, ===IF_WARM===, ===IF_COLD===',
-    prompt: DOWSER_SYSTEM_TEMPLATE,
+    prompt: DIVINER_SYSTEM_TEMPLATE,
     tool_name: 'freeform',
     notes: 'Opus, 4K tokens. Hypothesis re-listing = vote. Asserts situation, not interior. WARM/COLD as absolute (COLD eliminates a region, never inverts). Correction text is the gold.',
   },
@@ -114,10 +114,10 @@ const ANTECHAMBER_AGENTS: AgentSpec[] = [
     id: 'weaver',
     name: 'Weaver',
     runtime: 'cloud',
-    call_pattern: 'Interrogation phase only. Fires every 2 answered guesses (~3 calls across the 6-guess ceiling). Haiku tier. Background — does not block the dowser. Owns the engagement early-out.',
+    call_pattern: 'Interrogation phase only. Fires every 2 answered guesses (~3 calls across the 6-guess ceiling). Haiku tier. Background — does not block the diviner. Owns the engagement early-out.',
     input_type: 'RunWeaverArgs',
     output_type: 'WeaverTextBlob',
-    inputs: 'transcript + verbatim_log + dowser_hypotheses (advisory) + weaver_candidates_so_far + run_idx / run_total',
+    inputs: 'transcript + verbatim_log + diviner_hypotheses (advisory) + weaver_candidates_so_far + run_idx / run_total',
     outputs: 'free-form thinking, then ===CANDIDATES=== (label / description / evidence-anchored thoughts), then ===TERMINATE=== (yes | no)',
     prompt: WEAVER_SYSTEM_TEMPLATE,
     tool_name: 'freeform',
@@ -173,7 +173,7 @@ const SEER_AGENTS: AgentSpec[] = [
     input_type: 'IntroDirectorInput',
     output_type: 'string (prose_brief)',
     inputs: 'profile + story + heldProbes + investigation + intention + antechamberHistory + outcomes',
-    outputs: 'string (prose_brief — the dowser brief the seer reads silently)',
+    outputs: 'string (prose_brief — the diviner brief the seer reads silently)',
     prompt: INTRO_DIRECTOR_SYSTEM,
     tool_name: INTRO_DIRECTOR_TOOL.name,
     notes: 'Writes the prose brief that all subsequent per-card / closing director calls reuse. StoryObject is the spine: past_root → present_pressure → fork. Orients across outcomes; never advocates.',
@@ -315,9 +315,9 @@ const ANTECHAMBER_DIAGRAM = `flowchart TD
   snapshot --> seeder[/"${BOX('algorithmic seeder<br/>(deterministic, no LLM):<br/>Inversions probe →<br/>fresh tentative hypotheses<br/>+ age existing seeds')}"/]
   seeder --> fanOut(["◀ pipeline fan-out ▶"])
   fanOut ==>|"${IO('ObserverInput', 'profile template + profile.body<br/>+ Q-and-A history<br/>+ side-channel telemetry<br/>+ investigation board')}"| obs["${AGENT('Observer', 'cloud')}"]
-  fanOut ==>|"${IO('DowserInput', 'snapshot + investigation<br/>+ current story<br/>+ private_thoughts')}"| det["${AGENT('Dowser', 'cloud')}"]
+  fanOut ==>|"${IO('DivinerInput', 'snapshot + investigation<br/>+ current story<br/>+ private_thoughts')}"| det["${AGENT('Diviner', 'cloud')}"]
   obs -->|"${IO('ObserverOutput', '{profile_body, hooks, edges,<br/>side_channel, cast_notes_updates,<br/>hypothesis_ladder_moves}')}"| applyO[/"${BOX('apply: rewrite body,<br/>merge cast notes,<br/>route ladder moves')}"/]
-  det -->|"${IO('DowserOutput', '{new_hypotheses,<br/>hypothesis_ladder_moves,<br/>story_updates, private_thoughts}')}"| applyD[/"${BOX('apply: add hyps,<br/>merge story,<br/>route ladder moves')}"/]
+  det -->|"${IO('DivinerOutput', '{new_hypotheses,<br/>hypothesis_ladder_moves,<br/>story_updates, private_thoughts}')}"| applyD[/"${BOX('apply: add hyps,<br/>merge story,<br/>route ladder moves')}"/]
   applyO --> ans
   applyD --> ans
 
@@ -347,7 +347,7 @@ const ANTECHAMBER_DIAGRAM = `flowchart TD
 const SEER_DIAGRAM = `flowchart TD
   seerStart[("new SeerEngine<br/>{profile, story, heldProbes,<br/>investigation, intention,<br/>drawn, outcomes}")]
   seerStart -->|"${IO('IntroDirectorInput', '{profile, story, heldProbes,<br/>intention, antechamberHistory, outcomes}')}"| dIntro["${AGENT('directorIntro', 'cloud')}"]
-  dIntro -->|"${IO('prose_brief', 'string (dowser brief,<br/>spine = past_root →<br/>present_pressure → fork)')}"| aIntro["${AGENT('actorIntro', 'local')}"]
+  dIntro -->|"${IO('prose_brief', 'string (diviner brief,<br/>spine = past_root →<br/>present_pressure → fork)')}"| aIntro["${AGENT('actorIntro', 'local')}"]
   aIntro -->|"${IO('Monologue', '{text ≤14 words}')}"| ready((seer.ready resolves))
   ready --> enterBtn["${BOX('user clicks<br/>ENTER')}"]
   enterBtn --> introBeat[/"${BOX('intro delivered')}"/]

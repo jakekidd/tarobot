@@ -91,7 +91,7 @@ export async function directorIntro(
     observer_edges: input.profile.observer_edges,
     observer_side_channel: input.profile.observer_side_channel,
     intention: input.intention,
-    // The dowser's StoryObject — the narrative cross-section across
+    // The diviner's StoryObject — the narrative cross-section across
     // time the subject is standing inside. Treat as the SPINE of the brief:
     // fork (two future paths) / present_pressure (what's acute) /
     // past_root (what pre-figures it) / stakes (what's at risk each
@@ -109,7 +109,7 @@ export async function directorIntro(
     // the subject picking either). She does not pitch an outcome.
     outcomes: input.outcomes.map((o) => ({ id: o.id, label: o.label, document: o.document })),
     instruction:
-      'write the prose brief the seer reads silently before voicing the intro. lead with the antechamber_synthesis as the spine; use survey_history only to add texture or contradict the synthesis where it must. dowser-tier specificity, 200-400 words, third person, the INTENTION is the centerpiece. orient the seer ACROSS the outcomes — what is at stake either way — without advocating for one.',
+      'write the prose brief the seer reads silently before voicing the intro. lead with the antechamber_synthesis as the spine; use survey_history only to add texture or contradict the synthesis where it must. diviner-tier specificity, 200-400 words, third person, the INTENTION is the centerpiece. orient the seer ACROSS the outcomes — what is at stake either way — without advocating for one.',
   };
 
   const out = await adapter.invoke<{ prose_brief: string; reasoning: string }>(
@@ -146,7 +146,7 @@ export async function directorClosing(
     observer_edges: input.profile.observer_edges,
     observer_side_channel: input.profile.observer_side_channel,
     prose_brief: input.prose_brief,
-    // The dowser's StoryObject — same spine the intro read.
+    // The diviner's StoryObject — same spine the intro read.
     // Closing director uses fork / present_pressure / past_root to
     // shape the takeaway: a lens about the subject's RELATIONSHIP to
     // the fork, not advice.

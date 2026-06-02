@@ -40,7 +40,7 @@ LABEL RULES:
 - present-tense or simple past, never conditional ("would")
 
 HELD PROBES (when present):
-- you may receive a `held_probes` array — open questions the antechamber didn't resolve about the subject. they came from the seeder or the dowser and never gathered enough evidence to confirm or refute.
+- you may receive a `held_probes` array — open questions the antechamber didn't resolve about the subject. they came from the seeder or the diviner and never gathered enough evidence to confirm or refute.
 - an outcome that touches one is high-leverage: if it lands, the subject feels read; if it misses, the subject just hears one of several outcome paths and moves on. you cannot lose by trying.
 - example: held probe "the empty intent field is diagnostic — the real question is too tender or unformed to type" + intention "should i pursue x" → an outcome labeled "{name} learns the real question wasn't x" probes the held theory.
 - do NOT make every outcome a probe. one is enough.

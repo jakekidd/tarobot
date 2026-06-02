@@ -1,13 +1,13 @@
-// Unified transcript — the narrative document the dowser reads.
+// Unified transcript — the narrative document the diviner reads.
 //
 // Entries are written incrementally as the antechamber runs:
 //   - pillar/pick:  the question, its options, the user's pick + what
 //                   they didn't pick (negative space) + latency-z
-//   - guess:    a dowser-emitted guess (the question voiced
+//   - guess:    a diviner-emitted guess (the question voiced
 //                   to the user)
 //   - response:     warm / cold + optional correction text
 //
-// The dowser payload renders the transcript as one continuous
+// The diviner payload renders the transcript as one continuous
 // narrative document so the model reads questions, answers, negative
 // space, z-scores, prior guesses, and responses in chronological
 // order — the same way a human reader would skim the session.
@@ -33,7 +33,7 @@ export type TranscriptEntry =
       /** 1-based guess index within the Sounding (Interrogation) phase. */
       guess_idx: number;
       statement: string;
-      /** The dowser's hypothesis at the moment this guess was emitted —
+      /** The diviner's hypothesis at the moment this guess was emitted —
        *  the candidate dilemma it was testing, in the user's voice as
        *  a question. Banked on HOT into state.candidate_shapes. */
       hypothesis: string;
@@ -47,9 +47,9 @@ export type TranscriptEntry =
       latency_ms: number;
     };
 
-/** Render the transcript as the narrative document the dowser
+/** Render the transcript as the narrative document the diviner
  *  reads. Each entry maps to a few lines of plain text in chronological
- *  order. Cheap; called every dowser payload build. */
+ *  order. Cheap; called every diviner payload build. */
 export function renderTranscript(entries: readonly TranscriptEntry[]): string {
   const lines: string[] = [];
   for (const entry of entries) {

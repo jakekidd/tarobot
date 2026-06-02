@@ -1,5 +1,5 @@
 // Bench panel — Transcript.
-// The unified narrative the dowser + weaver + compiler read. Renders
+// The unified narrative the diviner + weaver + compiler read. Renders
 // each kind of TranscriptEntry distinctly so picks / guesses /
 // responses are visually separable at a glance.
 

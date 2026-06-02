@@ -2,17 +2,16 @@
 // EngineState; everything else (UI, tests, scripts) reads state and submits
 // answers. Agents fire through an LLMAdapter handed in at construction.
 //
-// Concurrency model: every non-opener pick spawns a 3-agent SERIAL pipeline
-// in the background: Observer → Dowser → Interrogator. Each agent gets
-// the latest mutated PipelineContext from the previous one. The pipeline
-// never blocks the user's main path — the queue is pre-seeded with 6
-// random starters so the user never waits for the next question unless
-// they sprint past the pipeline's wall-time (~3.5s).
+// No LLM fires during openers or pillars. The post-pillar interrogation
+// runs two silent background agents: the diviner (deep, refills the guess
+// queue with HYPOTHESIS+GUESS) and the weaver (haiku, every 2 guesses,
+// curates candidate dilemmas + owns the engagement early-out). The compiler
+// fires once at intention-submit. The user's main path never blocks on them.
 //
-// See docs/ANTECHAMBER_PIPELINE.md for design rationale.
+// See docs/PIPELINE.md for the full phase-by-phase pipeline.
 
 import type { LLMAdapter } from '../llm/adapter';
-import { runDowser, blobToQueuedGuess } from './agents/dowser';
+import { runDiviner, blobToQueuedGuess } from './agents/diviner';
 import { runWeaver } from './agents/weaver';
 import { runCompiler, renderDilemmaAsAnchor, type DilemmaDocument } from './agents/compiler';
 import { runIntentionSuggestor } from './intention-suggestor';
@@ -76,15 +75,15 @@ export type EngineOpts = {
    *  pickEpoch, seer) are NOT serialized; they start fresh per
    *  invocation and that's fine for the per-turn driver model. */
   initialState?: EngineState;
-  /** How many guesses the dowser keeps queued ahead of the
+  /** How many guesses the diviner keeps queued ahead of the
    *  subject. Default 3 (latency hiding in production). Bench's
-   *  dowser-focus mode passes 1 for strict serialization — one
+   *  diviner-focus mode passes 1 for strict serialization — one
    *  guess at a time, no speculative ahead-of-time generation. */
   lookaheadCap?: number;
   /** Soft ceiling on voiced guesses across the Interrogation. Once
    *  reached + the queue drained, the engine transitions to the close
    *  path. Default 6 for production. Bench can bump it (or set high)
-   *  to let the dowser cook on prompt-refinement runs. */
+   *  to let the diviner cook on prompt-refinement runs. */
   softCeiling?: number;
 };
 
@@ -93,9 +92,9 @@ const OPENER_NODE_IDS = new Set<string>(getOpeners());
 /** Returning-user lite mode draws exactly this many random pool questions
  *  (dedup'd against prior history). No Pillars on returning visits. */
 export const RETURNING_LITE_COUNT = 6;
-/** v3: how many dowser-emitted guesses can land before the
+/** v3: how many diviner-emitted guesses can land before the
  *  engine forces beginIntentionStage. Keeps the session bounded if
- *  the dowser never emits 'conclude' on its own. */
+ *  the diviner never emits 'conclude' on its own. */
 const POST_PILLAR_GUESS_CAP = 8;
 /** Back-compat alias for callsites that still reference the old name. */
 export const STARTER_SEED_COUNT = RETURNING_LITE_COUNT;
@@ -105,7 +104,7 @@ export const STARTER_SEED_COUNT = RETURNING_LITE_COUNT;
 // (catch up across the gap) is replaced by every-turn rewriting of
 // the living document.
 //
-// (DOWSER_LOG_CAP removed — v2 dowser doesn't persist a
+// (DIVINER_LOG_CAP removed — v2 diviner doesn't persist a
 // cross-turn scratchpad in engine state. The leading_hypothesis +
 // doc.margin carry continuity in Phase 3.)
 
@@ -119,11 +118,11 @@ export class AntechamberEngine {
    *  App routes to Reading with the Seer in hand. */
   private seer: Seer | null = null;
   /** Each pipeline run is a single Promise<void> covering Observer →
-   *  Dowser → Interrogator, all serial. The UI watches the count to
+   *  Diviner → Interrogator, all serial. The UI watches the count to
    *  show the spinner when queue is empty + a pipeline is running. */
   private pipelinesInFlight = 0;
   /** Per-agent in-flight counts. Published to debug bus per change. */
-  private agentInFlight = { dowser: 0, weaver: 0 };
+  private agentInFlight = { diviner: 0, weaver: 0 };
   private starterSeedFired = false;
   /** Snapshot of the engine state captured RIGHT BEFORE the most recent
    *  pick was processed. `undo()` restores this. Cleared after restore.
@@ -295,13 +294,13 @@ export class AntechamberEngine {
     }
 
     // Per-pillar latency-z (deterministic, cheap — fold in now so the
-    // dowser sees z-scores inline in the transcript). Computes
+    // diviner sees z-scores inline in the transcript). Computes
     // against the full post-opener timing window each turn.
     const enrichedTiming = computeLatencyZScores([...this.state.timing_log, timing]);
     const justTiming = enrichedTiming[enrichedTiming.length - 1]!;
 
     // Push to transcript for post-opener picks (openers are identity
-    // gathers, not part of the dowser's narrative).
+    // gathers, not part of the diviner's narrative).
     const isOpener = OPENER_NODE_IDS.has(head.node_id);
     const transcriptEntries: TranscriptEntry[] = [...this.state.transcript];
     if (!isOpener) {
@@ -317,7 +316,7 @@ export class AntechamberEngine {
       transcript: transcriptEntries,
     });
 
-    // Guess response → log to verbatim + transcript. The dowser
+    // Guess response → log to verbatim + transcript. The diviner
     // sees the response on its next pass.
     if (guessResult) {
       const transcriptResp: TranscriptEntry = {
@@ -341,7 +340,7 @@ export class AntechamberEngine {
       });
       // Pop the answered guess from the queue + refill in background.
       // (HOT-banking happens in submitGuessResponse, the real path for
-      // dowser-emitted guesses; this branch is the older queue-mediated
+      // diviner-emitted guesses; this branch is the older queue-mediated
       // path and rarely fires for guesses post-rewrite.)
       if (this.state.guess_queue.length > 0) {
         this.setState({
@@ -371,7 +370,7 @@ export class AntechamberEngine {
     //     don't trigger AI work — deterministic identity gathers).
     //   - end of openers → pre-roll the post-opener queue (Pillars +
     //     random pool). NO pipeline yet.
-    //   - post-opener answer → spawn the pipeline. Dowser is now an
+    //   - post-opener answer → spawn the pipeline. Diviner is now an
     //     editor: it doesn't add questions, it edits options on the
     //     queue items the user hasn't reached yet.
     //   - if this answer drained the queue (and no pipelines pending),
@@ -385,17 +384,17 @@ export class AntechamberEngine {
       // Algorithmic seeder runs BEFORE the pipeline fires: age existing
       // tentative + held hypotheses by 1, then push fresh seeds from the
       // question's Inversions probe into tentative[]. The pipeline's
-      // dowser payload includes the new ladder, so the model sees
+      // diviner payload includes the new ladder, so the model sees
       // them this turn (and can elevate, hold, or refute via the
       // hypothesis_updates output — until Phase H rewrites the
-      // dowser output schema).
+      // diviner output schema).
       this.applySeeder(head.node_id, pick);
       this.spawnPipeline(pick);
 
       // Transition to IntentConfirm when there's nothing more to ask.
-      // v3: pillars exhaust → dowser drives guesses until the
+      // v3: pillars exhaust → diviner drives guesses until the
       // POST_PILLAR_GUESS_CAP, then we finalize. The pipeline this
-      // turn may still enqueue an guess (dowser hasn't returned
+      // turn may still enqueue an guess (diviner hasn't returned
       // yet) — so when the queue is empty we defer to
       // maybeTriggerIntentionOnStall, which waits for the pipeline.
       const postOpenerCount = this.countPostOpenerPicks();
@@ -403,7 +402,7 @@ export class AntechamberEngine {
       const guessCount = this.countGuessPicks();
       const overGuessCap = guessCount >= POST_PILLAR_GUESS_CAP;
       if (queueEmpty && postOpenerCount > 0 && overGuessCap) {
-        // Hard cap: even if the dowser wants more, we're done.
+        // Hard cap: even if the diviner wants more, we're done.
         this.beginIntentionStage();
       }
     }
@@ -716,7 +715,7 @@ export class AntechamberEngine {
   }
 
   /** Latency-z extraction over timing_log. Deterministic, fast.
-   *  Telemetry only — the seeder + dowser + compiler don't read
+   *  Telemetry only — the seeder + diviner + compiler don't read
    *  z-scores; this writes them into the export bundle. */
   private applyAlgoExtraction(): void {
     const enrichedTiming = computeLatencyZScores(this.state.timing_log);
@@ -759,7 +758,7 @@ export class AntechamberEngine {
   // Compiler accessors removed — the antechamber hands off via getSeer().
 
   /** Await all in-flight pipelines. Useful for tests that need a
-   *  quiet state. Returns when no observer/dowser/interrogator is
+   *  quiet state. Returns when no observer/diviner/interrogator is
    *  running and no new run is queued. */
   async waitForQuiescence(maxWaitMs = 30000): Promise<void> {
     const start = Date.now();
@@ -801,7 +800,7 @@ export class AntechamberEngine {
       ...(opts.returning?.profile_seed ?? {}),
     };
     // v2: LivingDoc replaces Investigation. Observer (Phase 3+)
-    // single-writes; dowser reads + emits Moves; coverage is
+    // single-writes; diviner reads + emits Moves; coverage is
     // recomputed deterministically. EMPTY_DOC is the initial state.
     const startDoc: LivingDoc = EMPTY_DOC;
     const isReturning = !!opts.returning;
@@ -838,7 +837,7 @@ export class AntechamberEngine {
       anchor: '',
       verbatim_log: [],
       transcript: [],
-      dowser_thinking: '',
+      diviner_thinking: '',
       hypotheses: [],
       candidate_shapes: [],
       guess_queue: [],
@@ -1013,9 +1012,9 @@ export class AntechamberEngine {
   /** Pre-roll the post-opener queue.
    *
    *  v3 (Phase 3+): pillars only. The random pool is gone from the
-   *  pre-roll; post-pillar questions come from dowser-emitted
+   *  pre-roll; post-pillar questions come from diviner-emitted
    *  guess instruments. The pool questions still live in
-   *  materials/pillars.md as reference material for the dowser's
+   *  materials/pillars.md as reference material for the diviner's
    *  prior, but they're not queued directly anymore.
    *
    *  Returning users get a lite-mode 6 random pool draws only
@@ -1045,7 +1044,7 @@ export class AntechamberEngine {
       return;
     }
 
-    // First-visit flow: pillars in order. Pool is gone — the dowser
+    // First-visit flow: pillars in order. Pool is gone — the diviner
     // emits guesses to fill post-pillar turns.
     for (const id of getPillars()) {
       this.enqueueDirect(id, null, null);
@@ -1055,7 +1054,7 @@ export class AntechamberEngine {
   /** Push per-agent + total pipeline counts to the debug bus. */
   private publishInflight(): void {
     publishDebug('survey.inflight', this.pipelinesInFlight);
-    publishDebug('survey.agent.dowser', this.agentInFlight.dowser);
+    publishDebug('survey.agent.diviner', this.agentInFlight.diviner);
     publishDebug('survey.agent.weaver', this.agentInFlight.weaver);
   }
 
@@ -1109,12 +1108,12 @@ export class AntechamberEngine {
   // ─── pipeline ────────────────────────────────────────
   //
   // Per non-opener answer: spawn one background pipeline that runs
-  // Observer → Dowser → Interrogator serially. Each agent gets a
+  // Observer → Diviner → Interrogator serially. Each agent gets a
   // PipelineContext mutated in-place by the previous one. Every stage
   // updates engine state the moment it finishes — the UI sees profile
-  // updates after observer, investigation + queue edits after dowser.
+  // updates after observer, investigation + queue edits after diviner.
   //
-  // (basket removed — the dowser no longer picks questions. The
+  // (basket removed — the diviner no longer picks questions. The
   // queue is pre-rolled at openers-end via seedPostOpenerQueue.)
 
   private spawnPipeline(pick: PickEvent): void {
@@ -1137,10 +1136,10 @@ export class AntechamberEngine {
    *  Bail-safety: require that the Interrogation actually happened —
    *  at least one voiced guess OR a hard reason to close (soft
    *  ceiling reached / WEAVER engagement signalled stop). Without this,
-   *  a dowser that fails on its first call (network blip, empty
+   *  a diviner that fails on its first call (network blip, empty
    *  output, API error) silently advances the session to
    *  awaiting_intention with 0 guesses, which the user reads as
-   *  "the dowser ran" when it actually didn't fire at all. */
+   *  "the diviner ran" when it actually didn't fire at all. */
   private maybeTriggerIntentionOnStall(): void {
     if (this.state.stage !== 'questions') return;
     if (this.state.queue.length > 0) return;
@@ -1150,7 +1149,7 @@ export class AntechamberEngine {
     const hitCeiling = voicedGuesses >= this.softCeiling();
     const weaverSaidStop = this.state.weaver_engagement !== 'live';
     if (voicedGuesses === 0 && !hitCeiling && !weaverSaidStop) {
-      // Interrogation never actually ran (dowser failed / empty).
+      // Interrogation never actually ran (diviner failed / empty).
       // Stay in 'questions' so the next user nudge can retry rather
       // than the session silently collapsing.
       return;
@@ -1161,7 +1160,7 @@ export class AntechamberEngine {
   /** Post-pivot, post-seeder-deletion: pillar phase fires NO per-turn
    *  LLM call. The algorithmic seeder (applySeeder in submitAnswer)
    *  has already dropped Probe seeds. When the last pillar lands, kick
-   *  off the Interrogation dowser queue. */
+   *  off the Interrogation diviner queue. */
   private async runPipeline(pick: PickEvent): Promise<void> {
     void pick;
     if (this.state.is_returning_user) return; // lite mode
@@ -1201,7 +1200,7 @@ export class AntechamberEngine {
     const transcriptWithGuessVoiced: TranscriptEntry[] = [
       ...this.state.transcript,
       // Tag the guess as voiced (it was the head of the queue when
-      // the user saw it). Capture the dowser's hypothesis at emit-time
+      // the user saw it). Capture the diviner's hypothesis at emit-time
       // so the compiler can reconstruct (hypothesis, guess, response)
       // tuples from the transcript alone.
       {
@@ -1212,7 +1211,7 @@ export class AntechamberEngine {
       },
       respEntry,
     ];
-    // HOT → bank the hypothesis the dowser was testing when this guess
+    // HOT → bank the hypothesis the diviner was testing when this guess
     // was emitted. Append-only, deduped. Three banked shapes triggers
     // Sounding exit (handled in refillGuessQueue).
     const shape = head.hypothesis?.trim() || '';
@@ -1239,7 +1238,7 @@ export class AntechamberEngine {
     this.emit();
 
     // WEAVER fires every WEAVER_CADENCE answered guesses. Background —
-    // doesn't block the next dowser pass. waitForWeaverQuiescence at
+    // doesn't block the next diviner pass. waitForWeaverQuiescence at
     // close gates the compiler on the freshest candidate set.
     const responses = this.countResponsesInTranscript();
     if (responses > 0 && responses % WEAVER_CADENCE === 0 && this.state.weaver_engagement !== 'flat') {
@@ -1250,15 +1249,15 @@ export class AntechamberEngine {
     void this.refillGuessQueue();
   }
 
-  /** Single dowser pass — calls runDowser, parses the text-blob,
+  /** Single diviner pass — calls runDiviner, parses the text-blob,
    *  appends thinking to the running transcript, updates the
    *  hypothesis list (re-listing as votes — frequency = confidence),
    *  enqueues the next guess. Idempotent in the sense that if the
-   *  dowser returns nothing usable, state is left untouched. */
-  private async runDowserPass(): Promise<boolean> {
-    this.agentInFlight.dowser += 1; this.publishInflight();
+   *  diviner returns nothing usable, state is left untouched. */
+  private async runDivinerPass(): Promise<boolean> {
+    this.agentInFlight.diviner += 1; this.publishInflight();
     try {
-      const blob = await runDowser(this.opts.adapter, { state: this.state });
+      const blob = await runDiviner(this.opts.adapter, { state: this.state });
       const nextIdx = this.countGuessesInTranscript() + this.state.guess_queue.length + 1;
       const queued = blobToQueuedGuess(blob, nextIdx, this.countPostOpenerPicks());
       // Shadow the singular hypothesis into the legacy trajectory log
@@ -1270,8 +1269,8 @@ export class AntechamberEngine {
         : this.state.hypotheses;
       if (!queued) {
         this.setState({
-          dowser_thinking: this.state.dowser_thinking
-            + (this.state.dowser_thinking ? '\n\n' : '')
+          diviner_thinking: this.state.diviner_thinking
+            + (this.state.diviner_thinking ? '\n\n' : '')
             + blob.thinking,
           hypotheses: nextHypotheses,
         });
@@ -1279,8 +1278,8 @@ export class AntechamberEngine {
         return false;
       }
       this.setState({
-        dowser_thinking: this.state.dowser_thinking
-          + (this.state.dowser_thinking ? '\n\n' : '')
+        diviner_thinking: this.state.diviner_thinking
+          + (this.state.diviner_thinking ? '\n\n' : '')
           + blob.thinking,
         hypotheses: nextHypotheses,
         guess_queue: [...this.state.guess_queue, queued],
@@ -1288,10 +1287,10 @@ export class AntechamberEngine {
       this.emit();
       return true;
     } catch (e) {
-      console.warn('[survey] dowser pass failed', e);
+      console.warn('[survey] diviner pass failed', e);
       return false;
     } finally {
-      this.agentInFlight.dowser -= 1; this.publishInflight();
+      this.agentInFlight.diviner -= 1; this.publishInflight();
     }
   }
 
@@ -1310,7 +1309,7 @@ export class AntechamberEngine {
     return Math.max(1, Math.floor(this.softCeiling() / WEAVER_CADENCE));
   }
 
-  /** Refill the guess queue to lookaheadCap. Loops dowser calls in
+  /** Refill the guess queue to lookaheadCap. Loops diviner calls in
    *  the background. Stops when the cap is reached, a pass fails to
    *  emit a guess, the total Sounding guess count hits the soft
    *  ceiling, the user has banked enough candidate shapes (≥3), or
@@ -1322,7 +1321,7 @@ export class AntechamberEngine {
       && this.state.weaver_engagement === 'live'
       && this.state.candidate_shapes.length < CANDIDATE_SHAPES_TARGET
     ) {
-      const ok = await this.runDowserPass();
+      const ok = await this.runDivinerPass();
       if (!ok) break;
     }
     // Close conditions: queue drained AND either ceiling reached,
@@ -1385,7 +1384,7 @@ export class AntechamberEngine {
     }
   }
 
-  /** Count dowser-voiced guesses already in the transcript
+  /** Count diviner-voiced guesses already in the transcript
    *  (i.e., the user has seen them). Used for the soft ceiling. */
   private countGuessesInTranscript(): number {
     return this.state.transcript.filter((e) => e.kind === 'guess').length;
@@ -1398,16 +1397,16 @@ export class AntechamberEngine {
   }
 }
 
-/** Lookahead depth — the dowser keeps up to this many guesses
+/** Lookahead depth — the diviner keeps up to this many guesses
  *  pre-generated in the queue. Latency hiding + exploration pressure
- *  in production. Bench's dowser-focus mode passes opts.lookaheadCap
+ *  in production. Bench's diviner-focus mode passes opts.lookaheadCap
  *  = 1 for strict serialization (one guess at a time, no
  *  speculative ahead-of-time generation). */
 const DEFAULT_LOOKAHEAD_CAP = 3;
 
 /** Soft ceiling on voiced guesses across the Interrogation. The
  *  hard cap (POST_PILLAR_GUESS_CAP) is the safety net above it.
- *  Bench can bump this via opts.softCeiling to let the dowser cook
+ *  Bench can bump this via opts.softCeiling to let the diviner cook
  *  unbounded during prompt-refinement runs. */
 const DEFAULT_INTERROGATION_SOFT_CEILING = 6;
 
@@ -1418,7 +1417,7 @@ const WEAVER_CADENCE = 2;
 /** Number of HOT-banked candidate shapes that triggers Sounding exit.
  *  The brief calls for "two or three" — three is the working target;
  *  closes the loop early when the user has already recognised a few
- *  shapes, rather than pushing the dowser to the cap unnecessarily. */
+ *  shapes, rather than pushing the diviner to the cap unnecessarily. */
 const CANDIDATE_SHAPES_TARGET = 3;
 
 // WEAVER_TOTAL_RUNS moved to engine.weaverTotalRuns() — depends on
@@ -1505,8 +1504,8 @@ function shuffleInPlace<T>(arr: T[]): T[] {
   return arr;
 }
 
-// applyQueueEdits removed — the dowser still emits queue_edits but
-// the engine no longer applies them (see runDowserTask). This helper
+// applyQueueEdits removed — the diviner still emits queue_edits but
+// the engine no longer applies them (see runDivinerTask). This helper
 // can come back once the re-apply path is guarded against stale edits.
 
 

@@ -100,7 +100,7 @@ export function Antechamber({ apiKey, session, loadedPerson, onComplete }: Props
   const persistedFor = useRef<string | null>(null);
 
   // v3 guess stall: when the user answers an guess, the mascot
-  // speaks the dowser's pre-baked comment_if_<answer> for ~2 seconds
+  // speaks the diviner's pre-baked comment_if_<answer> for ~2 seconds
   // before the next question's dialogue takes over. Zero LLM latency on
   // the user-facing acknowledgement — the comment was shipped with the
   // instrument. The choice widgets advance immediately under the
@@ -415,7 +415,7 @@ export function Antechamber({ apiKey, session, loadedPerson, onComplete }: Props
     dialogText = "nothing's pulling at you today. that's its own kind of reading. come back if something does.";
     dialogKey = 'null-landing';
   } else if (guessStall) {
-    // v3 mascot stall: hold the dialogue on the dowser's pre-baked
+    // v3 mascot stall: hold the dialogue on the diviner's pre-baked
     // comment_if_<answer> for a beat after an guess answer. Zero
     // LLM latency on the user-facing acknowledgement. Cleared by the
     // useEffect timer (~2.2s).
@@ -668,7 +668,7 @@ export function Antechamber({ apiKey, session, loadedPerson, onComplete }: Props
 
       <div className="antechamber__footer">
         {/* "ready for the cards →" button removed in v3.1+ — early-bail
-            doesn't make sense once the dowser drives an guess
+            doesn't make sense once the diviner drives an guess
             phase. skipAhead() stays on the engine API for the topbar
             EXIT and future re-exposure. */}
         {state.stage === 'reading_ready' && seer && farewell === 'idle' && (

@@ -96,7 +96,7 @@ function matchSingleAnswer(inversionsText: string, lowerAnswer: string): string[
 }
 
 /** Strip trailing sentence-end punctuation (`.`, `;`, `!`, `?`) so
- *  claims read cleanly when embedded in the dowser's prose. The
+ *  claims read cleanly when embedded in the diviner's prose. The
  *  inversion text often ends a chunk with a period — the parser's
  *  split-on-[.;]\s+ doesn't strip the terminal period because it
  *  isn't followed by whitespace. */

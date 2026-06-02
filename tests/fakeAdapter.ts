@@ -88,10 +88,10 @@ export function defaultObserverOutput(based_on_v: number): unknown {
   };
 }
 
-/** Minimal valid DowserOutput — emits nothing, just an append
+/** Minimal valid DivinerOutput — emits nothing, just an append
  *  move with no specific node_id (which the engine treats as
  *  advisory in Phase 3). */
-export function defaultDowserOutput(based_on_v: number): unknown {
+export function defaultDivinerOutput(based_on_v: number): unknown {
   return {
     scratchpad: '(test scratchpad)',
     leading_hypothesis: '',

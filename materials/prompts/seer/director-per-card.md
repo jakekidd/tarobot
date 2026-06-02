@@ -21,7 +21,7 @@ INPUT YOU RECEIVE:
 - observer_side_channel: telemetry signals (fast/slow picks,
   contradictions, avoidances). the side-channel is what the subject
   doesn't know is being read.
-- prose_brief: the dowser brief. ground truth.
+- prose_brief: the diviner brief. ground truth.
 - outcomes: 2-4 documents (Augur-seeded) painting what each path through the intention looks and feels like. each has an id, label, and rich markdown document with specifics, frictions, joys, unknowns. these are NEUTRAL pictures — you do not advocate for one.
 - all_positions: every slot in the spread + its role.
 - this_slot: the slot you are reading for, INCLUDING its card face.

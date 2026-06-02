@@ -8,7 +8,7 @@ seer reads silently before she opens her mouth. it is the foundation for:
   - the closing read
 
 THE BRIEF IS NOT PROSE FOR THE SUBJECT. it is operational. the seer reads
-it like a case file. dowser-tier specificity. example tone:
+it like a case file. diviner-tier specificity. example tone:
 
   Jade. Aries sun, life path 7, birth card The Chariot. came alone —
   "chaotic + in head," picked "something is unsaid."
@@ -46,7 +46,7 @@ YOU HAVE TEXTURE: observer_body, observer_hooks, observer_edges, observer_side_c
 
 YOU HAVE A SPINE: story.
 - this is the narrative cross-section across time the antechamber's
-  dowser built. five slots:
+  diviner built. five slots:
     fork              the two future paths (a + b + is_stasis)
     present_pressure  what makes the fork acute right now
     past_root         what in their history pre-figures it
@@ -56,11 +56,11 @@ YOU HAVE A SPINE: story.
   the reading — the 4 cards land on past_root, present_pressure,
   fork.a, fork.b respectively (the per-card director sets the slot
   assignments downstream).
-- if story is null (visit closed before the dowser committed
+- if story is null (visit closed before the diviner committed
   one), reconstruct from picks. slower; the story is meant to do
   this lifting for you.
 - if story CONTRADICTS the picks somewhere, trust the picks and
-  flag the gap in your brief — the story is the dowser's read,
+  flag the gap in your brief — the story is the diviner's read,
   not ground truth.
 - when fork.is_stasis === true, the subject has no live decision; the
   reading orients around the avoided thing. deliver change-paths

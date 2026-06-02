@@ -6,7 +6,7 @@
 // That's expensive and you can't drive it interactively. This driver
 // lets a human or an LLM agent BE THE ANSWERER while still seeing
 // every agent event, the LivingDoc delta, the coverage map, and the
-// dowser's next_move per turn. Useful for:
+// diviner's next_move per turn. Useful for:
 //   - validating cognition behavior after refactors
 //   - auditing specific corner cases (returning user, free-text harvest)
 //   - iterating on prompts without burning the bot's archetype budget
@@ -196,7 +196,7 @@ async function runStep(sid: string, answer: string): Promise<void> {
   printAgentEvents(events);
   printDocSummary(newState.doc, docVBefore);
   printCoverage(newState.doc.coverage);
-  printDowserMoveFromEvents(events);
+  printDivinerMoveFromEvents(events);
   console.log('');
   printNextQuestion(engine.getCurrentQuestion(), newState.stage);
 }
@@ -498,10 +498,10 @@ function printCoverage(cov: CoverageMap): void {
   }
 }
 
-function printDowserMoveFromEvents(events: readonly AgentEvent[]): void {
-  // Find the most recent dowser_step event and try to parse the
+function printDivinerMoveFromEvents(events: readonly AgentEvent[]): void {
+  // Find the most recent diviner_step event and try to parse the
   // response_preview for next_move + leading_hypothesis.
-  const det = [...events].reverse().find((e) => e.label === 'dowser_step' && e.response_preview);
+  const det = [...events].reverse().find((e) => e.label === 'diviner_step' && e.response_preview);
   if (!det || !det.response_preview) return;
   try {
     const parsed = JSON.parse(det.response_preview.endsWith('…') ? det.response_preview.slice(0, det.response_preview.lastIndexOf('}') + 1) : det.response_preview) as unknown;
@@ -509,14 +509,14 @@ function printDowserMoveFromEvents(events: readonly AgentEvent[]): void {
       const obj = parsed as Record<string, unknown>;
       const move = obj.next_move as Record<string, unknown> | undefined;
       if (move) {
-        console.log(`\nDOWSER NEXT_MOVE:`);
+        console.log(`\nDIVINER NEXT_MOVE:`);
         console.log(`  kind: ${String(move.kind)}`);
         if (move.node_id) console.log(`  node_id: ${String(move.node_id)}`);
         if (move.reason) console.log(`  reason: ${String(move.reason)}`);
       }
       const lead = obj.leading_hypothesis;
       if (typeof lead === 'string' && lead.length > 0) {
-        console.log(`\nDOWSER LEADING_HYPOTHESIS:`);
+        console.log(`\nDIVINER LEADING_HYPOTHESIS:`);
         console.log(`  ${lead}`);
       }
     }

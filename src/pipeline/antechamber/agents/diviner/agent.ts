@@ -1,36 +1,36 @@
-// Dowser agent — Sounding phase.
+// Diviner agent — Sounding phase.
 //
-// Single Opus call per dowser pass. Writes a free-form thinking
+// Single Opus call per diviner pass. Writes a free-form thinking
 // trace followed by two labeled sections (===HYPOTHESIS===,
 // ===GUESS===). Engine parses the text blob, appends thinking to the
 // running transcript, captures the singular hypothesis on the
 // QueuedGuess (where it travels with the guess to the user), and
 // enqueues the guess.
 //
-// Fires ONLY in the Sounding phase (post-pillars). The dowser holds
+// Fires ONLY in the Sounding phase (post-pillars). The diviner holds
 // the hunt — there is no observer / profiler anymore.
 
 import type { LLMAdapter } from '../../../llm/adapter';
-import { DOWSER_SYSTEM_TEMPLATE } from './prompt';
-import { parseDowserTextBlob, type DowserTextBlob } from './parseTextBlob';
+import { DIVINER_SYSTEM_TEMPLATE } from './prompt';
+import { parseDivinerTextBlob, type DivinerTextBlob } from './parseTextBlob';
 import { renderTranscript } from '../../transcript';
 import type { EngineState, QueuedGuess } from '../../types';
 
 const GUESS_BUDGET = 20;
 /** Guesses 1-N of the Sounding sit in LOCATE: the prompt requires a
- *  fresh hypothesis each turn so the dowser surveys breadth before
+ *  fresh hypothesis each turn so the diviner surveys breadth before
  *  narrowing. Guess N+1 onward sits in COMPOSE: free to follow /
  *  extend / contradict / replace prior hypotheses. */
 const LOCATE_GUESS_COUNT = 5;
 
-export type RunDowserArgs = {
+export type RunDivinerArgs = {
   state: EngineState;
 };
 
-export async function runDowser(
+export async function runDiviner(
   adapter: LLMAdapter,
-  args: RunDowserArgs,
-): Promise<DowserTextBlob> {
+  args: RunDivinerArgs,
+): Promise<DivinerTextBlob> {
   const { state } = args;
   const transcript = renderTranscript(state.transcript);
   const guessHistory = renderGuessHistory(state);
@@ -39,7 +39,7 @@ export async function runDowser(
     ? state.candidate_shapes.map((s, i) => `    ${i + 1}. ${s}`).join('\n')
     : '    (none banked yet)';
 
-  const thinkingSoFar = state.dowser_thinking.trim() || '(first thinking pass — start fresh)';
+  const thinkingSoFar = state.diviner_thinking.trim() || '(first thinking pass — start fresh)';
   const allegedProblem = '(none — user did not vent)';
 
   // Guesses already voiced + queued; the upcoming guess will be the next.
@@ -48,7 +48,7 @@ export async function runDowser(
   const upcomingGuessIdx = guessesUsed + 1;
   const phase = upcomingGuessIdx <= LOCATE_GUESS_COUNT ? 'LOCATE' : 'COMPOSE';
 
-  const system = DOWSER_SYSTEM_TEMPLATE
+  const system = DIVINER_SYSTEM_TEMPLATE
     .replace('{{PHASE}}', phase)
     .replace('{{GUESS_INDEX}}', String(upcomingGuessIdx))
     .replace('{{GUESS_BUDGET_LEFT}}', String(guessesLeft))
@@ -56,20 +56,20 @@ export async function runDowser(
     .replace('{{ALLEGED_PROBLEM}}', allegedProblem)
     .replace('{{GUESS_HISTORY}}', guessHistory)
     .replace('{{CANDIDATE_SHAPES}}', candidateShapes)
-    .replace('{{DOWSER_THINKING}}', thinkingSoFar);
+    .replace('{{DIVINER_THINKING}}', thinkingSoFar);
 
   const raw = await adapter.invokeFreeform({
     system,
     user: 'continue.',
     model: 'deep',
     max_tokens: 4000,
-    label: 'dowser',
+    label: 'diviner',
   });
 
-  return parseDowserTextBlob(raw);
+  return parseDivinerTextBlob(raw);
 }
 
-/** Render the (hypothesis, guess, response) trajectory the dowser
+/** Render the (hypothesis, guess, response) trajectory the diviner
  *  reads back. Includes answered turns from the transcript and any
  *  still-queued guesses awaiting response. */
 function renderGuessHistory(state: EngineState): string {
@@ -115,7 +115,7 @@ function renderGuessHistory(state: EngineState): string {
 
 /** Helper for the engine: build a QueuedGuess from a parsed blob. */
 export function blobToQueuedGuess(
-  blob: DowserTextBlob,
+  blob: DivinerTextBlob,
   next_idx: number,
   emitted_at_turn: number,
 ): QueuedGuess | null {

@@ -85,7 +85,7 @@ export async function runAntechamber(
       logger.phaseHeader(lastPhase, engine.getState().heat);
     }
 
-    // Pipeline status — wait for the full Observer→Dowser→Interrogator chain.
+    // Pipeline status — wait for the full Observer→Diviner→Interrogator chain.
     await engine.waitForQuiescence();
     const state = engine.getState();
     // v2: notes / choice_draft are gone. Use doc.margin entries +

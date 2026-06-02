@@ -5,7 +5,7 @@
 //
 // This is NOT a quality benchmark — outputs are printed for the human to
 // eyeball. It's the cheapest way to verify the prompt-engineering overhauls
-// (WEAVER, compiler-as-sieve, intention chips, WARM/COLD dowser) didn't
+// (WEAVER, compiler-as-sieve, intention chips, WARM/COLD diviner) didn't
 // break the contract between agents.
 //
 // Usage:
@@ -15,7 +15,7 @@
 import kleur from 'kleur';
 import { createClaudeClient } from '../src/pipeline/claude';
 import { AnthropicAdapter } from '../src/pipeline/llm/adapter-anthropic';
-import { runDowser, blobToQueuedGuess } from '../src/pipeline/antechamber/agents/dowser';
+import { runDiviner, blobToQueuedGuess } from '../src/pipeline/antechamber/agents/diviner';
 import { runWeaver } from '../src/pipeline/antechamber/agents/weaver';
 import { runIntentionSuggestor } from '../src/pipeline/antechamber/intention-suggestor';
 import { runCompiler, DilemmaDocumentSchema, type DilemmaDocument } from '../src/pipeline/antechamber/agents/compiler';
@@ -147,7 +147,7 @@ function makeFabricatedState(): EngineState {
     anchor: '',
     verbatim_log,
     transcript,
-    dowser_thinking: '',
+    diviner_thinking: '',
     hypotheses: [],
     candidate_shapes: [],
     guess_queue: [],
@@ -193,17 +193,17 @@ async function runOne(adapter: AnthropicAdapter, runIdx: number, totalRuns: numb
   console.log(kleur.cyan().bold(`\n═══ run ${runIdx + 1} of ${totalRuns} ═══\n`));
   let state = makeFabricatedState();
 
-  // ── DOWSER (3 passes, with fake WARM/COLD responses between) ──
+  // ── DIVINER (3 passes, with fake WARM/COLD responses between) ──
   for (let pass = 1; pass <= 3; pass++) {
     try {
-      const { value: blob, ms } = await timed(() => runDowser(adapter, { state }));
+      const { value: blob, ms } = await timed(() => runDiviner(adapter, { state }));
       const hasAll = blob.thinking.length > 0
         && blob.hypothesis.length > 0
         && blob.guess.length > 0;
       const queued = blobToQueuedGuess(blob, state.guess_queue.length + 1, 5 + pass);
       const passOk = hasAll && queued !== null;
       results.push({
-        name: `DOWSER pass ${pass}`,
+        name: `DIVINER pass ${pass}`,
         pass: passOk,
         ms,
         detail: passOk
@@ -222,7 +222,7 @@ async function runOne(adapter: AnthropicAdapter, runIdx: number, totalRuns: numb
         const fake = FAKE_RESPONSES[pass - 1]!;
         state = {
           ...state,
-          dowser_thinking: state.dowser_thinking + (state.dowser_thinking ? '\n\n' : '') + blob.thinking,
+          diviner_thinking: state.diviner_thinking + (state.diviner_thinking ? '\n\n' : '') + blob.thinking,
           hypotheses: blob.hypothesis ? [...state.hypotheses, blob.hypothesis] : state.hypotheses,
           guess_queue: [...state.guess_queue, queued],
           transcript: [
@@ -236,7 +236,7 @@ async function runOne(adapter: AnthropicAdapter, runIdx: number, totalRuns: numb
         };
       }
     } catch (e) {
-      results.push({ name: `DOWSER pass ${pass}`, pass: false, ms: 0, detail: `threw: ${String(e).slice(0, 400)}` });
+      results.push({ name: `DIVINER pass ${pass}`, pass: false, ms: 0, detail: `threw: ${String(e).slice(0, 400)}` });
       break;
     }
   }

@@ -24,10 +24,10 @@ export type AugurInput = {
   profile: Profile;
   intention: string;
   antechamberHistory: PickEvent[];
-  /** The narrative cross-section the antechamber's dowser built. When
+  /** The narrative cross-section the antechamber's diviner built. When
    *  present, outcomes branch off story.fork. story also carries
    *  present_pressure + past_root + stakes which enrich the fill stage's
-   *  document specificity. Null when the dowser didn't commit one. */
+   *  document specificity. Null when the diviner didn't commit one. */
   story?: StoryObject | null;
   /** Held probes from doc.held — open questions about the user
    *  the antechamber ran out of evidence to confirm or refute. An outcome
@@ -47,7 +47,7 @@ export async function runAugur(
     name: input.profile.identity?.name ?? 'the subject',
     sun_sign: input.profile.identity?.sun_sign,
     intention: input.intention,
-    // When the dowser built a StoryObject, outcomes naturally branch
+    // When the diviner built a StoryObject, outcomes naturally branch
     // off story.fork. If story.fork is the stasis-as-fork fallback
     // (is_stasis=true), outcomes are "act on this" vs. "continue as
     // you are" — and the augur should still produce 2-4 outcomes by

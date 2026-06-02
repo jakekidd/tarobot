@@ -121,7 +121,7 @@ const WANDER_Y_FREQ = 0.37;
 // pulse a neutral tint instead of going silent.
 const AGENT_PULSE_COLORS: Record<string, [number, number, number]> = {
   // Antechamber-side freeform agents (post-pivot).
-  dowser:                    [0.70, 0.50, 1.00],   // eye violet  (Phase 3 hunter)
+  diviner:                    [0.70, 0.50, 1.00],   // eye violet  (Phase 3 hunter)
   weaver:                       [0.30, 0.95, 0.85],   // turquoise   (Phase 3 curator)
   intention_suggestor:          [0.55, 0.90, 0.95],   // pale cyan   (Phase 4 chip helper)
   // Tool-based agents (kept as last-known names).

@@ -1,17 +1,17 @@
-// Bench view — Dowser focus.
+// Bench view — Diviner focus.
 //
 // Auto-bootstraps a session with the DEFAULT_PERSONA (alice, 1991-01-01,
 // partnered with theo, anxious-leaning, freedom-over-security), then
 // drops the user straight into the interrogation phase: guess →
 // COLD/WARM/HOT → next guess. Strict serialization (lookaheadCap=1)
 // — no speculative ahead-of-time generation. Soft ceiling raised so
-// the dowser can cook unbounded.
+// the diviner can cook unbounded.
 //
 // The view is single-column, dense, lab-equipment-flat. Top: session
 // status + new-session button. Below: current guess + three
 // buttons + correction follow-up. Below that: thinking trace,
 // hypotheses, transcript. The point of this view is fast iteration
-// on the dowser prompt — refine, restart, refine.
+// on the diviner prompt — refine, restart, refine.
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -27,11 +27,11 @@ import { bootstrapWithPersona, DEFAULT_PERSONA } from '../bootstrap';
 
 type Props = { apiKey: string };
 
-export function Dowser({ apiKey }: Props) {
+export function Diviner({ apiKey }: Props) {
   const [resetKey, setResetKey] = useState(0);
 
   // Construct engine per resetKey — strict serial + unbounded for
-  // dowser-refinement work.
+  // diviner-refinement work.
   const engine = useMemo(() => {
     const adapter = new AnthropicAdapter(createClaudeClient(apiKey));
     return new AntechamberEngine({
@@ -78,11 +78,11 @@ export function Dowser({ apiKey }: Props) {
       />
       <Panel
         title="thinking"
-        meta={<span className="bench__text-mono bench__text-sm">{state.dowser_thinking ? `${state.dowser_thinking.length} chars` : '0 chars'}</span>}
+        meta={<span className="bench__text-mono bench__text-sm">{state.diviner_thinking ? `${state.diviner_thinking.length} chars` : '0 chars'}</span>}
       >
         <Stream
-          text={state.dowser_thinking}
-          emptyHint={inInterrogation ? '(dowser is forming first thoughts...)' : '(bootstrapping persona...)'}
+          text={state.diviner_thinking}
+          emptyHint={inInterrogation ? '(diviner is forming first thoughts...)' : '(bootstrapping persona...)'}
           maxHeight={420}
         />
       </Panel>
@@ -165,7 +165,7 @@ function InteractionArea({
         <div className="bench__qcard-eyebrow">{state.stage}</div>
         <div className="bench__qcard-q bench__text-muted">
           {state.stage === 'awaiting_intention'
-            ? 'dowser handed off — interrogation complete'
+            ? 'diviner handed off — interrogation complete'
             : 'session closed; new session to refine again'}
         </div>
       </div>

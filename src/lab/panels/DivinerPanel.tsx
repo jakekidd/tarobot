@@ -1,4 +1,4 @@
-// Bench panel — Dowser.
+// Bench panel — Diviner.
 // Current hypothesis list (re-listed each pass; persistence = vote)
 // + the accumulated thinking transcript across calls.
 
@@ -7,19 +7,19 @@ import type { EngineState } from '../../pipeline/antechamber';
 
 type Props = { state: EngineState };
 
-export function DowserPanel({ state }: Props) {
+export function DivinerPanel({ state }: Props) {
   const hyps = state.hypotheses;
-  const thinking = state.dowser_thinking;
+  const thinking = state.diviner_thinking;
   return (
     <Panel
-      title="dowser"
+      title="diviner"
       meta={<span className="bench__panel-meta">{hyps.length} hypothesis{hyps.length === 1 ? '' : 'es'}</span>}
     >
       <Stack gap={3}>
         <div>
           <div className="bench__field-label" style={{ marginBottom: 6 }}>hypotheses</div>
           {hyps.length === 0 ? (
-            <Empty>none yet — dowser fires after the last pillar</Empty>
+            <Empty>none yet — diviner fires after the last pillar</Empty>
           ) : (
             <Stack gap={1}>
               {hyps.map((h, i) => (
@@ -35,7 +35,7 @@ export function DowserPanel({ state }: Props) {
           <div className="bench__field-label" style={{ marginBottom: 6 }}>thinking trace</div>
           <Stream
             text={thinking}
-            emptyHint="(dowser hasn't fired yet)"
+            emptyHint="(diviner hasn't fired yet)"
             maxHeight={260}
           />
         </div>

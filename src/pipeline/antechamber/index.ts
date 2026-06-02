@@ -86,9 +86,9 @@ export type {
   VerbatimEntry,
 } from './types';
 
-// Dowser — text-blob output, no tool call.
-export { runDowser, blobToQueuedGuess } from './agents/dowser';
-export type { DowserTextBlob } from './agents/dowser';
+// Diviner — text-blob output, no tool call.
+export { runDiviner, blobToQueuedGuess } from './agents/diviner';
+export type { DivinerTextBlob } from './agents/diviner';
 
 export type { ProbeStatus } from './living-doc';
 

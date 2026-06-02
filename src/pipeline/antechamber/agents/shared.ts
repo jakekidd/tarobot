@@ -1,5 +1,5 @@
 // Shared helpers across the antechamber-pipeline agents (observer +
-// dowser). Phase 3 hollowed this out further — the LadderRungSchema
+// diviner). Phase 3 hollowed this out further — the LadderRungSchema
 // and applyLadderMoves/removeFromLadder stubs are gone with the
 // legacy hypothesis ladder. compactProfile is the only survivor;
 // per-agent payload builders still call it to surface identity + cast

@@ -1,4 +1,4 @@
-// Dowser-emitted guess + answer encoding.
+// Diviner-emitted guess + answer encoding.
 //
 // The subject picks COLD (wrong neighbourhood; eliminate the region),
 // WARM (right neighbourhood; refine), or HOT (dead on; you've struck
@@ -23,11 +23,11 @@
 //   'warm:<text>'       → { direction: 'warm', correction: <text> }
 //   'hot:<text>'        → { direction: 'hot',  correction: <text> }
 
-/** A queued guess the dowser has emitted. */
+/** A queued guess the diviner has emitted. */
 export type GuessInstrument = {
   kind: 'guess';
   statement: string;
-  /** Mascot stall lines — empty post-Sounding-rewrite (the dowser no
+  /** Mascot stall lines — empty post-Sounding-rewrite (the diviner no
    *  longer emits them). Kept as optional fields so old snapshots
    *  still hydrate; UI treats empty as "no line". */
   comment_if_warm?: string;

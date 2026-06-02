@@ -38,7 +38,7 @@ A few rules so the parser doesn't bite you:
     as an indented block with three sub-fields the parser recognizes:
       - `Surface`: what the literal answer is about.
       - `Inversions`: what answers may invert to — the algorithmic
-        seeder reads this to drop hypothesis seeds onto the dowser's
+        seeder reads this to drop hypothesis seeds onto the diviner's
         board.
       - `Watch for`: cross-history confirmations / complications.
     Legacy single-line `Probe: ...` still parses (stored as `surface`).
@@ -63,13 +63,13 @@ external grounding (basics) through charge-orientation (where the
 weight is, which direction it pulls from), into attachment activation
 and somatic baseline, then through mind-orientation (the loop, the
 stance), the relational anchor, and finally values. The live fork is
-NOT a pillar — the dowser surfaces it via guesses in the Sounding,
+NOT a pillar — the diviner surfaces it via guesses in the Sounding,
 which is both gentler (one shape at a time, warm/cold/hot response)
 and higher-signal (the agent composes the shape from the user's
 recognition rather than asking them to declare it from a matrix).
 
 The four charge/orientation/loop/stance pillars exist to give the
-dowser a starting position: they map the WEATHER around the dilemma
+diviner a starting position: they map the WEATHER around the dilemma
 without asking the user to identify it. Keep them sensory and
 present-tense; they're orienting questions, not factual probes.
 
@@ -108,7 +108,7 @@ Options:
 
 Format: choice
 Probe:
-  Surface: charge-domain probe — where the weight is loudest in the user's life this moment. orients the dowser before it starts guessing. NOT a measure of what's worst; only what's loudest. a numb "nothing in particular" is itself a read.
+  Surface: charge-domain probe — where the weight is loudest in the user's life this moment. orients the diviner before it starts guessing. NOT a measure of what's worst; only what's loudest. a numb "nothing in particular" is itself a read.
   Inversions: work / what i'm making = job, vocation, the thing they spend daylight on; me and someone = relational anchor is loud, a specific bond is the gravity; me and me = identity, self-narrative, internal weather; what direction i'm going = forward-momentum, decisions, the shape of next; nothing in particular = either grounded or flat — does not discriminate alone, cross with the body+mind pillar.
   Watch for: "nothing in particular" + "numb + dissociated" body+mind = flat baseline candidate, soften register. "me and someone" + later relational answers naming a specific person = high-confidence relational fork. "what direction i'm going" + "putting off a decision" pool answer = career or life-fork pending.
 Options:
@@ -164,7 +164,7 @@ Options:
 
 Format: choice
 Probe:
-  Surface: loop probe — whether there's a recurring thought the user can't let go of, and its register if so. recurring thoughts are dilemma-adjacent by nature: the mind only loops on what isn't yet metabolized. the register (decision / person / memory / worry) tells the dowser what kind of shape to start composing.
+  Surface: loop probe — whether there's a recurring thought the user can't let go of, and its register if so. recurring thoughts are dilemma-adjacent by nature: the mind only loops on what isn't yet metabolized. the register (decision / person / memory / worry) tells the diviner what kind of shape to start composing.
   Inversions: a decision = the live fork is in the head, undecided; a person = relational rumination, often someone who's gone quiet or whose meaning is shifting; a memory = unresolved past material, grief-adjacent or shame-adjacent; a worry about what's coming = anticipated harm, anxiety-loop; no, my head is quiet = either genuinely settled or shut down — does not discriminate alone.
   Watch for: "a decision" + "what direction i'm going" loudest = high-confidence forward fork. "a person" + with-whom-unsaid pointing to someone specific = THAT person is the loop. "a memory" + "behind me" pulls at them = unresolved past, possibly active grief. "no, my head is quiet" + "nothing in particular" loudest = either Cleo case or flat baseline.
 Options:
@@ -201,7 +201,7 @@ Format: choice
 Probe:
   Surface: what they will sacrifice OTHERS for. abstract priorities collapse the rest of the antechamber through this lens. framing-note: "want" beats "value" here — "value" pulls toward performed virtue (people answer with what they think they should value); "want" is appetitive and harder to perform humility on, so the answer points closer to the actual altar.
   Inversions: strong values invert to corresponding fears — love → fear of being unlovable / abandoned; freedom → fear of constraint / entrapment; wisdom → fear of being foolish / deceived; beauty → fear of decay / irrelevance / invisibility; security → fear of chaos / things falling apart; power → fear of powerlessness / humiliation; belonging → fear of being cast out / not enough for the group. seed the inverted fear as tentative; later answers either confirm or complicate.
-  Framing helper (DFW worship thesis — internal context for dowser/profiler, NOT user-facing): everyone worships; the only choice is what. money worship → worth-output equation; intellect → rationalism as armor; beauty → fear of decay; power → fear of powerlessness; love → fear of being unlovable; freedom → fear of constraint; wisdom → fear of being foolish; security → fear of chaos; belonging → identity-as-membership, fear of exile. the user's pick is the altar.
+  Framing helper (DFW worship thesis — internal context for diviner/profiler, NOT user-facing): everyone worships; the only choice is what. money worship → worth-output equation; intellect → rationalism as armor; beauty → fear of decay; power → fear of powerlessness; love → fear of being unlovable; freedom → fear of constraint; wisdom → fear of being foolish; security → fear of chaos; belonging → identity-as-membership, fear of exile. the user's pick is the altar.
   Watch for: this is the spine — read every later answer through this lens. a user who picks "belonging" plus a relational anchor that's plural-coded (when plural picks land) is collectivist-coded; do not treat "belonging" as a deficit value, treat it as a different motivational structure.
 Options:
   - love

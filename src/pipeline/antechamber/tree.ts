@@ -222,7 +222,7 @@ export function commentForAnswer(node: TreeNode, answer: string): string | null 
 
 // relevantInterp / per-answer interp removed when the antechamber moved to
 // pillars.md. Per-question `probe` (decoder hook) replaced it; the
-// dowser now reads probe directly via the payload.
+// diviner now reads probe directly via the payload.
 
 /** Read-only helpers for callers that don't want to import the tree directly. */
 export function getNode(node_id: string): TreeNode | null {

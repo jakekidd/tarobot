@@ -69,11 +69,11 @@ export type IntroDirectorInput = {
   intention: string;
   antechamberHistory: PickEvent[];
   outcomes: Outcome[];
-  /** The narrative cross-section the antechamber's dowser built. Forms
+  /** The narrative cross-section the antechamber's diviner built. Forms
    *  the SPINE of the prose_brief — the director writes around the
    *  fork / present_pressure / past_root / stakes slots, weaving
    *  picks + cast + hooks around them. May be null when the antechamber
-   *  closed before the dowser committed a story. */
+   *  closed before the diviner committed a story. */
   story?: import('../antechamber').StoryObject | null;
 };
 
@@ -277,7 +277,7 @@ export type ClosingDirectorInput = {
   outcomes: Outcome[];
   revealed: RevealedSlot[];
   chat_history: ChatMessage[];
-  /** The dowser's StoryObject — same one the intro director read.
+  /** The diviner's StoryObject — same one the intro director read.
    *  Closing director uses past_root / present_pressure / fork.a /
    *  fork.b to shape the takeaway: the lens the user carries out is
    *  about their RELATIONSHIP to the fork, not advice. */

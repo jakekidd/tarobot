@@ -26,8 +26,8 @@ function humanizeError(raw: string): string {
   if (/^\s*seeder\b|seeder failed/i.test(raw)) {
     return 'the seeder\'s notes came back malformed';
   }
-  if (/^\s*dowser\b|dowser pass failed|dowser_text/i.test(raw)) {
-    return 'the dowser\'s output didn\'t parse';
+  if (/^\s*diviner\b|diviner pass failed|diviner_text/i.test(raw)) {
+    return 'the diviner\'s output didn\'t parse';
   }
   if (/^\s*weaver\b|weaver pass failed/i.test(raw)) {
     return 'the weaver stumbled';

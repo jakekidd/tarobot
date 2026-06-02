@@ -97,7 +97,7 @@ export function makeDemoPerson(): Person {
         id: 'p_meaning_path',
         claim:
           'the meaning-deficit is vocational, not relational — the work itself, not the absence of partnership, is the load-bearing problem',
-        source: 'dowser',
+        source: 'diviner',
         born_turn: 7,
         age_in_turns: 5,
       },
@@ -105,7 +105,7 @@ export function makeDemoPerson(): Person {
         id: 'p_jeff_audience',
         claim:
           'the role jake plays is calibrated to jeff specifically; jeff is the audience the shape was cut for',
-        source: 'dowser',
+        source: 'diviner',
         born_turn: 4,
         age_in_turns: 8,
       },

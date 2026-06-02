@@ -5,7 +5,7 @@
 // Outline + Fill are tightly coupled, so the schema and the prompt
 // constants live in the same file rather than splitting across
 // schema.ts/prompt.ts. Augur's structure differs from observer +
-// dowser enough that the per-agent layout is intentionally lighter.
+// diviner enough that the per-agent layout is intentionally lighter.
 
 import { z } from 'zod';
 import AUGUR_OUTLINE_SYSTEM_RAW from '../../../../../materials/prompts/augur-outline.md?raw';

@@ -1,7 +1,7 @@
 // Bench — entry point for the dev app.
 //
-// Tabs across the top — DOWSER (focus rig for refining the
-// dowser prompt against a known persona) and ALL (the full
+// Tabs across the top — DIVINER (focus rig for refining the
+// diviner prompt against a known persona) and ALL (the full
 // pipeline inspector). Bench owns its whole visual surface;
 // App.tsx hides the main-app chrome (CRT filter, three.js scene)
 // when phase.kind === 'bench'.
@@ -9,7 +9,7 @@
 import './bench.css';
 import { useState } from 'react';
 import { Button } from './lib';
-import { Dowser } from './views/Dowser';
+import { Diviner } from './views/Diviner';
 import { Run } from './views/Run';
 import { Sandbox } from './views/Sandbox';
 
@@ -18,16 +18,16 @@ type Props = {
   onExit: () => void;
 };
 
-type Tab = 'dowser' | 'all' | 'sandbox';
+type Tab = 'diviner' | 'all' | 'sandbox';
 
 const TABS: { id: Tab; label: string }[] = [
-  { id: 'dowser', label: 'dowser' },
+  { id: 'diviner', label: 'diviner' },
   { id: 'all', label: 'all' },
   { id: 'sandbox', label: 'sandbox' },
 ];
 
 export function Bench({ apiKey, onExit }: Props) {
-  const [tab, setTab] = useState<Tab>('dowser');
+  const [tab, setTab] = useState<Tab>('diviner');
 
   return (
     <div className="bench">
@@ -56,7 +56,7 @@ export function Bench({ apiKey, onExit }: Props) {
           ))}
         </nav>
         <main className={`bench__main ${tab === 'sandbox' ? 'bench__main--wide' : ''}`}>
-          {tab === 'dowser' && <Dowser apiKey={apiKey} />}
+          {tab === 'diviner' && <Diviner apiKey={apiKey} />}
           {tab === 'all' && <Run apiKey={apiKey} />}
           {tab === 'sandbox' && <Sandbox apiKey={apiKey} />}
         </main>

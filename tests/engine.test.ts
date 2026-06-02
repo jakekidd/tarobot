@@ -6,7 +6,7 @@ import { AntechamberEngine } from '../src/pipeline/antechamber/engine';
 // PROFILE_TEMPLATE_RAW import dropped — profile.body is gone in v2.
 import {
   FakeAdapter,
-  defaultDowserOutput,
+  defaultDivinerOutput,
   defaultObserverOutput,
 } from './fakeAdapter';
 
@@ -16,9 +16,9 @@ function makeAdapter(): FakeAdapter {
       const payload = JSON.parse(spec.user);
       return defaultObserverOutput(payload.doc_v ?? 0);
     })
-    .setTool('dowser_step', (spec) => {
+    .setTool('diviner_step', (spec) => {
       const payload = JSON.parse(spec.user);
-      return defaultDowserOutput(payload.doc?.v ?? 0);
+      return defaultDivinerOutput(payload.doc?.v ?? 0);
     });
 }
 
@@ -252,13 +252,13 @@ describe('AntechamberEngine — pipeline path (with FakeAdapter)', () => {
     await engine.submitAnswer(q.options[0] ?? 'mind');
     await engine.waitForQuiescence();
     // Post-seeder-deletion: the algorithmic seeder fires inline (no
-    // LLM call); the Haiku seeder is gone. Dowser only fires after
+    // LLM call); the Haiku seeder is gone. Diviner only fires after
     // the LAST pillar, not on pillar 1. So NO LLM calls expected here.
     expect(adapter.freeformCalls.length).toBe(0);
     expect(adapter.calls.length).toBe(0);
   });
 
-  it('returning-user lite mode skips BOTH observer + dowser', async () => {
+  it('returning-user lite mode skips BOTH observer + diviner', async () => {
     const adapter = makeAdapter();
     const engine = new AntechamberEngine({
       adapter,
@@ -276,7 +276,7 @@ describe('AntechamberEngine — pipeline path (with FakeAdapter)', () => {
     const q = engine.getCurrentQuestion()!;
     await engine.submitAnswer(q.options[0] ?? 'pass');
     await new Promise((r) => setTimeout(r, 0));
-    // Returning users should have ZERO observer / dowser calls.
+    // Returning users should have ZERO observer / diviner calls.
     expect(adapter.calls).toHaveLength(0);
   });
 
@@ -337,7 +337,7 @@ describe('AntechamberEngine — full-flow smoke', () => {
     // (Phase 2: agents throw, but the seeder still fires deterministically.)
     expect(state.doc.held.length).toBeGreaterThan(0);
     // Agents are stubbed in Phase 2 — they throw before invoking the adapter.
-    // The engine's runObserverTask/runDowserTask catch the throw, so the
+    // The engine's runObserverTask/runDivinerTask catch the throw, so the
     // adapter never sees the call. Phase 3 lights this up. For now we
     // assert the engine still completed the walk.
     expect(state.closed === false || state.stage === 'finalizing' || state.stage === 'awaiting_intention').toBe(true);

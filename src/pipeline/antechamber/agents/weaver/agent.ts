@@ -5,7 +5,7 @@
 // TERMINATE section in the output.
 //
 // (Was 'PSYCH' through the compiler-as-sieve wave. Renamed to WEAVER
-// to match the role-coded naming style of dowser/compiler/augur/seer
+// to match the role-coded naming style of diviner/compiler/augur/seer
 // — the agent weaves anchored evidence into candidate-dilemma threads.)
 
 import type { LLMAdapter } from '../../../llm/adapter';
@@ -30,7 +30,7 @@ export async function runWeaver(
   const { state, run_total } = args;
   const transcript = renderTranscript(state.transcript) || '(no transcript yet)';
   const verbatim = formatVerbatimLog(state.verbatim_log) || '(none)';
-  const dowserHypotheses = state.hypotheses.length > 0
+  const divinerHypotheses = state.hypotheses.length > 0
     ? state.hypotheses.map((h) => `    ${h}`).join('\n')
     : '    (none yet)';
   const weaverSoFar = formatWeaverCandidatesForPrompt(state.weaver_candidates);
@@ -39,7 +39,7 @@ export async function runWeaver(
   const system = WEAVER_SYSTEM_TEMPLATE
     .replace('{{TRANSCRIPT}}', transcript)
     .replace('{{VERBATIM_LOG}}', verbatim)
-    .replace('{{DOWSER_HYPOTHESES}}', dowserHypotheses)
+    .replace('{{DIVINER_HYPOTHESES}}', divinerHypotheses)
     .replace('{{WEAVER_CANDIDATES_SO_FAR}}', weaverSoFar)
     .replace('{{RUN_IDX}}', String(runIdx))
     .replace('{{RUN_TOTAL}}', String(run_total));

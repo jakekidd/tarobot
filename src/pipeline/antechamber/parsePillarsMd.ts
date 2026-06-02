@@ -272,7 +272,7 @@ function startQuestion(heading: string, topic: string, isPillar: boolean): Parse
 
 /** Pillars don't carry an explicit topic in the markdown; the engine
  *  groups them under conceptual topics from the 9-category set so the
- *  dowser gets a consistent payload shape. */
+ *  diviner gets a consistent payload shape. */
 function topicForPillar(heading: string): string {
   const h = heading.toLowerCase();
   if (h.includes('done this before')) return 'self';

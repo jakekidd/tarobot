@@ -1,6 +1,6 @@
-// Dowser text-blob parser.
+// Diviner text-blob parser.
 //
-// The dowser writes a free-form thinking pass followed by two
+// The diviner writes a free-form thinking pass followed by two
 // labeled sections:
 //
 //   <thinking paragraphs — investigating, weighing, planning>
@@ -14,7 +14,7 @@
 // Parser is forgiving: missing sections return empty; first occurrence
 // of each marker wins.
 
-export type DowserTextBlob = {
+export type DivinerTextBlob = {
   thinking: string;
   hypothesis: string;
   guess: string;
@@ -23,7 +23,7 @@ export type DowserTextBlob = {
 const MARKER_HYPOTHESIS = '===HYPOTHESIS===';
 const MARKER_GUESS = '===GUESS===';
 
-export function parseDowserTextBlob(raw: string): DowserTextBlob {
+export function parseDivinerTextBlob(raw: string): DivinerTextBlob {
   const h_idx = raw.indexOf(MARKER_HYPOTHESIS);
   const g_idx = raw.indexOf(MARKER_GUESS);
 

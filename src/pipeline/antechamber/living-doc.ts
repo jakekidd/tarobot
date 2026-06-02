@@ -1,10 +1,10 @@
 // Antechamber engine v2 core types — the LivingDoc that the observer writes
-// and the dowser reads. Replaces the legacy Investigation type
+// and the diviner reads. Replaces the legacy Investigation type
 // (HypothesisLadder + StoryObject + Choice + Hooks + ActiveThreads).
 //
 // Design principles:
 // - Single writer. The observer is the only agent that mutates `doc`.
-//   Dowser reads `doc` + `coverage` + queue, emits a Move; the
+//   Diviner reads `doc` + `coverage` + queue, emits a Move; the
 //   engine applies the Move (which may bump doc.v) — but the
 //   document is observer-owned.
 // - Delta-on-scaffold. The scaffold has a fixed shape (axes,
@@ -23,7 +23,7 @@ import type { StoryObject } from './types';
 
 /** v3.2: a probe is a hypothesis the antechamber is tracking. The profiler
  *  is the curator of the hypothesis list (doc.held). Seeder drops fresh
- *  candidates from question-level Inversions; dowser probes them via
+ *  candidates from question-level Inversions; diviner probes them via
  *  guesses; profiler reads the guess outcomes + history + verbatim
  *  log and edits the list (promote / refute / refine / drop / merge).
  *  The compiler (close-pass agent) reads the final list to identify the
@@ -34,7 +34,7 @@ import type { StoryObject } from './types';
 export type ProbeStatus =
   /** seeded by the algorithmic Inversions seeder; not yet tested. */
   | 'untested'
-  /** the dowser has emitted (or queued) an guess against this. */
+  /** the diviner has emitted (or queued) an guess against this. */
   | 'probing'
   /** an guess outcome confirmed it. high signal for the compiler. */
   | 'confirmed'
@@ -54,7 +54,7 @@ export type ProbeStatus =
 export type Probe = {
   id: string;
   claim: string;
-  source: 'seeder' | 'observer' | 'dowser' | 'profiler';
+  source: 'seeder' | 'observer' | 'diviner' | 'profiler';
   /** v3.2 status. Defaults to 'untested' on seeder-created probes for
    *  back-compat with pre-3.2 records. */
   status?: ProbeStatus;
@@ -103,7 +103,7 @@ export type TemporalLean = 'past' | 'present' | 'future' | null;
 /** The structured part of the LivingDoc. Observer delta-edits; engine
  *  applies patches. Replaces profile.body's 7KB-per-turn rewrite. */
 export type DocScaffold = {
-  /** The dowser's current best read. Adversarial target — the
+  /** The diviner's current best read. Adversarial target — the
    *  next-question selection is biased toward disconfirming this. */
   leading_hypothesis: string;
   /** Observer-chosen labels → freeform per-axis observations. Lets
@@ -129,10 +129,10 @@ export const TELLS_CAP = 12;
 
 /** The LivingDoc — single source of truth for what the antechamber has
  *  understood about the subject. Owned by the observer (sole writer).
- *  Dowser reads + emits Moves; engine applies them. */
+ *  Diviner reads + emits Moves; engine applies them. */
 export type LivingDoc = {
   /** Monotonic version counter. Every write bumps it: seeder,
-   *  observer apply, coverage recompute, dowser apply (if move
+   *  observer apply, coverage recompute, diviner apply (if move
    *  mutates doc). based_on_v staleness gate uses this. */
   v: number;
   scaffold: DocScaffold;
@@ -141,7 +141,7 @@ export type LivingDoc = {
    *  the next delta. */
   margin: string[];
   /** The narrative cross-section. Preserved from legacy Investigation
-   *  because Augur + Seer + director read it. Dowser writes it via
+   *  because Augur + Seer + director read it. Diviner writes it via
    *  story_updates in its Move (kind='append' or 'revise' or
    *  'conclude' carry optional story_updates). */
   story: StoryObject;
@@ -176,7 +176,7 @@ export const EMPTY_DOC: LivingDoc = {
   coverage: {},
 };
 
-/** Dowser's next move. Each call emits exactly one. */
+/** Diviner's next move. Each call emits exactly one. */
 export type Move =
   /** Append a new question to the queue tail. In Phase 3 carries a
    *  pool node_id (deterministic pool selection). In Phase 4 carries
@@ -201,7 +201,7 @@ export type Move =
   | { kind: 'conclude'; reason: string };
 
 /** Queue zones. `head` is committed (the next question + any past it
- *  that pillars guarantee). `tail` is dowser-revisable (the
+ *  that pillars guarantee). `tail` is diviner-revisable (the
  *  buffered freeform questions the rolling-queue refills). */
 export type QueueZone<T> = {
   head: T[];
