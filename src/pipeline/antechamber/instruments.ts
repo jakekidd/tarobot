@@ -27,12 +27,11 @@
 export type GuessInstrument = {
   kind: 'guess';
   statement: string;
-  /** Mascot stall line spoken on WARM. */
-  comment_if_warm: string;
-  /** Mascot stall line spoken on COLD. */
-  comment_if_cold: string;
-  /** Mascot stall line spoken on HOT. Optional for back-compat —
-   *  dowsers older than the HOT addition didn't emit this. */
+  /** Mascot stall lines — empty post-Sounding-rewrite (the dowser no
+   *  longer emits them). Kept as optional fields so old snapshots
+   *  still hydrate; UI treats empty as "no line". */
+  comment_if_warm?: string;
+  comment_if_cold?: string;
   comment_if_hot?: string;
 };
 

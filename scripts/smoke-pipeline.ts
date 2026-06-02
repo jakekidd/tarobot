@@ -149,6 +149,7 @@ function makeFabricatedState(): EngineState {
     transcript,
     dowser_thinking: '',
     hypotheses: [],
+    candidate_shapes: [],
     guess_queue: [],
     weaver_candidates: [],
     weaver_engagement: 'live',
@@ -197,10 +198,8 @@ async function runOne(adapter: AnthropicAdapter, runIdx: number, totalRuns: numb
     try {
       const { value: blob, ms } = await timed(() => runDowser(adapter, { state }));
       const hasAll = blob.thinking.length > 0
-        && blob.hypotheses.length > 0
-        && blob.guess.length > 0
-        && blob.if_warm.length > 0
-        && blob.if_cold.length > 0;
+        && blob.hypothesis.length > 0
+        && blob.guess.length > 0;
       const queued = blobToQueuedGuess(blob, state.guess_queue.length + 1, 5 + pass);
       const passOk = hasAll && queued !== null;
       results.push({
@@ -208,9 +207,9 @@ async function runOne(adapter: AnthropicAdapter, runIdx: number, totalRuns: numb
         pass: passOk,
         ms,
         detail: passOk
-          ? `${blob.hypotheses.length} hypotheses; A${queued?.idx} queued`
-          : `missing sections: ${[!blob.thinking && 'thinking', !blob.hypotheses.length && 'hypotheses', !blob.guess && 'guess', !blob.if_warm && 'if_warm', !blob.if_cold && 'if_cold'].filter(Boolean).join(', ')}`,
-        sample: `[${blob.hypotheses.length} hyps: ${blob.hypotheses.slice(0, 2).join(' | ')}${blob.hypotheses.length > 2 ? ' | …' : ''}]\nA: ${blob.guess}\nwarm: ${blob.if_warm}\ncold: ${blob.if_cold}`,
+          ? `hypothesis present; A${queued?.idx} queued`
+          : `missing sections: ${[!blob.thinking && 'thinking', !blob.hypothesis && 'hypothesis', !blob.guess && 'guess'].filter(Boolean).join(', ')}`,
+        sample: `H: ${blob.hypothesis}\nA: ${blob.guess}`,
       });
       if (queued) {
         // Apply state update + fabricate a user response so the next
@@ -224,11 +223,11 @@ async function runOne(adapter: AnthropicAdapter, runIdx: number, totalRuns: numb
         state = {
           ...state,
           dowser_thinking: state.dowser_thinking + (state.dowser_thinking ? '\n\n' : '') + blob.thinking,
-          hypotheses: blob.hypotheses,
+          hypotheses: blob.hypothesis ? [...state.hypotheses, blob.hypothesis] : state.hypotheses,
           guess_queue: [...state.guess_queue, queued],
           transcript: [
             ...state.transcript,
-            { kind: 'guess', guess_idx: queued.idx, statement: queued.statement },
+            { kind: 'guess', guess_idx: queued.idx, statement: queued.statement, hypothesis: blob.hypothesis },
             { kind: 'response', guess_idx: queued.idx, direction: fake.direction, ...(fake.correction ? { correction: fake.correction } : {}), latency_ms: 4500 },
           ],
           verbatim_log: fake.correction

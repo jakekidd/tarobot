@@ -65,9 +65,9 @@ function makeState(): EngineState {
     { kind: 'pick', pillar_idx: 4, question: "who's the center of your life right now?", options_shown: ['me', 'partner', 'parent or caretaker', 'sibling', 'friend', 'child', 'boss'], picked: 'partner', negative_space: ['me', 'parent or caretaker', 'sibling', 'friend', 'child', 'boss'], latency_ms: 2800, latency_z: -0.2 },
     { kind: 'pick', pillar_idx: 5, question: 'which of these do you want most?', options_shown: ['love', 'freedom', 'wisdom', 'beauty', 'security', 'belonging', 'power'], picked: 'freedom', negative_space: ['love', 'wisdom', 'beauty', 'security', 'belonging', 'power'], latency_ms: 5300, latency_z: 1.4 },
     // Two guesses + responses to give WEAVER something to chew on.
-    { kind: 'guess', guess_idx: 1, statement: 'the part of you that won\'t quit isn\'t afraid of theo\'s reaction. it\'s afraid of who you become if you do.' },
+    { kind: 'guess', guess_idx: 1, statement: 'the part of you that won\'t quit isn\'t afraid of theo\'s reaction. it\'s afraid of who you become if you do.', hypothesis: 'am i clinging to this job because leaving it would force me to become someone i don\'t yet recognise?' },
     { kind: 'response', guess_idx: 1, direction: 'warm', correction: 'less the job, more what staying says about me', latency_ms: 4200 },
-    { kind: 'guess', guess_idx: 2, statement: 'staying lets you keep being the person who is still figuring it out, instead of the person whose work just is what it is.' },
+    { kind: 'guess', guess_idx: 2, statement: 'staying lets you keep being the person who is still figuring it out, instead of the person whose work just is what it is.', hypothesis: 'is this fork really about theo, or about my own self-image?' },
     { kind: 'response', guess_idx: 2, direction: 'cold', correction: 'not theo — he wants me to do it', latency_ms: 3800 },
   ];
 
@@ -116,10 +116,10 @@ function makeState(): EngineState {
     transcript,
     dowser_thinking: 'Earlier I noted she picked freedom over security — that\'s telling given the job framing. The latency on the body question (z=1.8) was the strongest pillar tell. My first guess targeted identity-cost-of-staying and earned a corrected warm.',
     hypotheses: [
-      'she stays for security even though she picked freedom',
-      'staying in the job is doing identity work she doesn\'t want to admit',
-      'theo is supportive — the resistance is internal',
+      'am i clinging to this job because leaving it would force me to become someone i don\'t yet recognise?',
+      'is this fork really about theo, or about my own self-image?',
     ],
+    candidate_shapes: [],
     guess_queue: [],
     weaver_candidates,
     weaver_engagement: 'live',

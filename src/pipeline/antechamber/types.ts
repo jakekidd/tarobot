@@ -465,19 +465,25 @@ export type EngineState = {
    *  Built incrementally — pillar picks + seeder observations during
    *  the pillar phase; guesses + responses during Interrogation. */
   transcript: import('./transcript').TranscriptEntry[];
-  /** Interrogation pivot: the dowser's accumulated thinking
-   *  transcript across calls. Appended every dowser output (the
-   *  free-form section before ===HYPOTHESES===). Surfaces back into
-   *  the next dowser payload so reasoning stays continuous. */
+  /** The dowser's accumulated thinking transcript across calls.
+   *  Appended every dowser output (the free-form section before
+   *  ===HYPOTHESIS===). Surfaces back into the next dowser payload
+   *  so reasoning stays continuous. */
   dowser_thinking: string;
-  /** Interrogation pivot: the latest extracted hypothesis list from
-   *  dowser output. Re-listing-as-votes — repetition across turns
-   *  signals confidence. The compiler reads this at close. */
+  /** Legacy trajectory log of dowser hypotheses — populated for
+   *  downstream agents (WEAVER, Compiler) that still read it as a
+   *  flat list. The post-rewrite source of truth for "which
+   *  hypothesis went with which guess" is the hypothesis field on
+   *  TranscriptEntry of kind 'guess'; this array shadows it for
+   *  consumers that haven't been refactored yet. */
   hypotheses: string[];
-  /** Interrogation pivot: queued guesses the dowser has emitted
-   *  but the user hasn't answered yet. Length capped at LOOKAHEAD_CAP
-   *  (3). Provisional — latest user answer can invalidate and trigger
-   *  re-generation. */
+  /** HOTs the user has recognised — the hypothesis active when each
+   *  HOT landed, banked here. Append-only. Sounding exits when this
+   *  reaches three, OR engagement wind_down, OR the 20-guess ceiling. */
+  candidate_shapes: string[];
+  /** Queued guesses the dowser has emitted but the user hasn't
+   *  answered yet. Length capped at LOOKAHEAD_CAP (3). Provisional —
+   *  latest user answer can invalidate and trigger re-generation. */
   guess_queue: QueuedGuess[];
 
   /** WEAVER's curated candidate set. Replaced wholesale on each WEAVER
@@ -564,15 +570,17 @@ export type PotentialDilemma = {
  *  prompts the engine to reconcile the queue against the latest
  *  evidence. */
 export type QueuedGuess = {
-  /** 1-based index across the Interrogation phase. */
+  /** 1-based index across the Sounding (Interrogation) phase. */
   idx: number;
   statement: string;
-  /** Mascot stall line spoken on WARM. */
-  comment_if_warm: string;
-  /** Mascot stall line spoken on COLD. */
-  comment_if_cold: string;
-  /** Mascot stall line spoken on HOT. Optional for back-compat with
-   *  dowser blobs that pre-date the HOT addition. */
+  /** The dowser's current hypothesis when this guess was emitted —
+   *  the candidate dilemma it was testing, in the user's voice as a
+   *  question. Banked into state.candidate_shapes on HOT. */
+  hypothesis: string;
+  /** Mascot stall lines — empty in the post-rewrite dowser. Kept as
+   *  optional for snapshot back-compat; UI treats empty as "no line". */
+  comment_if_warm?: string;
+  comment_if_cold?: string;
   comment_if_hot?: string;
   /** When the dowser emitted this guess (post-opener turn count). */
   emitted_at_turn: number;

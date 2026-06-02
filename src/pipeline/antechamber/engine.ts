@@ -317,7 +317,7 @@ export class AntechamberEngine {
       transcript: transcriptEntries,
     });
 
-    // Guess correction → log to verbatim + transcript. The dowser
+    // Guess response → log to verbatim + transcript. The dowser
     // sees the response on its next pass.
     if (guessResult) {
       const transcriptResp: TranscriptEntry = {
@@ -340,6 +340,9 @@ export class AntechamberEngine {
           : {}),
       });
       // Pop the answered guess from the queue + refill in background.
+      // (HOT-banking happens in submitGuessResponse, the real path for
+      // dowser-emitted guesses; this branch is the older queue-mediated
+      // path and rarely fires for guesses post-rewrite.)
       if (this.state.guess_queue.length > 0) {
         this.setState({
           guess_queue: this.state.guess_queue.slice(1),
@@ -837,6 +840,7 @@ export class AntechamberEngine {
       transcript: [],
       dowser_thinking: '',
       hypotheses: [],
+      candidate_shapes: [],
       guess_queue: [],
       weaver_candidates: [],
       weaver_engagement: 'live',
@@ -1197,13 +1201,31 @@ export class AntechamberEngine {
     const transcriptWithGuessVoiced: TranscriptEntry[] = [
       ...this.state.transcript,
       // Tag the guess as voiced (it was the head of the queue when
-      // the user saw it).
-      { kind: 'guess', guess_idx: head.idx, statement: head.statement },
+      // the user saw it). Capture the dowser's hypothesis at emit-time
+      // so the compiler can reconstruct (hypothesis, guess, response)
+      // tuples from the transcript alone.
+      {
+        kind: 'guess',
+        guess_idx: head.idx,
+        statement: head.statement,
+        hypothesis: head.hypothesis || '',
+      },
       respEntry,
     ];
+    // HOT → bank the hypothesis the dowser was testing when this guess
+    // was emitted. Append-only, deduped. Three banked shapes triggers
+    // Sounding exit (handled in refillGuessQueue).
+    const shape = head.hypothesis?.trim() || '';
+    const shouldBank =
+      parsed.direction === 'hot' &&
+      shape.length > 0 &&
+      !this.state.candidate_shapes.includes(shape);
     this.setState({
       transcript: transcriptWithGuessVoiced,
       guess_queue: this.state.guess_queue.slice(1),
+      ...(shouldBank
+        ? { candidate_shapes: [...this.state.candidate_shapes, shape] }
+        : {}),
       ...(parsed.correction
         ? {
             verbatim_log: appendVerbatim(this.state.verbatim_log, {
@@ -1239,14 +1261,19 @@ export class AntechamberEngine {
       const blob = await runDowser(this.opts.adapter, { state: this.state });
       const nextIdx = this.countGuessesInTranscript() + this.state.guess_queue.length + 1;
       const queued = blobToQueuedGuess(blob, nextIdx, this.countPostOpenerPicks());
+      // Shadow the singular hypothesis into the legacy trajectory log
+      // so WEAVER / Compiler (which still read state.hypotheses as a
+      // flat list) keep seeing them. Source of truth post-rewrite is
+      // the hypothesis field on TranscriptEntry of kind 'guess'.
+      const nextHypotheses = blob.hypothesis
+        ? [...this.state.hypotheses, blob.hypothesis]
+        : this.state.hypotheses;
       if (!queued) {
-        // No guess this turn — dowser bailed. Still append the
-        // thinking + hypothesis snapshot so the next call sees them.
         this.setState({
           dowser_thinking: this.state.dowser_thinking
             + (this.state.dowser_thinking ? '\n\n' : '')
             + blob.thinking,
-          hypotheses: blob.hypotheses.length > 0 ? blob.hypotheses : this.state.hypotheses,
+          hypotheses: nextHypotheses,
         });
         this.emit();
         return false;
@@ -1255,7 +1282,7 @@ export class AntechamberEngine {
         dowser_thinking: this.state.dowser_thinking
           + (this.state.dowser_thinking ? '\n\n' : '')
           + blob.thinking,
-        hypotheses: blob.hypotheses,
+        hypotheses: nextHypotheses,
         guess_queue: [...this.state.guess_queue, queued],
       });
       this.emit();
@@ -1283,25 +1310,30 @@ export class AntechamberEngine {
     return Math.max(1, Math.floor(this.softCeiling() / WEAVER_CADENCE));
   }
 
-  /** Refill the guess queue to lookaheadCap. Loops dowser
-   *  calls in the background. Stops when the cap is reached, a pass
-   *  fails to emit an guess, the total interrogation guess
-   *  count hits the soft ceiling, or WEAVER signals terminate
-   *  (engagement read says the room has gone flat). */
+  /** Refill the guess queue to lookaheadCap. Loops dowser calls in
+   *  the background. Stops when the cap is reached, a pass fails to
+   *  emit a guess, the total Sounding guess count hits the soft
+   *  ceiling, the user has banked enough candidate shapes (≥3), or
+   *  WEAVER signals the room has cooled. */
   private async refillGuessQueue(): Promise<void> {
     while (
       this.state.guess_queue.length < this.lookaheadCap()
       && (this.countGuessesInTranscript() + this.state.guess_queue.length) < this.softCeiling()
       && this.state.weaver_engagement === 'live'
+      && this.state.candidate_shapes.length < CANDIDATE_SHAPES_TARGET
     ) {
       const ok = await this.runDowserPass();
       if (!ok) break;
     }
-    // Close conditions: queue drained AND either ceiling reached or
-    // WEAVER signalled stop.
+    // Close conditions: queue drained AND either ceiling reached,
+    // engagement cooled, or enough shapes have been banked.
     const hitCeiling = this.countGuessesInTranscript() >= this.softCeiling();
     const weaverSaidStop = this.state.weaver_engagement !== 'live';
-    if (this.state.guess_queue.length === 0 && (hitCeiling || weaverSaidStop)) {
+    const enoughBanked = this.state.candidate_shapes.length >= CANDIDATE_SHAPES_TARGET;
+    if (
+      this.state.guess_queue.length === 0
+      && (hitCeiling || weaverSaidStop || enoughBanked)
+    ) {
       this.beginIntentionStage();
     }
   }
@@ -1380,8 +1412,14 @@ const DEFAULT_LOOKAHEAD_CAP = 3;
 const DEFAULT_INTERROGATION_SOFT_CEILING = 6;
 
 /** WEAVER cadence — fires every N answered guesses during the
- *  Interrogation. Three runs expected across a 6-guess ceiling. */
+ *  Sounding. Three runs expected across a 6-guess ceiling. */
 const WEAVER_CADENCE = 2;
+
+/** Number of HOT-banked candidate shapes that triggers Sounding exit.
+ *  The brief calls for "two or three" — three is the working target;
+ *  closes the loop early when the user has already recognised a few
+ *  shapes, rather than pushing the dowser to the cap unnecessarily. */
+const CANDIDATE_SHAPES_TARGET = 3;
 
 // WEAVER_TOTAL_RUNS moved to engine.weaverTotalRuns() — depends on
 // the per-instance softCeiling, which can be overridden via EngineOpts.

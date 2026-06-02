@@ -30,9 +30,13 @@ export type TranscriptEntry =
     }
   | {
       kind: 'guess';
-      /** 1-based guess index within the Interrogation phase. */
+      /** 1-based guess index within the Sounding (Interrogation) phase. */
       guess_idx: number;
       statement: string;
+      /** The dowser's hypothesis at the moment this guess was emitted —
+       *  the candidate dilemma it was testing, in the user's voice as
+       *  a question. Banked on HOT into state.candidate_shapes. */
+      hypothesis: string;
     }
   | {
       kind: 'response';
