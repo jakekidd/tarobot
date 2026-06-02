@@ -1,4 +1,4 @@
-// "Dizzy" — the visual loading state. Fires when the survey is waiting on
+// "Dizzy" — the visual loading state. Fires when the antechamber is waiting on
 // an LLM call (Investigator typing in the background, Compiler running, etc.).
 // Visually: the cat's eyes spin through the 8 look-directions; the purple dust
 // ramps clockwise to ~10× speed, holds while dizzy, then brakes back to

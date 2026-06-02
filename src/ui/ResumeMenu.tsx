@@ -4,7 +4,7 @@ import { makeDemoPerson } from '../demo-save';
 
 type Props = {
   onBack: () => void;
-  /** Click LOAD on a row → app routes into Survey with this Person
+  /** Click LOAD on a row → app routes into Antechamber with this Person
    *  pre-loaded, skipping the questions and going straight to the
    *  intention prompt. */
   onLoad?: (person: Person) => void;
@@ -14,7 +14,7 @@ type Props = {
  * Known visitors list. Each row shows the Person's name + sun sign +
  * last-seen date + intention count, with LOAD and delete buttons.
  * LOAD hydrates the engine from the saved snapshot and jumps to the
- * intention question; the survey is skipped.
+ * intention question; the antechamber is skipped.
  */
 export function ResumeMenu({ onBack, onLoad }: Props) {
   const [people, setPeople] = useState<Person[]>(() => listPeople());
@@ -46,7 +46,7 @@ export function ResumeMenu({ onBack, onLoad }: Props) {
         <section className="profile-list" style={{ marginBottom: '1.5rem' }}>
           <h3 className="screen__subhead">demo</h3>
           <p className="screen__hint">
-            skip the survey. loads a synthetic profile (jake, libra, stay/go fork) with
+            skip the antechamber. loads a synthetic profile (jake, libra, stay/go fork) with
             a pre-baked intention. the reading itself still hits the api on submit.
           </p>
           <button className="btn btn--primary" onClick={loadDemo}>
@@ -58,7 +58,7 @@ export function ResumeMenu({ onBack, onLoad }: Props) {
       {people.length > 0 && (
         <section className="profile-list">
           <h3 className="screen__subhead">known visitors</h3>
-          <p className="screen__hint">LOAD jumps straight to a new intention — no survey to retake.</p>
+          <p className="screen__hint">LOAD jumps straight to a new intention — no antechamber to retake.</p>
           <ul className="profile-list__items">
             {people.map((p) => {
               const isPendingDelete = pendingDeleteId === p.id;

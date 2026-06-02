@@ -3,12 +3,12 @@
 // the agent events that fired between it and the next pick.
 
 import { getAgentEvents, type AgentEvent } from './agentActivityBus';
-import { getSurveyState } from './surveyStateBus';
-import type { PickEvent } from '../pipeline/survey';
+import { getAntechamberState } from './antechamberStateBus';
+import type { PickEvent } from '../pipeline/antechamber';
 
 export function buildTranscript(events?: readonly AgentEvent[]): string {
   const evs = events ?? getAgentEvents();
-  const state = getSurveyState();
+  const state = getAntechamberState();
   const out: string[] = [];
   const now = new Date();
   out.push('# Tarobot pipeline transcript');
@@ -34,7 +34,7 @@ export function buildTranscript(events?: readonly AgentEvent[]): string {
     start: prev,
     end: Number.POSITIVE_INFINITY,
     pick: null,
-    label: 'end-of-survey compile + reading',
+    label: 'end-of-antechamber compile + reading',
   });
 
   for (const w of windows) {
@@ -91,7 +91,7 @@ export function copyTranscriptToClipboard(): void {
 /** Trigger a .md download of the transcript via a temporary blob URL. */
 export function downloadTranscript(): void {
   const text = buildTranscript();
-  const state = getSurveyState();
+  const state = getAntechamberState();
   const subject = state?.profile?.name?.toLowerCase()?.replace(/[^a-z0-9]+/g, '-') || 'session';
   const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
   const filename = `tarobot-${subject}-${stamp}.md`;

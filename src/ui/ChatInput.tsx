@@ -1,4 +1,4 @@
-// Shared text-input row used by both the reading and the survey.
+// Shared text-input row used by both the reading and the antechamber.
 //
 //   reading: free-form chat to the seer ("say something to the seer").
 //   survey:  custom-answer fallback for the current question ("or type

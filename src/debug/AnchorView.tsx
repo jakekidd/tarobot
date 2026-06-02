@@ -4,10 +4,10 @@
 //
 // Renders as the BOTTOM portion of the left debug column (top portion
 // = ProfilerWorkspace). Visible only when the DEBUG navbar chip is on
-// AND we're in the survey phase.
+// AND we're in the antechamber phase.
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { parseAnchorSections, type AnchorDiff } from '../pipeline/survey';
+import { parseAnchorSections, type AnchorDiff } from '../pipeline/antechamber';
 import { subscribeAnchor, type AnchorEvent } from './anchorBus';
 
 type Props = { visible: boolean };
@@ -79,7 +79,7 @@ export function AnchorView({ visible }: Props) {
       <section className="anchor-view anchor-view--empty" aria-label="subject anchor">
         <div className="anchor-view__head">SUBJECT ANCHOR</div>
         <div className="anchor-view__placeholder">
-          builds at survey close (compiler pass). watch the hypothesis
+          builds at antechamber close (compiler pass). watch the hypothesis
           list above for live activity.
         </div>
       </section>

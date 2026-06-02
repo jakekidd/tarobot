@@ -6,7 +6,7 @@
 import { useEffect, useState } from 'react';
 import { audioState } from '../ui/sound/sound';
 import { getInFlight } from '../pipeline/llm';
-import { isUsingTreeOverride } from '../pipeline/survey';
+import { isUsingTreeOverride } from '../pipeline/antechamber';
 import {
   getDebugSnapshot,
   publishDebug,

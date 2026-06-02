@@ -3,12 +3,12 @@
 
 import type { ClaudeClient } from '../../src/pipeline/claude';
 import type { Archetype } from './archetype';
-import type { RenderedQuestion } from '../../src/pipeline/survey';
+import type { RenderedQuestion } from '../../src/pipeline/antechamber';
 import { recordTokens } from './tokens';
 
 const BOT_SYSTEM = `you are role-playing as a specific person taking a multiple-choice survey. you will be given:
   - the archetype JSON describing who you are
-  - the transcript of the survey so far (your past Q+A pairs)
+  - the transcript of the antechamber so far (your past Q+A pairs)
   - the current question, its format, and its available options
 
 your job: answer the CURRENT question as this person would. respond with a single tool call.

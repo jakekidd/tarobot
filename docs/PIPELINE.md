@@ -27,34 +27,34 @@ PHASE 2 — PILLARS (5 questions, fixed order)
           drops Probe seeds onto state.doc.held
         These feed the Seer's closing director as 'held probes'.
         Upgrade pending: a richer declarative mark/glyph attachment
-        system driven by the survey markdown — see TODO at bottom.
+        system driven by the pillars markdown — see TODO at bottom.
 
-  Detective DOES NOT fire during pillars. Calibration only.
+  Dowser DOES NOT fire during pillars. Calibration only.
   No LLM calls until interrogation begins.
 
-PHASE 3 — INTERROGATION (detective-driven)
+PHASE 3 — INTERROGATION (dowser-driven)
   Triggered when last pillar answered.
 
-  refillAssertionQueue() — DETECTIVE in background loop:
+  refillGuessQueue() — DOWSER in background loop:
     while (queue.length < 3 && voiced_count < 6):
-      blob = runDetective(state)   // Opus, freeform, 4K tokens
-      // text-blob output: thinking, ===HYPOTHESES===, ===ASSERTION===,
+      blob = runDowser(state)   // Opus, freeform, 4K tokens
+      // text-blob output: thinking, ===HYPOTHESES===, ===GUESS===,
       // ===IF_WARM===, ===IF_COLD===
-      state.detective_thinking += blob.thinking
+      state.dowser_thinking += blob.thinking
       state.hypotheses = blob.hypotheses    // re-listing = vote
-      assertion_queue.push(blobToQueuedAssertion(blob))
+      guess_queue.push(blobToQueuedGuess(blob))
 
   User sees queue head as WarmColdChoice (blue COLD left, orange WARM
   right). On pick:
     (a) parse 'warm' / 'cold' / '<dir>:<correction>'
-    (b) push 'assertion' (voiced) + 'response' (direction + correction)
+    (b) push 'guess' (voiced) + 'response' (direction + correction)
         entries to transcript
     (c) correction text → verbatim_log (source='correction')
     (d) pop queue head
-    (e) refillAssertionQueue() refills in background
+    (e) refillGuessQueue() refills in background
 
-  WEAVER (shipped) — Haiku, fires every 2 answered assertions in
-    background (~3 calls across the 6-assertion ceiling):
+  WEAVER (shipped) — Haiku, fires every 2 answered guesses in
+    background (~3 calls across the 6-guess ceiling):
     state: state.weaver_candidates: PotentialDilemma[] = {
       label, description, thoughts[],
       created_at_turn, last_extension_turn, extension_count
@@ -75,7 +75,7 @@ PHASE 3 — INTERROGATION (detective-driven)
                       OR user still anchoring with corrections. keep
                       going.
       - 'wind_down' — borderline. stop refilling but let the queued
-                      assertions ride out gracefully, then close.
+                      guesses ride out gracefully, then close.
       - 'flat'      — clear disengagement. drop the queue NOW, close
                       after the current question.
 
@@ -112,7 +112,7 @@ PHASE 5 — COMPILE (compiler-as-sieve, fires inside submitIntention)
     - user_intention (primary filter)
     - weaver_candidates (the small curated set WEAVER built)
     - full unified transcript + verbatim_log
-    - detective_hypotheses (advisory)
+    - dowser_hypotheses (advisory)
 
   Three resolution paths (set on the output as resolution_path):
     (a) matched-candidate    — intent maps cleanly to a WEAVER
@@ -120,7 +120,7 @@ PHASE 5 — COMPILE (compiler-as-sieve, fires inside submitIntention)
     (b) strongest-candidate  — intent is thin/placeholder → fall back
                                 to the juiciest WEAVER candidate
     (c) created-from-intent  — intent reveals territory WEAVER +
-                                detective missed → CREATE a new
+                                dowser missed → CREATE a new
                                 Dilemma. trust the user.
     (d) null-landing         — session genuinely thin → emit "no
                                 Dilemma resolved" rather than invent.
@@ -155,8 +155,8 @@ PHASE 6 — READING (out of scope here)
 | Agent | Phase | Tier | Pattern |
 |---|---|---|---|
 | algo-seeder | 2 (pillars) | local, deterministic | Per pillar, no LLM — drops Probe seeds onto doc.held from question Inversions. Upgrade pending. |
-| DETECTIVE | 3 (interrogation) | Opus, freeform | Background loop, 3-ahead lookahead, text-blob output |
-| WEAVER | 3 (interrogation) | Haiku | Every 2 answered assertions, curates candidate set, owns terminate signal |
+| DOWSER | 3 (interrogation) | Opus, freeform | Background loop, 3-ahead lookahead, text-blob output |
+| WEAVER | 3 (interrogation) | Haiku | Every 2 answered guesses, curates candidate set, owns terminate signal |
 | INTENTION-SUGGESTOR | 4 (intention) | Sonnet | Parallel — one short-sentence helper per WEAVER candidate, populates intent chips |
 | COMPILER | 5 (compile) | Opus + ext.thinking | Streams, once-per-session, sieve-shaped |
 | AUGUR | 6 (reading) | Sonnet→Opus | unchanged legacy |
@@ -169,16 +169,16 @@ PHASE 6 — READING (out of scope here)
   fence; never quotable downstream. Dilemma = situation + fork, not a
   personality verdict.
 - **WARM/COLD is absolute, not gradient.** COLD = eliminate a region,
-  NEVER invert to the opposite. The detective + compiler both need this.
+  NEVER invert to the opposite. The dowser + compiler both need this.
 - **Corrections (user free-text) are the gold signal.** Above warmth,
-  above algorithmic priors, above detective leading-hypothesis.
+  above algorithmic priors, above dowser leading-hypothesis.
 - **Re-listing as vote (organic).** Never tell the agent the counter
   exists. Pure signal from natural behavior, not actions taken to
   satisfy a mechanic.
 - **Interrogation supersedes pre-hunt calibration.** The
   algorithmic seeder drops priors during pillars; the warm/cold map
   is later and tested. When priors disagree with warmth, warmth wins.
-- **Detective's leading hypothesis is advisory, not binding.** The
+- **Dowser's leading hypothesis is advisory, not binding.** The
   hunter wanting something to be true is not evidence it is.
 - **Engagement read closes the alienation seam.** Phase 3 can't only
   terminate on budget. WEAVER owns the early-out.
@@ -195,7 +195,7 @@ PHASE 6 — READING (out of scope here)
 
 1. **Algo-seeder upgrade** — Mr Brainstorm's Loom sketch in hand:
    axes-with-variance (not flat tags), per-option declarative
-   attachments in the survey markdown (`toward / away from <axis>`
+   attachments in the pillars markdown (`toward / away from <axis>`
    with mild/clear/strong strength keywords), accumulation surfaces
    contradiction as high variance, drop the age modulator (hand age
    as soft context to LLM agents, not as a mechanical rotor).
@@ -204,7 +204,7 @@ PHASE 6 — READING (out of scope here)
    are restocked. The audit-style critique above is structural; some
    suspected weaknesses may evaporate when WEAVER faces real WARM/
    COLD signal.
-3. Detective text-blob streaming (debug-only UI affordance) — #34.
+3. Dowser text-blob streaming (debug-only UI affordance) — #34.
 
 Completed in the WEAVER + compiler-as-sieve wave: WEAVER agent (#27),
 engagement early-out (#28), pipeline diagram correction (#30),

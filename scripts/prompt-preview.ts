@@ -7,35 +7,35 @@
 //
 // Or filter to a single agent:
 //
-//   pnpm preview -- --only=detective
+//   pnpm preview -- --only=dowser
 //
 // Catches things that fail silently in live calls — placeholders that
 // didn't get substituted, transcript continuity gaps, missing fields,
 // labels that drift between prompt + state.
 
-import { DETECTIVE_SYSTEM_TEMPLATE } from '../src/pipeline/survey/agents/detective';
-import { WEAVER_SYSTEM_TEMPLATE } from '../src/pipeline/survey/agents/weaver';
+import { DOWSER_SYSTEM_TEMPLATE } from '../src/pipeline/antechamber/agents/dowser';
+import { WEAVER_SYSTEM_TEMPLATE } from '../src/pipeline/antechamber/agents/weaver';
 import {
   formatWeaverCandidatesForPrompt,
-} from '../src/pipeline/survey/agents/weaver/agent';
-import { COMPILER_SYSTEM, buildCompilerPayload } from '../src/pipeline/survey/agents/compiler';
+} from '../src/pipeline/antechamber/agents/weaver/agent';
+import { COMPILER_SYSTEM, buildCompilerPayload } from '../src/pipeline/antechamber/agents/compiler';
 import INTENTION_SUGGESTOR_RAW from '../materials/prompts/intention-suggestor.md?raw';
-import { renderTranscript } from '../src/pipeline/survey/transcript';
-import { formatVerbatimLog } from '../src/pipeline/survey/verbatim-log';
+import { renderTranscript } from '../src/pipeline/antechamber/transcript';
+import { formatVerbatimLog } from '../src/pipeline/antechamber/verbatim-log';
 import type {
   EngineState,
   PickEvent,
   PotentialDilemma,
-  SurveyProfile,
+  AntechamberProfile,
   VerbatimEntry,
-} from '../src/pipeline/survey/types';
-import type { TranscriptEntry } from '../src/pipeline/survey/transcript';
-import { EMPTY_DOC } from '../src/pipeline/survey/living-doc';
+} from '../src/pipeline/antechamber/types';
+import type { TranscriptEntry } from '../src/pipeline/antechamber/transcript';
+import { EMPTY_DOC } from '../src/pipeline/antechamber/living-doc';
 
 // ─── Fabricated state ───────────────────────────────────────────
 
 function makeState(): EngineState {
-  const profile: SurveyProfile = {
+  const profile: AntechamberProfile = {
     name: 'maren',
     birthday: { year: 1993, month: 7, day: 4 },
     sun_sign: 'cancer',
@@ -64,11 +64,11 @@ function makeState(): EngineState {
     { kind: 'pick', pillar_idx: 3, question: 'where are you, body and mind?', options_shown: ['grounded + present', 'grounded + dissociated', 'numb + present', 'numb + dissociated'], picked: 'numb + present', negative_space: ['grounded + present', 'grounded + dissociated', 'numb + dissociated'], latency_ms: 6100, latency_z: 1.8 },
     { kind: 'pick', pillar_idx: 4, question: "who's the center of your life right now?", options_shown: ['me', 'partner', 'parent or caretaker', 'sibling', 'friend', 'child', 'boss'], picked: 'partner', negative_space: ['me', 'parent or caretaker', 'sibling', 'friend', 'child', 'boss'], latency_ms: 2800, latency_z: -0.2 },
     { kind: 'pick', pillar_idx: 5, question: 'which of these do you want most?', options_shown: ['love', 'freedom', 'wisdom', 'beauty', 'security', 'belonging', 'power'], picked: 'freedom', negative_space: ['love', 'wisdom', 'beauty', 'security', 'belonging', 'power'], latency_ms: 5300, latency_z: 1.4 },
-    // Two assertions + responses to give WEAVER something to chew on.
-    { kind: 'assertion', assertion_idx: 1, statement: 'the part of you that won\'t quit isn\'t afraid of theo\'s reaction. it\'s afraid of who you become if you do.' },
-    { kind: 'response', assertion_idx: 1, direction: 'warm', correction: 'less the job, more what staying says about me', latency_ms: 4200 },
-    { kind: 'assertion', assertion_idx: 2, statement: 'staying lets you keep being the person who is still figuring it out, instead of the person whose work just is what it is.' },
-    { kind: 'response', assertion_idx: 2, direction: 'cold', correction: 'not theo — he wants me to do it', latency_ms: 3800 },
+    // Two guesses + responses to give WEAVER something to chew on.
+    { kind: 'guess', guess_idx: 1, statement: 'the part of you that won\'t quit isn\'t afraid of theo\'s reaction. it\'s afraid of who you become if you do.' },
+    { kind: 'response', guess_idx: 1, direction: 'warm', correction: 'less the job, more what staying says about me', latency_ms: 4200 },
+    { kind: 'guess', guess_idx: 2, statement: 'staying lets you keep being the person who is still figuring it out, instead of the person whose work just is what it is.' },
+    { kind: 'response', guess_idx: 2, direction: 'cold', correction: 'not theo — he wants me to do it', latency_ms: 3800 },
   ];
 
   const weaver_candidates: PotentialDilemma[] = [
@@ -76,7 +76,7 @@ function makeState(): EngineState {
       label: 'staying-as-self-protection',
       description: 'the day-job is a hedge against a version of herself she\'s not sure she wants to be',
       thoughts: [
-        'warm on assertion 1; entry 3 — "less the job, more what staying says about me"',
+        'warm on guess 1; entry 3 — "less the job, more what staying says about me"',
         'numb + present on pillar 3 (z=1.8) suggests intellectualizing the choice',
       ],
     },
@@ -84,8 +84,8 @@ function makeState(): EngineState {
       label: 'freedom-vs-belonging-with-theo',
       description: 'picked freedom over love+belonging despite theo being the gravity',
       thoughts: [
-        'warm on assertion 1; entry 4 — theo "wants me to do it"',
-        'cold on assertion 2 (theo-as-obstacle) eliminated the external-resistance region',
+        'warm on guess 1; entry 4 — theo "wants me to do it"',
+        'cold on guess 2 (theo-as-obstacle) eliminated the external-resistance region',
       ],
     },
   ];
@@ -114,13 +114,13 @@ function makeState(): EngineState {
     anchor: '',
     verbatim_log,
     transcript,
-    detective_thinking: 'Earlier I noted she picked freedom over security — that\'s telling given the job framing. The latency on the body question (z=1.8) was the strongest pillar tell. My first assertion targeted identity-cost-of-staying and earned a corrected warm.',
+    dowser_thinking: 'Earlier I noted she picked freedom over security — that\'s telling given the job framing. The latency on the body question (z=1.8) was the strongest pillar tell. My first guess targeted identity-cost-of-staying and earned a corrected warm.',
     hypotheses: [
       'she stays for security even though she picked freedom',
       'staying in the job is doing identity work she doesn\'t want to admit',
       'theo is supportive — the resistance is internal',
     ],
-    assertion_queue: [],
+    guess_queue: [],
     weaver_candidates,
     weaver_engagement: 'live',
     weaver_run_count: 1,
@@ -132,31 +132,31 @@ function makeState(): EngineState {
 
 // ─── Renderers (mirror each agent's payload-building logic) ─────
 
-function renderDetectivePrompt(state: EngineState): string {
+function renderDowserPrompt(state: EngineState): string {
   const transcript = renderTranscript(state.transcript);
   const hypothesesSoFar = state.hypotheses.map((h) => `    ${h}`).join('\n');
-  const queue = '    (queue empty — propose the first interrogation assertion)';
+  const queue = '    (queue empty — propose the first interrogation guess)';
   const verbatim = formatVerbatimLog(state.verbatim_log) || '(none)';
-  const thinkingSoFar = state.detective_thinking || '(this is your first thinking pass — start fresh)';
+  const thinkingSoFar = state.dowser_thinking || '(this is your first thinking pass — start fresh)';
   const OBJECTIVE = "find this person's live dilemma — a situation they face with a fork in it, where one branch is 'continue as you are.' assert situations and behaviors, not interior verdicts. profile the problem, not the person.";
-  return DETECTIVE_SYSTEM_TEMPLATE
+  return DOWSER_SYSTEM_TEMPLATE
     .replace('{{OBJECTIVE}}', OBJECTIVE)
     .replace('{{TRANSCRIPT}}', transcript || '(no pillar answers yet)')
     .replace('{{HYPOTHESES_SO_FAR}}', hypothesesSoFar)
-    .replace('{{ASSERTION_QUEUE}}', queue)
+    .replace('{{GUESS_QUEUE}}', queue)
     .replace('{{VERBATIM_LOG}}', verbatim)
-    .replace('{{DETECTIVE_THINKING_TRANSCRIPT}}', thinkingSoFar);
+    .replace('{{DOWSER_THINKING_TRANSCRIPT}}', thinkingSoFar);
 }
 
 function renderWeaverPrompt(state: EngineState): string {
   const transcript = renderTranscript(state.transcript) || '(no transcript yet)';
   const verbatim = formatVerbatimLog(state.verbatim_log) || '(none)';
-  const detectiveHypotheses = state.hypotheses.map((h) => `    ${h}`).join('\n') || '    (none yet)';
+  const dowserHypotheses = state.hypotheses.map((h) => `    ${h}`).join('\n') || '    (none yet)';
   const weaverSoFar = formatWeaverCandidatesForPrompt(state.weaver_candidates);
   return WEAVER_SYSTEM_TEMPLATE
     .replace('{{TRANSCRIPT}}', transcript)
     .replace('{{VERBATIM_LOG}}', verbatim)
-    .replace('{{DETECTIVE_HYPOTHESES}}', detectiveHypotheses)
+    .replace('{{DOWSER_HYPOTHESES}}', dowserHypotheses)
     .replace('{{WEAVER_CANDIDATES_SO_FAR}}', weaverSoFar)
     .replace('{{RUN_IDX}}', String(state.weaver_run_count + 1))
     .replace('{{RUN_TOTAL}}', '3');
@@ -202,13 +202,13 @@ function main(): void {
   const state = makeState();
   const want = (name: string) => !args.only || args.only === name;
 
-  if (want('detective')) {
-    banner('DETECTIVE (Opus, freeform, Interrogation phase — first pass after pillars)');
-    console.log(renderDetectivePrompt(state));
+  if (want('dowser')) {
+    banner('DOWSER (Opus, freeform, Interrogation phase — first pass after pillars)');
+    console.log(renderDowserPrompt(state));
   }
 
   if (want('weaver')) {
-    banner('WEAVER (Haiku, freeform, run 2/3 — after 2 answered assertions)');
+    banner('WEAVER (Haiku, freeform, run 2/3 — after 2 answered guesses)');
     console.log(renderWeaverPrompt(state));
   }
 

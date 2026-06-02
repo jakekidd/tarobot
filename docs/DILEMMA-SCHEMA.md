@@ -1,7 +1,7 @@
 # Dilemma document — the artifact the seer reads
 
 Companion to `docs/PIPELINE.md`. Defines the structured artifact the
-**compiler** produces at survey close (Phase 5) and the **seer** consumes
+**compiler** produces at antechamber close (Phase 5) and the **seer** consumes
 when building the reading. Supersedes the prior prose `Subject Anchor`
 template (`materials/templates/anchor.md`) and the prior compiler output
 schema (`agents/compiler/schema.ts`).
@@ -49,9 +49,9 @@ DilemmaDocument {
 
 ```ts
 CriticalHypothesis {
-  claim: string;                         // load-bearing assertion the seer must hold
+  claim: string;                         // load-bearing guess the seer must hold
   evidence: string;                      // citations: warmth events + verbatim entries
-                                         //   ("warm on assertion 3; entry 7 said 'I'm tired of pretending'")
+                                         //   ("warm on guess 3; entry 7 said 'I'm tired of pretending'")
   confidence: 'low' | 'medium' | 'high';
 }
 
@@ -139,7 +139,7 @@ Discipline:
 - 0–5 entries. Zero is valid (rare; usually paired with low confidence).
 - Each `claim` is ONE sentence; structural, not personal.
 - Each `evidence` cites at least one anchored source — a warm/cold
-  event on a specific assertion idx, or a verbatim entry index.
+  event on a specific guess idx, or a verbatim entry index.
   No anchorless claims.
 - Order does NOT carry weight. The seer reads them as a set.
 
@@ -185,7 +185,7 @@ Provenance — which of the three sieve paths fired:
    wrote that one out in detail.
 2. `strongest-candidate` — intent was thin/nonsense; compiler fell
    back to the juiciest WEAVER candidate.
-3. `created-from-intent` — intent revealed territory WEAVER + detective
+3. `created-from-intent` — intent revealed territory WEAVER + dowser
    missed; compiler built the Dilemma from the intent text. Trust the
    user's signal over the agents' coverage.
 4. `null-landing` — paired with `null_landing === true`.
@@ -213,7 +213,7 @@ Compared to the prior 7-section anchor template:
   not the person. If the user's framing matters, it lives as evidence
   inside a critical_hypothesis or as a verbatim citation in `specifics`.
 - **"Margin"** → cut. The compiler is not a scribbler; it's the sieve
-  at close. Half-thoughts belong in the detective_thinking stream, not
+  at close. Half-thoughts belong in the dowser_thinking stream, not
   the artifact.
 - **"Domain"** section → collapsed to `domain_tags[]` array. The prose
   paragraph was always either redundant with the Dilemma section or
@@ -243,7 +243,7 @@ For any well-formed DilemmaDocument:
    - `delta_description` is non-empty
    - `resolution_path !== 'null-landing'`
 4. Every `CriticalHypothesis.evidence` references at least one anchor
-   (regex-checked at parse: matches `entry \d+` OR `assertion \d+`
+   (regex-checked at parse: matches `entry \d+` OR `guess \d+`
    OR `warm`/`cold` keyword + idx).
 5. `suspicions` carries the `do_not_voice` discipline. Downstream
    consumers (seer prompts) MUST be aware this section is fenced.

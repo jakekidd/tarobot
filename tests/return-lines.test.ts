@@ -3,7 +3,7 @@
 // shipped in production.
 
 import { describe, expect, it } from 'vitest';
-import { pickReturnLine, RETURN_LINES } from '../src/pipeline/survey/return-lines';
+import { pickReturnLine, RETURN_LINES } from '../src/pipeline/antechamber/return-lines';
 
 describe('pickReturnLine', () => {
   it('returns one of the with-name templates when name is given', () => {

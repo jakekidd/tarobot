@@ -6,8 +6,8 @@
 // the sides and behind. Rigid-body rotation (constant angular velocity
 // per axis in a vacuum) gives natural tilt.
 //
-// Lifecycle: cards live as long as the survey is active. When scope flips
-// inactive (Survey unmounts), all live cards fade out smoothly and the
+// Lifecycle: cards live as long as the antechamber is active. When scope flips
+// inactive (Antechamber unmounts), all live cards fade out smoothly and the
 // system goes quiet. When an undo fires, the MOST RECENT card breaks off
 // its orbit, flies up-left toward the camera, and shatters into drifting
 // shards.
@@ -18,7 +18,7 @@
 //   - Module manages positions / rotations / lifetimes
 //
 // Burn flow:
-//   - User taps undo → Survey.tsx → burnCardStore.fireBurnCard()
+//   - User taps undo → Antechamber.tsx → burnCardStore.fireBurnCard()
 //   - Module pulls the newest card, runs burn sequence
 
 import * as THREE from 'three';

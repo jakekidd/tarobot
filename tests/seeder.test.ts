@@ -8,9 +8,9 @@ import {
   ageHeldProbes,
   generateSeeds,
   parseInversionMatches,
-} from '../src/pipeline/survey/seeder';
-import type { TreeNode } from '../src/pipeline/survey/types';
-import type { Probe } from '../src/pipeline/survey/living-doc';
+} from '../src/pipeline/antechamber/seeder';
+import type { TreeNode } from '../src/pipeline/antechamber/types';
+import type { Probe } from '../src/pipeline/antechamber/living-doc';
 
 describe('parseInversionMatches', () => {
   it('matches the value-style: "love → fear of being unlovable; freedom → fear ..."', () => {

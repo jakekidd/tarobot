@@ -3,7 +3,7 @@
 // what's queued, how many turns deep are we.
 
 import { Panel, Pill, Kv } from '../lib';
-import type { EngineState } from '../../pipeline/survey';
+import type { EngineState } from '../../pipeline/antechamber';
 
 type Props = { state: EngineState };
 
@@ -31,7 +31,7 @@ export function PhasePanel({ state }: Props) {
           { key: 'opener picks', value: openerCount },
           { key: 'post-opener', value: postOpenerCount },
           { key: 'queue length', value: state.queue.length },
-          { key: 'assertion queue', value: state.assertion_queue.length },
+          { key: 'guess queue', value: state.guess_queue.length },
           { key: 'thinking', value: state.thinking ? <Pill variant="warn">yes</Pill> : 'no' },
           { key: 'closed', value: state.closed ? <Pill variant="hot">yes</Pill> : 'no' },
           { key: 'close reason', value: state.close_reason ?? '—' },

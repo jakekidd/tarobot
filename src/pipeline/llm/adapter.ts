@@ -1,6 +1,6 @@
 // LLMAdapter — the single interface every agent call goes through.
 //
-// Lives in pipeline/llm/ as shared infrastructure: both SurveyEngine
+// Lives in pipeline/llm/ as shared infrastructure: both AntechamberEngine
 // and SeerEngine route every model call through here. The concrete
 // adapter (Anthropic) is the only file that imports the SDK; the
 // interface stays vendor-agnostic so an Ollama / llama.cpp swap is
@@ -65,7 +65,7 @@ export type FreeformSpec = {
   /** Optional caller-supplied label for telemetry / debug bus / mascot
    *  pulse color mapping. Defaults to 'freeform' if omitted. Each
    *  freeform-using agent should pass its own name (e.g. 'seeder',
-   *  'detective', 'weaver', 'intention_suggestor') so downstream
+   *  'dowser', 'weaver', 'intention_suggestor') so downstream
    *  observers can distinguish them. */
   label?: string;
 };

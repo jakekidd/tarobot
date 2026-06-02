@@ -1,20 +1,20 @@
 // Bench bootstrap — auto-fill openers + pillars with a default
-// persona so the detective-focus view drops into Interrogation
+// persona so the dowser-focus view drops into Interrogation
 // immediately without clicking through five pillar questions for
 // every iteration cycle.
 //
 // The default persona ("alice") is sketched in a way that gives the
-// detective something real to work with: anxious-leaning attachment,
+// dowser something real to work with: anxious-leaning attachment,
 // numb-but-present body baseline, partnered with theo, freedom over
-// security on the value pillar. Detective should be able to surface
+// security on the value pillar. Dowser should be able to surface
 // something live around identity-cost-of-staying / autonomy-vs-
-// belonging within a handful of assertions.
+// belonging within a handful of guesses.
 //
 // Bootstrap matches by question FORMAT rather than node_id, so it
 // stays robust to pillar reorderings or rewordings in
-// materials/survey.md.
+// materials/pillars.md.
 
-import type { SurveyEngine } from '../pipeline/survey';
+import type { AntechamberEngine } from '../pipeline/antechamber';
 
 export type Persona = {
   name: string;
@@ -48,10 +48,10 @@ export const DEFAULT_PERSONA: Persona = {
 
 /** Auto-progress an engine through its openers + pillars using the
  *  persona's answers. Returns when the engine's stage has left
- *  'questions' (so detective is firing or about to). Each call
+ *  'questions' (so dowser is firing or about to). Each call
  *  awaits engine.submitAnswer to keep state coherent. */
 export async function bootstrapWithPersona(
-  engine: SurveyEngine,
+  engine: AntechamberEngine,
   persona: Persona = DEFAULT_PERSONA,
 ): Promise<void> {
   let pillarIdx = 0;

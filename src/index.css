@@ -377,18 +377,18 @@ a:hover { text-decoration: underline; }
 
 /* ─── Intent question sandwich ────────────────────────── */
 
-.survey__dialogue-host--intent .dialogue-text,
-.survey__dialogue-host--intent .dialogue-caret,
-.survey__dialogue-host--intent .dialogue-measure {
+.antechamber__dialogue-host--intent .dialogue-text,
+.antechamber__dialogue-host--intent .dialogue-caret,
+.antechamber__dialogue-host--intent .dialogue-measure {
   color: var(--color-danger);
   text-shadow: 0 0 8px rgba(226, 83, 110, 0.35);
 }
 
 /* ─── Gag question (the 13th-question turtle interlude) ──── */
 
-.survey__dialogue-host--gag .dialogue-text,
-.survey__dialogue-host--gag .dialogue-caret,
-.survey__dialogue-host--gag .dialogue-measure {
+.antechamber__dialogue-host--gag .dialogue-text,
+.antechamber__dialogue-host--gag .dialogue-caret,
+.antechamber__dialogue-host--gag .dialogue-measure {
   color: #6dff8a;
   text-shadow: 0 0 12px rgba(109, 255, 138, 0.35);
 }
@@ -1488,7 +1488,7 @@ input, textarea {
 /* Survey screen — pinned layout. The Reader anchor, dialogue stage, and
    ui-frame all have pre-allocated heights, so the layout never reflows
    between questions regardless of how many options or how much text. */
-.screen--survey {
+.screen--antechamber {
   gap: 1rem;
   justify-content: flex-start;
   padding-top: 2.5rem;
@@ -1498,25 +1498,25 @@ input, textarea {
   max-width: 720px;
 }
 
-.survey__body {
+.antechamber__body {
   width: 100%;
   max-width: 480px;
   display: flex;
   justify-content: center;
 }
 
-.survey__nav {
+.antechamber__nav {
   display: flex;
   gap: 0.6rem;
   justify-content: center;
 }
 
-.survey__review {
+.antechamber__review {
   text-align: left;
   color: var(--fg-dim);
 }
-.survey__review p { margin: 0.25rem 0; }
-.survey__review em { color: var(--fg); font-style: normal; }
+.antechamber__review p { margin: 0.25rem 0; }
+.antechamber__review em { color: var(--fg); font-style: normal; }
 
 /* Tarot cards now render in 3D inside TableScene — no DOM card styles. */
 
@@ -2356,13 +2356,13 @@ input, textarea {
 }
 
 /* Footer row beneath the question — holds "ready for the cards" + (post-close) download buttons. */
-.survey__footer {
+.antechamber__footer {
   margin-top: 1.2rem;
   display: flex;
   justify-content: center;
   gap: 0.6rem;
 }
-.survey__ready {
+.antechamber__ready {
   letter-spacing: 0.14em;
   text-transform: lowercase;
   font-size: 0.85rem;
@@ -2639,7 +2639,7 @@ input, textarea {
   align-items: center;
 }
 
-.ui-frame--survey {
+.ui-frame--antechamber {
   /* Inherit base .ui-frame height (23rem). Removed the auto/min-height
      override that was letting the survey layout reflow per question. */
 }
@@ -2667,7 +2667,7 @@ input, textarea {
    away from the choices block on purpose — fat-thumb-resistant. One
    click rewinds the engine to its pre-most-recent-pick snapshot.
    Hidden when no snapshot is available; disabled while thinking. */
-.survey__undo {
+.antechamber__undo {
   position: fixed;
   top: 3.4rem;             /* clears the ~2.4rem topbar + a hair */
   left: 0.9rem;
@@ -2686,13 +2686,13 @@ input, textarea {
   padding: 0;
   box-shadow: 0 0 8px rgba(124, 58, 237, 0.35);
 }
-.survey__undo:hover:not(:disabled) {
+.antechamber__undo:hover:not(:disabled) {
   color: #ffffff;
   border-color: #b388ff;
   box-shadow: 0 0 14px rgba(179, 136, 255, 0.65);
 }
-.survey__undo:active:not(:disabled) { transform: translateY(1px); }
-.survey__undo:disabled {
+.antechamber__undo:active:not(:disabled) { transform: translateY(1px); }
+.antechamber__undo:disabled {
   opacity: 0.4;
   cursor: not-allowed;
 }
@@ -2772,12 +2772,12 @@ input, textarea {
 }
 
 /* ─── Last-intention hint above the intention picker ──── */
-.survey__intentions {
+.antechamber__intentions {
   display: flex;
   flex-direction: column;
   gap: 0.6rem;
 }
-.survey__last-intention {
+.antechamber__last-intention {
   margin: 0 0 0.2rem;
   font-family: var(--font-mono);
   font-size: 0.85rem;
@@ -2785,7 +2785,7 @@ input, textarea {
   letter-spacing: 0.04em;
   text-align: center;
 }
-.survey__last-intention em {
+.antechamber__last-intention em {
   color: var(--accent);
   font-style: italic;
 }
@@ -3216,16 +3216,16 @@ input, textarea {
   font-size: 1.4rem;
 }
 
-.survey__review {
+.antechamber__review {
   text-align: left;
   color: var(--fg-dim);
   width: 100%;
   max-width: 520px;
   margin: 0 auto;
 }
-.survey__review p { margin: 0.25rem 0; }
-.survey__review em { color: var(--fg); font-style: normal; }
-.survey__review-confirm {
+.antechamber__review p { margin: 0.25rem 0; }
+.antechamber__review em { color: var(--fg); font-style: normal; }
+.antechamber__review-confirm {
   display: flex;
   justify-content: center;
   margin-top: 1rem;
@@ -3233,15 +3233,15 @@ input, textarea {
 
 /* the cat's sidebar reaction — sits below the current question, indented,
    with an empty row above for visual separation. */
-.survey__reaction {
+.antechamber__reaction {
   width: min(64ch, calc(100vw - 4rem));
   margin: 0 auto;
   text-align: left;
 }
-.survey__reaction-spacer {
+.antechamber__reaction-spacer {
   height: 1.1em;       /* the empty indent row */
 }
-.survey__reaction-text {
+.antechamber__reaction-text {
   padding-left: 4em;   /* double-indent */
   color: var(--color-gray);
   font-family: var(--font-mono);
@@ -3380,24 +3380,24 @@ input, textarea {
 }
 
 /* =====================================================================
-   v3 assertion choice — true / false primary, then correction surface
+   v3 guess choice — true / false primary, then correction surface
    with one-tap inversions + freeform fallback.
    ===================================================================== */
 
-.assertion-choice {
+.guess-choice {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
   width: 100%;
 }
 
-.assertion-choice--primary {
+.guess-choice--primary {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 0.5rem;
 }
 
-.assertion-choice__correction-prompt {
+.guess-choice__correction-prompt {
   font-family: var(--font-mono);
   font-size: 0.85rem;
   letter-spacing: 0.16em;
@@ -3407,7 +3407,7 @@ input, textarea {
   text-shadow: 0 0 8px rgba(179, 136, 255, 0.35);
 }
 
-.assertion-choice__inversions {
+.guess-choice__inversions {
   list-style: none;
   margin: 0;
   padding: 0;
@@ -3416,12 +3416,12 @@ input, textarea {
   gap: 0.3rem;
 }
 
-.assertion-choice__freeform {
+.guess-choice__freeform {
   display: flex;
   width: 100%;
 }
 
-.assertion-choice__freeform-input {
+.guess-choice__freeform-input {
   width: 100%;
   font-family: var(--font-mono);
   font-size: 1.05rem;
@@ -3432,14 +3432,14 @@ input, textarea {
   border-radius: 0;
   outline: none;
 }
-.assertion-choice__freeform-input:focus {
+.guess-choice__freeform-input:focus {
   border-color: #b388ff;
 }
-.assertion-choice__freeform-input::placeholder {
+.guess-choice__freeform-input::placeholder {
   color: #6b5a8a;
 }
 
-.assertion-button {
+.guess-button {
   font-family: var(--font-mono);
   font-size: 1.15rem;
   letter-spacing: 0.08em;
@@ -3458,26 +3458,26 @@ input, textarea {
   align-items: center;
   justify-content: center;
 }
-.assertion-button:hover:not(:disabled)  { filter: brightness(1.12); }
-.assertion-button:active:not(:disabled) { transform: translateY(1px); }
-.assertion-button:disabled              { cursor: default; }
+.guess-button:hover:not(:disabled)  { filter: brightness(1.12); }
+.guess-button:active:not(:disabled) { transform: translateY(1px); }
+.guess-button:disabled              { cursor: default; }
 
-.assertion-button--true {
+.guess-button--true {
   background-color: #1f6633;
   border-color: #2a7a40;
 }
-.assertion-button--false {
+.guess-button--false {
   background-color: #6b2238;
   border-color: #7d2842;
 }
-.assertion-button--inversion {
+.guess-button--inversion {
   background-color: #3a1f70;
   border-color: #4a1f88;
   font-size: 1rem;
   min-height: 2.7rem;
   justify-content: flex-start;
 }
-.assertion-button--skip {
+.guess-button--skip {
   background-color: transparent;
   border-color: rgba(107, 90, 138, 0.4);
   color: #6b5a8a;
@@ -3486,24 +3486,24 @@ input, textarea {
   letter-spacing: 0.12em;
   margin-top: 0.2rem;
 }
-.assertion-button--skip:hover:not(:disabled) {
+.guess-button--skip:hover:not(:disabled) {
   color: #b388ff;
   border-color: #b388ff;
 }
 
-.assertion-button__text {
+.guess-button__text {
   display: inline-block;
   white-space: pre-wrap;
   text-align: left;
   color: inherit;
 }
 
-.assertion-button--unpicked {
+.guess-button--unpicked {
   opacity: 0;
   pointer-events: none;
   transition: opacity 180ms ease-out;
 }
-.assertion-button--picked {
+.guess-button--picked {
   animation: choice-flash-burst 420ms ease-out forwards;
   pointer-events: none;
 }
@@ -3590,7 +3590,7 @@ input, textarea {
 }
 
 /* =====================================================================
-   WarmerColderChoice — detective assertion response.
+   WarmerColderChoice — dowser guess response.
    COLD on the LEFT (blue), WARM on the RIGHT (orange).
    Temperature is universally legible. COLD is signal, not failure.
    ===================================================================== */

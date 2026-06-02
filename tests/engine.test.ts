@@ -1,12 +1,12 @@
-// SurveyEngine state-machine tests. Uses FakeAdapter so no inference
+// AntechamberEngine state-machine tests. Uses FakeAdapter so no inference
 // runs; verifies state transitions and snapshot/undo mechanics.
 
 import { describe, expect, it } from 'vitest';
-import { SurveyEngine } from '../src/pipeline/survey/engine';
+import { AntechamberEngine } from '../src/pipeline/antechamber/engine';
 // PROFILE_TEMPLATE_RAW import dropped — profile.body is gone in v2.
 import {
   FakeAdapter,
-  defaultDetectiveOutput,
+  defaultDowserOutput,
   defaultObserverOutput,
 } from './fakeAdapter';
 
@@ -16,17 +16,17 @@ function makeAdapter(): FakeAdapter {
       const payload = JSON.parse(spec.user);
       return defaultObserverOutput(payload.doc_v ?? 0);
     })
-    .setTool('detective_step', (spec) => {
+    .setTool('dowser_step', (spec) => {
       const payload = JSON.parse(spec.user);
-      return defaultDetectiveOutput(payload.doc?.v ?? 0);
+      return defaultDowserOutput(payload.doc?.v ?? 0);
     });
 }
 
-function makeEngine(opts?: { adapter?: FakeAdapter }): SurveyEngine {
-  return new SurveyEngine({ adapter: opts?.adapter ?? makeAdapter() });
+function makeEngine(opts?: { adapter?: FakeAdapter }): AntechamberEngine {
+  return new AntechamberEngine({ adapter: opts?.adapter ?? makeAdapter() });
 }
 
-describe('SurveyEngine — initial state', () => {
+describe('AntechamberEngine — initial state', () => {
   it('starts with an empty LivingDoc (v=0, no scaffold content, no held probes)', () => {
     const engine = makeEngine();
     const doc = engine.getState().doc;
@@ -80,7 +80,7 @@ describe('SurveyEngine — initial state', () => {
   });
 });
 
-describe('SurveyEngine — opener flow', () => {
+describe('AntechamberEngine — opener flow', () => {
   it('walks name → birthday → relationship → intent without firing pipelines', async () => {
     const adapter = makeAdapter();
     const engine = makeEngine({ adapter });
@@ -108,13 +108,13 @@ describe('SurveyEngine — opener flow', () => {
     await engine.submitAnswer('what should i do?');
     const queue = engine.getState().queue;
     // Post-interrogation-pivot: pillars only (5 currently in
-    // materials/survey.md after dropping the fork dichotomy). Random
+    // materials/pillars.md after dropping the fork dichotomy). Random
     // pool was retired from first-time visits. Assert non-trivial.
     expect(queue.length).toBeGreaterThanOrEqual(5);
   });
 });
 
-describe('SurveyEngine — undo / snapshot', () => {
+describe('AntechamberEngine — undo / snapshot', () => {
   it('captures a snapshot on submitAnswer; canUndo becomes true', async () => {
     const engine = makeEngine();
     expect(engine.canUndo()).toBe(false);
@@ -169,7 +169,7 @@ describe('SurveyEngine — undo / snapshot', () => {
   });
 });
 
-describe('SurveyEngine — relationship_pick parsing', () => {
+describe('AntechamberEngine — relationship_pick parsing', () => {
   it('parses JSON answer payload + upserts a CastMember when the head is relationship_pick', async () => {
     const engine = makeEngine();
     // Walk past openers to get into the post-opener queue.
@@ -180,7 +180,7 @@ describe('SurveyEngine — relationship_pick parsing', () => {
 
     // Skip ahead through the queue until we find a relationship_pick.
     // (key_person and with_whom_unsaid are the relationship_pick
-    // pillars + pool entries in materials/survey.md.)
+    // pillars + pool entries in materials/pillars.md.)
     let q = engine.getCurrentQuestion();
     while (q && q.format !== 'relationship_pick') {
       await engine.submitAnswer(q.options[0] ?? 'pass');
@@ -239,7 +239,7 @@ describe('SurveyEngine — relationship_pick parsing', () => {
   });
 });
 
-describe('SurveyEngine — pipeline path (with FakeAdapter)', () => {
+describe('AntechamberEngine — pipeline path (with FakeAdapter)', () => {
   it('fires NO LLM calls during pillar phase (algo seeder only)', async () => {
     const adapter = makeAdapter();
     const engine = makeEngine({ adapter });
@@ -252,15 +252,15 @@ describe('SurveyEngine — pipeline path (with FakeAdapter)', () => {
     await engine.submitAnswer(q.options[0] ?? 'mind');
     await engine.waitForQuiescence();
     // Post-seeder-deletion: the algorithmic seeder fires inline (no
-    // LLM call); the Haiku seeder is gone. Detective only fires after
+    // LLM call); the Haiku seeder is gone. Dowser only fires after
     // the LAST pillar, not on pillar 1. So NO LLM calls expected here.
     expect(adapter.freeformCalls.length).toBe(0);
     expect(adapter.calls.length).toBe(0);
   });
 
-  it('returning-user lite mode skips BOTH observer + detective', async () => {
+  it('returning-user lite mode skips BOTH observer + dowser', async () => {
     const adapter = makeAdapter();
-    const engine = new SurveyEngine({
+    const engine = new AntechamberEngine({
       adapter,
       returning: {
         profile_seed: { name: 'jake' },
@@ -276,7 +276,7 @@ describe('SurveyEngine — pipeline path (with FakeAdapter)', () => {
     const q = engine.getCurrentQuestion()!;
     await engine.submitAnswer(q.options[0] ?? 'pass');
     await new Promise((r) => setTimeout(r, 0));
-    // Returning users should have ZERO observer / detective calls.
+    // Returning users should have ZERO observer / dowser calls.
     expect(adapter.calls).toHaveLength(0);
   });
 
@@ -305,7 +305,7 @@ describe('SurveyEngine — pipeline path (with FakeAdapter)', () => {
   });
 });
 
-describe('SurveyEngine — full-flow smoke', () => {
+describe('AntechamberEngine — full-flow smoke', () => {
   it('walks openers + 5 post-opener picks without errors, leaves doc.held populated', async () => {
     const adapter = makeAdapter();
     const engine = makeEngine({ adapter });
@@ -337,7 +337,7 @@ describe('SurveyEngine — full-flow smoke', () => {
     // (Phase 2: agents throw, but the seeder still fires deterministically.)
     expect(state.doc.held.length).toBeGreaterThan(0);
     // Agents are stubbed in Phase 2 — they throw before invoking the adapter.
-    // The engine's runObserverTask/runDetectiveTask catch the throw, so the
+    // The engine's runObserverTask/runDowserTask catch the throw, so the
     // adapter never sees the call. Phase 3 lights this up. For now we
     // assert the engine still completed the walk.
     expect(state.closed === false || state.stage === 'finalizing' || state.stage === 'awaiting_intention').toBe(true);

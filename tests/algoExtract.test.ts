@@ -1,9 +1,9 @@
-// Algorithmic end-of-survey extraction tests. No inference; pure data
+// Algorithmic end-of-antechamber extraction tests. No inference; pure data
 // transforms over picks_log + timing_log.
 
 import { describe, expect, it } from 'vitest';
-import { extractHooks, extractSideChannel } from '../src/pipeline/survey/algoExtract';
-import type { PickEvent, TimingEvent } from '../src/pipeline/survey/types';
+import { extractHooks, extractSideChannel } from '../src/pipeline/antechamber/algoExtract';
+import type { PickEvent, TimingEvent } from '../src/pipeline/antechamber/types';
 
 function pick(node_id: string, answer: string | string[], extras: Partial<PickEvent> = {}): PickEvent {
   return {

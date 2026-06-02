@@ -7,7 +7,7 @@ import {
   PROFILE_TEMPLATE_RAW,
   PROFILE_TEMPLATE_STRIPPED,
   stripHtmlComments,
-} from '../src/pipeline/survey/template';
+} from '../src/pipeline/antechamber/template';
 
 describe('stripHtmlComments', () => {
   it('removes a single-line HTML comment', () => {

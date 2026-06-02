@@ -72,7 +72,7 @@ export function createLogger(runsDir: string, archetypeName: string): RunLogger 
       );
     },
     close(reason) {
-      log(kleur.cyan().bold(`\n● survey closed — ${reason}`), `\n● survey closed — ${reason}`);
+      log(kleur.cyan().bold(`\n● antechamber closed — ${reason}`), `\n● antechamber closed — ${reason}`);
     },
     compilerSection(header, body) {
       log(kleur.cyan().bold(`\n${header}`), `\n${header}`);

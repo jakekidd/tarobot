@@ -1,7 +1,7 @@
 // WEAVER text-blob parser fuzz tests.
 
 import { describe, expect, it } from 'vitest';
-import { parseWeaverTextBlob } from '../../src/pipeline/survey/agents/weaver/parseTextBlob';
+import { parseWeaverTextBlob } from '../../src/pipeline/antechamber/agents/weaver/parseTextBlob';
 
 const WELL_FORMED = `
 Run 2 of 3. Two warm taps on the identity thread; one cold ruled out
@@ -10,10 +10,10 @@ not shrugging.
 
 ===CANDIDATES===
     staying-as-self-protection: the day-job is a hedge against a version of herself she's not sure she wants to be
-        warm on assertion 1; entry 4 — "less the job, more what staying says about me"
+        warm on guess 1; entry 4 — "less the job, more what staying says about me"
         pillar 3 (z=1.8) suggests intellectualizing the choice
     freedom-vs-belonging-with-theo: picked freedom over love+belonging on pillar 5 even though theo is the center of her life
-        warm on assertion 2; theo wants her to leave per entry 5
+        warm on guess 2; theo wants her to leave per entry 5
         cold on theo-as-obstacle eliminated the external-resistance region
 
 ===ENGAGEMENT===
@@ -104,27 +104,27 @@ describe('parseWeaverTextBlob — KNOWN parser quirks', () => {
     an unanchored thought before any label
     another orphan
     real-candidate: legit one
-        real thought (assertion 1 WARM)
+        real thought (guess 1 WARM)
 ===ENGAGEMENT===
     live`;
     const blob = parseWeaverTextBlob(raw);
     expect(blob.candidates).toHaveLength(1);
     expect(blob.candidates[0]!.label).toBe('real-candidate');
-    expect(blob.candidates[0]!.thoughts).toEqual(['real thought (assertion 1 WARM)']);
+    expect(blob.candidates[0]!.thoughts).toEqual(['real thought (guess 1 WARM)']);
   });
 
   it('strips leading bullets from thoughts', () => {
     const raw = `===CANDIDATES===
     cand-one: desc
         - bulleted thought (entry 1)
-        * star bullet (assertion 1 WARM)
+        * star bullet (guess 1 WARM)
         · middot bullet (entry 2)
 ===ENGAGEMENT===
     live`;
     const blob = parseWeaverTextBlob(raw);
     expect(blob.candidates[0]!.thoughts).toEqual([
       'bulleted thought (entry 1)',
-      'star bullet (assertion 1 WARM)',
+      'star bullet (guess 1 WARM)',
       'middot bullet (entry 2)',
     ]);
   });

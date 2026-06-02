@@ -1,27 +1,27 @@
 // Pipeline-wide types. Pure types only — no React, no DOM.
 
-// ─── Survey ─────────────────────────────────────────────
+// ─── Antechamber ─────────────────────────────────────────────
 
-export type SurveyAnswer = {
+export type AntechamberAnswer = {
   question_id: string;
   picked: string[];           // multi-select supports >1; single-pick = [option]
   passed?: boolean;           // user tapped "pass" on a dark question
 };
 
-export type Survey = {
-  answers: SurveyAnswer[];
+export type Antechamber = {
+  answers: AntechamberAnswer[];
   started_at: number;
   ended_at?: number;
 };
 
-export type SurveyQuestionFormat = 'binary' | 'choice' | 'matrix-2x2' | 'multi-select';
+export type PillarQuestionFormat = 'binary' | 'choice' | 'matrix-2x2' | 'multi-select';
 
-export type SurveyQuestion = {
+export type PillarQuestion = {
   id: string;
   text: string;
   /** Optional short cat-voice preface that prints above the question text. */
   lead_in?: string;
-  format: SurveyQuestionFormat;
+  format: PillarQuestionFormat;
   options: string[];
   axes?: { x: [string, string]; y: [string, string] };
   category:
@@ -89,7 +89,7 @@ export type Highlight = {
 // ─── Profile (the growing blob) ─────────────────────────
 
 // (ClatNote removed — vestigial from the legacy Compiler-era pipeline,
-// no consumers. New survey notes live on SurveyProfile.sections.)
+// no consumers. New survey notes live on AntechamberProfile.sections.)
 
 export type Profile = {
   identity: {
@@ -125,7 +125,7 @@ export type Profile = {
   brief: string;                  // 3-6 sentences, natural prose, <500 words
 
   // ── Observer-produced texture (forwarded by assembleProfile) ──
-  // The survey observer agent writes these end-of-survey. The seer's
+  // The survey observer agent writes these end-of-antechamber. The seer's
   // director consumes them as adjunct context to the structural story
   // and hypothesis ladder — the observer fields carry HOW the subject
   // comes across, the gap between performed and lived self, the wound
@@ -179,7 +179,7 @@ export type PersonaAnimation =
   | 'neutral' | 'narrow' | 'widen' | 'closed' | 'glance_aside';
 
 export type EngineState = {
-  survey: Survey;
+  survey: Antechamber;
   profile: Profile;
   transcript: TranscriptLine[];
   question_queue: Question[];      // 1-3 deep

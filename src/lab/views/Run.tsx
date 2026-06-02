@@ -20,10 +20,10 @@ import { PhasePanel } from '../panels/PhasePanel';
 import { TranscriptPanel } from '../panels/TranscriptPanel';
 import { VerbatimPanel } from '../panels/VerbatimPanel';
 import { WeaverPanel } from '../panels/WeaverPanel';
-import { DetectivePanel } from '../panels/DetectivePanel';
+import { DowserPanel } from '../panels/DowserPanel';
 import { AgentPanel } from '../panels/AgentPanel';
 import { DilemmaPanel } from '../panels/DilemmaPanel';
-import { RELATIONSHIP_STATUS_OPTIONS } from '../../pipeline/survey/types';
+import { RELATIONSHIP_STATUS_OPTIONS } from '../../pipeline/antechamber/types';
 
 type Props = {
   apiKey: string;
@@ -65,7 +65,7 @@ export function Run({ apiKey }: Props) {
         </Stack>
         <Stack gap={4}>
           <WeaverPanel state={state} />
-          <DetectivePanel state={state} />
+          <DowserPanel state={state} />
           <AgentPanel />
         </Stack>
       </div>
@@ -188,8 +188,8 @@ function QuestionHeader({ q }: { q: NonNullable<Q> }) {
       <div className="bench__qcard-eyebrow">
         {q.format}  ·  {q.node_id}
       </div>
-      {q.format === 'assertion' && q.instrument?.kind === 'assertion' ? (
-        <div className="bench__assertion-text">{q.instrument.statement}</div>
+      {q.format === 'guess' && q.instrument?.kind === 'guess' ? (
+        <div className="bench__guess-text">{q.instrument.statement}</div>
       ) : (
         <div className="bench__qcard-q">{q.text}</div>
       )}
@@ -208,7 +208,7 @@ function QuestionInput({
 }) {
   const submit = (v: string | string[]) => { void onSubmit(v); };
 
-  if (q.format === 'assertion') {
+  if (q.format === 'guess') {
     return <ColdWarmHot onPick={submit} />;
   }
   if (q.format === 'choice' || q.format === 'matrix') {

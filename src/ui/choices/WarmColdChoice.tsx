@@ -1,4 +1,4 @@
-// WarmColdChoice — UI for detective-emitted assertions.
+// WarmColdChoice — UI for dowser-emitted guesses.
 //
 // Three big buttons: COLD (blue, "wrong neighbourhood; eliminate the
 // region"), WARM (orange, "right neighbourhood; refine"), HOT (red,

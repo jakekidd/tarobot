@@ -1,17 +1,17 @@
 // Synthetic v2 Person record for the "LOAD DEMO" path. Lets the user
-// skip the 12+ pillar survey and jump straight to the intention
+// skip the 12+ pillar antechamber and jump straight to the intention
 // prompt with a plausible profile + LivingDoc already populated.
 //
 // This is fabricated data — not from a real walkthrough. The intent
 // is exercise the reading + the visitor's silly-alien voice without
-// burning credits on a fresh survey. The reading itself (Augur +
+// burning credits on a fresh antechamber. The reading itself (Augur +
 // Seer construction) still hits the API when the user submits the
 // intention, but that's ~3-5 calls instead of ~20.
 
 import { computeAstroProfile, parseBirthDate } from './pipeline/astrology';
 import type { Person } from './storage';
 import { PERSON_SCHEMA_VERSION } from './storage';
-import type { LivingDoc } from './pipeline/survey';
+import type { LivingDoc } from './pipeline/antechamber';
 
 /** Build a fresh demo Person each call (id + timestamps regenerated
  *  so the LOAD path doesn't collide with a prior demo). The profile
@@ -97,7 +97,7 @@ export function makeDemoPerson(): Person {
         id: 'p_meaning_path',
         claim:
           'the meaning-deficit is vocational, not relational — the work itself, not the absence of partnership, is the load-bearing problem',
-        source: 'detective',
+        source: 'dowser',
         born_turn: 7,
         age_in_turns: 5,
       },
@@ -105,7 +105,7 @@ export function makeDemoPerson(): Person {
         id: 'p_jeff_audience',
         claim:
           'the role jake plays is calibrated to jeff specifically; jeff is the audience the shape was cut for',
-        source: 'detective',
+        source: 'dowser',
         born_turn: 4,
         age_in_turns: 8,
       },

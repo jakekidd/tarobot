@@ -7,7 +7,7 @@ import {
   FEM_NAMES,
   MASC_NAMES,
   randomName,
-} from '../src/ui/survey/nameBanks';
+} from '../src/ui/antechamber/nameBanks';
 
 describe('nameBanks loader', () => {
   it('parses MASC_NAMES from materials/names/masc.txt', () => {

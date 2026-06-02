@@ -20,7 +20,7 @@ export type Archetype = {
   verbosity_style: 'fast' | 'deliberate' | 'hesitant' | 'chaotic';
 };
 
-const ARCHETYPE_SYSTEM = `you generate a detailed synthetic participant for a tarot-app survey. the participant has a specific real-feeling life situation and a real-feeling fork on their mind that the survey will try to extract.
+const ARCHETYPE_SYSTEM = `you generate a detailed synthetic participant for a tarot-app survey. the participant has a specific real-feeling life situation and a real-feeling fork on their mind that the antechamber will try to extract.
 
 OUTPUT: a single tool call matching the schema. fields:
 
@@ -39,7 +39,7 @@ verbosity_style: one of fast / deliberate / hesitant / chaotic. affects latency.
 constraints:
 - the person must be SPECIFIC, not a stereotype. specific job title, specific city, specific names.
 - the target_choice must be specific and currently active in their life. not vague life-coach forks.
-- the survey's pool covers identity, relational, decision, work, body, family, geographic, creative, self-model. the archetype should plausibly engage with several of these.
+- the antechamber's pool covers identity, relational, decision, work, body, family, geographic, creative, self-model. the archetype should plausibly engage with several of these.
 
 return only the tool call.`;
 

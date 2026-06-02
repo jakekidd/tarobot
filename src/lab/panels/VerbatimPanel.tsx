@@ -4,7 +4,7 @@
 // every entry with its index + source + content.
 
 import { Panel, Empty, Pill } from '../lib';
-import type { EngineState } from '../../pipeline/survey';
+import type { EngineState } from '../../pipeline/antechamber';
 
 type Props = { state: EngineState };
 

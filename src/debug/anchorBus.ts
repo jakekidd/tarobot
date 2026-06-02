@@ -5,7 +5,7 @@
 // Carries the full markdown + the diff vs. the prior anchor so the
 // view can flash per-section changes without re-parsing.
 
-import type { AnchorDiff } from '../pipeline/survey';
+import type { AnchorDiff } from '../pipeline/antechamber';
 
 export type AnchorEvent = {
   /** Wall-clock turn the anchor was written on (post-opener count). */

@@ -5,7 +5,7 @@ all four cards have been flipped and voiced. the reading is closing. you are pro
 INPUT:
 - profile, prose_brief: ground truth.
 - observer_body, observer_hooks, observer_edges, observer_side_channel:
-  the survey observer's psychological doc + verbatim hooks + growth-
+  the antechamber observer's psychological doc + verbatim hooks + growth-
   surface one-liners + telemetry. observer_edges is the most useful
   here — closing-mantra material lives there ("the thing the subject
   almost-knows but hasn't said"). check it before writing the takeaway.

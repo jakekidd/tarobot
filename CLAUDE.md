@@ -15,7 +15,7 @@ REFACTOR-V3.md doc is older planning context and lags behind reality.
 ## What this is
 
 A tarot-themed web app. The visible product is: a user lands in a dark
-purple game-feel CRT scene, a cat (the survey mascot) interviews them via
+purple game-feel CRT scene, a cat (the antechamber mascot) interviews them via
 a sequence of multiple-choice questions, then the Seer reads four cards
 in a diamond spread for them. The reading is the thing the rest exists
 to serve.
@@ -28,7 +28,7 @@ production system can swap the browser-direct call for a server-held key
 without touching pipeline code.
 
 In prod, this app runs on an on-prem booth computer at a music festival
-(Burning Man). The booth serves the survey page over its local hotspot/LAN
+(Burning Man). The booth serves the antechamber page over its local hotspot/LAN
 to phones in line. The reading happens at the booth itself with a real-
 robot Seer. Latency budget shapes the runtime split below.
 
@@ -48,13 +48,13 @@ new content.
 
 ```
 materials/
-  survey.md                       the survey questions (Pillars + Pool)
+  pillars.md                                 the pillar questions (Pillars + Pool)
   templates/
     profile.md                    observer scaffold (9 sections + HTML-comment instructions)
     story.md                      StoryObject shape reference doc (human-only)
   prompts/
     observer.md                   profiler prompt — every turn, full body rewrite, speculation authority
-    detective.md                  story-architect + ladder-collaborator
+    dowser.md                  story-architect + ladder-collaborator
     augur-outline.md              outcome naming (binary/ternary/open)
     augur-fill.md                 outcome document fills (markdown prose)
     mantra.md                     closing one-line takeaway
@@ -74,9 +74,9 @@ materials/
     return-lines.md               canned mascot lines for returning RESUME
 ```
 
-## Survey engine — the three artifacts
+## Antechamber engine — the three artifacts
 
-At survey close, three artifacts hand off to the Seer:
+At antechamber close, three artifacts hand off to the Seer:
 
 - **profile** (observer's domain · breadth) — a freeform markdown
   document the observer rewrites every turn. 9 section headers
@@ -85,18 +85,18 @@ At survey close, three artifacts hand off to the Seer:
   patterns, contradictions, avoidances), hooks (verbatim specifics
   the seer can echo), edges (growth surface — what the user almost-
   knows), and cast (named people + per-person observer notes).
-- **investigation** (detective's domain · depth) — a hypothesis ladder
+- **investigation** (dowser's domain · depth) — a hypothesis ladder
   (confirmed / probable / tentative / contested / refuted / held)
   populated by:
-  - the algorithmic seeder (`src/pipeline/survey/seeder.ts`),
+  - the algorithmic seeder (`src/pipeline/antechamber/seeder.ts`),
     which reads each question's `Inversions:` probe text and seeds
     deterministic hypotheses into `tentative[]`,
   - the observer (every turn — elevates / holds / refutes seeds),
-  - the detective (adds new hypotheses, moves rungs).
-- **story** (detective's domain · narrative) — the slice across time
+  - the dowser (adds new hypotheses, moves rungs).
+- **story** (dowser's domain · narrative) — the slice across time
   anchored to the user's fork. Five slots:
   - `fork: { a, b, is_stasis }` — the two future paths. `is_stasis`
-    true means the detective constructed it from a stasis pattern
+    true means the dowser constructed it from a stasis pattern
     (the user has no live decision; the fork is "act on this vs.
     continue as you are").
   - `present_pressure` — what makes the fork acute right now.
@@ -109,24 +109,24 @@ The cards land on story slots (past_root → past card, present_pressure
 prose_brief is built around story; the closing director receives the
 held-probe queue (sorted by age DESC) and may take ONE risky swing.
 
-## The mascot (the turtle) is the user-facing voice during survey
+## The mascot (the turtle) is the user-facing voice during the antechamber
 
 Three agents fire per post-opener pick (returning users skip the
-observer + detective):
+dowser):
 
 - **mascot commentary** (local, real-time, in-character) — what the
   user sees and hears between picks. Reactive lines, RPG-dialogue
   style. The user-facing layer.
 - **observer** (cognition tier, cloud, async) — psychological profiler.
   Rewrites profile.body, elevates / refutes hypotheses. SILENT — never
-  surfaces mid-survey.
-- **detective** (deep tier, cloud, async) — story architect + ladder
+  surfaces mid-antechamber.
+- **dowser** (deep tier, cloud, async) — story architect + ladder
   collaborator. Builds the StoryObject, surfaces new hypotheses.
-  SILENT — never surfaces mid-survey.
+  SILENT — never surfaces mid-antechamber.
 
-Observer + detective outputs never leak to the user. Only the mascot's
+Dowser outputs never leak to the user. Only the mascot's
 reactive commentary does. If a future implementation accidentally
-prints detective thoughts to the user, that's a regression of this
+prints dowser thoughts to the user, that's a regression of this
 load-bearing rule.
 
 ## Categories — the 9 the observer files under
@@ -144,7 +144,7 @@ tensions       internal contradictions · belief-personality mismatches
                (observer-derived only, never tagged on a question)
 ```
 
-Of the 9, 7 are question-tagged in `materials/survey.md`. `tensions`
+Of the 9, 7 are question-tagged in `materials/pillars.md`. `tensions`
 is observer-derived only — emerges across answers. `pride` collapsed
 into `joys` (people perform humility on direct asks; observer infers
 from indirect signal).
@@ -210,9 +210,9 @@ what that means, don't you?" beats "you will leave your partner." The user
 fills in meaning; they feel seen because *they* made the connection. The
 system under-specifies on purpose and trusts the user to land it.
 
-### No detective theater (survey/interview rule)
+### No detective theater (antechamber rule)
 
-The survey must not weaponize silence, corner the user, or punish low effort.
+The antechamber must not weaponize silence, corner the user, or punish low effort.
 A user who picks vague options or passes should not feel cross-examined.
 The historical failure mode this guards against: a smug investigator agent
 that ramps difficulty in response to non-engagement, killing the session.
@@ -225,8 +225,8 @@ Every agent is designated **local** or **cloud**. The category is about
 concern (`fast` / `cognition-tier` / `deep` in `src/pipeline/claude.ts`).
 
 - **local** runs on the booth's on-prem LLM (an OSS model on a local box).
-  Used for everything in the critical-latency path: survey-time agents
-  (observer, detective, interrogator) that fire every turn, and the
+  Used for everything in the critical-latency path: antechamber-time agents
+  (weaver, dowser, compiler) that fire every turn, and the
   seer's actor (which the user hears voiced in real-time). Today these
   are all satisfied by Claude as scaffolding — the local-LLM swap is the
   eventual replacement, and the `LLMAdapter` interface is the seam.
@@ -238,12 +238,12 @@ concern (`fast` / `cognition-tier` / `deep` in `src/pipeline/claude.ts`).
 
 This split is load-bearing for the festival deployment: cloud calls cost
 network round-trip + provider variance, which is fatal on the per-turn
-survey loop. The pipeline page (`src/ui/Pipeline.tsx`) makes the
+antechamber loop. The pipeline page (`src/ui/Pipeline.tsx`) makes the
 designation visible per agent.
 
 ### Mirror through the seams
 
-Both halves of the experience already wear this shape — survey reconstructs
+Both halves of the experience already wear this shape — the antechamber reconstructs
 who the user is from evidence they didn't realize they were giving (already
 seer-shaped, not assistant-shaped), and the reading illuminates the user to
 themselves. Lean into "I see you," not "I will tell you the future."
@@ -274,10 +274,10 @@ tier name — Sonnet — distinct from the runtime category "cloud" and from
 the old layer name "cognition." Plan to rename the tier eventually, but
 not load-bearing yet.)
 
-### Survey engine (`src/pipeline/survey/`)
+### Antechamber engine (`src/pipeline/antechamber/`)
 
 Two-agent design. Observer + Investigator fire per answered question after
-the openers; Compiler runs once at survey close.
+the openers; Compiler runs once at antechamber close.
 
 - Engine is a plain TypeScript class with a subscriber API. UI subscribes;
   the e2e bot subscribes; the engine itself is framework-agnostic.
@@ -294,12 +294,12 @@ the openers; Compiler runs once at survey close.
 ### Seer engine (`src/pipeline/seer/`)
 
 The seer is the live tarot reader. Implementation is a `SeerEngine` class
-(peer to `SurveyEngine`) that hosts two internal layers — **director**
+(peer to `AntechamberEngine`) that hosts two internal layers — **director**
 (clinical, slower, cloud runtime) and **actor** (voiced, fast, local
 runtime) — and orchestrates four behavior tranches via them: intro,
 per-card, chat, outro.
 
-Constructed at survey close. Takes `{ profile, surveyHistory, intention,
+Constructed at antechamber close. Takes `{ profile, antechamberHistory, intention,
 drawn, outcomes }`. Constructor synchronously kicks off the intro
 pipeline (`directorIntro → actorIntro`) and exposes `ready: Promise<void>`.
 UI gates the [ENTER] button on that promise.
@@ -377,16 +377,16 @@ tarot birth card). Treat these as ground truth; do not duplicate inline.
 | Anthropic client + MODELS + tier→model map | `src/pipeline/claude.ts` |
 | LLMAdapter interface (provider-agnostic) | `src/pipeline/llm/adapter.ts` |
 | Concrete Anthropic adapter (only file that imports SDK) | `src/pipeline/llm/adapter-anthropic.ts` |
-| SurveyEngine + agents (observer/detective/interrogator/shaman/augur) | `src/pipeline/survey/` |
+| AntechamberEngine + agents (weaver/dowser/compiler/shaman/augur) | `src/pipeline/antechamber/` |
 | SeerEngine + agents (director/actor) | `src/pipeline/seer/` |
 | Card draw mechanics | `src/pipeline/cards.ts` |
 | Spread definitions | `src/pipeline/spreads.ts` |
 | three.js scene (turtle + eyes + perspective table/cards + scene stores) | `src/ui/scene/`, `src/ui/scene/TarobotScene.tsx` |
 | Card face/back canvas painters (used by the perspective layer) | `src/ui/cards/cardTexture.ts`, `glyphs.ts` |
-| Survey UI (questions, choices) | `src/ui/Survey.tsx`, `src/ui/choices/` |
+| Antechamber UI (questions, choices) | `src/ui/Antechamber.tsx`, `src/ui/choices/` |
 | Reading UI (the Seer screen) | `src/ui/Reading.tsx`, `src/ui/Transcript.tsx` |
 | Persistence (API key, sessions) | `src/storage.ts` |
-| E2E bot harness (Opus archetype + Haiku answerer) | `scripts/e2e/`, `scripts/e2e-survey.ts` |
+| E2E bot harness (Opus archetype + Haiku answerer) | `scripts/e2e/`, `scripts/e2e-antechamber.ts` |
 | Character bibles (free-form) | `persona/` |
 | Backlog | `TODO.md` |
 
@@ -400,7 +400,7 @@ the doc.
 - **TypeScript strict.** No `any` without justification. Optional-chained
   access at trust boundaries (LLM output, storage) — direct access elsewhere.
 - **Imports**: app code imports from `src/pipeline/index.ts` and
-  `src/pipeline/survey/index.ts` / `src/pipeline/reading/index.ts` —
+  `src/pipeline/antechamber/index.ts` / `src/pipeline/reading/index.ts` —
   *not* from deep internal files. The barrel files are the public surface.
 - **Zod schemas** at every adapter boundary. The schema *is* the contract;
   prompt-level "respond in JSON" is not trusted.
@@ -434,7 +434,7 @@ the doc.
 - `pnpm build` — `tsc -b && vite build`. Output to `dist/`.
 - `pnpm typecheck` / `pnpm lint` — must be clean before commit.
 - `pnpm e2e -- --apiKey=$KEY` — runs the bot harness: generates a
-  synthetic participant (Opus), runs them through the live survey engine
+  synthetic participant (Opus), runs them through the live antechamber engine
   with a Haiku-driven answerer, writes a timestamped run log to `runs/`.
   Pass `--load <name>` to reuse an existing archetype from `archetypes/`.
 - Vercel auto-deploys `main` pushes. The `tarobot-sage.vercel.app` alias
@@ -459,7 +459,7 @@ the doc.
 
 ### Churning
 
-- **Survey engine.** Today: synchronous, two-agent (Observer+Investigator),
+- **Antechamber engine.** Today: synchronous, two-agent (WEAVER+Dowser),
   heat-driven phase. Research synthesis points toward async continuous
   Investigator + trigger-fired Observer + specific-guess-injection +
   flat-pool / runtime-tree. Refactor is gated on actually walking through
@@ -468,9 +468,9 @@ the doc.
   + actor threads spawn per round; user picks which face-down card to
   flip. Slot meanings are load-bearing; FLIP_ANIM_MS (950) is a placeholder
   number. The chat plumbing exists but actor-chat voice will iterate after
-  real walkthroughs. The READ DEMO menu path skips survey and uses a hand-
+  real walkthroughs. The READ DEMO menu path skips antechamber and uses a hand-
   authored Marisol fixture — useful for iterating on the reading without
-  burning survey time.
+  burning antechamber time.
 - **Card faces.** Currently unicode-glyph + roman-numeral placeholders.
   Real art replaces this later; the contract (each card has a glyph + label)
   stays the same.
@@ -553,7 +553,7 @@ the doc.
 
 1. User lands. If no API key in localStorage, key-entry screen. Key
    validated against a tiny smoke call (Haiku, 1 token) before saving.
-2. Menu → `begin` → fresh `Session` in memory (NOT persisted yet). Survey starts.
+2. Menu → `begin` → fresh `Session` in memory (NOT persisted yet). Antechamber starts.
 3. Q1 (name): on submit, `findPeopleMatchingName` runs.
    - 0 matches → continue normally.
    - 1+ match → `ReturningUserModal` overlays. User picks **RESUME** →
@@ -561,13 +561,13 @@ the doc.
      history into engine state, skips remaining openers whose data is
      already known, seeds the (deduped) starter pool, and the mascot
      delivers one of `RETURN_LINES`. Or **START FRESH** →
-     `deletePerson(match.id)` and the survey proceeds as for a new user.
+     `deletePerson(match.id)` and the antechamber proceeds as for a new user.
 4. Q2 (birthday), Q3 (has_question) run.
 5. **Save threshold:** once all 3 openers are answered, a Person record
    is created (new user) or updated (returning), and the active session
    gets persisted to `tarobot:active_session`. Before this, bailing
    leaves no localStorage trace.
-6. Survey body: engine fires Observer → Detective → Interrogator per
+6. Antechamber body: engine fires WEAVER → Dowser → Compiler per
    pick. Starter pool (6 seeds) and Interrogator basket both filter out
    `prior_answered_node_ids` (hard dedupe across the visitor's history).
 7. Cap (20 post-opener questions): Interrogator suppressed past
@@ -580,7 +580,7 @@ the doc.
    a soft hint when prior_intentions is non-empty. `submitIntention()`
    triggers Augur (cloud, 2-stage) → SeerEngine constructed →
    `seer.ready` resolves → state stage = 'reading_ready'.
-10. ENTER → `onComplete(seer)`. Survey effect appends the completed
+10. ENTER → `onComplete(seer)`. Antechamber effect appends the completed
     visit to the Person record (intention + answered_node_ids +
     completed_at) and clears active session.
 11. App routes to Reading screen with the prebuilt Seer. Card flow:
@@ -588,7 +588,7 @@ the doc.
     closing_thinking → outro → done. Chat allowed in awaiting_flip /
     done; actor replies are their own LLM call.
 12. Exit anytime via topbar. If past save threshold, the in-progress
-    Person record persists; resuming returns to the same survey state.
+    Person record persists; resuming returns to the same antechamber state.
 
 This flow will change. When it does, fix this section.
 
@@ -597,7 +597,7 @@ This flow will change. When it does, fix this section.
 ## Notes for the next agent in this seat
 
 - The user has explicitly noted being overwhelmed in the past when work
-  became "guess and check." The cure was building the reading so the survey
+  became "guess and check." The cure was building the reading so the antechamber
   finally had a downstream artifact to be evaluated against. Preserve that
   closed-loop discipline — do not propose major upstream refactors before
   the downstream consumer can show what signal is actually needed.

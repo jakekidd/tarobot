@@ -1,4 +1,4 @@
-// Burn-card event bus. Fired by Survey.tsx's undo handler. Consumed by
+// Burn-card event bus. Fired by Antechamber.tsx's undo handler. Consumed by
 // the orbiting-cards system, which picks the most recent live card and
 // runs it through the fly-up + shatter animation. One event = one burned
 // card. Multiple rapid undos burn multiple cards.

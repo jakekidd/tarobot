@@ -1,9 +1,9 @@
 // Phase-scope for the orbiting-cards subsystem. The TarobotScene is
 // global (mounted in App), but the cards should only exist while the
-// user is in a survey — they were showing up on the Pipeline page and
+// user is in the antechamber — they were showing up on the Pipeline page and
 // every other screen and never going away.
 //
-// Survey mounts → setCardsActive(true); unmounts → setCardsActive(false).
+// Antechamber mounts → setCardsActive(true); unmounts → setCardsActive(false).
 // orbitingCards reads this on spawn (ignores spawns when inactive) and
 // subscribes to fade-out existing cards when scope goes inactive.
 

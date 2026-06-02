@@ -147,7 +147,7 @@ const MARISOL_PROFILE: Profile = {
 
 const MARISOL_PROSE_BRIEF = `marisol, 32, designer in nyc, oakland-born. came to the cards with a question framed as logistics — "should i move back home." she does not believe that is the question. beneath it: her mother, alone in oakland since the divorce, and marisol's older sister camila who has covered for everything until now. camila just told her she is out of room. so the move that was always "someday" has a tuesday-deadline feeling.
 
-marisol describes the nyc life with a flatness that does not match the resume — design lead, two shows last year, the apartment she rebuilt. she used the phrase "i don't think i'd be giving anything up" twice during the survey, and that phrasing is the load-bearing tell. nobody who is unsure about a move says that. she is rehearsing the version where it costs nothing because she knows it will cost everything.
+marisol describes the nyc life with a flatness that does not match the resume — design lead, two shows last year, the apartment she rebuilt. she used the phrase "i don't think i'd be giving anything up" twice during the antechamber, and that phrasing is the load-bearing tell. nobody who is unsure about a move says that. she is rehearsing the version where it costs nothing because she knows it will cost everything.
 
 she has not told her partner the move is being seriously considered. she has not told her boss. she is carrying this decision inside her body without a witness.
 
@@ -155,7 +155,7 @@ the fork as she frames it: stay in nyc (career, partner, the version of herself 
 
 mirror, not oracle. do not advise. name the gap between her stated framing and what is underneath. the under-specified read about camila is the most likely place to land an early hit. avoid prescribing either path; name what choosing either will cost. the partner not knowing is also a thread worth pulling, gently.`;
 
-/** Hand-written intro the survey side WOULD have produced for marisol. */
+/** Hand-written intro the antechamber side WOULD have produced for marisol. */
 export const MARISOL_INTRO: Monologue = {
   text: 'marisol. sit with me. you brought something heavier than the question you came with — let us look at what wants looking at.',
 };
@@ -167,7 +167,7 @@ export function buildMarisolDemoSeer(adapter: LLMAdapter): Seer {
   const seer = new Seer({
     adapter,
     profile: MARISOL_PROFILE,
-    surveyHistory: [],
+    antechamberHistory: [],
     intention: 'Should I move back to Oakland for my mom?',
     drawn: drawForSpread(FOUR_CARD_DIAMOND),
     // Demo path: no Augur step. director's outcomes input is empty;

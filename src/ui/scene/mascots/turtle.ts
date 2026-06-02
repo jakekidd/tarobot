@@ -120,12 +120,12 @@ const WANDER_Y_FREQ = 0.37;
 // self-identify). Resilient via DEFAULT_PULSE_COLOR — unknown labels
 // pulse a neutral tint instead of going silent.
 const AGENT_PULSE_COLORS: Record<string, [number, number, number]> = {
-  // Survey-side freeform agents (post-pivot).
-  detective:                    [0.70, 0.50, 1.00],   // eye violet  (Phase 3 hunter)
+  // Antechamber-side freeform agents (post-pivot).
+  dowser:                    [0.70, 0.50, 1.00],   // eye violet  (Phase 3 hunter)
   weaver:                       [0.30, 0.95, 0.85],   // turquoise   (Phase 3 curator)
   intention_suggestor:          [0.55, 0.90, 0.95],   // pale cyan   (Phase 4 chip helper)
   // Tool-based agents (kept as last-known names).
-  augur_outline:                [1.00, 0.65, 0.45],   // amber (close-of-survey)
+  augur_outline:                [1.00, 0.65, 0.45],   // amber (close-of-antechamber)
   compiler_write_dilemma:       [0.85, 0.70, 1.00],   // dusky violet (sieve)
   'compiler_write_dilemma [stream]': [0.85, 0.70, 1.00],
   // Fallback for any agent that doesn't pass a label.

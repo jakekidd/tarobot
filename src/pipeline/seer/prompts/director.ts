@@ -3,7 +3,7 @@
 //   - CLOSING:  one synthesis pass after all four flips.
 //   - INTRO:    the prose brief the seer reads silently before voicing.
 //
-// The director is the offstage planner / detective. It prepares a SET —
+// The director is the offstage planner / dowser. It prepares a SET —
 // Stanislavski "given circumstances" — that the actor will INHABIT. The
 // director does NOT write content. It stages the interior state from
 // which the seer will perform. The actor is not a translator; the actor
@@ -46,7 +46,7 @@ export const INTRO_DIRECTOR_SYSTEM = INTRO_DIRECTOR_SYSTEM_RAW;
 
 export const INTRO_DIRECTOR_TOOL: ToolDef = {
   name: 'plan_intro',
-  description: 'write the prose brief the seer reads silently before voicing her intro. operational, detective-tier specificity, 200-400 words.',
+  description: 'write the prose brief the seer reads silently before voicing her intro. operational, dowser-tier specificity, 200-400 words.',
   input_schema: {
     type: 'object',
     properties: {

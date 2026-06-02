@@ -19,12 +19,12 @@ import type {
   EngineState,
   LivingDoc,
   PickEvent,
-  SurveyProfile,
+  AntechamberProfile,
   TimingEvent,
   VerbatimEntry,
-} from './pipeline/survey';
+} from './pipeline/antechamber';
 
-/** Current Person schema version. Bumped to 3 in the survey-engine-v3
+/** Current Person schema version. Bumped to 3 in the antechamber-engine-v3
  *  refactor — adds the markdown `anchor` (profiler-written prose) and
  *  the immutable `verbatim_log` (user free-text inputs). v2 records
  *  (Investigation-shaped or LivingDoc-only) get dropped by
@@ -68,8 +68,8 @@ export type Person = {
   /** Lowercase first name — the primary match key. Original casing is
    *  preserved in `profile.name`. */
   name: string;
-  /** Final post-synthesis SurveyProfile (immutable once saved). */
-  profile: SurveyProfile;
+  /** Final post-synthesis AntechamberProfile (immutable once saved). */
+  profile: AntechamberProfile;
   /** Final post-synthesis LivingDoc (scaffold + margin + story + held
    *  probes + coverage). Retained in v3 during the Phase 2 transition
    *  as intermediate working state — the seer consumes `anchor` going
@@ -85,8 +85,8 @@ export type Person = {
    *  anchor references entries by index rather than reproducing them
    *  (LLM paraphrase would corrupt the fidelity). */
   verbatim_log: VerbatimEntry[];
-  /** Full picks_log from the survey — the Seer reads this as
-   *  surveyHistory in the director payloads. */
+  /** Full picks_log from the antechamber — the Seer reads this as
+   *  antechamberHistory in the director payloads. */
   picks_log: PickEvent[];
   /** Optional telemetry log (latency, initial-vs-final picks, z-scores).
    *  v3: present on every new save (engine always records timing); the
@@ -166,7 +166,7 @@ export function listKnownNames(): string[] {
 // ─── Active session (in-flight visit) ───────────────────
 
 export type SessionPhase =
-  | 'survey'
+  | 'antechamber'
   | 'compiling'
   | 'enter-tent'
   | 'tent'
@@ -182,7 +182,7 @@ export type Session = {
    *  name is confirmed (either as a new Person crossing the save
    *  threshold, or as a matched returning Person at the modal). */
   person_id?: string;
-  /** Survey engine state snapshot. Storage is opaque — the engine is
+  /** Antechamber engine state snapshot. Storage is opaque — the engine is
    *  the source of truth in-memory; this field is just so the resume
    *  UI can label rows and (eventually) hydrate engine state. */
   engine?: EngineState;
@@ -194,7 +194,7 @@ export function newSession(): Session {
     id: makeId(),
     started_at: now,
     last_active_at: now,
-    phase: 'survey',
+    phase: 'antechamber',
   };
 }
 
@@ -225,12 +225,12 @@ export function completeActiveSession(): void {
 // ─── Folding active session into Person ─────────────────
 
 /** Persist a Person record from the post-synthesis engine snapshot.
- *  Called ONCE at end-of-survey (after the final observer pass + algo
+ *  Called ONCE at end-of-antechamber (after the final observer pass + algo
  *  extraction land). Save games are immutable from this point — they
- *  exist so the user can reload their survey state and ask a different
+ *  exist so the user can reload their antechamber state and ask a different
  *  intention without re-running the questionnaire. */
 export function savePersonFromFinalState(args: {
-  profile: SurveyProfile;
+  profile: AntechamberProfile;
   doc: LivingDoc;
   anchor: string;
   verbatim_log: VerbatimEntry[];
@@ -258,7 +258,7 @@ export function savePersonFromFinalState(args: {
 }
 
 /** Record an intention against an existing Person without rewriting
- *  the survey snapshot. Used on each LOAD-and-ask, so we can show
+ *  the antechamber snapshot. Used on each LOAD-and-ask, so we can show
  *  "last time you asked: X" hints. */
 export function prependIntentionToPerson(person_id: string, intention: string): void {
   const list = loadPeopleRaw();

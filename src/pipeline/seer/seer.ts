@@ -28,7 +28,7 @@
 
 import type { LLMAdapter } from '../llm/adapter';
 import type { DrawnCards, Profile } from '../types';
-import type { Hypothesis, PickEvent, StoryObject } from '../survey';
+import type { Hypothesis, PickEvent, StoryObject } from '../antechamber';
 import { directorPerCard, directorClosing, directorIntro } from './agents/director';
 import {
   actorPerCard,
@@ -52,7 +52,7 @@ import { sanitizeMonologue } from './sanitize';
 import { generateMantra } from './mantra';
 
 /** What Seer needs to inhabit the table. profile is the deterministic
- *  survey-derived identity record; surveyHistory + intention are the
+ *  survey-derived identity record; antechamberHistory + intention are the
  *  case file the seer reads before speaking. drawn is the spread the
  *  reading will use. outcomes are the Augur-produced pictures of what
  *  the intention opens onto — passed into all director calls (per-
@@ -63,21 +63,21 @@ import { generateMantra } from './mantra';
 export type SeerOpts = {
   adapter: LLMAdapter;
   profile: Profile;
-  surveyHistory: PickEvent[];
+  antechamberHistory: PickEvent[];
   intention: string;
   drawn: DrawnCards;
   outcomes: Outcome[];
-  /** The narrative cross-section the detective built during the survey.
+  /** The narrative cross-section the dowser built during the antechamber.
    *  Threaded into directorIntro as the SPINE of prose_brief (replaces
    *  the legacy surveySynthesis ≤3-claim list with a structured
    *  artifact whose slots map onto card positions). */
   story?: StoryObject;
-  /** Hypotheses that survived the survey without integration or
+  /** Hypotheses that survived the antechamber without integration or
    *  refutation — sorted by age_in_turns DESC. The closing director
    *  may take a risky swing at one as the outro's loaded probe. */
   heldProbes?: Hypothesis[];
   // (Legacy `investigation?: Investigation` field removed in
-  //  survey-engine-v2 Phase 2. The Seer's per-card and closing
+  //  antechamber-engine-v2 Phase 2. The Seer's per-card and closing
   //  director already get story + heldProbes through explicit args;
   //  the dead Investigation pass-through was unused storage.)
   preferred_intro?: Monologue;
@@ -101,7 +101,7 @@ export class Seer {
   private adapter: LLMAdapter;
   private listeners = new Set<ReadingListener>();
   private intention: string;
-  private surveyHistory: PickEvent[];
+  private antechamberHistory: PickEvent[];
   private outcomes: Outcome[];
   private story: StoryObject | null;
   private heldProbes: Hypothesis[];
@@ -121,7 +121,7 @@ export class Seer {
   constructor(opts: SeerOpts) {
     this.adapter = opts.adapter;
     this.intention = opts.intention;
-    this.surveyHistory = opts.surveyHistory;
+    this.antechamberHistory = opts.antechamberHistory;
     this.outcomes = opts.outcomes;
     this.story = opts.story ?? null;
     this.heldProbes = opts.heldProbes ?? [];
@@ -171,7 +171,7 @@ export class Seer {
         story: this.story,
         profile: this.state.inputs.profile,
         intention: this.intention,
-        surveyHistory: this.surveyHistory,
+        antechamberHistory: this.antechamberHistory,
         outcomes: this.outcomes,
       });
       // Mutate inputs in place — all per-card/closing director calls

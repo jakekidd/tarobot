@@ -1,6 +1,6 @@
 // Public surface of the seer module.
 //
-// The Seer is an engine (same architectural tier as SurveyEngine) that
+// The Seer is an engine (same architectural tier as AntechamberEngine) that
 // hosts internal director + actor layers and orchestrates four
 // behavior tranches:
 //

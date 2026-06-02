@@ -59,7 +59,7 @@ export function Settings({ onBack }: Props) {
       <section className="settings__section">
         <h3 className="settings__heading">mascot</h3>
         <p className="settings__hint">
-          the figure that hosts the survey + idles in the menu. takes
+          the figure that hosts the antechamber + idles in the menu. takes
           effect on next page reload.
         </p>
         <label className="settings__row">

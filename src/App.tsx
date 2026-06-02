@@ -11,13 +11,13 @@ import { KeyEntry } from './ui/KeyEntry';
 import { Menu } from './ui/Menu';
 import { ResumeMenu } from './ui/ResumeMenu';
 import { Settings } from './ui/Settings';
-import { Survey as SurveyScreen } from './ui/Survey';
+import { Antechamber as AntechamberScreen } from './ui/Antechamber';
 import { Reading } from './ui/Reading';
 import { Pipeline } from './ui/Pipeline';
 import { Bench } from './lab/Bench';
 import { TarobotScene } from './ui/scene/TarobotScene';
 import { buildMarisolDemoSeer } from './pipeline/seer';
-import { AnthropicAdapter } from './pipeline/survey';
+import { AnthropicAdapter } from './pipeline/antechamber';
 import { createClaudeClient } from './pipeline/claude';
 import './ui/pipeline.css';
 import { Debug } from './debug/Debug';
@@ -37,7 +37,7 @@ type Phase =
   | { kind: 'menu' }
   | { kind: 'resume' }
   | { kind: 'settings' }
-  | { kind: 'survey'; session: Session; loadedPerson?: Person | null }
+  | { kind: 'antechamber'; session: Session; loadedPerson?: Person | null }
   | { kind: 'reading'; session: Session; seer: Seer }
   | { kind: 'pipeline' }
   | { kind: 'bench' };
@@ -62,25 +62,25 @@ export function App() {
   }, [phase.kind]);
 
   function goMenu() {
-    // Bailing out of a survey via the topbar leaves the durable Person
+    // Bailing out of the antechamber via the topbar leaves the durable Person
     // record (created at save threshold) but clears the volatile active
-    // session — we don't have a "resume in-progress survey" feature, and
+    // session — we don't have a "resume in-progress antechamber" feature, and
     // letting it linger would mean stale engine state in storage.
-    if (phase.kind === 'survey') clearActiveSession();
+    if (phase.kind === 'antechamber') clearActiveSession();
     setPhase({ kind: 'menu' });
   }
 
-  /** Skip the survey: hydrate from a saved Person and go straight to
+  /** Skip the antechamber: hydrate from a saved Person and go straight to
    *  the intention prompt. Person record is NOT touched (immutable). */
   function startLoadedReading(person: Person) {
     const s = newSession();
-    setPhase({ kind: 'survey', session: s, loadedPerson: person });
+    setPhase({ kind: 'antechamber', session: s, loadedPerson: person });
   }
 
   function startNewReading() {
-    // New visit. In-memory only until save threshold lands inside Survey.
+    // New visit. In-memory only until save threshold lands inside Antechamber.
     const s = newSession();
-    setPhase({ kind: 'survey', session: s });
+    setPhase({ kind: 'antechamber', session: s });
   }
 
   // Brief "we're leaving the menu" flag — set when READ DEMO fires so
@@ -88,9 +88,9 @@ export function App() {
   // disintegrates. Cleared when Reading mounts (or on cancellation).
   const [menuTransitioning, setMenuTransitioning] = useState(false);
 
-  /** Skip survey: synthesize a session and route straight into the
+  /** Skip the antechamber: synthesize a session and route straight into the
    *  reading with a hand-authored brief and intro. Triggers the same
-   *  mascot disintegration as the survey path so the turtle is gone
+   *  mascot disintegration as the antechamber path so the turtle is gone
    *  by the time the reading fly-in starts. No goodbye dialogue — the
    *  read demo is dev/showcase only, not a full booth experience. */
   function startReadDemo() {
@@ -110,9 +110,9 @@ export function App() {
     triggerMascotDisintegrate();
   }
 
-  function onSurveyComplete(session: Session, seer: Seer) {
-    // Survey close: clear the active session and route to the reading.
-    // The Person record was upserted during the survey (at save threshold
+  function onAntechamberComplete(session: Session, seer: Seer) {
+    // Antechamber close: clear the active session and route to the reading.
+    // The Person record was upserted during the antechamber (at save threshold
     // and on each subsequent save), so identity persists across visits.
     clearActiveSession();
     setPhase({ kind: 'reading', session, seer });
@@ -194,12 +194,12 @@ export function App() {
 
           {phase.kind === 'settings' && <Settings onBack={goMenu} />}
 
-          {phase.kind === 'survey' && apiKey && (
-            <SurveyScreen
+          {phase.kind === 'antechamber' && apiKey && (
+            <AntechamberScreen
               apiKey={apiKey}
               session={phase.session}
               loadedPerson={phase.loadedPerson}
-              onComplete={(seer) => onSurveyComplete(phase.session, seer)}
+              onComplete={(seer) => onAntechamberComplete(phase.session, seer)}
             />
           )}
 
@@ -221,7 +221,7 @@ export function App() {
       <Debug visible={debugVisible} />
       {/* seeder pivot left column: anchor only (wave D will add the
           compiler streaming view + seeder notes view). */}
-      {debugVisible && phase.kind === 'survey' && (
+      {debugVisible && phase.kind === 'antechamber' && (
         <div className="debug-left-column">
           <AnchorView visible={true} />
         </div>

@@ -1,4 +1,4 @@
-// Shared LLM primitives. Both SurveyEngine and SeerEngine route every
+// Shared LLM primitives. Both AntechamberEngine and SeerEngine route every
 // model call through this module. The concrete adapter (Anthropic) is
 // the only file that imports the SDK; the interface stays
 // vendor-agnostic so an Ollama / llama.cpp swap is one file later.

@@ -15,7 +15,7 @@ import { useState } from 'react';
 import { useChoiceReady } from './useChoiceReady';
 
 type Props = {
-  /** Options as strings of form "left | right". The parseSurveyMd
+  /** Options as strings of form "left | right". The parsePillarsMd
    *  parser stores fork options this way (one tuple per dichotomy);
    *  this component splits on the pipe. */
   options: string[];

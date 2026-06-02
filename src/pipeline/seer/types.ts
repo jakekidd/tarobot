@@ -1,6 +1,6 @@
 // Reading types.
 //
-// The reading phase consumes the survey's CompilerOutput (Profile + Brief
+// The reading phase consumes the antechamber's CompilerOutput (Profile + Brief
 // + Choice) and produces a fan-out, card-flipped portrait of the user-at-
 // the-fork. New architecture (replaces the older Plan-and-Write):
 //
@@ -25,7 +25,7 @@
 // uncensored OSS LLMs.
 
 import type { DrawnCards, Profile } from '../types';
-import type { PickEvent } from '../survey';
+import type { PickEvent } from '../antechamber';
 
 // ─── ReadingInputs — internal Seer state shape ─────────────────
 // Built INSIDE Seer's constructor from SeerOpts. Kept as its own type
@@ -45,7 +45,7 @@ export type ReadingInputs = {
 // ─── Outcomes ───────────────────────────────────────────────
 //
 // An Outcome is a coherent picture of one way the intention could open
-// onto reality. Seeded by the survey-side Augur agent before the Seer
+// onto reality. Seeded by the antechamber-side Augur agent before the Seer
 // is constructed; passed in as Seer input; consumed by all director
 // calls (per-card, closing, intro) for texture. Actor does NOT read
 // outcomes directly — the director embeds specifics from outcomes into
@@ -67,14 +67,14 @@ export type Outcome = {
 export type IntroDirectorInput = {
   profile: Profile;
   intention: string;
-  surveyHistory: PickEvent[];
+  antechamberHistory: PickEvent[];
   outcomes: Outcome[];
-  /** The narrative cross-section the survey's detective built. Forms
+  /** The narrative cross-section the antechamber's dowser built. Forms
    *  the SPINE of the prose_brief — the director writes around the
    *  fork / present_pressure / past_root / stakes slots, weaving
-   *  picks + cast + hooks around them. May be null when the survey
-   *  closed before the detective committed a story. */
-  story?: import('../survey').StoryObject | null;
+   *  picks + cast + hooks around them. May be null when the antechamber
+   *  closed before the dowser committed a story. */
+  story?: import('../antechamber').StoryObject | null;
 };
 
 // ─── Per-card director (prepares the Set the seer inhabits) ─────
@@ -277,18 +277,18 @@ export type ClosingDirectorInput = {
   outcomes: Outcome[];
   revealed: RevealedSlot[];
   chat_history: ChatMessage[];
-  /** The detective's StoryObject — same one the intro director read.
+  /** The dowser's StoryObject — same one the intro director read.
    *  Closing director uses past_root / present_pressure / fork.a /
    *  fork.b to shape the takeaway: the lens the user carries out is
    *  about their RELATIONSHIP to the fork, not advice. */
-  story?: import('../survey').StoryObject | null;
-  /** Hypotheses that survived the survey without integration or
+  story?: import('../antechamber').StoryObject | null;
+  /** Hypotheses that survived the antechamber without integration or
    *  refutation, sorted by age_in_turns DESC. The closing director
    *  MAY take a risky swing at one as the loaded probe at the end
    *  ("there's something you haven't said about X — i'm guessing it's
    *  because Y"). Optional theatrical move. Older probes are more
    *  durable; the first item is the most diagnostically interesting. */
-  heldProbes?: import('../survey').Hypothesis[];
+  heldProbes?: import('../antechamber').Hypothesis[];
 };
 
 export type ClosingActorInput = {

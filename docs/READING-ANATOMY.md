@@ -1,13 +1,13 @@
 # the reading — an anatomy
 
 A deep-dive on the reading subsystem (`src/pipeline/seer/`, `src/ui/Reading.tsx`,
-`materials/prompts/seer/`). Snapshot of branch `survey-engine-v3` at the time
+`materials/prompts/seer/`). Snapshot of branch `antechamber-engine-v3` at the time
 of writing; this corner of the codebase is churning (slot meanings + the fan-out
 are stable, the actor voice + the closing mantra are not), so when something
 here looks wrong, trust the source.
 
 The reading is the destination the rest of the app serves. The survey hands
-the Seer four things — a `Profile`, a `surveyHistory`, an `intention`, and
+the Seer four things — a `Profile`, a `antechamberHistory`, an `intention`, and
 an `outcomes` list — plus a fresh 4-card draw from `cards.ts`. From that
 moment forward, the reading owns the screen.
 
@@ -18,7 +18,7 @@ moment forward, the reading owns the screen.
 ```mermaid
 flowchart LR
   subgraph SURVEY [survey side]
-    A[SurveyEngine] -->|profile + history + intention + outcomes + story + heldProbes + drawn| B[new Seer]
+    A[AntechamberEngine] -->|profile + history + intention + outcomes + story + heldProbes + drawn| B[new Seer]
   end
 
   subgraph SEER [seer engine]
@@ -361,7 +361,7 @@ not on the hot path — they're used by `validateKey` only.)
 
 What every director call receives (beyond its own specifics):
 
-- `profile` — the survey's compiled Profile (identity, candidates,
+- `profile` — the antechamber's compiled Profile (identity, candidates,
   cast, hunches, margin, cognition_log, highlights, observer_body,
   observer_hooks, observer_edges, observer_side_channel).
 - `prose_brief` — the intro director's output; stored on
@@ -536,7 +536,7 @@ sequenceDiagram
 ```
 
 The closing director gets one extra piece of input: `heldProbes` — the
-top-5 hypotheses that survived the survey unintegrated and unrefuted
+top-5 hypotheses that survived the antechamber unintegrated and unrefuted
 (sorted by `age_in_turns DESC`; older = more durable). The prompt
 licenses ONE risky swing per reading: "there's something you haven't
 said about X — i'm guessing it's because Y." Optional theatrical move.
@@ -723,16 +723,16 @@ up after the split (`Reading.tsx:635-679`).
 
 ---
 
-## 17. how the survey hands off
+## 17. how the antechamber hands off
 
 The survey engine constructs the Seer at close
-(`src/pipeline/survey/engine.ts:570-580`):
+(`src/pipeline/antechamber/engine.ts:570-580`):
 
 ```ts
 this.seer = new Seer({
   adapter: this.opts.adapter,
   profile,
-  surveyHistory: this.state.picks_log,
+  antechamberHistory: this.state.picks_log,
   intention: cleaned,
   drawn,
   outcomes,
@@ -758,7 +758,7 @@ The `heldProbes` array goes through a `claim → description` rename at
 the boundary (a v2 → seer shape adapter); the Seer code stays
 untouched.
 
-The demo path bypasses the survey entirely — `buildMarisolDemoSeer`
+The demo path bypasses the antechamber entirely — `buildMarisolDemoSeer`
 constructs a Seer with a hand-authored Profile and `preferred_intro`,
 which short-circuits both intro calls and drops the prose_brief
 straight into engine state. Useful for iterating on the reading

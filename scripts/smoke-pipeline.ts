@@ -5,7 +5,7 @@
 //
 // This is NOT a quality benchmark — outputs are printed for the human to
 // eyeball. It's the cheapest way to verify the prompt-engineering overhauls
-// (WEAVER, compiler-as-sieve, intention chips, WARM/COLD detective) didn't
+// (WEAVER, compiler-as-sieve, intention chips, WARM/COLD dowser) didn't
 // break the contract between agents.
 //
 // Usage:
@@ -15,13 +15,13 @@
 import kleur from 'kleur';
 import { createClaudeClient } from '../src/pipeline/claude';
 import { AnthropicAdapter } from '../src/pipeline/llm/adapter-anthropic';
-import { runDetective, blobToQueuedAssertion } from '../src/pipeline/survey/agents/detective';
-import { runWeaver } from '../src/pipeline/survey/agents/weaver';
-import { runIntentionSuggestor } from '../src/pipeline/survey/intention-suggestor';
-import { runCompiler, DilemmaDocumentSchema, type DilemmaDocument } from '../src/pipeline/survey/agents/compiler';
-import type { TranscriptEntry } from '../src/pipeline/survey/transcript';
-import type { EngineState, PickEvent, SurveyProfile, VerbatimEntry, PotentialDilemma } from '../src/pipeline/survey/types';
-import { EMPTY_DOC } from '../src/pipeline/survey/living-doc';
+import { runDowser, blobToQueuedGuess } from '../src/pipeline/antechamber/agents/dowser';
+import { runWeaver } from '../src/pipeline/antechamber/agents/weaver';
+import { runIntentionSuggestor } from '../src/pipeline/antechamber/intention-suggestor';
+import { runCompiler, DilemmaDocumentSchema, type DilemmaDocument } from '../src/pipeline/antechamber/agents/compiler';
+import type { TranscriptEntry } from '../src/pipeline/antechamber/transcript';
+import type { EngineState, PickEvent, AntechamberProfile, VerbatimEntry, PotentialDilemma } from '../src/pipeline/antechamber/types';
+import { EMPTY_DOC } from '../src/pipeline/antechamber/living-doc';
 
 // ─── CLI ────────────────────────────────────────────────────────
 
@@ -44,7 +44,7 @@ function parseArgs(argv: string[]): { apiKey?: string; runs: number } {
  *  quitting the day job to write full-time. Pillars answered with
  *  the kind of texture a real participant would supply. */
 function makeFabricatedState(): EngineState {
-  const profile: SurveyProfile = {
+  const profile: AntechamberProfile = {
     name: 'maren',
     birthday: { year: 1993, month: 7, day: 4 },
     sun_sign: 'cancer',
@@ -147,9 +147,9 @@ function makeFabricatedState(): EngineState {
     anchor: '',
     verbatim_log,
     transcript,
-    detective_thinking: '',
+    dowser_thinking: '',
     hypotheses: [],
-    assertion_queue: [],
+    guess_queue: [],
     weaver_candidates: [],
     weaver_engagement: 'live',
     weaver_run_count: 0,
@@ -192,25 +192,25 @@ async function runOne(adapter: AnthropicAdapter, runIdx: number, totalRuns: numb
   console.log(kleur.cyan().bold(`\n═══ run ${runIdx + 1} of ${totalRuns} ═══\n`));
   let state = makeFabricatedState();
 
-  // ── DETECTIVE (3 passes, with fake WARM/COLD responses between) ──
+  // ── DOWSER (3 passes, with fake WARM/COLD responses between) ──
   for (let pass = 1; pass <= 3; pass++) {
     try {
-      const { value: blob, ms } = await timed(() => runDetective(adapter, { state }));
+      const { value: blob, ms } = await timed(() => runDowser(adapter, { state }));
       const hasAll = blob.thinking.length > 0
         && blob.hypotheses.length > 0
-        && blob.assertion.length > 0
+        && blob.guess.length > 0
         && blob.if_warm.length > 0
         && blob.if_cold.length > 0;
-      const queued = blobToQueuedAssertion(blob, state.assertion_queue.length + 1, 5 + pass);
+      const queued = blobToQueuedGuess(blob, state.guess_queue.length + 1, 5 + pass);
       const passOk = hasAll && queued !== null;
       results.push({
-        name: `DETECTIVE pass ${pass}`,
+        name: `DOWSER pass ${pass}`,
         pass: passOk,
         ms,
         detail: passOk
           ? `${blob.hypotheses.length} hypotheses; A${queued?.idx} queued`
-          : `missing sections: ${[!blob.thinking && 'thinking', !blob.hypotheses.length && 'hypotheses', !blob.assertion && 'assertion', !blob.if_warm && 'if_warm', !blob.if_cold && 'if_cold'].filter(Boolean).join(', ')}`,
-        sample: `[${blob.hypotheses.length} hyps: ${blob.hypotheses.slice(0, 2).join(' | ')}${blob.hypotheses.length > 2 ? ' | …' : ''}]\nA: ${blob.assertion}\nwarm: ${blob.if_warm}\ncold: ${blob.if_cold}`,
+          : `missing sections: ${[!blob.thinking && 'thinking', !blob.hypotheses.length && 'hypotheses', !blob.guess && 'guess', !blob.if_warm && 'if_warm', !blob.if_cold && 'if_cold'].filter(Boolean).join(', ')}`,
+        sample: `[${blob.hypotheses.length} hyps: ${blob.hypotheses.slice(0, 2).join(' | ')}${blob.hypotheses.length > 2 ? ' | …' : ''}]\nA: ${blob.guess}\nwarm: ${blob.if_warm}\ncold: ${blob.if_cold}`,
       });
       if (queued) {
         // Apply state update + fabricate a user response so the next
@@ -223,13 +223,13 @@ async function runOne(adapter: AnthropicAdapter, runIdx: number, totalRuns: numb
         const fake = FAKE_RESPONSES[pass - 1]!;
         state = {
           ...state,
-          detective_thinking: state.detective_thinking + (state.detective_thinking ? '\n\n' : '') + blob.thinking,
+          dowser_thinking: state.dowser_thinking + (state.dowser_thinking ? '\n\n' : '') + blob.thinking,
           hypotheses: blob.hypotheses,
-          assertion_queue: [...state.assertion_queue, queued],
+          guess_queue: [...state.guess_queue, queued],
           transcript: [
             ...state.transcript,
-            { kind: 'assertion', assertion_idx: queued.idx, statement: queued.statement },
-            { kind: 'response', assertion_idx: queued.idx, direction: fake.direction, ...(fake.correction ? { correction: fake.correction } : {}), latency_ms: 4500 },
+            { kind: 'guess', guess_idx: queued.idx, statement: queued.statement },
+            { kind: 'response', guess_idx: queued.idx, direction: fake.direction, ...(fake.correction ? { correction: fake.correction } : {}), latency_ms: 4500 },
           ],
           verbatim_log: fake.correction
             ? [...state.verbatim_log, { index: state.verbatim_log.length, turn: 5 + pass, source: 'correction', text: fake.correction, captured_at: Date.now() }]
@@ -237,7 +237,7 @@ async function runOne(adapter: AnthropicAdapter, runIdx: number, totalRuns: numb
         };
       }
     } catch (e) {
-      results.push({ name: `DETECTIVE pass ${pass}`, pass: false, ms: 0, detail: `threw: ${String(e).slice(0, 400)}` });
+      results.push({ name: `DOWSER pass ${pass}`, pass: false, ms: 0, detail: `threw: ${String(e).slice(0, 400)}` });
       break;
     }
   }
@@ -249,7 +249,7 @@ async function runOne(adapter: AnthropicAdapter, runIdx: number, totalRuns: numb
       const labelsValid = blob.candidates.every((c) => /^[a-z][a-z0-9-]*$/.test(c.label));
       const allHaveThoughts = blob.candidates.every((c) => c.thoughts.length > 0);
       const anchoredEvidence = blob.candidates.every((c) =>
-        c.thoughts.every((t) => /entry \d+|assertion \d+|warm|cold/i.test(t)),
+        c.thoughts.every((t) => /entry \d+|guess \d+|warm|cold/i.test(t)),
       );
       const passOk = blob.candidates.length > 0 && labelsValid && allHaveThoughts && anchoredEvidence;
       results.push({
@@ -355,7 +355,7 @@ function checkDilemmaDocument(doc: DilemmaDocument): { ok: boolean; issues: stri
     if (doc.resolution_path !== 'null-landing') issues.push(`null_landing but path=${doc.resolution_path}`);
   }
   for (const h of doc.critical_hypotheses) {
-    if (!/entry \d+|assertion \d+|warm|cold|weaver/i.test(h.evidence)) {
+    if (!/entry \d+|guess \d+|warm|cold|weaver/i.test(h.evidence)) {
       issues.push(`unanchored evidence on hypothesis: "${h.claim.slice(0, 40)}…"`);
     }
   }

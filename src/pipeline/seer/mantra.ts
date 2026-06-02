@@ -9,7 +9,7 @@
 
 import type { LLMAdapter } from '../llm/adapter';
 import type { Profile } from '../types';
-import type { StoryObject } from '../survey';
+import type { StoryObject } from '../antechamber';
 import type { ChatMessage, RevealedSlot } from './types';
 import MANTRA_SYSTEM_RAW from '../../../materials/prompts/mantra.md?raw';
 

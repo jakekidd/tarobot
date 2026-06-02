@@ -1,5 +1,5 @@
 // Astrology / numerology derivations from a birth date. Pure functions —
-// safe to compute on the client immediately when the survey collects the
+// safe to compute on the client immediately when the antechamber collects the
 // answer. Three systems unlock from one input:
 //   1. Western tropical sun sign      (date-band lookup)
 //   2. Numerological life path number (digit reduction, master numbers preserved)
@@ -144,7 +144,7 @@ export function parseBirthDate(s: string): BirthDate | null {
   // Year range goes back to 0 AD. The astro math (sun sign / life path /
   // tarot birth card) works for any year — they're modular ops. Out-of-
   // band years (1900) just produce centenarian readings; the UI surfaces
-  // a sassy lamp-hang interlude (see Survey.tsx) so users hiding their
+  // a sassy lamp-hang interlude (see Antechamber.tsx) so users hiding their
   // real birthyear get acknowledged rather than confused by a rejection.
   if (year < 0 || year > 2100) return null;
   return { year, month, day };

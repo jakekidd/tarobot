@@ -57,7 +57,7 @@ import { ChatInput } from './ChatInput';
 
 type Props = {
   apiKey: string;
-  /** Pre-built Seer handed from App (survey close OR demo path). The
+  /** Pre-built Seer handed from App (antechamber close OR demo path). The
    *  intro was generated during construction; we just play it. */
   seer: Seer;
   onExit: () => void;
@@ -771,12 +771,12 @@ function ReadingFooter({
 }) {
   if (state.phase === 'done' || state.phase === 'error') {
     return (
-      <div className="survey__footer">
+      <div className="antechamber__footer">
         <button className="btn btn--quiet" onClick={onExit}>
           close
         </button>
       </div>
     );
   }
-  return <div className="survey__footer" />;
+  return <div className="antechamber__footer" />;
 }

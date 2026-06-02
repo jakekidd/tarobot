@@ -1,9 +1,9 @@
-// Mascot disintegrate trigger. Fired by Survey on the farewell beat
+// Mascot disintegrate trigger. Fired by Antechamber on the farewell beat
 // (after the goodbye dialogue finishes typing). The scene relays the
 // trigger to the active mascot's disintegrate() method and reports
-// completion back so Survey can route into Reading.
+// completion back so Antechamber can route into Reading.
 //
-// No state machine — strictly one-shot per trigger. Survey is
+// No state machine — strictly one-shot per trigger. Antechamber is
 // responsible for not firing it twice (it doesn't — farewell substate
 // is gate-kept by useState).
 

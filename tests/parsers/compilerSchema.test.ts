@@ -5,8 +5,8 @@ import { describe, expect, it } from 'vitest';
 import {
   DilemmaDocumentSchema,
   type DilemmaDocument,
-} from '../../src/pipeline/survey/agents/compiler';
-import { renderDilemmaAsAnchor } from '../../src/pipeline/survey/agents/compiler/render';
+} from '../../src/pipeline/antechamber/agents/compiler';
+import { renderDilemmaAsAnchor } from '../../src/pipeline/antechamber/agents/compiler/render';
 
 function makeValidDoc(): DilemmaDocument {
   return {
@@ -28,7 +28,7 @@ function makeValidDoc(): DilemmaDocument {
     critical_hypotheses: [
       {
         claim: 'the subject is performing okayness about the day-job as a way to avoid the bigger fork',
-        evidence: 'warm on assertion 1; entry 4 — "less the job, more what staying says about me"',
+        evidence: 'warm on guess 1; entry 4 — "less the job, more what staying says about me"',
         confidence: 'high',
       },
     ],
@@ -162,7 +162,7 @@ describe('renderDilemmaAsAnchor', () => {
     const md = renderDilemmaAsAnchor(makeValidDoc());
     expect(md).toContain('## Critical Hypotheses');
     expect(md).toContain('performing okayness');
-    expect(md).toContain('warm on assertion 1');
+    expect(md).toContain('warm on guess 1');
   });
 
   it('emits a thin Dilemma section + no other content on null-landing', () => {

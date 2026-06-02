@@ -422,7 +422,7 @@ export function TarobotScene() {
 
     const particleGroup = new THREE.Group();
 
-    // ── Mascot (the survey-side figure) ───────────────────
+    // ── Mascot (the antechamber-side figure) ───────────────────
     // Selected once at scene mount. Resolution order:
     //   ?mascot=<id> URL param  →  localStorage Settings.mascotId
     //   →  DEFAULT_MASCOT_ID (currently 'turtle').
@@ -467,9 +467,9 @@ export function TarobotScene() {
       starColorTarget = m === 'eyes' ? STAR_TURQUOISE : STAR_VIOLET;
     });
 
-    // Mascot disintegrate trigger — fired by Survey on the farewell beat.
+    // Mascot disintegrate trigger — fired by Antechamber on the farewell beat.
     // Relays to the active mascot's optional disintegrate() method; when
-    // that calls back, broadcast completion so Survey can route into
+    // that calls back, broadcast completion so Antechamber can route into
     // Reading. If the mascot doesn't implement disintegrate, fall back
     // to immediate completion so the flow doesn't stall.
     const unsubscribeDisintegrateTrigger = subscribeMascotDisintegrateTrigger(() => {
@@ -1011,7 +1011,7 @@ export function TarobotScene() {
     let lastFrameMs = start;
     // Anchor lerp tracker. False on first valid anchor frame so we snap
     // into position; true thereafter so DOM-level anchor changes
-    // (Menu → Survey moves the Reader element) lerp smoothly.
+    // (Menu → Antechamber moves the Reader element) lerp smoothly.
     let anchorInitialized = false;
 
     const animate = () => {
@@ -1097,7 +1097,7 @@ export function TarobotScene() {
 
       if (anchor) {
         // Smooth anchor tracking. The DOM anchor jumps instantly when a
-        // screen swaps (Menu → Survey moves the Reader element up the
+        // screen swaps (Menu → Antechamber moves the Reader element up the
         // layout); without lerping, the mascot + stars snap with it.
         // Exponential approach at rate ~0.08/frame ≈ half-second settle.
         const targetX = anchor.x - viewportW / 2;

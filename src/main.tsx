@@ -15,7 +15,7 @@ if (!root) throw new Error('root element not found');
 attachGestureGuard();
 
 // One-time cleanup of the legacy Jade-editor localStorage entry. The
-// in-app survey editor is gone; SURVEY.md on GitHub is the source of
+// in-app survey editor is gone; pillars.md on GitHub is the source of
 // truth now. Safe to call every boot — the key simply won't exist for
 // most users.
 try { localStorage.removeItem('tarobot:jade:tree'); } catch { /* ignore */ }

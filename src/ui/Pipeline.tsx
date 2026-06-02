@@ -1,17 +1,17 @@
 // Pipeline audit page.
 //
-// One scrollable canvas with two sections (SurveyEngine and SeerEngine).
+// One scrollable canvas with two sections (AntechamberEngine and SeerEngine).
 // Each section: a Mermaid flowchart at the top showing structure (with
 // I/O type names on the edges), then per-agent detail cards below with
 // the prompt text pulled LIVE from the source files.
 //
 // Runtime categorization (the load-bearing axis):
-//   - local : observer / detective / interrogator + all seer actor agents
+//   - local : observer / dowser / interrogator + all seer actor agents
 //             — designated to run on a local OSS LLM on the booth's
 //             on-prem computer in prod. Today fulfilled by Claude.
 //   - cloud : shaman / augur + all seer director agents — stays cloud
 //             in prod (Anthropic API). Latency tolerable because the
-//             one-shot ones (shaman, augur) run at survey close, and
+//             one-shot ones (shaman, augur) run at antechamber close, and
 //             the seer director runs in parallel with the actor's voice.
 //
 // User-action nodes (where the human in front of the booth participates)
@@ -23,18 +23,18 @@ import mermaid from 'mermaid';
 
 // ── Live config imports (so this page reflects engine constants) ──
 
-import { STARTER_SEED_COUNT } from '../pipeline/survey';
+import { STARTER_SEED_COUNT } from '../pipeline/antechamber';
 
 // ── Live prompt imports ─────────────────────────────────────
 
-import { DETECTIVE_SYSTEM_TEMPLATE } from '../pipeline/survey/agents/detective';
-import { WEAVER_SYSTEM_TEMPLATE } from '../pipeline/survey/agents/weaver';
+import { DOWSER_SYSTEM_TEMPLATE } from '../pipeline/antechamber/agents/dowser';
+import { WEAVER_SYSTEM_TEMPLATE } from '../pipeline/antechamber/agents/weaver';
 import INTENTION_SUGGESTOR_RAW from '../../materials/prompts/intention-suggestor.md?raw';
 import {
   AUGUR_OUTLINE_SYSTEM,
   AUGUR_OUTLINE_TOOL,
   AUGUR_FILL_SYSTEM,
-} from '../pipeline/survey/agents/augur';
+} from '../pipeline/antechamber/agents/augur';
 import { MANTRA_SYSTEM } from '../pipeline/seer/mantra';
 
 import {
@@ -84,29 +84,29 @@ type AgentSpec = {
   notes?: string;
 };
 
-const SURVEY_AGENTS: AgentSpec[] = [
+const ANTECHAMBER_AGENTS: AgentSpec[] = [
   {
     id: 'algo-seeder',
     name: 'Algorithmic Seeder',
     runtime: 'local',
-    call_pattern: 'synchronous, deterministic — fires before every post-opener pipeline. No LLM call. Reads the answered node\'s Inversions probe and drops Probe seeds into doc.held (consumed by the Seer\'s closing director as held probes). Pending: upgrade to a richer declarative mark/glyph attachment system driven by the survey markdown — see docs/PIPELINE.md.',
+    call_pattern: 'synchronous, deterministic — fires before every post-opener pipeline. No LLM call. Reads the answered node\'s Inversions probe and drops Probe seeds into doc.held (consumed by the Seer\'s closing director as held probes). Pending: upgrade to a richer declarative mark/glyph attachment system driven by the pillars markdown — see docs/PIPELINE.md.',
     input_type: 'TreeNode + answer + turn_n',
     output_type: 'Probe[]',
     inputs: 'answered node (Surface/Inversions/Watch-for probe blocks) + user answer + current turn',
     outputs: 'Probe[] pushed into doc.held; ages existing held items by 1 turn',
-    prompt: '(no prompt — pure TypeScript function in src/pipeline/survey/seeder.ts)',
+    prompt: '(no prompt — pure TypeScript function in src/pipeline/antechamber/seeder.ts)',
     notes: 'Zero LLM cost. Deterministic. Currently the SOLE pre-interrogation signal layer after the Haiku seeder was deleted (its observations were mostly restatements of transcript data).',
   },
   {
-    id: 'detective',
-    name: 'Detective',
+    id: 'dowser',
+    name: 'Dowser',
     runtime: 'cloud',
-    call_pattern: 'Interrogation phase only. Called repeatedly to refill an assertion queue 3-ahead of the user; latest answer always wins (queue is provisional, not a script).',
-    input_type: 'DetectiveInput',
-    output_type: 'DetectiveTextBlob',
-    inputs: 'transcript (pillar Q&A + seeder obs + assertions + responses) + hypotheses_so_far (re-vote by repetition) + assertion_queue + verbatim_log + detective_thinking_so_far (continuous transcript)',
-    outputs: 'free-form thinking, then ===HYPOTHESES===, ===ASSERTION===, ===IF_WARM===, ===IF_COLD===',
-    prompt: DETECTIVE_SYSTEM_TEMPLATE,
+    call_pattern: 'Interrogation phase only. Called repeatedly to refill an guess queue 3-ahead of the user; latest answer always wins (queue is provisional, not a script).',
+    input_type: 'DowserInput',
+    output_type: 'DowserTextBlob',
+    inputs: 'transcript (pillar Q&A + seeder obs + guesses + responses) + hypotheses_so_far (re-vote by repetition) + guess_queue + verbatim_log + dowser_thinking_so_far (continuous transcript)',
+    outputs: 'free-form thinking, then ===HYPOTHESES===, ===GUESS===, ===IF_WARM===, ===IF_COLD===',
+    prompt: DOWSER_SYSTEM_TEMPLATE,
     tool_name: 'freeform',
     notes: 'Opus, 4K tokens. Hypothesis re-listing = vote. Asserts situation, not interior. WARM/COLD as absolute (COLD eliminates a region, never inverts). Correction text is the gold.',
   },
@@ -114,10 +114,10 @@ const SURVEY_AGENTS: AgentSpec[] = [
     id: 'weaver',
     name: 'Weaver',
     runtime: 'cloud',
-    call_pattern: 'Interrogation phase only. Fires every 2 answered assertions (~3 calls across the 6-assertion ceiling). Haiku tier. Background — does not block the detective. Owns the engagement early-out.',
+    call_pattern: 'Interrogation phase only. Fires every 2 answered guesses (~3 calls across the 6-guess ceiling). Haiku tier. Background — does not block the dowser. Owns the engagement early-out.',
     input_type: 'RunWeaverArgs',
     output_type: 'WeaverTextBlob',
-    inputs: 'transcript + verbatim_log + detective_hypotheses (advisory) + weaver_candidates_so_far + run_idx / run_total',
+    inputs: 'transcript + verbatim_log + dowser_hypotheses (advisory) + weaver_candidates_so_far + run_idx / run_total',
     outputs: 'free-form thinking, then ===CANDIDATES=== (label / description / evidence-anchored thoughts), then ===TERMINATE=== (yes | no)',
     prompt: WEAVER_SYSTEM_TEMPLATE,
     tool_name: 'freeform',
@@ -143,7 +143,7 @@ const SURVEY_AGENTS: AgentSpec[] = [
     call_pattern: 'blocking — once after intention is picked',
     input_type: 'AugurOutlineInput',
     output_type: 'Outcome[] (id + label only)',
-    inputs: 'profile + story + intention + survey history (compact)',
+    inputs: 'profile + story + intention + antechamber history (compact)',
     outputs: 'Array<{ id, label }> (2–4 outcomes named)',
     prompt: AUGUR_OUTLINE_SYSTEM,
     tool_name: AUGUR_OUTLINE_TOOL.name,
@@ -156,7 +156,7 @@ const SURVEY_AGENTS: AgentSpec[] = [
     call_pattern: 'parallel fan-out — N invocations (one per outline entry)',
     input_type: 'AugurFillInput',
     output_type: 'string (markdown document)',
-    inputs: 'profile + story + intention + survey history + ONE outcome (id + label)',
+    inputs: 'profile + story + intention + antechamber history + ONE outcome (id + label)',
     outputs: 'string (freely-written markdown; ~2000 tokens)',
     prompt: AUGUR_FILL_SYSTEM,
     tool_name: '(freeform, no tool)',
@@ -172,8 +172,8 @@ const SEER_AGENTS: AgentSpec[] = [
     call_pattern: 'serial — fires once in SeerEngine constructor (stage 1 of intro)',
     input_type: 'IntroDirectorInput',
     output_type: 'string (prose_brief)',
-    inputs: 'profile + story + heldProbes + investigation + intention + surveyHistory + outcomes',
-    outputs: 'string (prose_brief — the detective brief the seer reads silently)',
+    inputs: 'profile + story + heldProbes + investigation + intention + antechamberHistory + outcomes',
+    outputs: 'string (prose_brief — the dowser brief the seer reads silently)',
     prompt: INTRO_DIRECTOR_SYSTEM,
     tool_name: INTRO_DIRECTOR_TOOL.name,
     notes: 'Writes the prose brief that all subsequent per-card / closing director calls reuse. StoryObject is the spine: past_root → present_pressure → fork. Orients across outcomes; never advocates.',
@@ -301,8 +301,8 @@ const AGENT = (name: string, runtime: 'local' | 'cloud') =>
 const IO = (typeName: string, fields: string) =>
   fields ? `<b>${typeName}</b><br/>${fields}` : `<b>${typeName}</b>`;
 
-const SURVEY_DIAGRAM = `flowchart TD
-  start([survey start]) --> openers
+const ANTECHAMBER_DIAGRAM = `flowchart TD
+  start([antechamber start]) --> openers
   subgraph openers["Openers · no AI · no profile mutations"]
     direction LR
     o1["${BOX('name')}"] --> o2["${BOX('birthday')}"] --> o3["${BOX('relationship_pick')}"] --> o4["${BOX('intent<br/><i>question sandwich, part 1</i>')}"]
@@ -315,9 +315,9 @@ const SURVEY_DIAGRAM = `flowchart TD
   snapshot --> seeder[/"${BOX('algorithmic seeder<br/>(deterministic, no LLM):<br/>Inversions probe →<br/>fresh tentative hypotheses<br/>+ age existing seeds')}"/]
   seeder --> fanOut(["◀ pipeline fan-out ▶"])
   fanOut ==>|"${IO('ObserverInput', 'profile template + profile.body<br/>+ Q-and-A history<br/>+ side-channel telemetry<br/>+ investigation board')}"| obs["${AGENT('Observer', 'cloud')}"]
-  fanOut ==>|"${IO('DetectiveInput', 'snapshot + investigation<br/>+ current story<br/>+ private_thoughts')}"| det["${AGENT('Detective', 'cloud')}"]
+  fanOut ==>|"${IO('DowserInput', 'snapshot + investigation<br/>+ current story<br/>+ private_thoughts')}"| det["${AGENT('Dowser', 'cloud')}"]
   obs -->|"${IO('ObserverOutput', '{profile_body, hooks, edges,<br/>side_channel, cast_notes_updates,<br/>hypothesis_ladder_moves}')}"| applyO[/"${BOX('apply: rewrite body,<br/>merge cast notes,<br/>route ladder moves')}"/]
-  det -->|"${IO('DetectiveOutput', '{new_hypotheses,<br/>hypothesis_ladder_moves,<br/>story_updates, private_thoughts}')}"| applyD[/"${BOX('apply: add hyps,<br/>merge story,<br/>route ladder moves')}"/]
+  det -->|"${IO('DowserOutput', '{new_hypotheses,<br/>hypothesis_ladder_moves,<br/>story_updates, private_thoughts}')}"| applyD[/"${BOX('apply: add hyps,<br/>merge story,<br/>route ladder moves')}"/]
   applyO --> ans
   applyD --> ans
 
@@ -346,8 +346,8 @@ const SURVEY_DIAGRAM = `flowchart TD
 
 const SEER_DIAGRAM = `flowchart TD
   seerStart[("new SeerEngine<br/>{profile, story, heldProbes,<br/>investigation, intention,<br/>drawn, outcomes}")]
-  seerStart -->|"${IO('IntroDirectorInput', '{profile, story, heldProbes,<br/>intention, surveyHistory, outcomes}')}"| dIntro["${AGENT('directorIntro', 'cloud')}"]
-  dIntro -->|"${IO('prose_brief', 'string (detective brief,<br/>spine = past_root →<br/>present_pressure → fork)')}"| aIntro["${AGENT('actorIntro', 'local')}"]
+  seerStart -->|"${IO('IntroDirectorInput', '{profile, story, heldProbes,<br/>intention, antechamberHistory, outcomes}')}"| dIntro["${AGENT('directorIntro', 'cloud')}"]
+  dIntro -->|"${IO('prose_brief', 'string (dowser brief,<br/>spine = past_root →<br/>present_pressure → fork)')}"| aIntro["${AGENT('actorIntro', 'local')}"]
   aIntro -->|"${IO('Monologue', '{text ≤14 words}')}"| ready((seer.ready resolves))
   ready --> enterBtn["${BOX('user clicks<br/>ENTER')}"]
   enterBtn --> introBeat[/"${BOX('intro delivered')}"/]
@@ -408,10 +408,10 @@ export function Pipeline({ onBack }: Props) {
       </header>
 
       <PipelineSection
-        title="SurveyEngine"
-        diagram={SURVEY_DIAGRAM}
-        diagramId="survey"
-        agents={SURVEY_AGENTS}
+        title="AntechamberEngine"
+        diagram={ANTECHAMBER_DIAGRAM}
+        diagramId="antechamber"
+        agents={ANTECHAMBER_AGENTS}
       />
 
       <PipelineSection

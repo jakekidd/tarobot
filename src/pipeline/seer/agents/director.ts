@@ -91,15 +91,15 @@ export async function directorIntro(
     observer_edges: input.profile.observer_edges,
     observer_side_channel: input.profile.observer_side_channel,
     intention: input.intention,
-    // The detective's StoryObject — the narrative cross-section across
+    // The dowser's StoryObject — the narrative cross-section across
     // time the subject is standing inside. Treat as the SPINE of the brief:
     // fork (two future paths) / present_pressure (what's acute) /
     // past_root (what pre-figures it) / stakes (what's at risk each
     // way) / hooks (concrete specifics). The four cards in the spread
-    // will land on these slots. Null when the survey didn't commit one
+    // will land on these slots. Null when the antechamber didn't commit one
     // — reconstruct from picks in that case.
     story: input.story ?? null,
-    survey_history: input.surveyHistory.map((p) => ({
+    survey_history: input.antechamberHistory.map((p) => ({
       question: p.question_text,
       options: p.options_shown,
       answer: p.answer,
@@ -109,7 +109,7 @@ export async function directorIntro(
     // the subject picking either). She does not pitch an outcome.
     outcomes: input.outcomes.map((o) => ({ id: o.id, label: o.label, document: o.document })),
     instruction:
-      'write the prose brief the seer reads silently before voicing the intro. lead with the survey_synthesis as the spine; use survey_history only to add texture or contradict the synthesis where it must. detective-tier specificity, 200-400 words, third person, the INTENTION is the centerpiece. orient the seer ACROSS the outcomes — what is at stake either way — without advocating for one.',
+      'write the prose brief the seer reads silently before voicing the intro. lead with the antechamber_synthesis as the spine; use survey_history only to add texture or contradict the synthesis where it must. dowser-tier specificity, 200-400 words, third person, the INTENTION is the centerpiece. orient the seer ACROSS the outcomes — what is at stake either way — without advocating for one.',
   };
 
   const out = await adapter.invoke<{ prose_brief: string; reasoning: string }>(
@@ -146,12 +146,12 @@ export async function directorClosing(
     observer_edges: input.profile.observer_edges,
     observer_side_channel: input.profile.observer_side_channel,
     prose_brief: input.prose_brief,
-    // The detective's StoryObject — same spine the intro read.
+    // The dowser's StoryObject — same spine the intro read.
     // Closing director uses fork / present_pressure / past_root to
     // shape the takeaway: a lens about the subject's RELATIONSHIP to
     // the fork, not advice.
     story: input.story ?? null,
-    // Hypotheses that survived the survey unintegrated and unrefuted.
+    // Hypotheses that survived the antechamber unintegrated and unrefuted.
     // Sorted by age_in_turns DESC — older = more durable. The
     // closing director MAY take a risky swing at the first one
     // ("there's something you haven't said about X — i'm guessing

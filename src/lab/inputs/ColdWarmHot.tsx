@@ -1,6 +1,6 @@
 // Bench input — ColdWarmHot.
 //
-// Three equal targets for assertion responses: COLD (wrong
+// Three equal targets for guess responses: COLD (wrong
 // neighbourhood; eliminate), WARM (right neighbourhood; refine),
 // HOT (dead on; you've struck a live wire). Plus an optional
 // correction text field that appears after the primary pick.
@@ -9,7 +9,7 @@
 // accurate and still cold if it isn't where the charge is. Resist
 // the urge to map this to a yes/no axis.
 //
-// Wire format matches the engine's parseAssertionAnswer:
+// Wire format matches the engine's parseGuessAnswer:
 //   'cold' | 'warm' | 'hot' | 'cold:<text>' | 'warm:<text>' | 'hot:<text>'
 
 import { useState, type FormEvent } from 'react';

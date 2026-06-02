@@ -1,7 +1,7 @@
 // The Mascot interface.
 //
-// tarobot is a two-phase program: SURVEY → READING. A "mascot" is the
-// 3D figure that hosts the user during the SURVEY (and idles in the
+// tarobot is a two-phase program: ANTECHAMBER → READING. A "mascot" is the
+// 3D figure that hosts the user during the ANTECHAMBER (and idles in the
 // menu). It is NOT the seer — the seer is a separate concept on the
 // reading side.
 //

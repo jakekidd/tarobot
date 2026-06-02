@@ -15,7 +15,7 @@ The sentence:
     the thoughts or verbatim entries; do not cite by index number)
   · is NOT generic — "should i quit my job" alone is too thin; the
     detail is what makes it land
-  · uses lowercase, no quotes, matches the survey's quiet register
+  · uses lowercase, no quotes, matches the antechamber's quiet register
   · NEVER mentions "the cards", "tarot", or "the reading" — this is
     the user's question itself, not a meta-statement about it
   · NEVER advises or moralizes — name the situation, not the verdict

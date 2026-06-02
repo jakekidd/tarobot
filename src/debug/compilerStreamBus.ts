@@ -1,6 +1,6 @@
 // Pub/sub for the close-pass Compiler's streamed output.
 //
-// The compiler runs ONCE per session at survey close, Opus with extended
+// The compiler runs ONCE per session at antechamber close, Opus with extended
 // thinking enabled. It streams two channels:
 //   - thinking deltas (the model's reasoning trace)
 //   - tool input deltas (the anchor markdown JSON accumulating)

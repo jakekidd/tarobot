@@ -1,11 +1,11 @@
 // Bench panel — Transcript.
-// The unified narrative the detective + weaver + compiler read. Renders
-// each kind of TranscriptEntry distinctly so picks / assertions /
+// The unified narrative the dowser + weaver + compiler read. Renders
+// each kind of TranscriptEntry distinctly so picks / guesses /
 // responses are visually separable at a glance.
 
 import { Panel, Empty, Pill } from '../lib';
-import type { EngineState } from '../../pipeline/survey';
-import type { TranscriptEntry } from '../../pipeline/survey/transcript';
+import type { EngineState } from '../../pipeline/antechamber';
+import type { TranscriptEntry } from '../../pipeline/antechamber/transcript';
 
 type Props = { state: EngineState };
 
@@ -51,11 +51,11 @@ function TranscriptEntryRow({ entry }: { entry: TranscriptEntry }) {
       </div>
     );
   }
-  if (entry.kind === 'assertion') {
+  if (entry.kind === 'guess') {
     return (
-      <div className="bench__transcript-entry bench__transcript-entry--assertion">
+      <div className="bench__transcript-entry bench__transcript-entry--guess">
         <div className="bench__transcript-q">
-          A{entry.assertion_idx}. {entry.statement}
+          A{entry.guess_idx}. {entry.statement}
         </div>
       </div>
     );

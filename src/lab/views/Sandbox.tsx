@@ -9,7 +9,7 @@
 // center, ThinkShelf on the right. Desktop only, fixed widths.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AnthropicAdapter } from '../../pipeline/survey';
+import { AnthropicAdapter } from '../../pipeline/antechamber';
 import { createClaudeClient } from '../../pipeline/claude';
 import { MarbleFlow } from '../sandbox/components/MarbleFlow';
 import { AgentDossier } from '../sandbox/components/AgentDossier';

@@ -1,6 +1,6 @@
-// Bench's own minimal hook over SurveyEngine.
+// Bench's own minimal hook over AntechamberEngine.
 //
-// Distinct from src/ui/survey/useSurveyEngine.ts on purpose. The main-
+// Distinct from src/ui/antechamber/useAntechamberEngine.ts on purpose. The main-
 // app hook carries persistence side-effects (the Person record save
 // threshold), modal callbacks, and other shaping appropriate to the
 // production reading experience. Bench wants the engine plain — no
@@ -11,10 +11,10 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
   AnthropicAdapter,
-  SurveyEngine,
+  AntechamberEngine,
   type EngineState,
   type RenderedQuestion,
-} from '../pipeline/survey';
+} from '../pipeline/antechamber';
 import { createClaudeClient } from '../pipeline/claude';
 import type { Seer } from '../pipeline/seer';
 
@@ -25,7 +25,7 @@ type Opts = {
 };
 
 type BenchHook = {
-  engine: SurveyEngine;
+  engine: AntechamberEngine;
   state: EngineState;
   currentQuestion: RenderedQuestion | null;
   submitAnswer: (answer: string | string[]) => Promise<void>;
@@ -38,7 +38,7 @@ type BenchHook = {
 export function useEngine({ apiKey, resetKey }: Opts): BenchHook {
   const engine = useMemo(() => {
     const adapter = new AnthropicAdapter(createClaudeClient(apiKey));
-    return new SurveyEngine({ adapter });
+    return new AntechamberEngine({ adapter });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [apiKey, resetKey]);
 

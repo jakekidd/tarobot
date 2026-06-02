@@ -5,7 +5,7 @@
 // durability across passes.
 
 import { Panel, Empty, Pill } from '../lib';
-import type { EngineState } from '../../pipeline/survey';
+import type { EngineState } from '../../pipeline/antechamber';
 
 type Props = { state: EngineState };
 
@@ -26,7 +26,7 @@ export function WeaverPanel({ state }: Props) {
       }
     >
       {candidates.length === 0 ? (
-        <Empty>no candidates yet — weaver fires every 2 answered assertions</Empty>
+        <Empty>no candidates yet — weaver fires every 2 answered guesses</Empty>
       ) : (
         <div className="bench__stack bench__stack--gap-2">
           {candidates.map((c) => (

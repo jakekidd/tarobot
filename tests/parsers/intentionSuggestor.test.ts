@@ -4,7 +4,7 @@
 // of tolerance for model variability.
 
 import { describe, expect, it } from 'vitest';
-import { cleanupSuggestion } from '../../src/pipeline/survey/intention-suggestor';
+import { cleanupSuggestion } from '../../src/pipeline/antechamber/intention-suggestor';
 
 describe('cleanupSuggestion', () => {
   it('returns a clean sentence as-is', () => {

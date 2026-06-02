@@ -1,11 +1,11 @@
-// Runner — drives the SurveyEngine against the bot, streams events to the
+// Runner — drives the AntechamberEngine against the bot, streams events to the
 // logger, finalizes, writes the run log.
 
 import {
   AnthropicAdapter,
-  SurveyEngine,
+  AntechamberEngine,
   type EngineState,
-} from '../../src/pipeline/survey';
+} from '../../src/pipeline/antechamber';
 import type { ClaudeClient } from '../../src/pipeline/claude';
 import type { Archetype } from './archetype';
 import { pickAnswer, type TranscriptEntry } from './bot';
@@ -22,7 +22,7 @@ export type RunOptions = {
   maxQuestions?: number;  // artificial cap; engine no longer auto-closes by count
 };
 
-export async function runSurvey(
+export async function runAntechamber(
   client: ClaudeClient,
   archetype: Archetype,
   logger: RunLogger,
@@ -30,7 +30,7 @@ export async function runSurvey(
 ): Promise<RunResult> {
   const maxQuestions = options.maxQuestions ?? 15;
   const adapter = new AnthropicAdapter(client, recordTokens);
-  const engine = new SurveyEngine({ adapter });
+  const engine = new AntechamberEngine({ adapter });
 
   const transcript: TranscriptEntry[] = [];
   let lastPhase = engine.getState().phase;
@@ -85,7 +85,7 @@ export async function runSurvey(
       logger.phaseHeader(lastPhase, engine.getState().heat);
     }
 
-    // Pipeline status — wait for the full Observer→Detective→Interrogator chain.
+    // Pipeline status — wait for the full Observer→Dowser→Interrogator chain.
     await engine.waitForQuiescence();
     const state = engine.getState();
     // v2: notes / choice_draft are gone. Use doc.margin entries +

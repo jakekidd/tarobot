@@ -1,7 +1,7 @@
 // Anti-double-submit guard for choice components.
 //
 // When a question transitions, React unmounts the previous MultipleChoice
-// and mounts a fresh one (forced via key={node_id} in Survey.tsx). The new
+// and mounts a fresh one (forced via key={node_id} in Antechamber.tsx). The new
 // component starts with no `pickedIdx`, so a stray tap that lands within
 // ~100–300ms of mount fires through as an answer to the NEW question —
 // even though the user thought they were still hammering the old one.

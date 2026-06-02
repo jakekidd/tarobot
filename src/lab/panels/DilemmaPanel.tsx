@@ -5,7 +5,7 @@
 
 import { useEffect, useState } from 'react';
 import { Panel, Empty, Pill, Stack, Stream, Json } from '../lib';
-import type { EngineState } from '../../pipeline/survey';
+import type { EngineState } from '../../pipeline/antechamber';
 import { subscribeCompilerStream, type CompilerStreamEvent } from '../../debug/compilerStreamBus';
 
 type Props = { state: EngineState };

@@ -50,7 +50,7 @@ export function ThinkingStreamView({ visible }: Props) {
           // (kept lightweight: don't render the raw JSON.)
           break;
         case 'end':
-          // leave the final text on screen briefly; Survey.tsx flips
+          // leave the final text on screen briefly; Antechamber.tsx flips
           // stage to awaiting_intention which unmounts this view.
           break;
       }

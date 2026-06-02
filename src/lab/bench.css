@@ -484,9 +484,9 @@
 .bench__cwh-btn--hot:hover  { background: rgba(184, 40, 26, 0.08); }
 .bench__cwh-btn:active { transform: translateY(1px); }
 
-/* ── Assertion display ──────────────────────────────────── */
+/* ── Guess display ──────────────────────────────────── */
 
-.bench__assertion-text {
+.bench__guess-text {
   font-family: var(--font-sans);
   font-size: 18px;
   font-style: italic;
@@ -512,7 +512,7 @@
   margin-bottom: var(--p2);
 }
 .bench__transcript-entry--pick { border-left-color: var(--fg-faint); }
-.bench__transcript-entry--assertion { border-left-color: var(--accent); }
+.bench__transcript-entry--guess { border-left-color: var(--accent); }
 .bench__transcript-entry--response-warm { border-left-color: var(--warm); }
 .bench__transcript-entry--response-cold { border-left-color: var(--cold); }
 .bench__transcript-entry--response-hot { border-left-color: var(--hot); }

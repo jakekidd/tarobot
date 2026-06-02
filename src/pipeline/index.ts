@@ -6,9 +6,9 @@
 // verbatim and swap the LLMAdapter to a local LLM client.
 
 export type {
-  // Survey (legacy shape — populated by the new survey engine's Compiler pass
+  // Antechamber (legacy shape — populated by the new survey engine's Compiler pass
   // and consumed by the tent. The new engine has its own types under ./survey.)
-  Survey, SurveyAnswer, SurveyQuestion, SurveyQuestionFormat,
+  Antechamber, AntechamberAnswer, PillarQuestion, PillarQuestionFormat,
   // Choice (unified)
   Choice, ChoiceSource,
   // Profile blobs
