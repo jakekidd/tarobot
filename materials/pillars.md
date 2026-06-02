@@ -58,21 +58,20 @@ A few rules so the parser doesn't bite you:
 
 ## Pillars
 
-The five always-asked questions, in fixed order. The arc moves from
-external grounding (basics) inward through attachment activation and
-somatic baseline, then through relational anchor and values. The live
-fork is NO LONGER a pillar — the dowser surfaces it via guesses
-during Interrogation, which is both gentler (one fork at a time,
-warm/cold response) and higher-signal (the agent picks the live
-fork rather than asking the user to declare it from a 9x2 matrix).
+The nine always-asked questions, in fixed order. The arc moves from
+external grounding (basics) through charge-orientation (where the
+weight is, which direction it pulls from), into attachment activation
+and somatic baseline, then through mind-orientation (the loop, the
+stance), the relational anchor, and finally values. The live fork is
+NOT a pillar — the dowser surfaces it via guesses in the Sounding,
+which is both gentler (one shape at a time, warm/cold/hot response)
+and higher-signal (the agent composes the shape from the user's
+recognition rather than asking them to declare it from a matrix).
 
-Authoring note (v3.1 reorg, post-pivot): pillars were reorganized
-around discriminative axes — attachment activation, somatic baseline,
-and contextual grounding (basics) replaced tarot fluency, spiritual
-register, and mind/heart/gut decision-making. The 9-row dichotomy
-picker ("which one is your question right now?") was the climactic
-6th pillar in v3.1; it was retired when the dowser shipped because
-the dichotomy IS what the dowser is hunting. Five pillars total.
+The four charge/orientation/loop/stance pillars exist to give the
+dowser a starting position: they map the WEATHER around the dilemma
+without asking the user to identify it. Keep them sensory and
+present-tense; they're orienting questions, not factual probes.
 
 NOTE on `center_of_life`: the question authors as plural-friendly,
 but the current RelationshipPickForm UI is single-pick only. Plural
@@ -105,6 +104,33 @@ Options:
   - some are not
   - very little :: we'll come back to this.
 
+### where is the weight loudest right now?
+
+Format: choice
+Probe:
+  Surface: charge-domain probe — where the weight is loudest in the user's life this moment. orients the dowser before it starts guessing. NOT a measure of what's worst; only what's loudest. a numb "nothing in particular" is itself a read.
+  Inversions: work / what i'm making = job, vocation, the thing they spend daylight on; me and someone = relational anchor is loud, a specific bond is the gravity; me and me = identity, self-narrative, internal weather; what direction i'm going = forward-momentum, decisions, the shape of next; nothing in particular = either grounded or flat — does not discriminate alone, cross with the body+mind pillar.
+  Watch for: "nothing in particular" + "numb + dissociated" body+mind = flat baseline candidate, soften register. "me and someone" + later relational answers naming a specific person = high-confidence relational fork. "what direction i'm going" + "putting off a decision" pool answer = career or life-fork pending.
+Options:
+  - work / what i'm making
+  - me and someone
+  - me and me
+  - what direction i'm going
+  - nothing in particular :: tell me more.
+
+### when something pulls at you, it's usually from—
+
+Format: choice
+Probe:
+  Surface: time-orientation probe — does the user's attention get pulled to past, present, or future. dilemmas have different shapes by orientation: past-oriented are about regret or unresolved history; future-oriented are about a fork or anticipated harm; present-oriented are about something live and acute.
+  Inversions: behind me = past-oriented, grief, regret, unresolved old material; right here = present-oriented, acute situation, current load; what's coming = future-oriented, fork, anticipation, anxiety; all at once = either overwhelmed or genuinely integrated — does not discriminate alone, cross with engagement.
+  Watch for: "behind me" + "i used to" creative answer = creative-identity loss as live grief. "what's coming" + "a decision i'm putting off" = the live fork is the anticipated decision. "all at once" + low engagement = flooded; soften.
+Options:
+  - behind me
+  - right here, right now
+  - what's coming
+  - all at once
+
 ### when someone you love goes quiet, you—
 
 Format: choice
@@ -133,6 +159,33 @@ Options:
   - grounded + dissociated :: your body's holding something your mind hasn't caught.
   - numb + present
   - numb + dissociated :: that's a hard place to be.
+
+### is there something you keep returning to in your head?
+
+Format: choice
+Probe:
+  Surface: loop probe — whether there's a recurring thought the user can't let go of, and its register if so. recurring thoughts are dilemma-adjacent by nature: the mind only loops on what isn't yet metabolized. the register (decision / person / memory / worry) tells the dowser what kind of shape to start composing.
+  Inversions: a decision = the live fork is in the head, undecided; a person = relational rumination, often someone who's gone quiet or whose meaning is shifting; a memory = unresolved past material, grief-adjacent or shame-adjacent; a worry about what's coming = anticipated harm, anxiety-loop; no, my head is quiet = either genuinely settled or shut down — does not discriminate alone.
+  Watch for: "a decision" + "what direction i'm going" loudest = high-confidence forward fork. "a person" + with-whom-unsaid pointing to someone specific = THAT person is the loop. "a memory" + "behind me" pulls at them = unresolved past, possibly active grief. "no, my head is quiet" + "nothing in particular" loudest = either Cleo case or flat baseline.
+Options:
+  - a decision
+  - a person
+  - a memory
+  - a worry about what's coming
+  - no, my head is quiet
+
+### right now, are you more—
+
+Format: choice
+Probe:
+  Surface: stance probe — current posture toward whatever's live. waiting / deciding / accepting / fighting are four very different relationships to a dilemma. shapes how the user will receive the reading (waiting wants permission; deciding wants illumination; accepting wants witnessing; fighting wants reframing) and how cooperative they'll be with guesses.
+  Inversions: waiting = the dilemma is dormant or contingent on something external — pause-mode, dependency, anticipation; deciding = actively in the fork, agency is theirs and on the table; accepting = past the deciding point, integrating an outcome (chosen or imposed); fighting = resistant to something — could be a person, a situation, themselves.
+  Watch for: "waiting" + "behind me" pulling at them = stuck-in-grief candidate. "deciding" + "a decision" loop + putting-off-a-decision = the fork is acute and live. "fighting" + "me and someone" loudest = relational conflict. "accepting" + "a memory" loop = active grief integration. "fighting" + "the basics not handled" = life-grinding resistance, treat tenderly.
+Options:
+  - waiting
+  - deciding
+  - accepting
+  - fighting
 
 ### who's the center of your life right now?
 
