@@ -1,132 +1,131 @@
-// Diviner text-blob parser fuzz tests.
+// Diviner text-blob parser tests.
 //
-// The diviner writes a free-form thinking pass followed by two
-// labeled sections (===HYPOTHESIS===, ===GUESS===). These tests pin
-// the parser's tolerance to the documented contract AND probe failure
-// modes where the model could plausibly drift (e.g., lowercasing a
-// marker, joining multi-line content, emitting markers in unexpected
-// order).
+// The diviner writes a free-form thinking pass followed by one or more
+// ===GUESS=== blocks, each with hypothesis / guess / predict fields.
+// LOCATE turns emit a batch (3, then 2); COMPOSE emits one. These tests
+// pin the parser's tolerance and the batch -> QueuedGuess[] mapping.
 
 import { describe, expect, it } from 'vitest';
 import { parseDivinerTextBlob } from '../../src/pipeline/antechamber/agents/diviner/parseTextBlob';
-import { blobToQueuedGuess } from '../../src/pipeline/antechamber/agents/diviner';
+import { blobToQueuedGuesses } from '../../src/pipeline/antechamber/agents/diviner';
 
-const WELL_FORMED = `
-I've been thinking about the warmth pattern. Maren's correction on
-A1 was specific — "less the job, more what staying says about me."
-That's a self-identity hit, not a vocational one.
-
-Phase is LOCATE; this is turn 2 so I need a fresh angle. The first
-guess targeted identity-cost-of-staying and earned a corrected
-warm. For this turn I'll swing toward time-orientation instead.
-
-===HYPOTHESIS===
-    am i more afraid of who i become if i leave than i'd admit?
+const BATCH = `
+I don't yet know where the charge is, so I'm spreading wide: one at
+health, one at work, one at the friendships. Different domains so a COLD
+on any tells me where the live thing isn't.
 
 ===GUESS===
-    the part of you that won't quit isn't afraid of theo's reaction. it's afraid of who you become if you do.
+hypothesis: am i carrying my health alone?
+guess: you're handling something with your health mostly by yourself.
+predict: WARM
+
+===GUESS===
+hypothesis: should i leave a job that's fine?
+guess: the job is fine on paper and that's exactly the problem.
+predict: COLD
+
+===GUESS===
+hypothesis: am i the one who always reaches out first?
+guess: you keep the friendships alive single-handed, and you're tired of it.
+predict: HOT
 `;
 
-describe('parseDivinerTextBlob — well-formed input', () => {
-  it('extracts thinking + hypothesis + guess', () => {
-    const blob = parseDivinerTextBlob(WELL_FORMED);
+describe('parseDivinerTextBlob — batched LOCATE output', () => {
+  it('extracts thinking + all three guesses with fields', () => {
+    const blob = parseDivinerTextBlob(BATCH);
     expect(blob.thinking.length).toBeGreaterThan(50);
-    expect(blob.hypothesis).toBe(
-      "am i more afraid of who i become if i leave than i'd admit?",
-    );
-    expect(blob.guess).toContain('afraid of who you become');
+    expect(blob.guesses).toHaveLength(3);
+    expect(blob.guesses[0]!.hypothesis).toBe('am i carrying my health alone?');
+    expect(blob.guesses[0]!.guess).toContain('your health mostly by yourself');
+    expect(blob.guesses[0]!.predicted_response).toBe('warm');
+    expect(blob.guesses[1]!.predicted_response).toBe('cold');
+    expect(blob.guesses[2]!.predicted_response).toBe('hot');
   });
 
-  it('preserves periods in the guess (rhythm matters)', () => {
-    const raw = `===HYPOTHESIS===
-    am i keeping a foot on the brake on purpose?
-===GUESS===
-    you keep almost-deciding. and not.`;
-    const blob = parseDivinerTextBlob(raw);
-    expect(blob.guess).toBe('you keep almost-deciding. and not.');
+  it('thinking is everything before the first guess block', () => {
+    const blob = parseDivinerTextBlob(BATCH);
+    expect(blob.thinking).toContain('spreading wide');
+    expect(blob.thinking).not.toContain('===GUESS===');
   });
+});
 
-  it('preserves periods in the hypothesis (in-voice questions may use punctuation)', () => {
-    const raw = `===HYPOTHESIS===
-    is it really about the job. or about who i'd become without it.
+describe('parseDivinerTextBlob — single guess (COMPOSE)', () => {
+  it('parses one block and preserves periods in the guess', () => {
+    const raw = `thinking here
 ===GUESS===
-    test.`;
+hypothesis: am i keeping a foot on the brake on purpose?
+guess: you keep almost-deciding. and not.
+predict: WARM`;
     const blob = parseDivinerTextBlob(raw);
-    expect(blob.hypothesis).toBe(
-      "is it really about the job. or about who i'd become without it.",
-    );
+    expect(blob.guesses).toHaveLength(1);
+    expect(blob.guesses[0]!.guess).toBe('you keep almost-deciding. and not.');
   });
 
   it('joins multi-line guess content into one line', () => {
-    const raw = `===HYPOTHESIS===
-    am i drifting on purpose?
-===GUESS===
-    you have spent
+    const raw = `===GUESS===
+hypothesis: am i drifting on purpose?
+guess: you have spent
     the last six months
-    not quite choosing`;
+    not quite choosing
+predict: WARM`;
     const blob = parseDivinerTextBlob(raw);
-    expect(blob.guess).toBe('you have spent the last six months not quite choosing');
+    expect(blob.guesses[0]!.guess).toBe('you have spent the last six months not quite choosing');
   });
 
-  it('tolerates HYPOTHESIS and GUESS in either order', () => {
+  it('predict is optional', () => {
     const raw = `===GUESS===
-    you are mid-step.
-===HYPOTHESIS===
-    am i in the middle of a decision i won't name?`;
+hypothesis: am i mid-step?
+guess: you are mid-step.`;
     const blob = parseDivinerTextBlob(raw);
-    expect(blob.guess).toBe('you are mid-step.');
-    expect(blob.hypothesis).toBe(
-      "am i in the middle of a decision i won't name?",
-    );
+    expect(blob.guesses[0]!.guess).toBe('you are mid-step.');
+    expect(blob.guesses[0]!.predicted_response).toBeUndefined();
   });
 });
 
 describe('parseDivinerTextBlob — malformed input (graceful degradation)', () => {
-  it('returns empty fields when no markers are present', () => {
+  it('returns no guesses when no markers are present', () => {
     const blob = parseDivinerTextBlob('just thinking, no markers anywhere');
     expect(blob.thinking).toBe('just thinking, no markers anywhere');
-    expect(blob.hypothesis).toBe('');
-    expect(blob.guess).toBe('');
+    expect(blob.guesses).toHaveLength(0);
   });
 
-  it('returns empty for sections that appear without content', () => {
-    const raw = `===HYPOTHESIS===
+  it('skips a block missing its guess field', () => {
+    const raw = `===GUESS===
+hypothesis: a question?
+predict: WARM
 ===GUESS===
-    fine.`;
+hypothesis: another?
+guess: this one lands.
+predict: COLD`;
     const blob = parseDivinerTextBlob(raw);
-    expect(blob.hypothesis).toBe('');
-    expect(blob.guess).toBe('fine.');
+    expect(blob.guesses).toHaveLength(1);
+    expect(blob.guesses[0]!.guess).toBe('this one lands.');
+  });
+
+  it('marker matching is case-sensitive (lowercase ===guess=== does not split)', () => {
+    const raw = `===guess===
+hypothesis: one
+guess: a.`;
+    const blob = parseDivinerTextBlob(raw);
+    expect(blob.guesses).toHaveLength(0);
   });
 });
 
-describe('parseDivinerTextBlob — KNOWN PARSER GAPS', () => {
-  // Markers are case-sensitive. ===hypothesis=== would not match.
-  it('marker matching is case-sensitive', () => {
-    const raw = `===hypothesis===
-    one
-===GUESS===
-    a.`;
-    const blob = parseDivinerTextBlob(raw);
-    expect(blob.hypothesis).toBe('');
-    expect(blob.guess).toBe('a.');
-  });
-});
-
-describe('blobToQueuedGuess', () => {
-  it('returns a QueuedGuess with the hypothesis attached', () => {
-    const blob = parseDivinerTextBlob(WELL_FORMED);
-    const q = blobToQueuedGuess(blob, 5, 12);
-    expect(q).not.toBeNull();
-    expect(q?.idx).toBe(5);
-    expect(q?.statement).toContain('afraid of who you become');
-    expect(q?.hypothesis).toBe(
-      "am i more afraid of who i become if i leave than i'd admit?",
-    );
-    expect(q?.emitted_at_turn).toBe(12);
+describe('blobToQueuedGuesses', () => {
+  it('maps a batch to QueuedGuesses with incrementing idx', () => {
+    const blob = parseDivinerTextBlob(BATCH);
+    const qs = blobToQueuedGuesses(blob, 5, 12);
+    expect(qs).toHaveLength(3);
+    expect(qs[0]!.idx).toBe(5);
+    expect(qs[1]!.idx).toBe(6);
+    expect(qs[2]!.idx).toBe(7);
+    expect(qs[0]!.hypothesis).toBe('am i carrying my health alone?');
+    expect(qs[0]!.predicted_response).toBe('warm');
+    expect(qs[0]!.emitted_at_turn).toBe(12);
   });
 
-  it('returns null when the blob has no guess', () => {
+  it('returns an empty array when the blob has no guesses', () => {
     const blob = parseDivinerTextBlob('no markers');
-    expect(blobToQueuedGuess(blob, 1, 0)).toBeNull();
+    expect(blobToQueuedGuesses(blob, 1, 0)).toHaveLength(0);
   });
 });

@@ -577,6 +577,10 @@ export type QueuedGuess = {
    *  the candidate dilemma it was testing, in the user's voice as a
    *  question. Banked into state.candidate_shapes on HOT. */
   hypothesis: string;
+  /** The diviner's predicted response (its prior on cold/warm/hot).
+   *  Calibration signal: predicted-vs-actual surprise is high value to
+   *  the compiler. Optional; absent on old snapshots. */
+  predicted_response?: 'cold' | 'warm' | 'hot';
   /** Mascot stall lines — empty in the post-rewrite diviner. Kept as
    *  optional for snapshot back-compat; UI treats empty as "no line". */
   comment_if_warm?: string;

@@ -87,8 +87,8 @@ export type {
 } from './types';
 
 // Diviner — text-blob output, no tool call.
-export { runDiviner, blobToQueuedGuess } from './agents/diviner';
-export type { DivinerTextBlob } from './agents/diviner';
+export { runDiviner, blobToQueuedGuesses } from './agents/diviner';
+export type { DivinerTextBlob, DivinerGuess } from './agents/diviner';
 
 export type { ProbeStatus } from './living-doc';
 

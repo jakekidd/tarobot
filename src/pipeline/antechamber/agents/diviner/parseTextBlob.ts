@@ -1,56 +1,76 @@
 // Diviner text-blob parser.
 //
-// The diviner writes a free-form thinking pass followed by two
-// labeled sections:
-//
-//   <thinking paragraphs — investigating, weighing, planning>
-//
-//   ===HYPOTHESIS===
-//       one line; candidate dilemma in the user's voice as a question
+// The diviner writes a free-form thinking pass followed by one or more
+// guess blocks. Each block:
 //
 //   ===GUESS===
-//       one line; the single guess to voice this turn
+//   hypothesis: <candidate dilemma in the subject's voice as a question>
+//   guess: <the single line the subject sees>
+//   predict: <COLD | WARM | HOT>
 //
-// Parser is forgiving: missing sections return empty; first occurrence
-// of each marker wins.
+// LOCATE turns emit a batch (3, then 2); COMPOSE turns emit one. Parser
+// is forgiving: a block missing its `guess` field is skipped; `predict`
+// is optional; wrapped value lines are joined.
+
+export type DivinerGuess = {
+  hypothesis: string;
+  guess: string;
+  /** The diviner's predicted response (its prior on cold/warm/hot).
+   *  Optional; absent when the model omitted it. */
+  predicted_response?: 'cold' | 'warm' | 'hot';
+};
 
 export type DivinerTextBlob = {
   thinking: string;
-  hypothesis: string;
-  guess: string;
+  guesses: DivinerGuess[];
 };
 
-const MARKER_HYPOTHESIS = '===HYPOTHESIS===';
 const MARKER_GUESS = '===GUESS===';
+const FIELD_KEYS = /^\s*(hypothesis|guess|predict)\s*:/i;
 
 export function parseDivinerTextBlob(raw: string): DivinerTextBlob {
-  const h_idx = raw.indexOf(MARKER_HYPOTHESIS);
-  const g_idx = raw.indexOf(MARKER_GUESS);
+  const firstMarker = raw.indexOf(MARKER_GUESS);
+  const thinking = (firstMarker >= 0 ? raw.slice(0, firstMarker) : raw).trim();
+  if (firstMarker < 0) return { thinking, guesses: [] };
 
-  // Thinking is everything before the first labeled section.
-  const first_section = [h_idx, g_idx].filter((i) => i >= 0).sort((a, b) => a - b)[0] ?? -1;
-  const thinking = (first_section >= 0 ? raw.slice(0, first_section) : raw).trim();
-
-  const hypothesis = extractSingleLine(raw, h_idx, MARKER_HYPOTHESIS, [g_idx, raw.length]);
-  const guess = extractSingleLine(raw, g_idx, MARKER_GUESS, [h_idx, raw.length]);
-
-  return { thinking, hypothesis, guess };
+  const guesses: DivinerGuess[] = [];
+  for (const block of raw.split(MARKER_GUESS).slice(1)) {
+    const guess = fieldValue(block, 'guess');
+    if (!guess) continue;
+    const hypothesis = fieldValue(block, 'hypothesis');
+    const predict = parsePredict(fieldValue(block, 'predict'));
+    guesses.push({ hypothesis, guess, ...(predict ? { predicted_response: predict } : {}) });
+  }
+  return { thinking, guesses };
 }
 
-/** Pull the content of a single-line section. Joins indented lines
- *  into one trimmed line. NO period-truncation — guess and hypothesis
- *  are user-shaped and may use punctuation for rhythm. */
-function extractSingleLine(
-  raw: string,
-  marker_idx: number,
-  marker: string,
-  candidate_ends: number[],
-): string {
-  if (marker_idx < 0) return '';
-  const start = marker_idx + marker.length;
-  const ends = candidate_ends.filter((e) => e > marker_idx);
-  const end = ends.length > 0 ? Math.min(...ends) : raw.length;
-  const block = raw.slice(start, end).trim();
-  if (!block) return '';
-  return block.split('\n').map((l) => l.trim()).filter((l) => l.length > 0).join(' ');
+/** Pull a `key: value` field from a block, joining wrapped continuation
+ *  lines until the next field key or a blank line. */
+function fieldValue(block: string, key: string): string {
+  const keyRe = new RegExp(`^\\s*${key}\\s*:\\s*(.*)$`, 'i');
+  const parts: string[] = [];
+  let collecting = false;
+  for (const line of block.split('\n')) {
+    const m = line.match(keyRe);
+    if (m) {
+      collecting = true;
+      if (m[1].trim()) parts.push(m[1].trim());
+      continue;
+    }
+    if (collecting) {
+      if (FIELD_KEYS.test(line)) break;
+      const t = line.trim();
+      if (t) parts.push(t);
+      else if (parts.length) break;
+    }
+  }
+  return parts.join(' ').trim();
+}
+
+function parsePredict(v: string): 'cold' | 'warm' | 'hot' | null {
+  const t = v.trim().toLowerCase();
+  if (t.startsWith('cold')) return 'cold';
+  if (t.startsWith('warm')) return 'warm';
+  if (t.startsWith('hot')) return 'hot';
+  return null;
 }

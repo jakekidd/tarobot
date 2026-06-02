@@ -15,7 +15,7 @@
 import kleur from 'kleur';
 import { createClaudeClient } from '../src/pipeline/claude';
 import { AnthropicAdapter } from '../src/pipeline/llm/adapter-anthropic';
-import { runDiviner, blobToQueuedGuess } from '../src/pipeline/antechamber/agents/diviner';
+import { runDiviner, blobToQueuedGuesses } from '../src/pipeline/antechamber/agents/diviner';
 import { runWeaver } from '../src/pipeline/antechamber/agents/weaver';
 import { runIntentionSuggestor } from '../src/pipeline/antechamber/intention-suggestor';
 import { runCompiler, DilemmaDocumentSchema, type DilemmaDocument } from '../src/pipeline/antechamber/agents/compiler';
@@ -196,39 +196,39 @@ async function runOne(adapter: AnthropicAdapter, runIdx: number, totalRuns: numb
   // ── DIVINER (3 passes, with fake WARM/COLD responses between) ──
   for (let pass = 1; pass <= 3; pass++) {
     try {
-      const { value: blob, ms } = await timed(() => runDiviner(adapter, { state }));
-      const hasAll = blob.thinking.length > 0
-        && blob.hypothesis.length > 0
-        && blob.guess.length > 0;
-      const queued = blobToQueuedGuess(blob, state.guess_queue.length + 1, 5 + pass);
-      const passOk = hasAll && queued !== null;
+      const { value: blob, ms } = await timed(() => runDiviner(adapter, { state, count: 1 }));
+      const g0 = blob.guesses[0];
+      const queued = blobToQueuedGuesses(blob, state.guess_queue.length + 1, 5 + pass);
+      const head = queued[0];
+      const hasAll = blob.thinking.length > 0 && !!g0 && g0.hypothesis.length > 0 && g0.guess.length > 0;
+      const passOk = hasAll && head !== undefined;
       results.push({
         name: `DIVINER pass ${pass}`,
         pass: passOk,
         ms,
         detail: passOk
-          ? `hypothesis present; A${queued?.idx} queued`
-          : `missing sections: ${[!blob.thinking && 'thinking', !blob.hypothesis && 'hypothesis', !blob.guess && 'guess'].filter(Boolean).join(', ')}`,
-        sample: `H: ${blob.hypothesis}\nA: ${blob.guess}`,
+          ? `hypothesis present; A${head?.idx} queued`
+          : `missing sections: ${[!blob.thinking && 'thinking', !g0?.hypothesis && 'hypothesis', !g0?.guess && 'guess'].filter(Boolean).join(', ')}`,
+        sample: g0 ? `H: ${g0.hypothesis}\nA: ${g0.guess}` : '(no guess parsed)',
       });
-      if (queued) {
+      if (head && g0) {
         // Apply state update + fabricate a user response so the next
         // pass sees realistic continuity.
         const FAKE_RESPONSES = [
-          { direction: 'warm' as const, correction: 'yes — but it\'s less the job, more what staying says about me' },
+          { direction: 'warm' as const, correction: 'yes, but it\'s less the job, more what staying says about me' },
           { direction: 'warm' as const },
-          { direction: 'cold' as const, correction: 'not theo — he wants me to do it' },
+          { direction: 'cold' as const, correction: 'not theo; he wants me to do it' },
         ];
         const fake = FAKE_RESPONSES[pass - 1]!;
         state = {
           ...state,
           diviner_thinking: state.diviner_thinking + (state.diviner_thinking ? '\n\n' : '') + blob.thinking,
-          hypotheses: blob.hypothesis ? [...state.hypotheses, blob.hypothesis] : state.hypotheses,
-          guess_queue: [...state.guess_queue, queued],
+          hypotheses: g0.hypothesis ? [...state.hypotheses, g0.hypothesis] : state.hypotheses,
+          guess_queue: [...state.guess_queue, head],
           transcript: [
             ...state.transcript,
-            { kind: 'guess', guess_idx: queued.idx, statement: queued.statement, hypothesis: blob.hypothesis },
-            { kind: 'response', guess_idx: queued.idx, direction: fake.direction, ...(fake.correction ? { correction: fake.correction } : {}), latency_ms: 4500 },
+            { kind: 'guess', guess_idx: head.idx, statement: head.statement, hypothesis: g0.hypothesis },
+            { kind: 'response', guess_idx: head.idx, direction: fake.direction, ...(fake.correction ? { correction: fake.correction } : {}), latency_ms: 4500 },
           ],
           verbatim_log: fake.correction
             ? [...state.verbatim_log, { index: state.verbatim_log.length, turn: 5 + pass, source: 'correction', text: fake.correction, captured_at: Date.now() }]

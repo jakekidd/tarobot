@@ -11,7 +11,7 @@
 // See docs/PIPELINE.md for the full phase-by-phase pipeline.
 
 import type { LLMAdapter } from '../llm/adapter';
-import { runDiviner, blobToQueuedGuess } from './agents/diviner';
+import { runDiviner, blobToQueuedGuesses, LOCATE_GUESS_COUNT, GUESS_BUDGET } from './agents/diviner';
 import { runWeaver } from './agents/weaver';
 import { runCompiler, renderDilemmaAsAnchor, type DilemmaDocument } from './agents/compiler';
 import { runIntentionSuggestor } from './intention-suggestor';
@@ -92,10 +92,9 @@ const OPENER_NODE_IDS = new Set<string>(getOpeners());
 /** Returning-user lite mode draws exactly this many random pool questions
  *  (dedup'd against prior history). No Pillars on returning visits. */
 export const RETURNING_LITE_COUNT = 6;
-/** v3: how many diviner-emitted guesses can land before the
- *  engine forces beginIntentionStage. Keeps the session bounded if
- *  the diviner never emits 'conclude' on its own. */
-const POST_PILLAR_GUESS_CAP = 8;
+/** How many diviner-emitted guesses can land before the engine forces
+ *  beginIntentionStage. Hard safety net at the full guess budget. */
+const POST_PILLAR_GUESS_CAP = GUESS_BUDGET;
 /** Back-compat alias for callsites that still reference the old name. */
 export const STARTER_SEED_COUNT = RETURNING_LITE_COUNT;
 
@@ -1254,35 +1253,32 @@ export class AntechamberEngine {
    *  hypothesis list (re-listing as votes — frequency = confidence),
    *  enqueues the next guess. Idempotent in the sense that if the
    *  diviner returns nothing usable, state is left untouched. */
-  private async runDivinerPass(): Promise<boolean> {
+  private async runDivinerPass(count: number): Promise<boolean> {
     this.agentInFlight.diviner += 1; this.publishInflight();
     try {
-      const blob = await runDiviner(this.opts.adapter, { state: this.state });
-      const nextIdx = this.countGuessesInTranscript() + this.state.guess_queue.length + 1;
-      const queued = blobToQueuedGuess(blob, nextIdx, this.countPostOpenerPicks());
-      // Shadow the singular hypothesis into the legacy trajectory log
-      // so WEAVER / Compiler (which still read state.hypotheses as a
-      // flat list) keep seeing them. Source of truth post-rewrite is
-      // the hypothesis field on TranscriptEntry of kind 'guess'.
-      const nextHypotheses = blob.hypothesis
-        ? [...this.state.hypotheses, blob.hypothesis]
+      const blob = await runDiviner(this.opts.adapter, { state: this.state, count });
+      const startIdx = this.countGuessesInTranscript() + this.state.guess_queue.length + 1;
+      const queued = blobToQueuedGuesses(blob, startIdx, this.countPostOpenerPicks());
+      // Shadow each hypothesis into the legacy trajectory log so WEAVER /
+      // Compiler (which still read state.hypotheses as a flat list) keep
+      // seeing them. Source of truth post-rewrite is the hypothesis field
+      // on TranscriptEntry of kind 'guess'.
+      const newHypotheses = blob.guesses.map((g) => g.hypothesis).filter(Boolean);
+      const nextHypotheses = newHypotheses.length
+        ? [...this.state.hypotheses, ...newHypotheses]
         : this.state.hypotheses;
-      if (!queued) {
-        this.setState({
-          diviner_thinking: this.state.diviner_thinking
-            + (this.state.diviner_thinking ? '\n\n' : '')
-            + blob.thinking,
-          hypotheses: nextHypotheses,
-        });
+      const nextThinking = this.state.diviner_thinking
+        + (this.state.diviner_thinking ? '\n\n' : '')
+        + blob.thinking;
+      if (queued.length === 0) {
+        this.setState({ diviner_thinking: nextThinking, hypotheses: nextHypotheses });
         this.emit();
         return false;
       }
       this.setState({
-        diviner_thinking: this.state.diviner_thinking
-          + (this.state.diviner_thinking ? '\n\n' : '')
-          + blob.thinking,
+        diviner_thinking: nextThinking,
         hypotheses: nextHypotheses,
-        guess_queue: [...this.state.guess_queue, queued],
+        guess_queue: [...this.state.guess_queue, ...queued],
       });
       this.emit();
       return true;
@@ -1316,25 +1312,51 @@ export class AntechamberEngine {
    *  WEAVER signals the room has cooled. */
   private async refillGuessQueue(): Promise<void> {
     while (
-      this.state.guess_queue.length < this.lookaheadCap()
-      && (this.countGuessesInTranscript() + this.state.guess_queue.length) < this.softCeiling()
+      (this.countGuessesInTranscript() + this.state.guess_queue.length) < this.softCeiling()
       && this.state.weaver_engagement === 'live'
-      && this.state.candidate_shapes.length < CANDIDATE_SHAPES_TARGET
     ) {
-      const ok = await this.runDivinerPass();
+      const batch = this.nextGuessBatch();
+      if (batch <= 0) break;
+      const ok = await this.runDivinerPass(batch);
       if (!ok) break;
     }
-    // Close conditions: queue drained AND either ceiling reached,
-    // engagement cooled, or enough shapes have been banked.
+    // Close conditions: queue drained AND either the budget is reached or
+    // WEAVER signals the room has cooled. Banking no longer closes the
+    // game early; the full guess budget is the bound.
     const hitCeiling = this.countGuessesInTranscript() >= this.softCeiling();
     const weaverSaidStop = this.state.weaver_engagement !== 'live';
-    const enoughBanked = this.state.candidate_shapes.length >= CANDIDATE_SHAPES_TARGET;
-    if (
-      this.state.guess_queue.length === 0
-      && (hitCeiling || weaverSaidStop || enoughBanked)
-    ) {
+    if (this.state.guess_queue.length === 0 && (hitCeiling || weaverSaidStop)) {
       this.beginIntentionStage();
     }
+  }
+
+  /** Diviner cadence: explore wide, then exploit deep.
+   *   LOCATE  seeds 3 guesses up front (forced-distinct breadth in one
+   *           generation), then 2 more once the subject has answered at
+   *           least one (conditioned, and ready before they finish the
+   *           first batch).
+   *   COMPOSE emits 1 at a time, only when the queue has drained, so each
+   *           is conditioned on the latest response (no pre-generating
+   *           down the tree).
+   *  Bench's diviner-focus mode (lookaheadCap === 1) forces strict
+   *  one-at-a-time. Returns 0 to wait. */
+  private nextGuessBatch(): number {
+    const emitted = this.countGuessesInTranscript() + this.state.guess_queue.length;
+    const remaining = this.softCeiling() - emitted;
+    if (remaining <= 0) return 0;
+    if (this.lookaheadCap() === 1) {
+      return this.state.guess_queue.length > 0 ? 0 : 1;
+    }
+    if (emitted < LOCATE_GUESS_COUNT) {
+      if (emitted > 0 && this.countResponses() < 1) return 0;
+      return Math.min(emitted === 0 ? 3 : LOCATE_GUESS_COUNT - emitted, remaining);
+    }
+    if (this.state.guess_queue.length > 0) return 0;
+    return 1;
+  }
+
+  private countResponses(): number {
+    return this.state.transcript.filter((e) => e.kind === 'response').length;
   }
 
   /** Single WEAVER pass — Haiku, fires every WEAVER_CADENCE answered
@@ -1408,17 +1430,11 @@ const DEFAULT_LOOKAHEAD_CAP = 3;
  *  hard cap (POST_PILLAR_GUESS_CAP) is the safety net above it.
  *  Bench can bump this via opts.softCeiling to let the diviner cook
  *  unbounded during prompt-refinement runs. */
-const DEFAULT_INTERROGATION_SOFT_CEILING = 6;
+const DEFAULT_INTERROGATION_SOFT_CEILING = GUESS_BUDGET;
 
 /** WEAVER cadence — fires every N answered guesses during the
  *  Sounding. Three runs expected across a 6-guess ceiling. */
 const WEAVER_CADENCE = 2;
-
-/** Number of HOT-banked candidate shapes that triggers Sounding exit.
- *  The brief calls for "two or three" — three is the working target;
- *  closes the loop early when the user has already recognised a few
- *  shapes, rather than pushing the diviner to the cap unnecessarily. */
-const CANDIDATE_SHAPES_TARGET = 3;
 
 // WEAVER_TOTAL_RUNS moved to engine.weaverTotalRuns() — depends on
 // the per-instance softCeiling, which can be overridden via EngineOpts.
