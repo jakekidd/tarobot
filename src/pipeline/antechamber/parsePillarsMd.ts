@@ -231,7 +231,7 @@ export function parsePillarsMd(source: string): DialogueTree {
   nodes.name = { topic: 'intake', q: 'what should i call you?', f: 'text' };
   nodes.birthday = {
     topic: 'intake',
-    q: 'when were you born? the day, month, and year. time and location optional.',
+    q: 'when were you born? the day, month, and year.',
     f: 'date',
   };
   nodes.relationship = {
