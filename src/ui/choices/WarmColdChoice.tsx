@@ -1,22 +1,14 @@
-// WarmColdChoice — UI for diviner-emitted guesses.
+// WarmColdChoice — UI for diviner-emitted guesses. One screen: the
+// COLD / WARM / HOT temperature buttons (a row on desktop, a HOT-to-COLD
+// stack on mobile) plus an optional "in your own words?" field beneath.
+// Tapping a temperature submits it, carrying any text the user typed.
 //
-// Three big buttons: COLD (blue, "wrong neighbourhood; eliminate the
-// region"), WARM (orange, "right neighbourhood; refine"), HOT (red,
-// "dead on — that's the live wire"). After the primary pick, an
-// optional text input invites a short correction. All three are
-// useful signal — COLD eliminates, WARM refines, HOT confirms.
-//
-// HOT measures CHARGE, not truth: it's the subject saying "that's
-// the one I'd actually ask about." A statement can be perfectly
-// accurate and still get COLD if it isn't where the charge is.
+// HOT measures CHARGE, not truth: "that's the one I'd actually ask about."
+// A statement can be accurate and still COLD if the charge isn't there.
 //
 // Wire format submitted via onPick:
-//   'cold'           — primary, no correction
-//   'warm'           — primary, no correction
-//   'hot'            — primary, no correction
-//   'cold:<text>'    — primary + correction text
-//   'warm:<text>'    — primary + correction text
-//   'hot:<text>'     — primary + correction text
+//   'cold' | 'warm' | 'hot'                        — temperature, no correction
+//   'cold:<text>' | 'warm:<text>' | 'hot:<text>'   — temperature + correction
 
 import { useState } from 'react';
 import { fireImpact } from '../scene/impactStore';
@@ -30,103 +22,45 @@ type Props = {
 const PICK_ANIMATION_MS = 420;
 const BEACON_DELAY_MS = 220;
 
-type Phase = 'primary' | 'follow-up';
 type PickState = 'idle' | 'picked' | 'unpicked';
 type Direction = 'cold' | 'warm' | 'hot';
 
 export function WarmColdChoice({ disabled, onPick }: Props) {
-  const [phase, setPhase] = useState<Phase>('primary');
-  const [direction, setDirection] = useState<Direction | null>(null);
+  const [picked, setPicked] = useState<Direction | null>(null);
   const [text, setText] = useState('');
-  const [submitting, setSubmitting] = useState(false);
   const ready = useChoiceReady();
+  const locked = disabled || picked !== null || !ready;
 
-  function pickPrimary(dir: Direction, x: number, y: number) {
-    if (submitting) return;
-    setDirection(dir);
-    window.setTimeout(() => fireImpact({ x, y }), BEACON_DELAY_MS);
-    setPhase('follow-up');
-  }
-
-  function submitFinal(value: string, x: number, y: number) {
-    if (submitting) return;
-    setSubmitting(true);
+  function submit(dir: Direction, x: number, y: number) {
+    if (picked) return;
+    setPicked(dir);
+    const trimmed = text.trim();
+    const value = trimmed ? `${dir}:${trimmed}` : dir;
     window.setTimeout(() => fireImpact({ x, y }), BEACON_DELAY_MS);
     window.setTimeout(() => onPick(value), PICK_ANIMATION_MS);
   }
 
-  const lockedDisabled = disabled || submitting || !ready;
+  const stateFor = (key: Direction): PickState =>
+    picked === null ? 'idle' : picked === key ? 'picked' : 'unpicked';
 
-  if (phase === 'primary') {
-    const stateFor = (key: string): PickState =>
-      direction === null ? 'idle' : `${direction}` === key ? 'picked' : 'unpicked';
-    return (
-      <div className="warm-cold warm-cold--primary">
-        <WCButton
-          label="cold"
-          variant="cold"
-          state={stateFor('cold')}
-          disabled={lockedDisabled}
-          onClick={(x, y) => pickPrimary('cold', x, y)}
-        />
-        <WCButton
-          label="warm"
-          variant="warm"
-          state={stateFor('warm')}
-          disabled={lockedDisabled}
-          onClick={(x, y) => pickPrimary('warm', x, y)}
-        />
-        <WCButton
-          label="hot"
-          variant="hot"
-          state={stateFor('hot')}
-          disabled={lockedDisabled}
-          onClick={(x, y) => pickPrimary('hot', x, y)}
-        />
-      </div>
-    );
-  }
-
-  // phase === 'follow-up' — gather optional correction text, OR submit
-  // bare direction with the skip button.
-  const skipValue: Direction = direction ?? 'cold';
-  const promptText = direction === 'hot'
-    ? 'in your own words?'
-    : direction === 'warm'
-    ? "what's closer to true?"
-    : "what's actually true?";
   return (
-    <div className="warm-cold warm-cold--follow-up">
-      <div className={`warm-cold__prompt warm-cold__prompt--${direction}`}>
-        {promptText}
+    <div className="warm-cold">
+      <div className="warm-cold__buttons">
+        <WCButton label="cold" variant="cold" state={stateFor('cold')} disabled={locked} onClick={(x, y) => submit('cold', x, y)} />
+        <WCButton label="warm" variant="warm" state={stateFor('warm')} disabled={locked} onClick={(x, y) => submit('warm', x, y)} />
+        <WCButton label="hot" variant="hot" state={stateFor('hot')} disabled={locked} onClick={(x, y) => submit('hot', x, y)} />
       </div>
-      <form
-        className="warm-cold__freeform"
-        onSubmit={(e) => {
-          e.preventDefault();
-          const trimmed = text.trim();
-          const target = e.currentTarget.getBoundingClientRect();
-          const value = trimmed ? `${direction}:${trimmed}` : `${direction}`;
-          submitFinal(value, target.left + target.width / 2, target.top);
-        }}
-      >
+      <div className="warm-cold__say">
+        <div className="warm-cold__say-label">in your own words?</div>
         <input
           type="text"
+          className="warm-cold__input"
           value={text}
           onChange={(e) => setText(e.target.value)}
           placeholder="say more (optional)"
-          disabled={lockedDisabled}
-          autoFocus
-          className="warm-cold__input"
+          disabled={locked}
         />
-      </form>
-      <WCButton
-        label="nothing to add"
-        variant="skip"
-        state="idle"
-        disabled={lockedDisabled}
-        onClick={(x, y) => submitFinal(skipValue, x, y)}
-      />
+      </div>
     </div>
   );
 }
@@ -139,7 +73,7 @@ function WCButton({
   onClick,
 }: {
   label: string;
-  variant: 'warm' | 'cold' | 'hot' | 'skip';
+  variant: 'warm' | 'cold' | 'hot';
   state: PickState;
   disabled?: boolean;
   onClick: (clickX: number, clickY: number) => void;
