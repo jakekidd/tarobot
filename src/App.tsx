@@ -21,7 +21,7 @@ import { AnthropicAdapter } from './pipeline/antechamber';
 import { createClaudeClient } from './pipeline/claude';
 import './ui/pipeline.css';
 import { Debug } from './debug/Debug';
-import { AnchorView } from './debug/AnchorView';
+import { DebugInspector } from './debug/DebugInspector';
 import { loadDebugVisible, saveDebugVisible } from './debug/visibilityStorage';
 import { publishDebug } from './debug/debugBus';
 import './debug/debug.css';
@@ -219,13 +219,7 @@ export function App() {
         </main>
 
       <Debug visible={debugVisible} />
-      {/* seeder pivot left column: anchor only (wave D will add the
-          compiler streaming view + seeder notes view). */}
-      {debugVisible && phase.kind === 'antechamber' && (
-        <div className="debug-left-column">
-          <AnchorView visible={true} />
-        </div>
-      )}
+      <DebugInspector visible={debugVisible && phase.kind === 'antechamber'} />
       {/* Live agent activity stream — debug-only. Toggled via the debug
           chip in the topbar so it doesn't crowd the actual UI during
           normal use. */}

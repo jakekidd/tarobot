@@ -90,7 +90,7 @@ export function Debug({ visible }: Props) {
   const rows = orderRows(snapshot);
 
   return (
-    <aside className="debug" aria-label="debug overlay">
+    <aside className="debug-readout" aria-label="debug overlay">
       <div className="debug__head">DEBUG</div>
       <table className="debug__table">
         <tbody>
