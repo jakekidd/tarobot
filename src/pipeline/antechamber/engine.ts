@@ -1263,13 +1263,28 @@ export class AntechamberEngine {
     this.agentInFlight.diviner += 1; this.publishInflight();
     try {
       const blob = await runDiviner(this.opts.adapter, { state: this.state, count });
+      // Deterministic backstop against repeats (the prompt forbids them too):
+      // drop a guess whose statement was already voiced, or whose hypothesis is
+      // already banked — a HOT shape is DONE, so surface others, don't re-test.
+      const norm = (s: string) => s.trim().toLowerCase();
+      const voiced = new Set<string>([
+        ...this.state.transcript.flatMap((e) => (e.kind === 'guess' ? [norm(e.statement)] : [])),
+        ...this.state.guess_queue.map((g) => norm(g.statement)),
+      ]);
+      const banked = new Set(this.state.candidate_shapes.map(norm));
+      const fresh = blob.guesses.filter((g) => {
+        if (!g.guess.trim() || voiced.has(norm(g.guess))) return false;
+        if (g.hypothesis.trim() && banked.has(norm(g.hypothesis))) return false;
+        voiced.add(norm(g.guess));
+        return true;
+      });
       const startIdx = this.countGuessesInTranscript() + this.state.guess_queue.length + 1;
-      const queued = blobToQueuedGuesses(blob, startIdx, this.countPostOpenerPicks());
+      const queued = blobToQueuedGuesses({ thinking: blob.thinking, guesses: fresh }, startIdx, this.countPostOpenerPicks());
       // Shadow each hypothesis into the legacy trajectory log so WEAVER /
       // Compiler (which still read state.hypotheses as a flat list) keep
       // seeing them. Source of truth post-rewrite is the hypothesis field
       // on TranscriptEntry of kind 'guess'.
-      const newHypotheses = blob.guesses.map((g) => g.hypothesis).filter(Boolean);
+      const newHypotheses = fresh.map((g) => g.hypothesis).filter(Boolean);
       const nextHypotheses = newHypotheses.length
         ? [...this.state.hypotheses, ...newHypotheses]
         : this.state.hypotheses;

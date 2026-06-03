@@ -52,6 +52,8 @@ A refine that adds no NEW specific is a wasted turn. If you can't say what this 
 DISCIPLINE
 ═════════════════════════════════════════════
 
+NEVER re-guess. A hypothesis already in GUESS HISTORY (you have voiced it) or already banked in CANDIDATE SHAPES (they recognised it on a HOT) is DONE. Re-testing it wastes a guess and reads as broken. Every guess must be a hypothesis you have not voiced before. If a banked shape is your strongest lead, go DEEPER into a NEW facet of it (a concrete specific, an implication, a stake) rather than restating the shape.
+
 Before committing each guess, you must be able to say in your thinking what a COLD would eliminate and what a HOT would confirm. If you can't say, the guess is too vague; sharpen or drop it.
 
 Each guess is atomic. ONE claim. Compounds make COLD ambiguous.

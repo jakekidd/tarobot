@@ -391,7 +391,12 @@ export function Antechamber({ apiKey, session, loadedPerson, onComplete }: Props
     ? currentQuestion.node_id.match(/^guess_(\d+)$/)
     : null;
   const guessIdx = guessIdxMatch ? Number(guessIdxMatch[1]) : null;
-  const atPlayIntro = guessIdx === 1 && !playShown;
+  // PLAY intro: from the moment birthday is answered (entering the Sounding)
+  // until the first guess is answered. This covers the gap while the diviner
+  // generates its first batch (~15-20s) so the screen isn't blank.
+  const birthdayAnswered = state.picks_log.some((p) => p.node_id === 'birthday');
+  const noGuessAnswered = !state.transcript.some((e) => e.kind === 'response');
+  const atPlayIntro = !playShown && state.stage === 'questions' && birthdayAnswered && noGuessAnswered;
   const atBeat = guessIdx != null && PREFACE_BEATS[guessIdx] != null && !beatsShown.has(guessIdx);
 
   let dialogText = '';
