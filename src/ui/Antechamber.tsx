@@ -34,6 +34,7 @@ import { RelationshipStatusForm } from './antechamber/RelationshipStatusForm';
 import { GagQuestion } from './antechamber/GagQuestion';
 import { IntentConfirm } from './antechamber/IntentConfirm';
 import { RelationshipPickForm } from './antechamber/RelationshipPickForm';
+import { PlayIntro } from './antechamber/PlayIntro';
 import { useAntechamberEngine } from './antechamber/useAntechamberEngine';
 import { ReturningUserModal } from './antechamber/ReturningUserModal';
 import { downloadTranscript, persistLog } from './antechamber/transcript';
@@ -111,6 +112,12 @@ export function Antechamber({ apiKey, session, loadedPerson, onComplete }: Props
     const t = window.setTimeout(() => setGuessStall(null), 2200);
     return () => window.clearTimeout(t);
   }, [guessStall]);
+
+  // Preface beats: the PLAY intro before the first guess, and a short
+  // click-through line before guesses 6 and 11. Each shows once.
+  const [playShown, setPlayShown] = useState(false);
+  const [beatsShown, setBeatsShown] = useState<Set<number>>(() => new Set());
+  const [beatReady, setBeatReady] = useState(false);
 
   // Centenarian interlude: when the user enters a birthyear that makes
   // them >100, hang the lamp with a sassy compound comment before
@@ -372,6 +379,21 @@ export function Antechamber({ apiKey, session, loadedPerson, onComplete }: Props
   // Last intention from prior visits — soft hint near the intention picker.
   const lastIntention = state.prior_intentions[0] ?? null;
 
+  // Preface beats: PLAY before guess 1, a short click-through line before
+  // guesses 6 and 11. Each shows once.
+  const PLAY_INTRO_COPY =
+    "something has been weighing on you. it's part of what drew you here.\n\ndo you already know what it is? or would you like to play a simple game to find out?";
+  const PREFACE_BEATS: Record<number, string> = {
+    6: "you're circling something now. stay with it.",
+    11: "halfway. the shape is coming up out of the dark.",
+  };
+  const guessIdxMatch = currentQuestion?.format === 'guess'
+    ? currentQuestion.node_id.match(/^guess_(\d+)$/)
+    : null;
+  const guessIdx = guessIdxMatch ? Number(guessIdxMatch[1]) : null;
+  const atPlayIntro = guessIdx === 1 && !playShown;
+  const atBeat = guessIdx != null && PREFACE_BEATS[guessIdx] != null && !beatsShown.has(guessIdx);
+
   let dialogText = '';
   let dialogKey = 'empty';
   let dialogClass: string | undefined;
@@ -430,6 +452,12 @@ export function Antechamber({ apiKey, session, loadedPerson, onComplete }: Props
     // Gag dialogue: NO question mark per spec. green color via host class.
     dialogText = 'which is the best animal';
     dialogKey = 'gag-animal';
+  } else if (atPlayIntro) {
+    dialogText = PLAY_INTRO_COPY;
+    dialogKey = 'play-intro';
+  } else if (atBeat) {
+    dialogText = PREFACE_BEATS[guessIdx!]!;
+    dialogKey = `beat-${guessIdx}`;
   } else if (currentQuestion) {
     dialogText = currentQuestion.preamble
       ? `${currentQuestion.preamble.toLowerCase()}\n${currentQuestion.text.toLowerCase()}`
@@ -508,6 +536,8 @@ export function Antechamber({ apiKey, session, loadedPerson, onComplete }: Props
                   }
                 : centenarian
                 ? () => setCentenarianReady(true)
+                : atBeat
+                ? () => setBeatReady(true)
                 : undefined
             }
           />
@@ -603,10 +633,30 @@ export function Antechamber({ apiKey, session, loadedPerson, onComplete }: Props
             />
           )}
 
+          {atPlayIntro && (
+            <PlayIntro onPlay={() => setPlayShown(true)} />
+          )}
+
+          {atBeat && beatReady && (
+            <button
+              type="button"
+              className="centenarian-continue"
+              onClick={() => {
+                setBeatsShown((s) => new Set(s).add(guessIdx!));
+                setBeatReady(false);
+              }}
+              aria-label="continue"
+            >
+              <span className="centenarian-continue__arrow">▾</span>
+            </button>
+          )}
+
           {!showGag
             && !modalOpen
             && currentQuestion?.format === 'guess'
-            && currentQuestion.instrument?.kind === 'guess' && (
+            && currentQuestion.instrument?.kind === 'guess'
+            && !atPlayIntro
+            && !atBeat && (
             <WarmColdChoice
               key={currentQuestion.node_id}
               onPick={(v) => {
