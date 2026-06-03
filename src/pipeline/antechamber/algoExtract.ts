@@ -36,7 +36,10 @@ export function extractHooks(picks: PickEvent[]): string[] {
       out.add(p.answer.trim());
       continue;
     }
-    if (OPENER_NODE_IDS.has(p.node_id)) continue;
+    // Skip identity/intake picks. birthday + intent are no longer in the
+    // opener set (birthday moved to end-of-pillars, intent dropped) but
+    // they're still identity data, never seer-quotable hooks.
+    if (OPENER_NODE_IDS.has(p.node_id) || p.node_id === 'birthday' || p.node_id === 'intent') continue;
     // v2: engine-authored picks (Phase 4 generation) never produce
     // verbatim hooks. The user picked the option but didn't author
     // its words. Seer must not echo planted-option text as theirs.

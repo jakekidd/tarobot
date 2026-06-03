@@ -248,10 +248,12 @@ export function parsePillarsMd(source: string): DialogueTree {
   return {
     v: 'survey-md@2',
     topics: Array.from(topicSet),
-    // 'intent' ("do you have a question for the cards?") dropped from the
-    // flow for now; the node + its render branch are kept so it can be
-    // re-enabled. The reading intention is collected later via the suggestor.
-    openers: ['name', 'birthday', 'relationship'],
+    // Openers run before the pillars. 'birthday' is NOT here: it's asked at
+    // the end of the pillars (see seedPostOpenerQueue) so the turtle builds
+    // rapport first and the astro beat lands right before the guessing.
+    // 'intent' ("do you have a question for the cards?") is dropped from the
+    // flow for now; both nodes are kept so they can be re-enabled.
+    openers: ['name', 'relationship'],
     pillars,
     nodes,
   };

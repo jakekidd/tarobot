@@ -1048,6 +1048,12 @@ export class AntechamberEngine {
     for (const id of getPillars()) {
       this.enqueueDirect(id, null, null);
     }
+    // Birthday is asked LAST, at the end of the pillars (once the turtle
+    // has built rapport), right before the guessing. It's identity data;
+    // the diviner ignores it, and applyOpenerDataIfRelevant still computes
+    // the astro profile when it's answered. The main queue drains before
+    // the guess_queue, so order is: pillars → birthday → guesses.
+    this.enqueueDirect('birthday', null, null);
   }
 
   /** Push per-agent + total pipeline counts to the debug bus. */

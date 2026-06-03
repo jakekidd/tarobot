@@ -81,17 +81,17 @@ describe('AntechamberEngine — initial state', () => {
 });
 
 describe('AntechamberEngine — opener flow', () => {
-  it('walks name → birthday → relationship into the pillars without firing pipelines', async () => {
+  it('walks name → relationship into the pillars without firing pipelines', async () => {
     const adapter = makeAdapter();
     const engine = makeEngine({ adapter });
     await engine.submitAnswer('jake');
-    expect(engine.getCurrentQuestion()!.node_id).toBe('birthday');
-    await engine.submitAnswer('1990-01-15');
+    // birthday is no longer an opener (asked at end of pillars); relationship next.
     expect(engine.getCurrentQuestion()!.node_id).toBe('relationship');
     await engine.submitAnswer('single');
-    // intent opener is dropped; relationship is the last opener, so the
-    // next question is the first pillar, not 'intent'.
-    expect(engine.getCurrentQuestion()!.node_id).not.toBe('intent');
+    // relationship is the last opener, so the next question is the first pillar.
+    const next = engine.getCurrentQuestion()!.node_id;
+    expect(next).not.toBe('intent');
+    expect(next).not.toBe('birthday');
     // No agent calls should have happened during openers.
     expect(adapter.calls).toEqual([]);
   });
