@@ -40,12 +40,11 @@ describe('extractHooks', () => {
     expect(out).toContain('jake');
   });
 
-  it('skips other openers (birthday, relationship, intent)', () => {
+  it('skips the identity openers (birthday, relationship)', () => {
     const out = extractHooks([
       pick('name', 'jake'),
       pick('birthday', '1990-01-15'),
       pick('relationship', 'single'),
-      pick('intent', 'should i move?'),
     ]);
     expect(out).toEqual(['jake']);
   });

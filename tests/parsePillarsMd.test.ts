@@ -249,13 +249,13 @@ Options:
     expect(ids.sort()).toEqual(['same-heading', 'same-heading-2']);
   });
 
-  it('always injects the 4 hardcoded openers', () => {
+  it('injects the hardcoded opener nodes; intent is kept but out of the flow', () => {
     const tree = parsePillarsMd(`## Pillars\n\n### Q?\nFormat: choice\nOptions:\n  - a\n`);
-    expect(tree.openers).toEqual(['name', 'birthday', 'relationship', 'intent']);
+    expect(tree.openers).toEqual(['name', 'birthday', 'relationship']);
     expect(tree.nodes.name!.f).toBe('text');
     expect(tree.nodes.birthday!.f).toBe('date');
     expect(tree.nodes.relationship!.f).toBe('relationship_status');
-    expect(tree.nodes.intent!.f).toBe('intent');
+    expect(tree.nodes.intent!.f).toBe('intent');   // node kept for re-enable
   });
 
   it('exits probe mode on next top-level field', () => {

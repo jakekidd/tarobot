@@ -248,7 +248,10 @@ export function parsePillarsMd(source: string): DialogueTree {
   return {
     v: 'survey-md@2',
     topics: Array.from(topicSet),
-    openers: ['name', 'birthday', 'relationship', 'intent'],
+    // 'intent' ("do you have a question for the cards?") dropped from the
+    // flow for now; the node + its render branch are kept so it can be
+    // re-enabled. The reading intention is collected later via the suggestor.
+    openers: ['name', 'birthday', 'relationship'],
     pillars,
     nodes,
   };
