@@ -1,10 +1,22 @@
-# Tarobot Survey Pipeline — current shape
+# Tarobot Antechamber Pipeline — current shape
 
-Living doc. The source of truth for "what's actually running" — read this
-before reading REFACTOR-V3.md (which is older planning context).
+Living doc. The source of truth for "what's actually running" in the
+antechamber (the pre-reading interview). Read this before REFACTOR-V3.md
+(older planning context that lags reality).
 
-Last meaningful update: compiler-as-sieve + intention-precedes-compiler
-+ WEAVER agent design.
+Last meaningful update: diviner batched generation (LOCATE emits 3 then 2 in
+one call to force breadth; COMPOSE drills 1/turn) + per-guess response
+prediction + birthday moved to end-of-pillars + intent opener dropped + PLAY
+intro / preface beats.
+
+> **In transition.** The diviner was just rewritten and now banks HOT
+> hypotheses into `state.candidate_shapes`. WEAVER and the compiler have
+> NOT yet caught up: WEAVER still maintains its own `weaver_candidates`
+> set and the compiler still reads `weaver_candidates`, not
+> `candidate_shapes`. The LivingDoc's structured `story` slots and the
+> standalone "observer" write-path are vestigial after the rewrite. The
+> seam is called out at each phase below. Don't treat the two candidate
+> paths as settled — reconciling them is live design work.
 
 ---
 
@@ -12,205 +24,185 @@ Last meaningful update: compiler-as-sieve + intention-precedes-compiler
 
 ```
 PHASE 1 — OPENERS
-  name → birthday → relationship_status → intent
-  deterministic, no AI fires.
-  birthday > 100 yrs old triggers centenarian interlude (sassy lamp-hang).
+  name → relationship. Deterministic, no LLM fires.
+  'intent' ("do you have a question for the cards?") is dropped from the flow
+  (node kept). Birthday is NO LONGER an opener — it's asked at the END of the
+  pillars (Phase 2). Returning-user name match overlays ReturningUserModal.
 
-PHASE 2 — PILLARS (5 questions, fixed order)
-  basics / goes_quiet / body_baseline / center_of_life / want_most.
+PHASE 2 — PILLARS (9 questions, fixed order)
+  5 baseline structural questions + 4 charge/orientation/loop/stance
+  questions (charge-domain, time-orientation, loop, stance). The canonical
+  list, ordering, and per-question Probe schema live in materials/pillars.md
+  — read that, don't duplicate it here (it churns).
 
   Per pillar answer (serial submit, NO LLM calls during pillars):
-    (a) submitAnswer captures pick, computes latency-z incrementally,
-        pushes pick entry (with negative_space + z-score) to transcript.
-    (b) algorithmic seeder runs inline (deterministic, no LLM):
-          reads node.probe.inversions
+    (a) submitAnswer captures the pick, computes latency-z incrementally,
+        pushes the pick (with negative_space + z-score) to the transcript.
+    (b) the algorithmic seeder runs inline (deterministic, no LLM):
+          reads the answered node's `Inversions:` probe text
           drops Probe seeds onto state.doc.held
         These feed the Seer's closing director as 'held probes'.
-        Upgrade pending: a richer declarative mark/glyph attachment
-        system driven by the pillars markdown — see TODO at bottom.
 
-  Dowser DOES NOT fire during pillars. Calibration only.
-  No LLM calls until interrogation begins.
+  No agent fires during pillars. Calibration only.
 
-PHASE 3 — INTERROGATION (dowser-driven)
-  Triggered when last pillar answered.
+  After the 9 pillars, the birthday form is asked (identity + astro profile;
+  applyOpenerDataIfRelevant computes sun sign / life path / birth card). Then
+  a PLAY intro beat, then the guessing. The main queue drains before the
+  guess_queue, so order is: pillars → birthday → PLAY → guesses.
 
-  refillGuessQueue() — DOWSER in background loop:
-    while (queue.length < 3 && voiced_count < 6):
-      blob = runDowser(state)   // Opus, freeform, 4K tokens
-      // text-blob output: thinking, ===HYPOTHESES===, ===GUESS===,
-      // ===IF_WARM===, ===IF_COLD===
-      state.dowser_thinking += blob.thinking
-      state.hypotheses = blob.hypotheses    // re-listing = vote
-      guess_queue.push(blobToQueuedGuess(blob))
+PHASE 3 — INTERROGATION  (informally "the Sounding")
+  The post-pillar guessing period. NOT a formal state enum — `stage`
+  stays 'questions' and `phase` is the A–E register label (derived from
+  turn count, see phase.ts). Two silent agents drive it:
 
-  User sees queue head as WarmColdChoice (blue COLD left, orange WARM
-  right). On pick:
-    (a) parse 'warm' / 'cold' / '<dir>:<correction>'
-    (b) push 'guess' (voiced) + 'response' (direction + correction)
-        entries to transcript
-    (c) correction text → verbatim_log (source='correction')
-    (d) pop queue head
-    (e) refillGuessQueue() refills in background
+  DIVINER (deep / Opus, background loop — refills the guess queue):
+    Emits a freeform thinking pass then N ===GUESS=== blocks, each with:
+      hypothesis:  one line, in the user's voice as a question
+      guess:       one voiced line the user reacts to
+      predict:     the diviner's prior on the response (COLD / WARM / HOT)
+    GUESS_BUDGET = 20, in two sub-phases:
+      LOCATE  (1–5)  — emitted in BATCHES (3 in one call, then 2) so the model
+                       must spread across distinct domains in ONE generation.
+                       This is the perseveration fix: one-at-a-time it kept
+                       re-anchoring on the loudest signal and rephrasing it.
+      COMPOSE (6–20) — one guess per call, after each response (no pre-gen down
+                       the tree). A refine MUST add a concrete specific;
+                       rewording the same shape is forbidden.
+    The (hypothesis, guess, predict, response) trajectory is bundled inline for
+    the diviner. predicted-vs-actual is a calibration / surprise signal.
 
-  WEAVER (shipped) — Haiku, fires every 2 answered guesses in
-    background (~3 calls across the 6-guess ceiling):
-    state: state.weaver_candidates: PotentialDilemma[] = {
-      label, description, thoughts[],
-      created_at_turn, last_extension_turn, extension_count
-    }
-    each call: agent rewrites the full set (label/description/
-      thoughts only — engine merges trajectory). Re-listing same
-      label IS the vote — engine never tells the agent about the
-      counter. Engine maintains trajectory fields by diffing the new
-      set against the prior set; surfaces durability to the compiler.
-    discipline: prefer growing thoughts on an existing label over
-      adding new ones; small set (2–3 healthy, 5 max); evidence-
-      anchored thoughts only (cite warmth + verbatim entries).
-    knows: run_idx + run_total (calibration awareness, the one
-      exception to "no machinery in prompts").
-    owns a THREE-STATE engagement read (Mr Brainstorm middle-rung
-      addition; ratchet-only-down):
-      - 'live'      — at least one candidate gaining new evidence
-                      OR user still anchoring with corrections. keep
-                      going.
-      - 'wind_down' — borderline. stop refilling but let the queued
-                      guesses ride out gracefully, then close.
-      - 'flat'      — clear disengagement. drop the queue NOW, close
-                      after the current question.
+  User responds via the three-state COLD / WARM / HOT choice
+  (src/ui/choices/WarmColdChoice.tsx — COLD blue, WARM orange, HOT red),
+  or types a free-text correction:
+    - COLD  → eliminate this region (absolute, never inverts to the opposite).
+    - WARM  → resonant; keep pulling the thread.
+    - HOT   → strong resonance; the engine BANKS the active hypothesis into
+              state.candidate_shapes[] (append-only, deduped).
+    Free-text corrections route to verbatim_log (source='correction') and
+    are the highest-signal channel in the session.
 
-  Terminates when:
-    - voiced_count >= 6 AND queue empty (budget ceiling), OR
-    - WEAVER engagement ∈ {wind_down, flat} AND queue drained.
-  Then → Phase 4. beginIntentionStage awaits WEAVER quiescence before
-  running the compiler so the candidate set is fresh.
+  WEAVER (fast / Haiku, fires every 2 answered guesses):
+    Rewrites state.weaver_candidates (PotentialDilemma[]) wholesale each
+    call — re-listing the same label IS the vote; the engine never tells
+    the agent about the counter and maintains trajectory/durability by
+    diffing the new set against the prior. Discipline: small set (2–3
+    healthy, 5 max), evidence-anchored thoughts only.
+    Owns a THREE-STATE engagement read via ===ENGAGEMENT=== (ratchet-only-
+    down): 'live' (keep going) / 'wind_down' (stop refilling, let the queue
+    ride out) / 'flat' (drop the queue now, close).
 
-PHASE 4 — INTENTION (between hunt and close)
-  User lands on intention input. beginIntentionStage ran
-  applyAlgoExtraction + waitForWeaverQuiescence and transitioned to
-  'awaiting_intention'. Immediately after the transition, the engine
-  fires runIntentionSuggestionsTask:
-    - 1 parallel call per WEAVER candidate (typically 2-5)
-    - tier: cognition (Sonnet) — user-visible chip text needs texture
-    - each call pushes its result into state.intention_suggestions
-      as it lands; UI renders chips incrementally
-    - generator prompt orient: "include the details that make this
-      question unmistakably theirs, leave out the rest" — relevance
-      over strict dilemma-only
-  Chip click submits directly. User can also type their own.
-  The pick is the highest-quality disambiguation signal in the session.
+  HOT banks the active hypothesis into candidate_shapes[] (append-only, deduped).
+  Sounding exits when EITHER:
+    - the guess budget (20) is reached, OR
+    - weaver_engagement ∈ {wind_down, flat} AND the queue has drained.
+  Banking no longer closes the game early — the 3-banked auto-exit was removed
+  so the full 20-guess game runs. Then → Phase 4.
 
-PHASE 5 — COMPILE (compiler-as-sieve, fires inside submitIntention)
-  Engine ordering: beginIntentionStage now stops at applyAlgoExtraction
-  + waitForWeaverQuiescence and transitions to 'awaiting_intention'.
-  The compiler does NOT fire here anymore.
+  ── SEAM ──────────────────────────────────────────────────────────────
+  The diviner now banks candidate_shapes, but WEAVER's weaver_candidates is
+  still the set the compiler consumes (Phase 5). The two are not yet
+  reconciled. Whether candidate_shapes should feed/replace weaver_candidates
+  — and whether WEAVER survives the diviner rewrite at all — is open.
 
-  When the user submits their intention (submitIntention), the engine
-  enters 'compiling' and the compiler-as-sieve fires AS THE FIRST step
-  of the post-intent pipeline — before Augur, before Seer. The compiler
-  reads:
-    - user_intention (primary filter)
-    - weaver_candidates (the small curated set WEAVER built)
+PHASE 4 — INTENTION  (between the hunt and the close)
+  The intention stage begins (waits for WEAVER quiescence so the candidate
+  set is fresh) and the engine fires the intention-suggestor:
+    - cognition (Sonnet), one parallel call per weaver_candidate (~2–5).
+    - each result pushes into state.intention_suggestions; UI renders chips
+      incrementally as they land.
+    - orient: "include the details that make this question unmistakably
+      theirs, leave out the rest" — relevance over strict dilemma-only.
+  Chip click submits directly; the user can also type their own. The pick
+  is the highest-quality disambiguation signal in the session.
+
+PHASE 5 — COMPILE  (compiler-as-sieve, fires inside submitIntention)
+  On submitIntention the engine enters stage 'compiling' and the compiler
+  fires as the FIRST step of the post-intent pipeline — before Augur,
+  before the Seer. It reads:
+    - user_intention      (primary filter)
+    - weaver_candidates   (the curated set WEAVER built — NOT candidate_shapes; see seam)
     - full unified transcript + verbatim_log
-    - dowser_hypotheses (advisory)
+    - diviner hypotheses   (advisory)
 
-  Three resolution paths (set on the output as resolution_path):
-    (a) matched-candidate    — intent maps cleanly to a WEAVER
-                                candidate → write that one in detail
-    (b) strongest-candidate  — intent is thin/placeholder → fall back
-                                to the juiciest WEAVER candidate
-    (c) created-from-intent  — intent reveals territory WEAVER +
-                                dowser missed → CREATE a new
-                                Dilemma. trust the user.
-    (d) null-landing         — session genuinely thin → emit "no
-                                Dilemma resolved" rather than invent.
+  Resolution paths (set on the output as resolution_path):
+    matched-candidate    — intent maps cleanly to a WEAVER candidate.
+    strongest-candidate  — intent is thin → fall back to the juiciest candidate.
+    created-from-intent  — intent reveals territory the agents missed → CREATE.
+    null-landing         — session genuinely thin → "no Dilemma resolved".
 
-  Output is the DilemmaDocument (full schema in
-  `docs/DILEMMA-SCHEMA.md`):
-    - Dilemma core (label, delta_description, fork.do_nothing_branch +
-      alternative_branch, awareness, confidence, domain_tags,
-      null_landing flag)
-    - critical_hypotheses[] — load-bearing claims with anchored evidence
-    - freeform regions (specifics, holding, suspicions—fenced)
-    - resolution_path provenance
+  Output is the DilemmaDocument (full schema in docs/DILEMMA-SCHEMA.md).
+  The engine stores both state.dilemma (structured) and state.anchor
+  (markdown render, persisted with the Person record and read by the Seer
+  bridge). Streaming Opus + extended thinking → ThinkingStreamView.
 
-  Engine stores both: state.dilemma (structured) + state.anchor
-  (markdown render via renderDilemmaAsAnchor; persisted with the
-  Person record and read by the legacy Seer assembleProfile bridge).
+  Loaded sessions (a prior anchor present) skip the compiler — the anchor
+  carries the prior visit's resolved Dilemma.
 
-  Streaming Opus + extended thinking. Streams to ThinkingStreamView.
-
-  Loaded sessions (loadFromSave with a prior anchor) skip the compiler
-  call — their anchor carries the prior visit's resolved Dilemma.
-
-PHASE 6 — READING (out of scope here)
-  Augur (intention-time outcome forecasts) → Seer engine constructed →
-  cards laid → reading delivered.
+PHASE 6 — READING  (out of scope here; see docs/READING-ANATOMY.md)
+  Augur (intention-time outcome forecasts, cognition outline → deep fill) →
+  SeerEngine constructed → cards laid → reading delivered.
 ```
 
 ---
 
 ## Active agents (sorted by phase)
 
-| Agent | Phase | Tier | Pattern |
+| Agent | Phase | Tier / runtime | Pattern |
 |---|---|---|---|
-| algo-seeder | 2 (pillars) | local, deterministic | Per pillar, no LLM — drops Probe seeds onto doc.held from question Inversions. Upgrade pending. |
-| DOWSER | 3 (interrogation) | Opus, freeform | Background loop, 3-ahead lookahead, text-blob output |
-| WEAVER | 3 (interrogation) | Haiku | Every 2 answered guesses, curates candidate set, owns terminate signal |
-| INTENTION-SUGGESTOR | 4 (intention) | Sonnet | Parallel — one short-sentence helper per WEAVER candidate, populates intent chips |
-| COMPILER | 5 (compile) | Opus + ext.thinking | Streams, once-per-session, sieve-shaped |
-| AUGUR | 6 (reading) | Sonnet→Opus | unchanged legacy |
+| algo-seeder | 2 (pillars) | deterministic, no LLM | Per pillar — drops Probe seeds onto doc.held from the node's `Inversions`. |
+| DIVINER | 3 (interrogation) | deep / Opus · local | Background loop refilling the guess queue. Singular `===HYPOTHESIS===` + `===GUESS===`; LOCATE→COMPOSE; budget 20. HOT banks candidate_shapes. |
+| WEAVER | 3 (interrogation) | fast / Haiku · local | Every 2 answered guesses. Curates weaver_candidates (re-listing = vote); owns the live/wind_down/flat engagement early-out. |
+| INTENTION-SUGGESTOR | 4 (intention) | cognition / Sonnet · cloud | Parallel — one short-sentence chip per weaver_candidate. |
+| COMPILER | 5 (compile) | deep / Opus + ext. thinking · local | Streams, once per session, sieve-shaped. Emits the DilemmaDocument. |
+| AUGUR | 6 (reading) | cognition → deep · cloud | Outline (Sonnet) then fill ×N (Opus). |
+
+(Runtime `local`/`cloud` is the prod-deployment designation — see CLAUDE.md
+"Local vs cloud". Today every call is Claude scaffolding.)
 
 ---
 
-## Load-bearing principles (these survive all refactors)
+## Load-bearing principles (these survive the churn)
 
-- **Profile the problem, not the person.** Interior reads → suspicions
-  fence; never quotable downstream. Dilemma = situation + fork, not a
-  personality verdict.
-- **WARM/COLD is absolute, not gradient.** COLD = eliminate a region,
-  NEVER invert to the opposite. The dowser + compiler both need this.
-- **Corrections (user free-text) are the gold signal.** Above warmth,
-  above algorithmic priors, above dowser leading-hypothesis.
-- **Re-listing as vote (organic).** Never tell the agent the counter
-  exists. Pure signal from natural behavior, not actions taken to
-  satisfy a mechanic.
-- **Interrogation supersedes pre-hunt calibration.** The
-  algorithmic seeder drops priors during pillars; the warm/cold map
-  is later and tested. When priors disagree with warmth, warmth wins.
-- **Dowser's leading hypothesis is advisory, not binding.** The
-  hunter wanting something to be true is not evidence it is.
-- **Engagement read closes the alienation seam.** Phase 3 can't only
-  terminate on budget. WEAVER owns the early-out.
-- **Compiler creates the Dilemma in light of the user's intention.**
-  It is the sieve. The user's intention is the final filter — and a
-  passionate intent that the agents missed CAN override the entire
-  candidate set.
-- **Never manufacture.** Null-landing is a valid terminal state. Better
-  to ship "no Dilemma resolved" than to invent one.
+- **Profile the problem, not the person.** The Dilemma is a situation +
+  fork, not a personality verdict. Interior reads stay fenced and are
+  never quotable downstream.
+- **COLD / WARM / HOT is absolute, not gradient.** COLD eliminates a
+  region; it NEVER inverts to the opposite. HOT is strong resonance and
+  banks a candidate shape. The diviner and compiler both depend on this.
+- **Corrections (user free-text) are the gold signal** — above warmth,
+  above algorithmic priors, above the diviner's leading hypothesis.
+- **Re-listing as vote (organic).** Never tell an agent the counter
+  exists. Signal comes from natural behavior, not from gaming a mechanic.
+- **The diviner's leading hypothesis is advisory, not binding.** The hunter
+  wanting something to be true is not evidence it is.
+- **The engagement read closes the alienation seam.** Phase 3 must be able
+  to end early, not only on budget. WEAVER owns that early-out today.
+- **The compiler creates the Dilemma in light of the user's intention.**
+  It is the sieve; the intention is the final filter, and a passionate
+  intent the agents missed CAN override the entire candidate set.
+- **Never manufacture.** Null-landing is a valid terminal state. Ship "no
+  Dilemma resolved" rather than invent one. (This is also where Discovery-
+  mode tarot would eventually branch — deferred; one mode done well first.)
 
 ---
 
-## What's still TODO (high-signal)
+## In flight / next (high-signal, expect change)
 
-1. **Algo-seeder upgrade** — Mr Brainstorm's Loom sketch in hand:
-   axes-with-variance (not flat tags), per-option declarative
-   attachments in the pillars markdown (`toward / away from <axis>`
-   with mild/clear/strong strength keywords), accumulation surfaces
-   contradiction as high variance, drop the age modulator (hand age
-   as soft context to LLM agents, not as a mechanical rotor).
-   Pending: design doc + implementation.
-2. Live playtest of the WEAVER + compiler pipeline once API credits
-   are restocked. The audit-style critique above is structural; some
-   suspected weaknesses may evaporate when WEAVER faces real WARM/
-   COLD signal.
-3. Dowser text-blob streaming (debug-only UI affordance) — #34.
-
-Completed in the WEAVER + compiler-as-sieve wave: WEAVER agent (#27),
-engagement early-out (#28), pipeline diagram correction (#30),
-compiler-as-sieve refactor (#31), Dilemma document schema (#32),
-intention-suggestion chips (#29), Seer profile wiring (#35), WEAVER
-trajectory tracking (engine-maintained durability per candidate),
-WEAVER three-state engagement (live / wind_down / flat ratchet-
-only-down). Plus Haiku-seeder deletion, parser fuzz suite, prompt
-audit, per-agent freeform labels, and the PSYCH→WEAVER rename.
+1. **Reconcile candidate_shapes vs weaver_candidates.** The diviner banks
+   the former; the compiler reads the latter. Decide whether the banked
+   HOT shapes feed, enrich, or replace the WEAVER set — and whether WEAVER
+   stays at all. This is the headline open question after the diviner rewrite.
+2. **Hypothesis threading (under discussion).** Treat the diviner's singular
+   hypothesis as a persistent thread id the engine tracks across turns
+   (continue / refine / contradict / abandon), so the compiler can read
+   thread-level signal instead of a flat trajectory. In-prompt threading
+   first; a separate eval-step agent only if the in-prompt version flails.
+3. **Prompt caching for the diviner.** The doctrine prefix is static across
+   the 6–20 diviner calls per Sounding; mark it `cache_control: ephemeral`
+   for a real latency + input-cost win. Isolated from the threading work.
+4. **Discovery leads out of the compiler.** Extend the compiler output with
+   self-discovery observations (patterns/contradictions/gaps) the seer can
+   weave as side-beats without losing the Dilemma spine. Iterate the prompt
+   in the Bench SANDBOX against synthetic post-Sounding states before wiring.
+5. **Vent path.** `alleged_problem` is stubbed to "none"; handling users who
+   just want to vent is unbuilt.

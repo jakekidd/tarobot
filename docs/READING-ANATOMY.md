@@ -725,7 +725,7 @@ up after the split (`Reading.tsx:635-679`).
 
 ## 17. how the antechamber hands off
 
-The survey engine constructs the Seer at close
+The antechamber engine constructs the Seer at close
 (`src/pipeline/antechamber/engine.ts:570-580`):
 
 ```ts

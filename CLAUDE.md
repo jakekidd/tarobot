@@ -7,15 +7,29 @@ delete it rather than patch it.
 
 **For the current pipeline shape, read `docs/PIPELINE.md` FIRST.** That doc
 is the living source of truth for which agents fire in which phase, what
-they read, what they emit, and the load-bearing principles. The
-REFACTOR-V3.md doc is older planning context and lags behind reality.
+they read, what they emit, and the load-bearing principles.
+
+Documentation map (what to trust for what):
+
+| Doc | Scope |
+|---|---|
+| `CLAUDE.md` (this file) | Durable orientation — principles, architecture, conventions. |
+| `docs/PIPELINE.md` | Living truth for the antechamber pipeline (phases, agents, in-flight seams). |
+| `docs/DILEMMA-SCHEMA.md` | The DilemmaDocument contract (compiler output → seer input). |
+| `docs/READING-ANATOMY.md` | The Seer reading engine (director/actor, tranches). |
+| `TODO.md` | Deferred-work backlog. |
+| `materials/` | All authored text (pillars, prompts, templates) — edited live. |
+| `REFACTOR-V3.md` | Older planning context; lags reality. Historical only. |
+
+When two docs disagree, the code wins; then `docs/PIPELINE.md`; then this
+file. Fix the loser.
 
 ---
 
 ## What this is
 
 A tarot-themed web app. The visible product is: a user lands in a dark
-purple game-feel CRT scene, a cat (the antechamber mascot) interviews them via
+purple game-feel CRT scene, a turtle (the antechamber mascot) interviews them via
 a sequence of multiple-choice questions, then the Seer reads four cards
 in a diamond spread for them. The reading is the thing the rest exists
 to serve.
@@ -33,7 +47,7 @@ to phones in line. The reading happens at the booth itself with a real-
 robot Seer. Latency budget shapes the runtime split below.
 
 Owner: jakek. Project tone is dark, game-feel, sparse. Pixel / ASCII /
-unicode-glyph aesthetic. CRT scanline overlay, three.js cat mascot as
+unicode-glyph aesthetic. CRT scanline overlay, three.js turtle mascot as
 full-screen backdrop, monospace typography in places. No emoji unless
 explicitly asked.
 
@@ -48,19 +62,21 @@ new content.
 
 ```
 materials/
-  pillars.md                                 the pillar questions (Pillars + Pool)
+  pillars.md                      the pillar questions (9 pillars + pool)
   templates/
-    profile.md                    observer scaffold (9 sections + HTML-comment instructions)
-    story.md                      StoryObject shape reference doc (human-only)
+    profile.md                    LivingDoc profile scaffold (sections + HTML-comment instructions)
+    anchor.md                     legacy prose anchor template (superseded by the DilemmaDocument)
   prompts/
-    observer.md                   profiler prompt — every turn, full body rewrite, speculation authority
-    dowser.md                  story-architect + ladder-collaborator
+    weaver.md                     candidate-dilemma curator (haiku, every 2 guesses)
+    diviner.md                     20-guess game; batched LOCATE (3 then 2) then COMPOSE drills 1/turn; per-guess response prediction
+    compiler.md                   sieve → DilemmaDocument at antechamber close
+    intention-suggestor.md        intent-chip helper (one per weaver candidate)
     augur-outline.md              outcome naming (binary/ternary/open)
     augur-fill.md                 outcome document fills (markdown prose)
     mantra.md                     closing one-line takeaway
     seer/
       voice-bible.md              shared craft for all actors
-      director-intro.md           prose-brief from story
+      director-intro.md           prose-brief from the Dilemma
       director-per-card.md        per-card Set (given circumstances)
       director-closing.md         ClosingIntent + held-probe swing
       actor-intro.md              one-line voiced intro
@@ -85,18 +101,18 @@ At antechamber close, three artifacts hand off to the Seer:
   patterns, contradictions, avoidances), hooks (verbatim specifics
   the seer can echo), edges (growth surface — what the user almost-
   knows), and cast (named people + per-person observer notes).
-- **investigation** (dowser's domain · depth) — a hypothesis ladder
+- **investigation** (diviner's domain · depth) — a hypothesis ladder
   (confirmed / probable / tentative / contested / refuted / held)
   populated by:
   - the algorithmic seeder (`src/pipeline/antechamber/seeder.ts`),
     which reads each question's `Inversions:` probe text and seeds
     deterministic hypotheses into `tentative[]`,
   - the observer (every turn — elevates / holds / refutes seeds),
-  - the dowser (adds new hypotheses, moves rungs).
-- **story** (dowser's domain · narrative) — the slice across time
+  - the diviner (adds new hypotheses, moves rungs).
+- **story** (diviner's domain · narrative) — the slice across time
   anchored to the user's fork. Five slots:
   - `fork: { a, b, is_stasis }` — the two future paths. `is_stasis`
-    true means the dowser constructed it from a stasis pattern
+    true means the diviner constructed it from a stasis pattern
     (the user has no live decision; the fork is "act on this vs.
     continue as you are").
   - `present_pressure` — what makes the fork acute right now.
@@ -112,7 +128,7 @@ held-probe queue (sorted by age DESC) and may take ONE risky swing.
 ## The mascot (the turtle) is the user-facing voice during the antechamber
 
 Three agents fire per post-opener pick (returning users skip the
-dowser):
+diviner):
 
 - **mascot commentary** (local, real-time, in-character) — what the
   user sees and hears between picks. Reactive lines, RPG-dialogue
@@ -120,13 +136,13 @@ dowser):
 - **observer** (cognition tier, cloud, async) — psychological profiler.
   Rewrites profile.body, elevates / refutes hypotheses. SILENT — never
   surfaces mid-antechamber.
-- **dowser** (deep tier, cloud, async) — story architect + ladder
+- **diviner** (deep tier, cloud, async) — story architect + ladder
   collaborator. Builds the StoryObject, surfaces new hypotheses.
   SILENT — never surfaces mid-antechamber.
 
-Dowser outputs never leak to the user. Only the mascot's
+Diviner outputs never leak to the user. Only the mascot's
 reactive commentary does. If a future implementation accidentally
-prints dowser thoughts to the user, that's a regression of this
+prints diviner thoughts to the user, that's a regression of this
 load-bearing rule.
 
 ## Categories — the 9 the observer files under
@@ -226,7 +242,7 @@ concern (`fast` / `cognition-tier` / `deep` in `src/pipeline/claude.ts`).
 
 - **local** runs on the booth's on-prem LLM (an OSS model on a local box).
   Used for everything in the critical-latency path: antechamber-time agents
-  (weaver, dowser, compiler) that fire every turn, and the
+  (weaver, diviner, compiler) that fire every turn, and the
   seer's actor (which the user hears voiced in real-time). Today these
   are all satisfied by Claude as scaffolding — the local-LLM swap is the
   eventual replacement, and the `LLMAdapter` interface is the seam.
@@ -377,7 +393,7 @@ tarot birth card). Treat these as ground truth; do not duplicate inline.
 | Anthropic client + MODELS + tier→model map | `src/pipeline/claude.ts` |
 | LLMAdapter interface (provider-agnostic) | `src/pipeline/llm/adapter.ts` |
 | Concrete Anthropic adapter (only file that imports SDK) | `src/pipeline/llm/adapter-anthropic.ts` |
-| AntechamberEngine + agents (weaver/dowser/compiler/shaman/augur) | `src/pipeline/antechamber/` |
+| AntechamberEngine + agents (weaver/diviner/compiler/shaman/augur) | `src/pipeline/antechamber/` |
 | SeerEngine + agents (director/actor) | `src/pipeline/seer/` |
 | Card draw mechanics | `src/pipeline/cards.ts` |
 | Spread definitions | `src/pipeline/spreads.ts` |
@@ -459,7 +475,7 @@ the doc.
 
 ### Churning
 
-- **Antechamber engine.** Today: synchronous, two-agent (WEAVER+Dowser),
+- **Antechamber engine.** Today: synchronous, two-agent (WEAVER+Diviner),
   heat-driven phase. Research synthesis points toward async continuous
   Investigator + trigger-fired Observer + specific-guess-injection +
   flat-pool / runtime-tree. Refactor is gated on actually walking through
@@ -567,7 +583,7 @@ the doc.
    is created (new user) or updated (returning), and the active session
    gets persisted to `tarobot:active_session`. Before this, bailing
    leaves no localStorage trace.
-6. Antechamber body: engine fires WEAVER → Dowser → Compiler per
+6. Antechamber body: engine fires WEAVER → Diviner → Compiler per
    pick. Starter pool (6 seeds) and Interrogator basket both filter out
    `prior_answered_node_ids` (hard dedupe across the visitor's history).
 7. Cap (20 post-opener questions): Interrogator suppressed past

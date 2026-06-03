@@ -185,7 +185,7 @@ Provenance — which of the three sieve paths fired:
    wrote that one out in detail.
 2. `strongest-candidate` — intent was thin/nonsense; compiler fell
    back to the juiciest WEAVER candidate.
-3. `created-from-intent` — intent revealed territory WEAVER + dowser
+3. `created-from-intent` — intent revealed territory WEAVER + diviner
    missed; compiler built the Dilemma from the intent text. Trust the
    user's signal over the agents' coverage.
 4. `null-landing` — paired with `null_landing === true`.
@@ -213,7 +213,7 @@ Compared to the prior 7-section anchor template:
   not the person. If the user's framing matters, it lives as evidence
   inside a critical_hypothesis or as a verbatim citation in `specifics`.
 - **"Margin"** → cut. The compiler is not a scribbler; it's the sieve
-  at close. Half-thoughts belong in the dowser_thinking stream, not
+  at close. Half-thoughts belong in the diviner_thinking stream, not
   the artifact.
 - **"Domain"** section → collapsed to `domain_tags[]` array. The prose
   paragraph was always either redundant with the Dilemma section or
