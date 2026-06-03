@@ -1,10 +1,8 @@
 // WarmColdChoice — UI for diviner-emitted guesses. One screen: the
-// COLD / WARM / HOT temperature buttons (a row on desktop, a HOT-to-COLD
+// COLD / WARM / HOT temperature cards (a row on desktop, a HOT-to-COLD
 // stack on mobile) plus an optional "in your own words?" field beneath.
-// Tapping a temperature submits it, carrying any text the user typed.
-//
-// HOT measures CHARGE, not truth: "that's the one I'd actually ask about."
-// A statement can be accurate and still COLD if the charge isn't there.
+// Each card shows its symbol (snowflake / sun / flame), not the word.
+// Tapping submits, carrying any text the user typed.
 //
 // Wire format submitted via onPick:
 //   'cold' | 'warm' | 'hot'                        — temperature, no correction
@@ -13,6 +11,9 @@
 import { useState } from 'react';
 import { fireImpact } from '../scene/impactStore';
 import { useChoiceReady } from './useChoiceReady';
+import coldIcon from '../icons/cold.svg';
+import warmIcon from '../icons/warm.svg';
+import hotIcon from '../icons/hot.svg';
 
 type Props = {
   disabled?: boolean;
@@ -24,6 +25,8 @@ const BEACON_DELAY_MS = 220;
 
 type PickState = 'idle' | 'picked' | 'unpicked';
 type Direction = 'cold' | 'warm' | 'hot';
+
+const ICON: Record<Direction, string> = { cold: coldIcon, warm: warmIcon, hot: hotIcon };
 
 export function WarmColdChoice({ disabled, onPick }: Props) {
   const [picked, setPicked] = useState<Direction | null>(null);
@@ -46,9 +49,9 @@ export function WarmColdChoice({ disabled, onPick }: Props) {
   return (
     <div className="warm-cold">
       <div className="warm-cold__buttons">
-        <WCButton label="cold" variant="cold" state={stateFor('cold')} disabled={locked} onClick={(x, y) => submit('cold', x, y)} />
-        <WCButton label="warm" variant="warm" state={stateFor('warm')} disabled={locked} onClick={(x, y) => submit('warm', x, y)} />
-        <WCButton label="hot" variant="hot" state={stateFor('hot')} disabled={locked} onClick={(x, y) => submit('hot', x, y)} />
+        <WCButton dir="cold" state={stateFor('cold')} disabled={locked} onClick={(x, y) => submit('cold', x, y)} />
+        <WCButton dir="warm" state={stateFor('warm')} disabled={locked} onClick={(x, y) => submit('warm', x, y)} />
+        <WCButton dir="hot" state={stateFor('hot')} disabled={locked} onClick={(x, y) => submit('hot', x, y)} />
       </div>
       <div className="warm-cold__say">
         <div className="warm-cold__say-label">in your own words?</div>
@@ -66,21 +69,19 @@ export function WarmColdChoice({ disabled, onPick }: Props) {
 }
 
 function WCButton({
-  label,
-  variant,
+  dir,
   state,
   disabled,
   onClick,
 }: {
-  label: string;
-  variant: 'warm' | 'cold' | 'hot';
+  dir: Direction;
   state: PickState;
   disabled?: boolean;
   onClick: (clickX: number, clickY: number) => void;
 }) {
   const classes = [
     'wc-button',
-    `wc-button--${variant}`,
+    `wc-button--${dir}`,
     state === 'picked' ? 'wc-button--picked' : '',
     state === 'unpicked' ? 'wc-button--unpicked' : '',
   ].filter(Boolean).join(' ');
@@ -96,7 +97,7 @@ function WCButton({
         onClick(x, y);
       }}
     >
-      <span className="wc-button__text">{label}</span>
+      <img className="wc-button__symbol" src={ICON[dir]} alt={dir} draggable={false} />
     </button>
   );
 }

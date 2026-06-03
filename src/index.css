@@ -3704,6 +3704,14 @@ input, textarea {
   border-color: #b388ff;
 }
 .wc-button__text { display: inline-block; }
+.wc-button__symbol {
+  width: 2.2rem;
+  height: 2.2rem;
+  object-fit: contain;
+  filter: brightness(0) invert(1);   /* render the dark source icons white */
+  pointer-events: none;
+  user-select: none;
+}
 
 .wc-button--unpicked {
   opacity: 0;
