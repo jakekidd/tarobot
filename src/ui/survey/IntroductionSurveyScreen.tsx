@@ -41,6 +41,7 @@ export function IntroductionSurveyScreen({ driver, onDone }: Props) {
   const [speaking, setSpeaking] = useState(false);
   const [sensing, setSensing] = useState<{ name: string; color: string }>({ name: '', color: '' });
   const [gag, setGag] = useState<Gag>('idle');
+  const [askReady, setAskReady] = useState(false);
   const [thanksReady, setThanksReady] = useState(false);
 
   useEffect(() => {
@@ -62,7 +63,9 @@ export function IntroductionSurveyScreen({ driver, onDone }: Props) {
   if (step.kind === 'name') {
     dialogue = <NameDialogue question={NAME_QUESTION} name={sensing.name} color={sensing.color} />;
   } else if (gag === 'asking') {
-    dialogue = <Dialogue key="gag-ask" text={GAG_QUESTION} onTypingChange={setSpeaking} />;
+    dialogue = (
+      <Dialogue key="gag-ask" text={GAG_QUESTION} onTypingChange={setSpeaking} onDone={() => setAskReady(true)} />
+    );
   } else if (gag === 'thanks') {
     dialogue = (
       <Dialogue
@@ -82,7 +85,9 @@ export function IntroductionSurveyScreen({ driver, onDone }: Props) {
   if (step.kind === 'name') {
     choices = <NameStep onChange={(name, color) => setSensing({ name, color })} onSubmit={handleName} />;
   } else if (gag === 'asking') {
-    choices = <GagChoice onChoose={() => setGag('thanks')} />;
+    // Hold the choices until the dialogue has typed out + a beat (GagChoice
+    // staggers Yes then No on its own once it mounts).
+    choices = askReady ? <GagChoice onChoose={() => { setGag('thanks'); setAskReady(false); }} /> : null;
   } else if (gag === 'thanks') {
     // No auto-advance — the player clicks to continue once it's typed out.
     choices = thanksReady ? (

@@ -1,11 +1,11 @@
 // GagChoice — the "do you mind if i ask you some questions?" false choice.
 //
-// Yes. is white, No. is red. While you press EITHER one, both options invert —
-// swapping word and color with the other — because it's a gag: there's no
-// effect, you're already past the disclaimer (if you minded, you'd have left,
-// not tapped). Either release proceeds.
+// It mounts only after the dialogue has typed out, then reveals one option at
+// a time with a beat between: Yes. (white) first, then No. (red). Pressing
+// EITHER inverts both — swapping word and color — because it's a gag: there's
+// no effect, you're already past the disclaimer. Either release proceeds.
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 type Props = {
   onChoose: () => void;
@@ -14,27 +14,52 @@ type Props = {
 const YES = { word: 'Yes.', cls: 'gag-choice__yes' };
 const NO = { word: 'No.', cls: 'gag-choice__no' };
 
+// A beat before Yes, another before No.
+const BEAT_BEFORE_YES = 650;
+const BEAT_BEFORE_NO = 650;
+
 export function GagChoice({ onChoose }: Props) {
   const [pressing, setPressing] = useState(false);
+  const [revealed, setRevealed] = useState(0); // 0 none · 1 yes · 2 yes+no
 
-  // Base: left = Yes (white), right = No (red). Under a press, they swap.
+  useEffect(() => {
+    const t1 = window.setTimeout(() => setRevealed(1), BEAT_BEFORE_YES);
+    const t2 = window.setTimeout(() => setRevealed(2), BEAT_BEFORE_YES + BEAT_BEFORE_NO);
+    return () => { window.clearTimeout(t1); window.clearTimeout(t2); };
+  }, []);
+
+  // Base: left = Yes, right = No. Under a press, they swap (the gag).
   const left = pressing ? NO : YES;
   const right = pressing ? YES : NO;
 
+  const press = () => setPressing(true);
+  const release = () => { setPressing(false); onChoose(); };
+  const leave = () => setPressing(false);
+
   return (
     <div className="gag-choice">
-      {[left, right].map((opt, i) => (
+      {revealed >= 1 && (
         <button
-          key={i}
           type="button"
-          className={`gag-choice__btn ${opt.cls}`}
-          onPointerDown={() => setPressing(true)}
-          onPointerUp={() => { setPressing(false); onChoose(); }}
-          onPointerLeave={() => setPressing(false)}
+          className={`gag-choice__btn ${left.cls}`}
+          onPointerDown={press}
+          onPointerUp={release}
+          onPointerLeave={leave}
         >
-          {opt.word}
+          {left.word}
         </button>
-      ))}
+      )}
+      {revealed >= 2 && (
+        <button
+          type="button"
+          className={`gag-choice__btn ${right.cls}`}
+          onPointerDown={press}
+          onPointerUp={release}
+          onPointerLeave={leave}
+        >
+          {right.word}
+        </button>
+      )}
     </div>
   );
 }

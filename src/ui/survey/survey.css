@@ -50,7 +50,7 @@
 /* ─── the gag (do-you-mind false choice) ─────────────────── */
 .gag-choice {
   display: flex;
-  gap: 2.4rem;
+  gap: 6rem;                       /* farther apart */
   justify-content: center;
   align-items: center;
 }
@@ -59,15 +59,20 @@
   border: none;
   cursor: pointer;
   font-family: var(--font-speech);
-  font-size: 1.9rem;
+  font-size: 1.35rem;              /* smaller */
   letter-spacing: 0.06em;
   padding: 0.3rem 1rem;
   transition: transform 0.07s ease;
   user-select: none;
+  animation: gag-reveal 0.45s ease both;
 }
-.gag-choice__btn:active { transform: scale(0.93); }
-.gag-choice__yes { color: #fff; text-shadow: 0 0 12px rgba(255, 255, 255, 0.45); }
-.gag-choice__no { color: var(--color-danger); text-shadow: 0 0 12px rgba(226, 83, 110, 0.45); }
+.gag-choice__btn:active { transform: scale(0.9); }
+.gag-choice__yes { color: #fff; text-shadow: 0 0 10px rgba(255, 255, 255, 0.4); }
+.gag-choice__no { color: var(--color-danger); text-shadow: 0 0 10px rgba(226, 83, 110, 0.4); }
+@keyframes gag-reveal {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
 
 /* the thanks/icebreaker beat runs long — let it grow past the 4-line cap. */
 .survey__dialogue-host--tall .dialogue-stage {
