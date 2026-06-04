@@ -38,6 +38,20 @@ type Position =
   | { kind: 'birthdate' }
   | { kind: 'done' };
 
+/** One-level undo snapshot — survey state at the moment an answer was given.
+ *  Only the most recent is kept; undo restores it and forgets it. */
+type Snapshot = {
+  pos: Position;
+  name: string;
+  nameColor: string;
+  birthday: IdentityBlock['birthday'];
+  sunSign: string | null;
+  lifePath: number | null;
+  birthCard: IdentityBlock['birth_card'];
+  ageBracket: string | null;
+  readings: FacetReading[];
+};
+
 export class IntroductionSurvey implements RailDriver<RawPortrait> {
   private readonly facets: SurveyFacet[];
   private readonly listeners = new Set<() => void>();
@@ -56,6 +70,8 @@ export class IntroductionSurvey implements RailDriver<RawPortrait> {
 
   private readings: FacetReading[] = [];
   private finished: RawPortrait | null = null;
+  /** Most-recent pre-answer snapshot for one-level undo (facets only). */
+  private prevSnapshot: Snapshot | null = null;
 
   constructor(doc: SurveyDoc) {
     this.facets = doc.facets;
@@ -95,6 +111,7 @@ export class IntroductionSurvey implements RailDriver<RawPortrait> {
         break;
       case 'facet':
         if (input.kind !== 'choice') return;
+        this.prevSnapshot = this.snapshot();
         this.recordFacet(this.facets[this.pos.index]!, input.value, latency, answeredAt);
         break;
       case 'birthdate':
@@ -116,6 +133,47 @@ export class IntroductionSurvey implements RailDriver<RawPortrait> {
 
   result(): RawPortrait | null {
     return this.finished;
+  }
+
+  // ─── undo (one level, facets only) ───────────────────
+
+  /** True when the last facet answer can be taken back. Disabled once the
+   *  survey is done — you can't undo past the final question. */
+  canUndo(): boolean {
+    return this.prevSnapshot !== null && this.pos.kind !== 'done';
+  }
+
+  /** Restore the most-recent pre-answer snapshot, then forget it (one level). */
+  undo(): void {
+    const s = this.prevSnapshot;
+    if (!s || this.pos.kind === 'done') return;
+    this.pos = s.pos;
+    this.name = s.name;
+    this.nameColor = s.nameColor;
+    this.birthday = s.birthday;
+    this.sunSign = s.sunSign;
+    this.lifePath = s.lifePath;
+    this.birthCard = s.birthCard;
+    this.ageBracket = s.ageBracket;
+    this.readings = s.readings;
+    this.finished = null;
+    this.prevSnapshot = null;
+    this.shownAt = Date.now();
+    this.emit();
+  }
+
+  private snapshot(): Snapshot {
+    return {
+      pos: this.pos,
+      name: this.name,
+      nameColor: this.nameColor,
+      birthday: this.birthday,
+      sunSign: this.sunSign,
+      lifePath: this.lifePath,
+      birthCard: this.birthCard,
+      ageBracket: this.ageBracket,
+      readings: [...this.readings],
+    };
   }
 
   // ─── internals ───────────────────────────────────────

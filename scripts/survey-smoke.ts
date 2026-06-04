@@ -44,6 +44,21 @@ if (!raw) {
 
 printPortrait(raw);
 
+// ── undo: one-level, facets only ──
+console.log('\n=== UNDO CHECKS ===');
+{
+  const s = new IntroductionSurvey(doc);
+  s.submit({ kind: 'name', name: 'Test', color: '#ffffff' });
+  s.submit({ kind: 'choice', value: doc.facets[0]!.options[0]!.label });
+  s.submit({ kind: 'choice', value: doc.facets[1]!.options[0]!.label });
+  check(s.canUndo(), 'canUndo true after answering two facets');
+  s.undo();
+  const cur = s.current();
+  check(cur.kind === 'choice' && cur.slug === doc.facets[1]!.slug, 'undo returns to the last facet question');
+  check(!s.canUndo(), 'one-level — canUndo false after a single undo');
+}
+console.log('\n✓ all smoke checks passed');
+
 function printPortrait(p: RawPortrait): void {
   console.log('\n=== IDENTITY ===');
   console.log(`  ${p.identity.name} (${p.identity.name_color}) · ${p.identity.sun_sign} · life path ${p.identity.life_path} · ${p.identity.birth_card?.name} · ${p.identity.age_bracket}`);

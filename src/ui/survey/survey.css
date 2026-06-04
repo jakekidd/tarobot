@@ -1,35 +1,95 @@
-/* IntroductionSurvey — the NameStep's psychic line + the raw-output page. */
+/* IntroductionSurvey — name step + sensing dialogue + the gag + raw output. */
 
-.name-step__sensing {
-  text-align: center;
-  font-family: var(--font-mono, monospace);
-  font-size: 0.85rem;
-  letter-spacing: 0.04em;
-  opacity: 0.85;
-  margin-bottom: 0.85rem;
-  min-height: 1.4em;
-}
-.name-step__sensed {
-  font-weight: 700;
-  letter-spacing: 0.35em; /* the "C L A U" psychic spacing */
-}
-.name-step__form {
+/* ─── name step (the input row) ─────────────────────────── */
+.name-step {
   display: flex;
-  align-items: center;
+  align-items: stretch;            /* color square, input, enter — one height */
   gap: 0.5rem;
-  justify-content: center;
+  width: min(64ch, calc(100vw - 4rem));
+  margin: 0 auto;
 }
 .name-step__color {
-  width: 1.6rem;
-  height: 1.6rem;
-  border-radius: 4px;
-  border: 1px solid rgba(255, 255, 255, 0.25);
-  cursor: pointer;
   flex: 0 0 auto;
+  width: 3.2rem;
+  align-self: stretch;
+  border-radius: 6px;
+  border: 1px solid var(--violet-line-strong);
+  cursor: pointer;
   padding: 0;
 }
+.name-step__color:hover { filter: brightness(1.12); }
+.name-step__input { flex: 1 1 auto; min-width: 0; }
+.name-step__enter { flex: 0 0 auto; }
 
-/* ── raw output dump (the blank redirect page) ───────────── */
+/* ─── the turtle's name dialogue (question + live sensing) ─ */
+.name-dialogue { flex-direction: column; align-items: flex-start; }
+.name-dialogue__q { position: static; }
+.name-dialogue__sensing {
+  margin-top: 1.55em;              /* one blank line below the question */
+  font-family: var(--font-mono);
+  font-size: 1rem;
+  letter-spacing: 0.1em;
+  color: var(--fg-muted);
+}
+.name-dialogue__name {
+  font-family: var(--font-speech);
+  font-weight: 600;
+  font-size: 1.7rem;
+  letter-spacing: 0.32em;
+  text-transform: uppercase;
+  margin-left: 0.25em;
+  display: inline-block;
+  text-shadow: 0 0 14px currentColor; /* glow in the chosen accent */
+  animation: name-float 2.4s ease-in-out infinite;
+}
+@keyframes name-float {
+  0%, 100% { transform: translateY(0) rotate(-0.6deg); }
+  50%      { transform: translateY(-5px) rotate(0.6deg); }
+}
+
+/* ─── the gag (do-you-mind false choice) ─────────────────── */
+.gag-choice {
+  display: flex;
+  gap: 2.4rem;
+  justify-content: center;
+  align-items: center;
+}
+.gag-choice__btn {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  font-family: var(--font-speech);
+  font-size: 1.9rem;
+  letter-spacing: 0.06em;
+  padding: 0.3rem 1rem;
+  transition: transform 0.07s ease;
+  user-select: none;
+}
+.gag-choice__btn:active { transform: scale(0.93); }
+.gag-choice__yes { color: #fff; text-shadow: 0 0 12px rgba(255, 255, 255, 0.45); }
+.gag-choice__no { color: var(--color-danger); text-shadow: 0 0 12px rgba(226, 83, 110, 0.45); }
+
+/* the thanks/icebreaker beat runs long — let it grow past the 4-line cap. */
+.survey__dialogue-host--tall .dialogue-stage {
+  height: auto;
+  overflow: visible;
+}
+
+/* ─── undo chevron (top-left) ────────────────────────────── */
+.survey__undo {
+  position: absolute;
+  top: 4.5rem;
+  left: 1.2rem;
+  background: transparent;
+  border: none;
+  color: var(--fg-muted);
+  cursor: pointer;
+  padding: 0.4rem;
+  z-index: 5;
+}
+.survey__undo:hover { color: var(--violet); }
+
+/* ─── raw output dump (the blank redirect page) ──────────── */
 .survey-done {
   position: fixed;
   inset: 0;
@@ -46,7 +106,7 @@
   gap: 1rem;
   padding: 0.6rem 1rem;
   border-bottom: 1px solid rgba(157, 108, 255, 0.3);
-  font-family: var(--font-mono, monospace);
+  font-family: var(--font-mono);
   font-size: 0.8rem;
 }
 .survey-done__actions {
@@ -58,7 +118,7 @@
   margin: 0;
   padding: 1rem;
   overflow: auto;
-  font-family: var(--font-mono, monospace);
+  font-family: var(--font-mono);
   font-size: 0.72rem;
   line-height: 1.45;
   white-space: pre;
