@@ -1,0 +1,66 @@
+/* IntroductionSurvey — the NameStep's psychic line + the raw-output page. */
+
+.name-step__sensing {
+  text-align: center;
+  font-family: var(--font-mono, monospace);
+  font-size: 0.85rem;
+  letter-spacing: 0.04em;
+  opacity: 0.85;
+  margin-bottom: 0.85rem;
+  min-height: 1.4em;
+}
+.name-step__sensed {
+  font-weight: 700;
+  letter-spacing: 0.35em; /* the "C L A U" psychic spacing */
+}
+.name-step__form {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  justify-content: center;
+}
+.name-step__color {
+  width: 1.6rem;
+  height: 1.6rem;
+  border-radius: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  cursor: pointer;
+  flex: 0 0 auto;
+  padding: 0;
+}
+
+/* ── raw output dump (the blank redirect page) ───────────── */
+.survey-done {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  background: #0a0612;
+  color: #d8c8ff;
+  display: flex;
+  flex-direction: column;
+}
+.survey-done__bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.6rem 1rem;
+  border-bottom: 1px solid rgba(157, 108, 255, 0.3);
+  font-family: var(--font-mono, monospace);
+  font-size: 0.8rem;
+}
+.survey-done__actions {
+  display: flex;
+  gap: 0.5rem;
+}
+.survey-done__json {
+  flex: 1;
+  margin: 0;
+  padding: 1rem;
+  overflow: auto;
+  font-family: var(--font-mono, monospace);
+  font-size: 0.72rem;
+  line-height: 1.45;
+  white-space: pre;
+  color: #b9a6e8;
+}

@@ -15,6 +15,9 @@ import { Antechamber as AntechamberScreen } from './ui/Antechamber';
 import { Reading } from './ui/Reading';
 import { Pipeline } from './ui/Pipeline';
 import { Bench } from './lab/Bench';
+import { IntroductionSurveyScreen } from './ui/survey/IntroductionSurveyScreen';
+import { SurveyDone } from './ui/survey/SurveyDone';
+import { IntroductionSurvey, loadSurvey, type RawPortrait } from './pipeline/introduction-survey';
 import { TarobotScene } from './ui/scene/TarobotScene';
 import { buildMarisolDemoSeer } from './pipeline/seer';
 import { AnthropicAdapter } from './pipeline/antechamber';
@@ -40,7 +43,9 @@ type Phase =
   | { kind: 'antechamber'; session: Session; loadedPerson?: Person | null }
   | { kind: 'reading'; session: Session; seer: Seer }
   | { kind: 'pipeline' }
-  | { kind: 'bench' };
+  | { kind: 'bench' }
+  | { kind: 'survey'; survey: IntroductionSurvey }
+  | { kind: 'survey_done'; raw: RawPortrait };
 
 export function App() {
   const [apiKey, setApiKey] = useState<string | null>(() => loadApiKey());
@@ -78,9 +83,11 @@ export function App() {
   }
 
   function startNewReading() {
-    // New visit. In-memory only until save threshold lands inside Antechamber.
-    const s = newSession();
-    setPhase({ kind: 'antechamber', session: s });
+    // New visit → the IntroductionSurvey (deterministic, no AI). It drives
+    // the UI rails and, on completion, hands up a RawPortrait. This pass
+    // dumps that to the SurveyDone page — the TuningEngine that would consume
+    // it is not wired yet, so the flow intentionally ends there.
+    setPhase({ kind: 'survey', survey: new IntroductionSurvey(loadSurvey()) });
   }
 
   // Brief "we're leaving the menu" flag — set when READ DEMO fires so
@@ -215,6 +222,17 @@ export function App() {
 
           {phase.kind === 'bench' && apiKey && (
             <Bench apiKey={apiKey} onExit={goMenu} />
+          )}
+
+          {phase.kind === 'survey' && (
+            <IntroductionSurveyScreen
+              driver={phase.survey}
+              onDone={(raw) => setPhase({ kind: 'survey_done', raw })}
+            />
+          )}
+
+          {phase.kind === 'survey_done' && (
+            <SurveyDone raw={phase.raw} onExit={goMenu} />
           )}
         </main>
 

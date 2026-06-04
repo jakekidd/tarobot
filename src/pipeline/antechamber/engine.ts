@@ -1,3 +1,13 @@
+// ⚠️ LEGACY — being replaced. This is the pre-refactor monolith: survey +
+// interrogation + compile in one class. The survey half now lives in
+// `pipeline/introduction-survey` (deterministic, no AI); the post-survey half
+// is being reborn as `pipeline/tuning/TuningEngine` (paints the Portrait,
+// hosts charge-hunting Agents). This file remains ONLY to serve the legacy
+// load-path, the lab Bench, and the e2e scripts until the diviner overhaul
+// migrates its AI pipelines (diviner / weaver / compiler / augur) into the
+// tuning module — at which point it is deleted. Do NOT build new features on
+// AntechamberEngine; the go-forward engine is TuningEngine.
+//
 // Antechamber engine. Plain TS class — no React, no DOM, no model SDK. Owns
 // EngineState; everything else (UI, tests, scripts) reads state and submits
 // answers. Agents fire through an LLMAdapter handed in at construction.

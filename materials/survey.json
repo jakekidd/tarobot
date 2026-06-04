@@ -1,0 +1,177 @@
+{
+  "version": 3,
+  "authoring": {
+    "what this is": "the introduction survey. a deterministic, no-AI list of facet questions. each option carries authored channels; on pick they round up into the RawPortrait. these are SEEDS — flesh them out.",
+    "indicator": "FACT. a direct, near-certain read of THIS answer — true of ~99% who pick it. if it isn't near-certain, demote it to an implication.",
+    "implication": "LEAD. what the answer implies — speculative, could be otherwise. a hypothesis, not a fact. (meaning lives in the answer, not in your head.)",
+    "identity": "TYPES. competing, mutually-exclusive character-hypotheses the reading later resolves (e.g. THE STRIVER vs THE FLEEING-ONE). plural by design. distinct, recognizable — never vague flattery.",
+    "weight": "0-3. how hot this answer runs — emotional + meaningful valence. 0 inert (the cold baseline pick), 1 mild, 2 warm (a real lead), 3 hot (load-bearing). it ONLY sorts the RawPortrait amalgam (high signal rises, low signal sinks to the bottom). it NEVER gates, filters, or drops anything — the survey is a lossless reflection of this doc. author it per-answer — do NOT flatten to a constant or it sorts nothing.",
+    "shadow": "ONE LINE. what it means to NOT pick this. when an answer is chosen, the shadows of ALL declined options are collected as that facet's negative space (never gated). kept to one line on purpose — that keeps negative space linear at one fragment per declined option.",
+    "hooks": "RELATIONAL. fires pairwise against OTHER answers; also where contextual weight-modulation will live. empty for now.",
+    "notes": "DIRECTIVE. what the system should DO, not what's true. operational or it's barnum. empty for now."
+  },
+  "facets": [
+    {
+      "slug": "basics",
+      "facet": "ground",
+      "question": "how are the basics right now? housing, money, health",
+      "hidden_target": "material ground — recalibrates every other answer",
+      "options": [
+        { "label": "handled", "weight": 0, "indicators": ["material ground is stable"], "implications": ["stress they name later is more likely existential than situational"], "identities": ["the secure base — here for meaning, not rescue"], "shadow": "the ground isn't actually settled", "hooks": [], "notes": [] },
+        { "label": "mostly", "weight": 0, "indicators": ["basics broadly held, with one live edge"], "implications": ["one domain — housing, money, or health — is quietly straining"], "identities": ["the steady-but-watchful"], "shadow": "no quiet strain in the background — it's either fine or it's loud", "hooks": [], "notes": [] },
+        { "label": "some are slipping", "weight": 2, "indicators": ["real strain in at least one basic domain"], "implications": ["later flatness may be situational, not dispositional"], "identities": ["the quietly-precarious — holding it together in public"], "shadow": "the strain isn't partial — it's either handled or total", "hooks": [], "notes": [] },
+        { "label": "barely — survival mode", "weight": 3, "indicators": ["material crisis dominates the field"], "implications": ["any fork sits on top of survival pressure"], "identities": ["the in-the-storm — needs ground before depth"], "shadow": "survival isn't the crisis; the weight is elsewhere", "hooks": [], "notes": [] }
+      ]
+    },
+    {
+      "slug": "relationship-status",
+      "facet": "relational",
+      "question": "and your heart — where is it these days?",
+      "hidden_target": "relational ground — status, never names",
+      "options": [
+        { "label": "on my own", "weight": 1, "indicators": ["unpartnered right now"], "implications": ["charges may skew vocational / identity / family-of-origin over romantic"], "identities": ["the contentedly-solo OR the achingly-alone — the survey can't tell yet"], "shadow": "there's someone in the picture", "hooks": [], "notes": [] },
+        { "label": "seeing someone", "weight": 1, "indicators": ["something new and unsettled romantically"], "implications": ["hope and uncertainty both live here"], "identities": ["the hopeful-early — testing whether this one's real"], "shadow": "nothing new or tentative on the romantic front", "hooks": [], "notes": [] },
+        { "label": "partnered", "weight": 0, "indicators": ["in an established bond"], "implications": ["the relationship is likely load-bearing in their life"], "identities": ["the paired — the partner is probably in the cast"], "shadow": "no established bond carrying weight", "hooks": [], "notes": [] },
+        { "label": "married", "weight": 0, "indicators": ["formally committed, long arc"], "implications": ["charges may be about the shape of a built life"], "identities": ["the long-bonded — comfort or quiet drift, undetermined"], "shadow": "not inside a long formal commitment", "hooks": [], "notes": [] },
+        { "label": "it's complicated", "weight": 2, "indicators": ["romantic life is in flux or contradiction"], "implications": ["a live relational charge is likely"], "identities": ["the in-between — mid-rupture, mid-affair, or mid-decision"], "shadow": "the romantic situation is legible, not tangled", "hooks": [], "notes": [] }
+      ]
+    },
+    {
+      "slug": "work",
+      "facet": "work",
+      "question": "most days, the work you actually do feels like—",
+      "hidden_target": "vocation valence",
+      "options": [
+        { "label": "mine, i'd choose it", "weight": 1, "indicators": ["work-identity is aligned"], "implications": ["the doing matches the wanting"], "identities": ["the called — work is a source, not a drain"], "shadow": "the work isn't theirs in the way they'd want", "hooks": [], "notes": [] },
+        { "label": "fine, pays the bills", "weight": 0, "indicators": ["an instrumental relationship to work"], "implications": ["healthy detachment or quiet resignation — undetermined"], "identities": ["the pragmatist OR the resigned"], "shadow": "work is more than neutral — it's loved or hated", "hooks": [], "notes": [] },
+        { "label": "a slog, running empty", "weight": 3, "indicators": ["work is depleting them"], "implications": ["misaligned and draining; possibly trapped"], "identities": ["the depleted — grinding past the point it pays back"], "shadow": "work isn't actively draining them", "hooks": [], "notes": [] },
+        { "label": "in-between", "weight": 2, "indicators": ["work-identity is in flux"], "implications": ["transitional — between roles or mid-rethink"], "identities": ["the in-transition"], "shadow": "work-identity is settled, not in motion", "hooks": [], "notes": [] }
+      ]
+    },
+    {
+      "slug": "social",
+      "facet": "social",
+      "question": "after a long week, the night that actually restores you—",
+      "hidden_target": "energy direction (introvert / extrovert)",
+      "options": [
+        { "label": "out with people", "weight": 0, "indicators": ["restored by stimulation and crowds"], "implications": ["solitude later may read as deprivation, not preference"], "identities": ["the extrovert — charged by the room"], "shadow": "crowds aren't where they refill", "hooks": [], "notes": [] },
+        { "label": "a few close people", "weight": 0, "indicators": ["depth-over-breadth social"], "implications": ["intimacy over volume"], "identities": ["the deep-not-wide"], "shadow": "not the small-circle type", "hooks": [], "notes": [] },
+        { "label": "one person, or just me", "weight": 1, "indicators": ["restored by depth or solitude"], "implications": ["introvert-leaning"], "identities": ["the introvert-leaning"], "shadow": "one-on-one or solitude isn't the restore", "hooks": [], "notes": [] },
+        { "label": "home, door shut", "weight": 1, "indicators": ["solitude as active refuge"], "implications": ["introvert; if they crave belonging elsewhere, a live tension"], "identities": ["the recharger-alone"], "shadow": "solitude isn't a refuge they reach for", "hooks": [], "notes": [] }
+      ]
+    },
+    {
+      "slug": "rest",
+      "facet": "rest",
+      "question": "a day opens up with nothing in it. you—",
+      "hidden_target": "can you be without doing (mirror of yearning)",
+      "options": [
+        { "label": "tackle the list", "weight": 2, "indicators": ["can't rest; output-driven even in freedom"], "implications": ["worth is likely staked on productivity"], "identities": ["THE STRIVER — rest feels like a debt owed"], "shadow": "open time isn't immediately filled with doing", "hooks": [], "notes": [] },
+        { "label": "finally rest, guilt-free", "weight": 0, "indicators": ["can receive rest"], "implications": ["healthy relationship with stillness"], "identities": ["the at-ease — worth isn't staked on doing"], "shadow": "rest doesn't come guilt-free", "hooks": [], "notes": [] },
+        { "label": "pretend to relax but stay half-on", "weight": 2, "indicators": ["can't fully disconnect; performs rest"], "implications": ["anxious activation under the stillness"], "identities": ["the half-on — vigilance dressed as leisure"], "shadow": "they can actually switch off — or can't even pretend to", "hooks": [], "notes": [] },
+        { "label": "don't know what to do with myself", "weight": 3, "indicators": ["unmoored without structure"], "implications": ["empty time is threatening"], "identities": ["the unstructured-anxious — no compass for open time"], "shadow": "they have a compass for open time", "hooks": [], "notes": [] }
+      ]
+    },
+    {
+      "slug": "body",
+      "facet": "body",
+      "question": "your body is more a temple, a tool, or a problem?",
+      "hidden_target": "embodiment (the honest channel)",
+      "options": [
+        { "label": "a temple i tend", "weight": 1, "indicators": ["a reverent, invested relationship with the body"], "implications": ["cares for it; can tip into control"], "identities": ["the tender — OR the controlling-careful"], "shadow": "the body isn't tended with reverence", "hooks": [], "notes": [] },
+        { "label": "a tool that gets me through", "weight": 0, "indicators": ["a utilitarian relationship to the body"], "implications": ["the body serves function; low felt relationship"], "identities": ["the utilitarian"], "shadow": "the body is more than a means to an end", "hooks": [], "notes": [] },
+        { "label": "a problem i manage", "weight": 3, "indicators": ["the body is an ongoing struggle"], "implications": ["health, image, or chronic issue is live"], "identities": ["the at-war — the body is a battleground"], "shadow": "the body isn't a daily struggle", "hooks": [], "notes": [] },
+        { "label": "a stranger, i'm barely in it", "weight": 3, "indicators": ["dissociated from the physical"], "implications": ["lives up in the head; the not-noticing is the signal"], "identities": ["the disembodied"], "shadow": "they're present in the body, not above it", "hooks": [], "notes": [] }
+      ]
+    },
+    {
+      "slug": "change",
+      "facet": "change",
+      "question": "be honest — do you stay too long, or leave too soon?",
+      "hidden_target": "the exit pattern",
+      "options": [
+        { "label": "stay too long", "weight": 2, "indicators": ["over-tolerant; lets things run past their expiry"], "implications": ["over-loyal, or conflict-averse about endings"], "identities": ["the over-stayer — loyal or trapped"], "shadow": "they don't over-stay; if anything they leave early", "hooks": [], "notes": [] },
+        { "label": "leave too soon", "weight": 2, "indicators": ["exits before resolution"], "implications": ["flight-prone or self-protective"], "identities": ["the bolter — leaves when it gets hard"], "shadow": "they don't bolt; if anything they linger", "hooks": [], "notes": [] },
+        { "label": "i've done both", "weight": 1, "indicators": ["no consistent exit bias, or unexamined"], "implications": ["context-dependent"], "identities": ["the inconsistent — the pattern isn't owned yet"], "shadow": "the exit pattern is consistent, not mixed", "hooks": [], "notes": [] },
+        { "label": "i time it about right", "weight": 0, "indicators": ["claims good calibration"], "implications": ["secure, or simply not-yet-burned"], "identities": ["the well-calibrated (or untested)"], "shadow": "the timing is off in one direction and they know it", "hooks": [], "notes": [] }
+      ]
+    },
+    {
+      "slug": "conflict",
+      "facet": "conflict",
+      "question": "when you're angry, it tends to come out—",
+      "hidden_target": "anger metabolism",
+      "options": [
+        { "label": "hot, i let it out", "weight": 1, "indicators": ["externalizes anger directly"], "implications": ["volatile or honest, depending on the aftermath"], "identities": ["the hot — anger goes out, not in"], "shadow": "anger doesn't come out loud", "hooks": [], "notes": [] },
+        { "label": "cold, i go distant", "weight": 2, "indicators": ["anger expressed as withdrawal"], "implications": ["punishes through absence"], "identities": ["the cold-shoulder — aggression in retreat"], "shadow": "withdrawal isn't the anger move", "hooks": [], "notes": [] },
+        { "label": "it doesn't, i swallow it", "weight": 3, "indicators": ["anger has no outlet"], "implications": ["turned inward or somatized; the missing anger is the tell"], "identities": ["the swallower — anger pointed at the self"], "shadow": "the anger has an outlet", "hooks": [], "notes": [] },
+        { "label": "depends who it's with", "weight": 2, "indicators": ["anger is relationship-gated"], "implications": ["safe with some, suppressed with others — a hierarchy"], "identities": ["the selective — anger maps the safety map"], "shadow": "anger isn't relationship-gated — it's consistent", "hooks": [], "notes": [] }
+      ]
+    },
+    {
+      "slug": "attachment",
+      "facet": "attachment",
+      "question": "when someone you love goes quiet, you—",
+      "hidden_target": "attachment reflex under live threat",
+      "options": [
+        { "label": "reach out", "weight": 1, "indicators": ["pursues under relational ambiguity"], "implications": ["anxious-leaning; low tolerance for the unread"], "identities": ["the pursuer — closes the distance"], "shadow": "silence isn't met by pursuit", "hooks": [], "notes": [] },
+        { "label": "wait", "weight": 0, "indicators": ["gives space under ambiguity"], "implications": ["secure space-giving OR avoidant non-chase — undetermined"], "identities": ["the waiter — secure or avoidant"], "shadow": "they don't give space — they move", "hooks": [], "notes": [] },
+        { "label": "assume the worst", "weight": 3, "indicators": ["catastrophizes the silence"], "implications": ["abandonment hypervigilance"], "identities": ["the catastrophizer — silence means leaving"], "shadow": "silence doesn't trip catastrophe", "hooks": [], "notes": [] },
+        { "label": "let it go", "weight": 2, "indicators": ["releases, or pulls back themselves"], "implications": ["genuine non-attachment OR self-protective preemption"], "identities": ["the releaser — settled or pre-emptively walled"], "shadow": "they don't release — they hold on", "hooks": [], "notes": [] }
+      ]
+    },
+    {
+      "slug": "ego",
+      "facet": "ego",
+      "question": "fastest way to ruin your whole day?",
+      "hidden_target": "where worth is staked",
+      "options": [
+        { "label": "being criticized", "weight": 2, "indicators": ["worth runs through competence"], "implications": ["criticism lands on the foundation, not the surface"], "identities": ["the competence-staked — being wrong is the wound"], "shadow": "worth isn't pinned to being right", "hooks": [], "notes": [] },
+        { "label": "being dismissed", "weight": 2, "indicators": ["worth runs through mattering and recognition"], "implications": ["the wound is invisibility"], "identities": ["the unseen — needs to be taken seriously"], "shadow": "invisibility isn't the wound", "hooks": [], "notes": [] },
+        { "label": "letting someone down", "weight": 2, "indicators": ["worth runs through being good-for-others"], "implications": ["the people-pleaser tell, sideways"], "identities": ["the disappointer-fearing — worth is in not-failing-others"], "shadow": "worth isn't pinned to not-failing-others", "hooks": [], "notes": [] },
+        { "label": "a day i wasted", "weight": 3, "indicators": ["worth runs through output"], "implications": ["an unproductive day registers as a moral failing"], "identities": ["THE STRIVER — worth staked on achievement", "THE FLEEING-ONE — stays busy to outrun something"], "shadow": "worth isn't pinned to output", "hooks": [], "notes": [] }
+      ]
+    },
+    {
+      "slug": "family",
+      "facet": "family",
+      "question": "picture going home where you grew up. the feeling in your chest—",
+      "hidden_target": "origin residue (pre-verbal, hard to fake)",
+      "options": [
+        { "label": "warmth", "weight": 0, "indicators": ["a secure origin; home is a resource"], "implications": ["the healthy backstop — and likely real"], "identities": ["the secure-rooted"], "shadow": "home isn't simply a resource", "hooks": [], "notes": [] },
+        { "label": "tightness, i brace", "weight": 2, "indicators": ["home activates old roles or tension"], "implications": ["a wound with an address"], "identities": ["the bracer — old roles reassert at home"], "shadow": "home doesn't make them brace", "hooks": [], "notes": [] },
+        { "label": "heaviness", "weight": 3, "indicators": ["grief in the origin"], "implications": ["absence, estrangement, or what it wasn't"], "identities": ["the grieving — home is loss"], "shadow": "the origin isn't heavy with grief", "hooks": [], "notes": [] },
+        { "label": "not much, i don't go back", "weight": 2, "indicators": ["distance from the origin"], "implications": ["peaceful detachment OR active avoidance — the flatness may be protective"], "identities": ["the estranged — detached or avoidant"], "shadow": "they still go back; there's a live tie", "hooks": [], "notes": [] }
+      ]
+    },
+    {
+      "slug": "yearning",
+      "facet": "yearning",
+      "question": "which of these do you want most?",
+      "hidden_target": "the altar — each want inverts to a fear",
+      "options": [
+        { "label": "love", "weight": 2, "indicators": ["relational hunger"], "implications": ["inverts to a fear of being unlovable or abandoned"], "identities": ["the love-hungry"], "shadow": "connection isn't the deepest want right now", "hooks": [], "notes": [] },
+        { "label": "freedom", "weight": 2, "indicators": ["autonomy hunger"], "implications": ["inverts to a fear of constraint or entrapment"], "identities": ["the freedom-seeker"], "shadow": "they're not chafing against constraint", "hooks": [], "notes": [] },
+        { "label": "wisdom", "weight": 2, "indicators": ["sense-making hunger"], "implications": ["inverts to a fear of being foolish or deceived"], "identities": ["the seeker — often mid-transition"], "shadow": "understanding isn't the hunger", "hooks": [], "notes": [] },
+        { "label": "beauty", "weight": 1, "indicators": ["aesthetic / aliveness hunger"], "implications": ["inverts to a fear of decay or invisibility"], "identities": ["the aesthete"], "shadow": "aliveness and aesthetics aren't the ache", "hooks": [], "notes": [] },
+        { "label": "security", "weight": 2, "indicators": ["safety hunger"], "implications": ["inverts to a fear of chaos; read against basics"], "identities": ["the ground-seeker"], "shadow": "stability isn't what's missing", "hooks": [], "notes": [] },
+        { "label": "belonging", "weight": 2, "indicators": ["communal hunger"], "implications": ["inverts to a fear of exile or not-enough-for-the-group"], "identities": ["the belonging-hungry — collectivist-shaped, not deficient"], "shadow": "the group isn't the hunger", "hooks": [], "notes": [] },
+        { "label": "power", "weight": 2, "indicators": ["agency and impact hunger"], "implications": ["inverts to a fear of powerlessness or humiliation"], "identities": ["the agency-hungry"], "shadow": "agency and impact aren't the want", "hooks": [], "notes": [] },
+        { "label": "health", "weight": 2, "indicators": ["bodily / vitality hunger"], "implications": ["a concrete need; often surfaces after a scare or a gray stretch"], "identities": ["the depleted-or-ill — wants the body back"], "shadow": "the body isn't what they're reaching for", "hooks": [], "notes": [] },
+        { "label": "something i can't name", "weight": 3, "indicators": ["in transit between frames"], "implications": ["post-religious / pre-arrived — the highest-signal want"], "identities": ["the searching — between altars"], "shadow": "the want is nameable; they're not between frames", "hooks": [], "notes": [] }
+      ]
+    },
+    {
+      "slug": "agency",
+      "facet": "agency",
+      "question": "closest to true about how your life has gone—",
+      "hidden_target": "locus of control — the close",
+      "options": [
+        { "label": "i made it what it is", "weight": 1, "indicators": ["a strong internal locus of control"], "implications": ["a life that has rewarded effort; may miss where effort wasn't the variable"], "identities": ["THE SELF-MADE — authorship as identity", "THE CONTROLLER — grip born of a fear of helplessness"], "shadow": "they don't fully claim authorship", "hooks": [], "notes": [] },
+        { "label": "a lot was luck & timing", "weight": 1, "indicators": ["an external locus on their own outcomes"], "implications": ["at peace with it, or quietly defeated — adjacent answers disambiguate"], "identities": ["the humble-grateful OR the quietly-defeated"], "shadow": "they don't credit chance", "hooks": [], "notes": [] },
+        { "label": "played a bad hand well", "weight": 2, "indicators": ["the stoic split — determinist on circumstance, free-will on response"], "implications": ["carries a hardship they're quietly proud of having met"], "identities": ["the stoic-resilient — already holds the mirror frame"], "shadow": "they don't frame it as resilience", "hooks": [], "notes": [] },
+        { "label": "still not sure how much was me", "weight": 3, "indicators": ["genuine uncertainty about their own causal role"], "implications": ["often mid-reckoning — a recent event unsettled a story they told"], "identities": ["the reckoning — destabilized, re-sorting"], "shadow": "they have a settled story about their role", "hooks": [], "notes": [] }
+      ]
+    }
+  ]
+}
