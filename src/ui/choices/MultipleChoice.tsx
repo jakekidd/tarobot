@@ -61,8 +61,10 @@ export function MultipleChoice({ suggestions, isBinary, disabled, onPick }: Prop
     );
   }
 
+  // Long option sets (7+) lay out as two columns so they don't run tall.
+  const twoCol = suggestions.length >= 7;
   return (
-    <ul className="choice-list">
+    <ul className={twoCol ? 'choice-list choice-list--two-col' : 'choice-list'}>
       {suggestions.map((s, i) => (
         <li key={`${i}-${s}`}>
           <ChoiceButton

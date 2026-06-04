@@ -2946,6 +2946,11 @@ input, textarea {
   width: 100%;
 }
 .choice-list li { margin: 0; }
+.choice-list--two-col {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.4rem;
+}
 
 /* Multi-select wrapper holds the choice-list plus the submit row. */
 .multi-select {
