@@ -1,14 +1,15 @@
 {
   "version": 3,
   "authoring": {
-    "what this is": "the introduction survey. a deterministic, no-AI list of facet questions. each option carries authored channels; on pick they round up into the RawPortrait. these are SEEDS — flesh them out.",
-    "indicator": "FACT. a direct, near-certain read of THIS answer — true of ~99% who pick it. if it isn't near-certain, demote it to an implication.",
-    "implication": "LEAD. what the answer implies — speculative, could be otherwise. a hypothesis, not a fact. (meaning lives in the answer, not in your head.)",
-    "identity": "TYPES. competing, mutually-exclusive character-hypotheses the reading later resolves (e.g. THE STRIVER vs THE FLEEING-ONE). plural by design. distinct, recognizable — never vague flattery.",
-    "weight": "0-3. how hot this answer runs — emotional + meaningful valence. 0 inert (the cold baseline pick), 1 mild, 2 warm (a real lead), 3 hot (load-bearing). it ONLY sorts the RawPortrait amalgam (high signal rises, low signal sinks to the bottom). it NEVER gates, filters, or drops anything — the survey is a lossless reflection of this doc. author it per-answer — do NOT flatten to a constant or it sorts nothing.",
-    "shadow": "ONE LINE. what it means to NOT pick this. when an answer is chosen, the shadows of ALL declined options are collected as that facet's negative space (never gated). kept to one line on purpose — that keeps negative space linear at one fragment per declined option.",
-    "hooks": "RELATIONAL. fires pairwise against OTHER answers; also where contextual weight-modulation will live. empty for now.",
-    "notes": "DIRECTIVE. what the system should DO, not what's true. operational or it's barnum. empty for now."
+    "what this is": "the introduction survey. a deterministic, no-AI list of facet questions. each option carries authored channels; on pick they round up into the RawPortrait, which a downstream AI condenses into the final Portrait. that AI is GIVEN these definitions — so write each fragment to STAND ON ITS OWN. do not prefix it to announce its category (no 'they tend to…', no 'often…'), and do not label identities (no 'THE STRIVER —'). write as if the category is already understood.",
+    "indicator": "a fact, localized in the present — what is true of this person right now, given this answer. near-certain.",
+    "implication": "speculation — one possible lead. implications are NOT mutually exclusive and need not agree with each other; each is a read the downstream AI can weigh.",
+    "identity": "archetypal-trait fragments describing the kind of person who lands here. plural, and they can compete. NO names or labels — just the trait, bare.",
+    "weight": "0-3. how hot this answer runs — emotional + meaningful valence. 0 inert (the cold baseline pick), 1 mild, 2 warm (a real lead), 3 hot (load-bearing). it ONLY sorts the RawPortrait amalgam (high signal rises, low sinks). it NEVER gates, filters, or drops anything. author per-answer — do NOT flatten to a constant or it sorts nothing.",
+    "shadow": "critical. what it means that they did NOT pick this — collected from every option they declined. one line, no announcing prefix; read it as the meaning of the omission.",
+    "hooks": "RELATIONAL. fires pairwise against OTHER answers. empty for now.",
+    "notes": "DIRECTIVE / operational. not load-bearing right now — leave empty.",
+    "_note": "unchanged facets still carry the old labelled seeds — placeholders to be rewritten in the clean style above. the new facets (relationship-status, work, social, joys, change) show the target style."
   },
   "facets": [
     {
@@ -27,13 +28,15 @@
       "slug": "relationship-status",
       "facet": "relational",
       "question": "and your heart — where is it these days?",
-      "hidden_target": "relational ground — status, never names",
+      "hidden_target": "relational orientation — not just status, but the vector toward it or away from it",
       "options": [
-        { "label": "on my own", "weight": 1, "indicators": ["unpartnered right now"], "implications": ["charges may skew vocational / identity / family-of-origin over romantic"], "identities": ["the contentedly-solo OR the achingly-alone — the survey can't tell yet"], "shadow": "there's someone in the picture", "hooks": [], "notes": [] },
-        { "label": "seeing someone", "weight": 1, "indicators": ["something new and unsettled romantically"], "implications": ["hope and uncertainty both live here"], "identities": ["the hopeful-early — testing whether this one's real"], "shadow": "nothing new or tentative on the romantic front", "hooks": [], "notes": [] },
-        { "label": "partnered", "weight": 0, "indicators": ["in an established bond"], "implications": ["the relationship is likely load-bearing in their life"], "identities": ["the paired — the partner is probably in the cast"], "shadow": "no established bond carrying weight", "hooks": [], "notes": [] },
-        { "label": "married", "weight": 0, "indicators": ["formally committed, long arc"], "implications": ["charges may be about the shape of a built life"], "identities": ["the long-bonded — comfort or quiet drift, undetermined"], "shadow": "not inside a long formal commitment", "hooks": [], "notes": [] },
-        { "label": "it's complicated", "weight": 2, "indicators": ["romantic life is in flux or contradiction"], "implications": ["a live relational charge is likely"], "identities": ["the in-between — mid-rupture, mid-affair, or mid-decision"], "shadow": "the romantic situation is legible, not tangled", "hooks": [], "notes": [] }
+        { "label": "happily single", "weight": 0, "indicators": ["single, and not looking to change it"], "implications": ["their charges likely sit outside romance — work, self, family"], "identities": ["doesn't feel unfinished without a partner"], "shadow": "there's a pull toward someone they're not naming", "hooks": [], "notes": [] },
+        { "label": "single, and looking", "weight": 1, "indicators": ["single and open to meeting someone"], "implications": ["romance is a live, low background hum"], "identities": ["out in the world, hopeful, available"], "shadow": "they're not in the market right now", "hooks": [], "notes": [] },
+        { "label": "waiting for the one", "weight": 2, "indicators": ["single, holding out for something real"], "implications": ["wants it badly; the waiting may be wearing on them"], "identities": ["particular about love, unwilling to settle or fake it"], "shadow": "they'd take something casual; no standard is being held", "hooks": [], "notes": [] },
+        { "label": "with someone", "weight": 1, "indicators": ["in a relationship"], "implications": ["a partner is woven through their days"], "identities": ["paired; someone shares the weight of their life"], "shadow": "no one currently shares the center", "hooks": [], "notes": [] },
+        { "label": "married", "weight": 1, "indicators": ["married, or committed for the long arc"], "implications": ["the questions land against a shared, built life"], "identities": ["in it for the long haul, by choice or by inertia"], "shadow": "their bond isn't formal or long-running", "hooks": [], "notes": [] },
+        { "label": "it's complicated", "weight": 2, "indicators": ["romantic life is unresolved or tangled"], "implications": ["a live relational charge sits near the surface"], "identities": ["in something undefined, ending, or overlapping"], "shadow": "their situation is clear, not knotted", "hooks": [], "notes": [] },
+        { "label": "fresh out of something", "weight": 3, "indicators": ["recently out of a relationship"], "implications": ["grief or relief is recent and probably loud"], "identities": ["in the raw after, re-learning themselves alone"], "shadow": "no recent ending is shadowing them", "hooks": [], "notes": [] }
       ]
     },
     {
@@ -45,19 +48,31 @@
         { "label": "mine, i'd choose it", "weight": 1, "indicators": ["work-identity is aligned"], "implications": ["the doing matches the wanting"], "identities": ["the called — work is a source, not a drain"], "shadow": "the work isn't theirs in the way they'd want", "hooks": [], "notes": [] },
         { "label": "fine, pays the bills", "weight": 0, "indicators": ["an instrumental relationship to work"], "implications": ["healthy detachment or quiet resignation — undetermined"], "identities": ["the pragmatist OR the resigned"], "shadow": "work is more than neutral — it's loved or hated", "hooks": [], "notes": [] },
         { "label": "a slog, running empty", "weight": 3, "indicators": ["work is depleting them"], "implications": ["misaligned and draining; possibly trapped"], "identities": ["the depleted — grinding past the point it pays back"], "shadow": "work isn't actively draining them", "hooks": [], "notes": [] },
-        { "label": "in-between", "weight": 2, "indicators": ["work-identity is in flux"], "implications": ["transitional — between roles or mid-rethink"], "identities": ["the in-transition"], "shadow": "work-identity is settled, not in motion", "hooks": [], "notes": [] }
+        { "label": "i'm between things right now", "weight": 2, "indicators": ["between roles, or between work entirely"], "implications": ["work-identity is unsettled; a transition is underway or overdue"], "identities": ["in motion around work, not yet landed"], "shadow": "their working life is settled, for better or worse", "hooks": [], "notes": [] }
       ]
     },
     {
       "slug": "social",
       "facet": "social",
-      "question": "after a long week, the night that actually restores you—",
-      "hidden_target": "energy direction (introvert / extrovert)",
+      "question": "a party where you only know the host. ten minutes in, you're—",
+      "hidden_target": "social reflex under mild exposure — what the body does before the self-image catches up",
       "options": [
-        { "label": "out with people", "weight": 0, "indicators": ["restored by stimulation and crowds"], "implications": ["solitude later may read as deprivation, not preference"], "identities": ["the extrovert — charged by the room"], "shadow": "crowds aren't where they refill", "hooks": [], "notes": [] },
-        { "label": "a few close people", "weight": 0, "indicators": ["depth-over-breadth social"], "implications": ["intimacy over volume"], "identities": ["the deep-not-wide"], "shadow": "not the small-circle type", "hooks": [], "notes": [] },
-        { "label": "one person, or just me", "weight": 1, "indicators": ["restored by depth or solitude"], "implications": ["introvert-leaning"], "identities": ["the introvert-leaning"], "shadow": "one-on-one or solitude isn't the restore", "hooks": [], "notes": [] },
-        { "label": "home, door shut", "weight": 1, "indicators": ["solitude as active refuge"], "implications": ["introvert; if they crave belonging elsewhere, a live tension"], "identities": ["the recharger-alone"], "shadow": "solitude isn't a refuge they reach for", "hooks": [], "notes": [] }
+        { "label": "working the room", "weight": 1, "indicators": ["comfortable being seen by strangers"], "implications": ["new people are fuel, not a tax"], "identities": ["comes alive in a room full of strangers"], "shadow": "a room of strangers isn't where they expand", "hooks": [], "notes": [] },
+        { "label": "finding the one person you can actually talk to", "weight": 1, "indicators": ["seeks one real conversation over many shallow ones"], "implications": ["the crowd is a means to a single connection"], "identities": ["goes deep with one before wide with many"], "shadow": "they don't hunt for the one real talk — they spread out or leave", "hooks": [], "notes": [] },
+        { "label": "helping the host, finding a job to do", "weight": 2, "indicators": ["gets comfortable by being useful, not by being seen"], "implications": ["usefulness is a way to be present without being exposed"], "identities": ["earns a place in the room by helping, not by holding court"], "shadow": "they don't need a task to feel okay in a room", "hooks": [], "notes": [] },
+        { "label": "already clocking the exit", "weight": 2, "indicators": ["the social load registers as cost within minutes"], "implications": ["will perform presence, then need to recover"], "identities": ["counts the minutes until they can leave, even somewhere fine"], "shadow": "the room doesn't start a countdown for them", "hooks": [], "notes": [] }
+      ]
+    },
+    {
+      "slug": "joys",
+      "facet": "joys",
+      "question": "is there something you make?",
+      "hidden_target": "creative identity — what they make, hide, or have lost",
+      "options": [
+        { "label": "yes, and i love it", "weight": 1, "indicators": ["an active making practice they claim"], "implications": ["a real source of aliveness and identity"], "identities": ["makes things, and lets it count"], "shadow": "making isn't a live thread for them right now", "hooks": [], "notes": [] },
+        { "label": "yes — but i'd never call it that", "weight": 2, "indicators": ["makes things but won't claim the title"], "implications": ["the practice exists; the permission to own it doesn't"], "identities": ["creates quietly, deflects the word for it"], "shadow": "if they make, they own it — or they don't make at all", "hooks": [], "notes": [] },
+        { "label": "not really", "weight": 0, "indicators": ["no active making practice"], "implications": ["aliveness, if it's anywhere, isn't in making"], "identities": ["finds themselves somewhere other than in making"], "shadow": "there's a maker in here, claimed or hidden", "hooks": [], "notes": [] },
+        { "label": "i used to", "weight": 3, "indicators": ["a making practice that has stopped"], "implications": ["a specific creative grief; something got set down"], "identities": ["carries a put-down practice and the ache of it"], "shadow": "their making is current, not past tense", "hooks": [], "notes": [] }
       ]
     },
     {
@@ -87,13 +102,13 @@
     {
       "slug": "change",
       "facet": "change",
-      "question": "be honest — do you stay too long, or leave too soon?",
-      "hidden_target": "the exit pattern",
+      "question": "when something in your life goes stale, you—",
+      "hidden_target": "how they meet the stale — and the fork they came in carrying",
       "options": [
-        { "label": "stay too long", "weight": 2, "indicators": ["over-tolerant; lets things run past their expiry"], "implications": ["over-loyal, or conflict-averse about endings"], "identities": ["the over-stayer — loyal or trapped"], "shadow": "they don't over-stay; if anything they leave early", "hooks": [], "notes": [] },
-        { "label": "leave too soon", "weight": 2, "indicators": ["exits before resolution"], "implications": ["flight-prone or self-protective"], "identities": ["the bolter — leaves when it gets hard"], "shadow": "they don't bolt; if anything they linger", "hooks": [], "notes": [] },
-        { "label": "i've done both", "weight": 1, "indicators": ["no consistent exit bias, or unexamined"], "implications": ["context-dependent"], "identities": ["the inconsistent — the pattern isn't owned yet"], "shadow": "the exit pattern is consistent, not mixed", "hooks": [], "notes": [] },
-        { "label": "i time it about right", "weight": 0, "indicators": ["claims good calibration"], "implications": ["secure, or simply not-yet-burned"], "identities": ["the well-calibrated (or untested)"], "shadow": "the timing is off in one direction and they know it", "hooks": [], "notes": [] }
+        { "label": "blow it up — make a big change", "weight": 2, "indicators": ["meets staleness with a big, decisive move"], "implications": ["decisive, or impulsive — the aftermath tells which"], "identities": ["would rather detonate it than sit in it"], "shadow": "they don't blow things up; they tweak, wait, or endure", "hooks": [], "notes": [] },
+        { "label": "adjust something, tweak it", "weight": 1, "indicators": ["meets staleness by tuning, not overhauling"], "implications": ["controlled and careful; trusts small corrections"], "identities": ["changes by increments, keeps the frame intact"], "shadow": "small adjustments don't satisfy them — they leap or they endure", "hooks": [], "notes": [] },
+        { "label": "wait for it to shift on its own", "weight": 2, "indicators": ["lets staleness sit, waits for it to move"], "implications": ["low change-agency; may be stuck at a fork"], "identities": ["waits for the situation to decide instead of deciding"], "shadow": "they don't wait it out — they act, one way or another", "hooks": [], "notes": [] },
+        { "label": "stick it out, endure it", "weight": 2, "indicators": ["stays in the stale and bears it"], "implications": ["high discomfort-tolerance — loyal, or trapped"], "identities": ["endures what others would leave, by choice or by habit"], "shadow": "they don't just endure — they change or they wait", "hooks": [], "notes": [] }
       ]
     },
     {
