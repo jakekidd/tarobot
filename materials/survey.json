@@ -173,6 +173,7 @@
         { "label": "belonging", "weight": 2, "indicators": ["communal hunger"], "implications": ["inverts to a fear of exile or not-enough-for-the-group"], "identities": ["the belonging-hungry — collectivist-shaped, not deficient"], "shadow": "the group isn't the hunger", "hooks": [], "notes": [] },
         { "label": "power", "weight": 2, "indicators": ["agency and impact hunger"], "implications": ["inverts to a fear of powerlessness or humiliation"], "identities": ["the agency-hungry"], "shadow": "agency and impact aren't the want", "hooks": [], "notes": [] },
         { "label": "health", "weight": 2, "indicators": ["bodily / vitality hunger"], "implications": ["a concrete need; often surfaces after a scare or a gray stretch"], "identities": ["the depleted-or-ill — wants the body back"], "shadow": "the body isn't what they're reaching for", "hooks": [], "notes": [] },
+        { "label": "peace", "weight": 2, "indicators": ["wants internal quiet more than anything external"], "implications": ["likely worn down; peace is the want of someone carrying a lot"], "identities": ["reaching for stillness, not for more"], "shadow": "stillness isn't the ache — they want something louder", "hooks": [], "notes": [] },
         { "label": "something i can't name", "weight": 3, "indicators": ["in transit between frames"], "implications": ["post-religious / pre-arrived — the highest-signal want"], "identities": ["the searching — between altars"], "shadow": "the want is nameable; they're not between frames", "hooks": [], "notes": [] }
       ]
     },

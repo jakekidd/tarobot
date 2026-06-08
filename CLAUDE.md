@@ -453,10 +453,16 @@ the doc.
   synthetic participant (Opus), runs them through the live antechamber engine
   with a Haiku-driven answerer, writes a timestamped run log to `runs/`.
   Pass `--load <name>` to reuse an existing archetype from `archetypes/`.
-- Vercel auto-deploys `main` pushes. The `tarobot-sage.vercel.app` alias
-  always points at production. Build time runs `git rev-parse --short HEAD`
-  via `vite.config.ts` and exposes `__APP_COMMIT__` for the topbar version
-  string.
+- **Deploy = push to GitHub `main`.** Vercel auto-deploys it. The project is
+  owned by the **personal scope `jakekidds-projects`** — NOT the
+  `ubitel-projects` work team. (It used to be wrongly linked under Ubitel. If a
+  deploy ever lands under Ubitel again, the repo got re-linked to the wrong
+  project — re-link to `jakekidds-projects`, do not deploy from Ubitel.) Don't
+  run `vercel --prod` by hand; the push IS the deploy. Inspect with
+  `vercel ls --scope jakekidds-projects` /
+  `vercel project ls --scope jakekidds-projects`. The `tarobot-sage.vercel.app`
+  alias points at production; build runs `git rev-parse --short HEAD` via
+  `vite.config.ts` → `__APP_COMMIT__` for the topbar version string.
 
 `archetypes/` and `runs/` are gitignored. So is `.vercel/`.
 
