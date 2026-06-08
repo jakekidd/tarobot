@@ -2986,53 +2986,77 @@ input, textarea {
   width: 100%;
 }
 
+/* RPG dialogue lines, not slabs: no fill, a left rail + a ▸ cursor that
+   lights on hover/focus/select. Purple is a thread here, not a wall. */
 .choice-button {
   font-family: var(--font-mono);
-  font-size: 1.15rem;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  padding: 0.7rem 1.4rem;
-  background-color: #4a1f88;             /* darker shade of the base violet */
-  background-image: none;
-  color: #f2ecff;
-  border: 1px solid #4a1f88;
+  font-size: 1.1rem;
+  letter-spacing: 0.03em;
+  text-transform: none;                  /* sentence-case reads like spoken lines */
+  padding: 0.7rem 1rem 0.7rem 2.1rem;    /* room for the cursor */
+  position: relative;
+  background: transparent;
+  color: var(--fg-dim);
+  border: none;
+  border-left: 2px solid var(--violet-line);   /* faint rail — reads as selectable */
   border-radius: 0;
   cursor: pointer;
   text-align: left;
-  transition: filter 0.1s, transform 0.06s;
+  outline: none;
+  transition: color 0.12s, border-color 0.12s, background 0.12s;
   width: 100%;
-  min-height: 3rem;
+  min-height: 3rem;                      /* touch target */
   display: flex;
   align-items: center;
-  justify-content: flex-start;
 }
-.choice-button:hover:not(:disabled) {
-  filter: brightness(1.12);
+.choice-button::before {
+  content: "▸";
+  position: absolute;
+  left: 0.8rem;
+  color: var(--violet);
+  opacity: 0;
+  transform: translateX(-5px);
+  transition: opacity 0.12s, transform 0.12s;
 }
-.choice-button:active:not(:disabled) { transform: translateY(1px); }
-.choice-button:disabled {
-  cursor: default;
+.choice-button:hover:not(:disabled),
+.choice-button:focus-visible:not(:disabled),
+.choice-button--on {
+  color: var(--fg);
+  border-left-color: var(--violet);
+  background: linear-gradient(to right, rgba(124, 58, 237, 0.10), transparent 70%);
 }
+.choice-button:hover:not(:disabled)::before,
+.choice-button:focus-visible:not(:disabled)::before,
+.choice-button--on::before {
+  opacity: 1;
+  transform: translateX(0);
+}
+.choice-button:active:not(:disabled) {
+  background: linear-gradient(to right, rgba(124, 58, 237, 0.18), transparent 70%);
+}
+.choice-button:disabled { cursor: default; }
 .choice-button__text {
   display: inline-block;
   white-space: pre-wrap;
   text-align: left;
-  color: #f2ecff;
 }
-.choice-button--on {
-  filter: brightness(1.15);
-}
+.choice-button--on::before { opacity: 1; transform: translateX(0); }
 
-/* Pick animation: non-picked options fade out without affecting layout;
-   picked option flashes brighter and bursts outward, then fades. */
+/* Pick: chosen line flashes white and slides off as it's "spoken"; the rest fade. */
 .choice-button--unpicked {
   opacity: 0;
   pointer-events: none;
   transition: opacity 180ms ease-out;
 }
 .choice-button--picked {
-  animation: choice-flash-burst 420ms ease-out forwards;
+  animation: choice-pick 380ms ease-out forwards;
   pointer-events: none;
+}
+.choice-button--picked::before { opacity: 1; transform: translateX(0); }
+@keyframes choice-pick {
+  0%   { color: var(--fg); border-left-color: var(--violet); }
+  25%  { color: #fff; border-left-color: #fff; background: linear-gradient(to right, rgba(124,58,237,0.28), transparent 70%); }
+  100% { color: #fff; opacity: 0; transform: translateX(8px); }
 }
 @keyframes choice-flash-burst {
   0%   { filter: brightness(1);   transform: scale(1);    opacity: 1; }
@@ -3157,9 +3181,13 @@ input, textarea {
 }
 
 .choice-button--binary {
-  letter-spacing: 0.22em;
+  letter-spacing: 0.18em;
   font-size: 1.1rem;
+  justify-content: center;
+  padding-left: 1rem;
+  border-left: none;
 }
+.choice-button--binary::before { display: none; }
 
 /* =====================================================================
    Spinner
