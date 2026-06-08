@@ -25,6 +25,7 @@ import type { RawPortrait } from '../introduction-survey';
 import type { RailDriver } from '../rails/types';
 import type { Agent } from './Agent';
 import { ConjectorAgent } from './ConjectorAgent';
+import { condense } from './condenser';
 import type { ConjectorResult, Portrait } from './types';
 
 export class TuningEngine {
@@ -44,10 +45,10 @@ export class TuningEngine {
     return this.raw;
   }
 
-  /** Condenser: RawPortrait → markdown Portrait (one Sonnet call + a parallel
-   *  cast Haiku). Not wired yet — the next pass. */
+  /** Condenser: RawPortrait → markdown Portrait, one Sonnet call. Synthesis,
+   *  not extraction — the read the Conjector hunts off. */
   async paintPortrait(): Promise<Portrait> {
-    throw new Error('Condenser not wired yet — TuningEngine.paintPortrait is the next pass.');
+    return condense(this.adapter, this.raw);
   }
 
   /** The registered activities, in run order. */

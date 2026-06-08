@@ -18,6 +18,7 @@ import { Bench } from './lab/Bench';
 import { IntroductionSurveyScreen } from './ui/survey/IntroductionSurveyScreen';
 import { SurveyDone } from './ui/survey/SurveyDone';
 import { TuningScreen } from './ui/tuning/TuningScreen';
+import { TuningLoading } from './ui/tuning/TuningLoading';
 import { TuningDone } from './ui/tuning/TuningDone';
 import { IntroductionSurvey, loadSurvey, type RawPortrait } from './pipeline/introduction-survey';
 import { TuningEngine, draftPortrait, type ConjectorResult } from './pipeline/tuning';
@@ -50,6 +51,7 @@ type Phase =
   | { kind: 'bench' }
   | { kind: 'survey'; survey: IntroductionSurvey }
   | { kind: 'survey_done'; raw: RawPortrait }
+  | { kind: 'tuning_loading' }
   | { kind: 'tuning'; driver: RailDriver<ConjectorResult> }
   | { kind: 'tuning_done'; result: ConjectorResult };
 
@@ -95,17 +97,24 @@ export function App() {
     setPhase({ kind: 'survey', survey: new IntroductionSurvey(loadSurvey()) });
   }
 
-  function enterTuning(raw: RawPortrait) {
-    // Survey done → build the TuningEngine, paint a (draft) Portrait, and hand
-    // the Conjector to the rails. The Conjector calls the model, so it needs a
-    // key; with none we fall back to dumping the raw portrait.
+  async function enterTuning(raw: RawPortrait) {
+    // Survey done → build the TuningEngine, run the Condenser to paint the
+    // Portrait, then hand the Conjector to the rails. The Condenser + Conjector
+    // call the model, so a key is required; with none we just dump the raw.
     if (!apiKey) {
       setPhase({ kind: 'survey_done', raw });
       return;
     }
-    const adapter = new AnthropicAdapter(createClaudeClient(apiKey));
-    const engine = new TuningEngine(adapter, raw);
-    setPhase({ kind: 'tuning', driver: engine.begin(draftPortrait(raw)) });
+    const engine = new TuningEngine(new AnthropicAdapter(createClaudeClient(apiKey)), raw);
+    setPhase({ kind: 'tuning_loading' });
+    try {
+      const portrait = await engine.paintPortrait();
+      setPhase({ kind: 'tuning', driver: engine.begin(portrait) });
+    } catch {
+      // Condenser failed → fall back to the raw-amalgam draft so the hunt
+      // still runs rather than dead-ending on a bad model call.
+      setPhase({ kind: 'tuning', driver: engine.begin(draftPortrait(raw)) });
+    }
   }
 
   // Brief "we're leaving the menu" flag — set when READ DEMO fires so
@@ -249,6 +258,8 @@ export function App() {
           {phase.kind === 'survey_done' && (
             <SurveyDone raw={phase.raw} onExit={goMenu} />
           )}
+
+          {phase.kind === 'tuning_loading' && <TuningLoading />}
 
           {phase.kind === 'tuning' && (
             <TuningScreen
