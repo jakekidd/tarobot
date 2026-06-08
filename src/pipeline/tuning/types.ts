@@ -1,40 +1,53 @@
 // Tuning-stage artifacts.
 //
-// The TuningEngine paints a Portrait from the survey's RawPortrait, then its
-// Agents hunt CHARGES — regions of live weight (stress, grief, regret,
-// dread; NOT necessarily a fork). Charges are banked depth-first and left
-// UNRANKED; the Compiler, collaborating with the player, picks which charge
-// becomes the reading's spine. (This replaces the older single-"Dilemma"
-// goalpost — there may be several live charges, and the user chooses.)
+// The Condenser paints a Portrait (markdown — a vignette the next AI reads,
+// NOT a schema) from the survey's RawPortrait. The Conjector then hunts
+// DILEMMAS: it guesses where the user's charge lives, reads cold/warm/hot,
+// commits a reframe (the question under their question), and banks each as a
+// closed branch. The banked dilemmas are the Conjector → Compiler artifact.
 
 import type { RawPortrait } from '../introduction-survey';
 
-/** A Portrait is NOT a picture — it's a light vignette profile, a brief read
- *  of the person painted (one model call) from the RawPortrait as the
- *  TuningEngine's first step. Stub shape for now; the painter is a later pass. */
+/** The Condenser's output and the Conjector's primary input. Markdown prose
+ *  (AI-for-AI context breathes better as prose than JSON), with the
+ *  RawPortrait carried as appendix for when the Conjector wants to verify a
+ *  specific against the raw evidence. */
 export type Portrait = {
-  /** Prose vignette — the confident body (built from indicators + identities). */
-  body: string;
-  /** Lower-confidence leads (inferences), fenced so the reading doesn't over-commit. */
-  leads: string[];
-  /** The survey output it was painted from, carried for downstream reference. */
+  /** The condensed vignette: central leads (confidence-tagged), patterns,
+   *  tensions, cast, posture. Authored by the Condenser. */
+  markdown: string;
+  /** The deterministic survey output, for appendix reference. */
   raw: RawPortrait;
 };
 
-/** One region of live weight the Sounder has located. */
-export type Charge = {
-  /** Where the weight lives, in the user's terms ("work", "my brother"). */
-  region: string;
-  /** 0..1 — how sharply located versus still vague. */
-  specificity: number;
-  /** Harvested concrete specifics — phrases, names, details. */
-  features: string[];
-  /** The player's last read on it. */
-  confirmation: 'unconfirmed' | 'cold' | 'warm' | 'hot';
+/** One move the Conjector made in a thread and the player's read of it. */
+export type ConjectureRecord = {
+  kind: 'guess' | 'commit';
+  text: string;
+  response: 'cold' | 'warm' | 'hot' | 'yes' | 'no' | null;
 };
 
-/** The Tuning → Compiler artifact: banked charges, depth-first, UNRANKED.
- *  Ranking is the Compiler's job (with the player). */
-export type ChargeMap = {
-  charges: Charge[];
+/** One closed branch: a located dilemma, its committed reframe, and the
+ *  first-person summary the Compiler will deepen. `confirmed` is the player's
+ *  YES on the reframe; soft-closed branches (budget spent, or NO) carry it
+ *  false but are still usable. */
+export type Dilemma = {
+  id: string;
+  /** The region of life this thread worked, in the user's terms. */
+  territory: string;
+  /** The committed reframe — the question under their question. */
+  reframe: string;
+  confirmed: boolean;
+  /** The Diviner's first-person close — the deepen input for the experts. */
+  summary_md: string;
+  /** Which portrait leads this thread consumed (marked CLAIMED for re-root). */
+  claimed_leads: string[];
+  /** The guess/response trail, for logging and deepen. */
+  trail: ConjectureRecord[];
+};
+
+/** The Conjector → Compiler artifact: the banked dilemmas, in find order,
+ *  UNRANKED. Ranking (which becomes the reading's spine) is downstream. */
+export type ConjectorResult = {
+  dilemmas: Dilemma[];
 };

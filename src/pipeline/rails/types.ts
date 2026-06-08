@@ -18,6 +18,12 @@ export type RailStep =
   | { kind: 'name' }
   | { kind: 'choice'; slug: string; prompt: string; options: string[] }
   | { kind: 'birthdate' }
+  // ── Conjector steps (the dilemma-hunting Agent) ──
+  // A guess to rate cold/warm/hot; a reframe to confirm yes/no; thinking
+  // while a model call is in flight (no input — the UI shows a stall).
+  | { kind: 'guess'; text: string }
+  | { kind: 'reframe'; text: string }
+  | { kind: 'thinking' }
   | { kind: 'done' };
 
 /** What the UI sends back. Mirrors RailStep — each renderable step has
@@ -25,7 +31,9 @@ export type RailStep =
 export type RailInput =
   | { kind: 'name'; name: string; color: string }
   | { kind: 'choice'; value: string }
-  | { kind: 'birthdate'; iso: string };
+  | { kind: 'birthdate'; iso: string }
+  | { kind: 'temp'; value: 'cold' | 'warm' | 'hot' }
+  | { kind: 'verdict'; value: 'yes' | 'no' };
 
 /** The seam. Implemented by business logic, consumed by the UI.
  *  `TResult` is the finished artifact a given driver produces (the

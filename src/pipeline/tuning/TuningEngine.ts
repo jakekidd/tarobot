@@ -1,13 +1,12 @@
 // TuningEngine — stage 2, the engine that runs AFTER the IntroductionSurvey.
 //
 // What it's for (the problems it solves):
-//   1. Paint a Portrait (a light vignette profile, NOT a picture) from the
-//      survey's RawPortrait — one model call, its first step.
-//   2. Host an ordered list of Agents and let each DRIVE THE SAME UI RAILS
-//      the survey used. DivinerAgent is activity #1 (it hunts charges);
+//   1. Paint a Portrait (markdown vignette — NOT a picture) from the survey's
+//      RawPortrait via the Condenser, its first step.
+//   2. Host an ordered list of Agents and let each DRIVE THE SAME UI RAILS the
+//      survey used. ConjectorAgent is activity #1 (it hunts dilemmas);
 //      future activities are just more Agents.
-//   3. Hand the Compiler a ChargeMap — banked, unranked charges — and let
-//      the player collaboratively pick the reading's spine.
+//   3. Hand the Compiler the banked dilemmas (a ConjectorResult) for deepening.
 //
 // Why it's separate from the survey: the survey maps the field
 // deterministically with no AI; the TuningEngine does the depth-first,
@@ -17,21 +16,24 @@
 // Runtime: actor-facing parts are LOCAL (booth box, low latency); reasoning
 // parts are CLOUD (see CLAUDE.md "Local vs cloud").
 //
-// NOT FUNCTIONAL THIS PASS — intentionally a shell. The survey dumps its
-// RawPortrait and the flow ends here. Wiring this (and the diviner overhaul
-// that fills DivinerAgent) is the next arc.
+// The Condenser (paintPortrait) is the one piece still unwired — it lands next
+// pass. The Conjector engine it feeds is built; until the Condenser exists,
+// the wiring can hand `begin()` a deterministic raw→markdown Portrait.
 
+import type { LLMAdapter } from '../llm/adapter';
 import type { RawPortrait } from '../introduction-survey';
 import type { Agent } from './Agent';
-import { DivinerAgent } from './DivinerAgent';
-import type { ChargeMap, Portrait } from './types';
+import { ConjectorAgent } from './ConjectorAgent';
+import type { Portrait } from './types';
 
 export class TuningEngine {
+  private readonly adapter: LLMAdapter;
   private readonly raw: RawPortrait;
-  /** The activities this engine runs, in order. DivinerAgent first. */
-  private readonly agents: Agent[] = [new DivinerAgent()];
+  /** The activities this engine runs, in order. ConjectorAgent first. */
+  private readonly agents: Agent[] = [new ConjectorAgent()];
 
-  constructor(raw: RawPortrait) {
+  constructor(adapter: LLMAdapter, raw: RawPortrait) {
+    this.adapter = adapter;
     this.raw = raw;
   }
 
@@ -40,10 +42,10 @@ export class TuningEngine {
     return this.raw;
   }
 
-  /** First step: paint the Portrait from the RawPortrait (one model call).
-   *  Stubbed — the painter lands next pass. */
+  /** Condenser: RawPortrait → markdown Portrait (one Sonnet call + a parallel
+   *  cast Haiku). Not wired yet — the next pass. */
   async paintPortrait(): Promise<Portrait> {
-    throw new Error('TuningEngine.paintPortrait is not wired yet — out of scope this pass.');
+    throw new Error('Condenser not wired yet — TuningEngine.paintPortrait is the next pass.');
   }
 
   /** The registered activities, in run order. */
@@ -51,8 +53,11 @@ export class TuningEngine {
     return this.agents;
   }
 
-  /** The collaborative Tuning → Compiler artifact. Null until the agents run. */
-  chargeMap(): ChargeMap | null {
-    return null;
+  /** Prime the first activity with the painted Portrait and hand back the
+   *  RailDriver the UI should drive. */
+  begin(portrait: Portrait): Agent {
+    const agent = this.agents[0]!;
+    agent.init({ adapter: this.adapter, portrait, prior: [] });
+    return agent;
   }
 }

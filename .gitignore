@@ -42,3 +42,4 @@ runs/
 
 # vitest coverage output (regenerated each run; HTML viewer at coverage/index.html)
 coverage/
+.env*.local
