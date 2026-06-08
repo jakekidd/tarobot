@@ -22,15 +22,17 @@
 
 import type { LLMAdapter } from '../llm/adapter';
 import type { RawPortrait } from '../introduction-survey';
+import type { RailDriver } from '../rails/types';
 import type { Agent } from './Agent';
 import { ConjectorAgent } from './ConjectorAgent';
-import type { Portrait } from './types';
+import type { ConjectorResult, Portrait } from './types';
 
 export class TuningEngine {
   private readonly adapter: LLMAdapter;
   private readonly raw: RawPortrait;
+  private readonly conjector = new ConjectorAgent();
   /** The activities this engine runs, in order. ConjectorAgent first. */
-  private readonly agents: Agent[] = [new ConjectorAgent()];
+  private readonly agents: Agent[] = [this.conjector];
 
   constructor(adapter: LLMAdapter, raw: RawPortrait) {
     this.adapter = adapter;
@@ -53,11 +55,10 @@ export class TuningEngine {
     return this.agents;
   }
 
-  /** Prime the first activity with the painted Portrait and hand back the
-   *  RailDriver the UI should drive. */
-  begin(portrait: Portrait): Agent {
-    const agent = this.agents[0]!;
-    agent.init({ adapter: this.adapter, portrait, prior: [] });
-    return agent;
+  /** Prime the first activity (the Conjector) with the painted Portrait and
+   *  hand back the RailDriver the UI should drive. */
+  begin(portrait: Portrait): RailDriver<ConjectorResult> {
+    this.conjector.init({ adapter: this.adapter, portrait, prior: [] });
+    return this.conjector;
   }
 }

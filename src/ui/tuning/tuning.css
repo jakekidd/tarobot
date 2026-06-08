@@ -1,0 +1,39 @@
+/* TuningScreen — the Conjector's cold/warm/hot guesses + yes/no reframe. */
+
+.temp-choice,
+.verdict-choice {
+  display: flex;
+  gap: 2.5rem;
+  justify-content: center;
+  align-items: center;
+}
+
+.temp-choice__btn,
+.verdict-choice__btn {
+  background: transparent;
+  border: 1px solid var(--violet-line);
+  border-radius: 6px;
+  cursor: pointer;
+  font-family: var(--font-speech);
+  font-size: 1.25rem;
+  letter-spacing: 0.08em;
+  padding: 0.5rem 1.7rem;
+  color: var(--fg-dim);
+  text-transform: lowercase;
+  transition: transform 0.07s ease, color 0.15s ease, border-color 0.15s ease, text-shadow 0.15s ease;
+}
+.temp-choice__btn:active,
+.verdict-choice__btn:active { transform: scale(0.92); }
+
+/* cold → warm → hot reads as a temperature ramp. */
+.temp-choice__cold:hover,
+.temp-choice__cold:focus-visible { color: #7db4ff; border-color: #7db4ff; text-shadow: 0 0 10px rgba(125, 180, 255, 0.5); }
+.temp-choice__warm:hover,
+.temp-choice__warm:focus-visible { color: #ffc56b; border-color: #ffc56b; text-shadow: 0 0 10px rgba(255, 197, 107, 0.5); }
+.temp-choice__hot:hover,
+.temp-choice__hot:focus-visible { color: #ff6b6b; border-color: #ff6b6b; text-shadow: 0 0 12px rgba(255, 107, 107, 0.6); }
+
+.verdict-choice__yes:hover,
+.verdict-choice__yes:focus-visible { color: #fff; border-color: #fff; text-shadow: 0 0 10px rgba(255, 255, 255, 0.4); }
+.verdict-choice__no:hover,
+.verdict-choice__no:focus-visible { color: var(--color-danger); border-color: var(--color-danger); text-shadow: 0 0 10px rgba(226, 83, 110, 0.4); }

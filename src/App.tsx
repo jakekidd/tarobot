@@ -17,7 +17,11 @@ import { Pipeline } from './ui/Pipeline';
 import { Bench } from './lab/Bench';
 import { IntroductionSurveyScreen } from './ui/survey/IntroductionSurveyScreen';
 import { SurveyDone } from './ui/survey/SurveyDone';
+import { TuningScreen } from './ui/tuning/TuningScreen';
+import { TuningDone } from './ui/tuning/TuningDone';
 import { IntroductionSurvey, loadSurvey, type RawPortrait } from './pipeline/introduction-survey';
+import { TuningEngine, draftPortrait, type ConjectorResult } from './pipeline/tuning';
+import type { RailDriver } from './pipeline/rails/types';
 import { TarobotScene } from './ui/scene/TarobotScene';
 import { buildMarisolDemoSeer } from './pipeline/seer';
 import { AnthropicAdapter } from './pipeline/antechamber';
@@ -45,7 +49,9 @@ type Phase =
   | { kind: 'pipeline' }
   | { kind: 'bench' }
   | { kind: 'survey'; survey: IntroductionSurvey }
-  | { kind: 'survey_done'; raw: RawPortrait };
+  | { kind: 'survey_done'; raw: RawPortrait }
+  | { kind: 'tuning'; driver: RailDriver<ConjectorResult> }
+  | { kind: 'tuning_done'; result: ConjectorResult };
 
 export function App() {
   const [apiKey, setApiKey] = useState<string | null>(() => loadApiKey());
@@ -84,10 +90,22 @@ export function App() {
 
   function startNewReading() {
     // New visit → the IntroductionSurvey (deterministic, no AI). It drives
-    // the UI rails and, on completion, hands up a RawPortrait. This pass
-    // dumps that to the SurveyDone page — the TuningEngine that would consume
-    // it is not wired yet, so the flow intentionally ends there.
+    // the UI rails and, on completion, hands up a RawPortrait that feeds the
+    // TuningEngine (the Conjector hunts dilemmas off it).
     setPhase({ kind: 'survey', survey: new IntroductionSurvey(loadSurvey()) });
+  }
+
+  function enterTuning(raw: RawPortrait) {
+    // Survey done → build the TuningEngine, paint a (draft) Portrait, and hand
+    // the Conjector to the rails. The Conjector calls the model, so it needs a
+    // key; with none we fall back to dumping the raw portrait.
+    if (!apiKey) {
+      setPhase({ kind: 'survey_done', raw });
+      return;
+    }
+    const adapter = new AnthropicAdapter(createClaudeClient(apiKey));
+    const engine = new TuningEngine(adapter, raw);
+    setPhase({ kind: 'tuning', driver: engine.begin(draftPortrait(raw)) });
   }
 
   // Brief "we're leaving the menu" flag — set when READ DEMO fires so
@@ -225,14 +243,22 @@ export function App() {
           )}
 
           {phase.kind === 'survey' && (
-            <IntroductionSurveyScreen
-              driver={phase.survey}
-              onDone={(raw) => setPhase({ kind: 'survey_done', raw })}
-            />
+            <IntroductionSurveyScreen driver={phase.survey} onDone={enterTuning} />
           )}
 
           {phase.kind === 'survey_done' && (
             <SurveyDone raw={phase.raw} onExit={goMenu} />
+          )}
+
+          {phase.kind === 'tuning' && (
+            <TuningScreen
+              driver={phase.driver}
+              onDone={(result) => setPhase({ kind: 'tuning_done', result })}
+            />
+          )}
+
+          {phase.kind === 'tuning_done' && (
+            <TuningDone result={phase.result} onExit={goMenu} />
           )}
         </main>
 
