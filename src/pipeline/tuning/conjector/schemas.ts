@@ -6,7 +6,7 @@ import { z } from 'zod';
 
 /** One move in a thread: another probe (guess), or the committing reframe.
  *  The model chooses which each turn — budget pressure lives in the prompt,
- *  not in a forced step, so the Diviner keeps the implicit room it works in. */
+ *  not in a forced step, so the Conjector keeps the implicit room it works in. */
 export const MoveSchema = z.object({
   move: z.enum(['guess', 'commit']),
   /** The guess (a specific read in the player's voice) OR the reframe (the
@@ -33,9 +33,14 @@ export const RerootSchema = z.object({
 });
 export type Reroot = z.infer<typeof RerootSchema>;
 
-/** The first-person thread close — the Compiler's deepen input. */
+/** The first-person thread close — the Compiler's deepen input — plus the
+ *  one-line hypothesis that joins the negative-space stack (so later threads
+ *  search elsewhere). */
 export const SummarySchema = z.object({
   summary_md: z.string().min(1),
+  /** A crisp fragment naming what this thread was about. The negative-space
+   *  marker — not player- or seer-facing. */
+  hypothesis: z.string().default(''),
   claimed_leads: z.array(z.string()).default([]),
 });
 export type Summary = z.infer<typeof SummarySchema>;

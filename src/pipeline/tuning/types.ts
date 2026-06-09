@@ -38,7 +38,11 @@ export type Dilemma = {
   /** The committed reframe — the question under their question. */
   reframe: string;
   confirmed: boolean;
-  /** The Diviner's first-person close — the deepen input for the experts. */
+  /** A crisp fragment naming what this thread was about — the negative-space
+   *  marker, fed forward so later threads search different territory (kept on
+   *  the dilemma for posterity / downstream). */
+  hypothesis: string;
+  /** The Conjector's first-person close — the deepen input for the experts. */
   summary_md: string;
   /** Which portrait leads this thread consumed (marked CLAIMED for re-root). */
   claimed_leads: string[];

@@ -67,7 +67,7 @@ materials/
     condenser.md                  RawPortrait → markdown Portrait (sonnet)
     scribe.md                     enrich a write-in into channels (haiku)
     conjector/
-      move.md                     the cold/warm/hot guess loop (the "Diviner")
+      move.md                     the cold/warm/hot guess loop (conjector)
       reroot.md                   find a different territory, or declare exhausted
       summary.md                  first-person dilemma close for the compiler
     augur-outline.md              outcome naming (binary/ternary/open)   [reading]
@@ -118,7 +118,7 @@ portable rails (`src/pipeline/rails/`). Three artifacts move down it:
 
 The turtle (the mascot) is the only thing the user sees and hears — reactive,
 RPG-dialogue style, lowercase. The reasoning agents are SILENT: the Condenser
-and the Conjector (**"the Diviner"** in its prompt) never surface their
+and the Conjector never surface their
 thinking to the user. If a future implementation prints the Conjector's
 internal guess-reasoning, or the Portrait, to the user, that's a regression of
 this load-bearing rule.
@@ -275,7 +275,7 @@ over the shared rails (`src/pipeline/rails/`):
 - **TuningEngine** — runs after the survey. Paints the Portrait (the
   **Condenser** — one Sonnet *freeform* call), then hosts ordered **Agent**s
   that drive the same rails. The **ConjectorAgent** is activity #1: the
-  cold/warm/hot dilemma hunt ("the Diviner" in its prompt). The **Scribe**
+  cold/warm/hot dilemma hunt. The **Scribe**
   (`writeInEnricher`) enriches write-ins before the Condenser.
 
 All agent I/O is Zod-validated at the adapter boundary. A failed Condenser

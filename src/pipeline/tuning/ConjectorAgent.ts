@@ -1,16 +1,15 @@
 // ConjectorAgent — activity #1. The cold/warm/hot dilemma hunter.
 //
-// In the prompt it is the "Diviner" (the mystic framing sharpens the guesses);
-// in the system it is the Conjector — it conjectures. It drives the rails:
-// each turn it shows a GUESS (the player taps cold/warm/hot) or a REFRAME (the
-// player taps yes/no), with THINKING in between while a model call is in
-// flight.
+// The Conjector conjectures. It drives the rails: each turn it shows a GUESS
+// (the player taps cold/warm/hot) or a REFRAME (the player taps yes/no), with
+// THINKING in between while a model call is in flight.
 //
-// Termination is budget-paced, not anchor-gated — the Diviner narrows in its
-// own implicit space and commits when ready, forced to commit by the last
-// move. A thread closes on YES (confirmed) or on a spent budget (soft). Then
-// the RE-ROOT step finds a different charge or declares the field exhausted:
-// that is the soft-out for branching; MAX_BRANCHES / GLOBAL_MOVE_BUDGET are
+// Termination is budget-paced, not anchor-gated — it narrows in its own
+// implicit space and commits when ready, forced to commit by the last move. A
+// thread closes on YES (confirmed) or on a spent budget (soft), emitting a
+// one-line HYPOTHESIS that's pushed onto the negative-space stack. The RE-ROOT
+// step reads that stack to open a DIFFERENT charge (or declare the field
+// exhausted) — so threads don't collide. MAX_BRANCHES / GLOBAL_MOVE_BUDGET are
 // the hard-outs.
 
 import type { Agent, AgentContext } from './Agent';
@@ -19,8 +18,8 @@ import type { RailStep, RailInput } from '../rails/types';
 import type { ConjectorResult, ConjectureRecord, Dilemma, Portrait } from './types';
 import { conjectorMove, conjectorReroot, conjectorSummary } from './conjector/conjector';
 
-/** Moves per thread (a move is a guess OR the committing reframe; the Diviner
- *  must commit by the last). Branch + global caps bound the whole Sounding. */
+/** Moves per thread (a move is a guess OR the committing reframe; the Conjector
+ *  must commit by the last). Branch + global caps bound the whole hunt. */
 const MOVES_PER_BRANCH = 5;
 const MAX_BRANCHES = 3;
 const GLOBAL_MOVE_BUDGET = 15;
@@ -121,6 +120,7 @@ export class ConjectorAgent implements Agent<ConjectorResult> {
       moveNumber: b.trail.length + 1,
       moveBudget: MOVES_PER_BRANCH,
       claimed: this.dilemmas.flatMap((d) => d.claimed_leads),
+      explored: this.explored(),
     });
     this.movesSpent += 1;
     b.leads.push(...move.leads);
@@ -134,7 +134,7 @@ export class ConjectorAgent implements Agent<ConjectorResult> {
   private async afterNo(): Promise<void> {
     const b = this.branch;
     if (!b) return;
-    // Out of budget → soft close; else let the Diviner re-probe or re-commit.
+    // Out of budget → soft close; else let the Conjector re-probe or re-commit.
     if (b.trail.length >= MOVES_PER_BRANCH) {
       await this.close(false);
       return;
@@ -152,6 +152,7 @@ export class ConjectorAgent implements Agent<ConjectorResult> {
       territory: b.territory || b.id,
       reframe,
       confirmed,
+      hypothesis: summary.hypothesis,
       summary_md: summary.summary_md,
       claimed_leads: summary.claimed_leads.length ? summary.claimed_leads : b.leads,
       trail: b.trail,
@@ -170,8 +171,8 @@ export class ConjectorAgent implements Agent<ConjectorResult> {
     const rr = await conjectorReroot(this.adapter, {
       portrait: this.portrait,
       found: this.dilemmas.map((d) => ({
+        hypothesis: d.hypothesis,
         territory: d.territory,
-        reframe: d.reframe,
         claimed_leads: d.claimed_leads,
       })),
     });
@@ -187,6 +188,12 @@ export class ConjectorAgent implements Agent<ConjectorResult> {
    *  stubbed — this commits the call site / pipelining seam. */
   private deepen(_d: Dilemma): void {
     // TODO(compiler-arc): fan out expert + augur jobs keyed by _d.id, join at Compile.
+  }
+
+  /** The negative-space stack — hypotheses of threads already found. Fed to
+   *  every later move + the re-root so the search stays out of taken ground. */
+  private explored(): string[] {
+    return this.dilemmas.map((d) => d.hypothesis).filter(Boolean);
   }
 
   private record(r: NonNullable<ConjectureRecord['response']>): void {

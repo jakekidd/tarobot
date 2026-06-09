@@ -1,8 +1,6 @@
 // Conjector prompts + tool defs. System bodies live in
 // materials/prompts/conjector/ (Vite ?raw, so they tune on GitHub without a
-// code change); schemas + ToolDefs stay here. The model is addressed as the
-// "Diviner" in the prompts — the mystic framing produces sharper guesses than
-// the clinical "Conjector" the code calls it.
+// code change); schemas + ToolDefs stay here.
 
 import { z } from 'zod';
 import MOVE_SYSTEM_RAW from '../../../../materials/prompts/conjector/move.md?raw';

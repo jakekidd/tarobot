@@ -43,18 +43,20 @@ CONDENSER  (condense — cognition / Sonnet, one freeform call)
 
         ↓
 
-CONJECTOR  (ConjectorAgent — "the Diviner" in its prompt; cognition / Sonnet)
+CONJECTOR  (ConjectorAgent — cognition / Sonnet)
   the cold/warm/hot dilemma hunt. drives the SAME rails the survey drove:
     guess    → player taps COLD / WARM / HOT
     reframe  → player taps YES / NO   (the question UNDER their question)
     thinking → a model call is in flight
-  per thread: budget ≤5 moves; the Diviner narrows in its own implicit space
+  per thread: budget ≤5 moves; the Conjector narrows in its own implicit space
   and emits a guess OR the committing reframe each move, FORCED to commit by
   the last. close on YES (confirmed) or a spent budget (soft).
-  between threads: a RE-ROOT call finds a genuinely different territory or
-  declares the field exhausted (the soft-out). caps: ≤3 threads, ≤15 moves.
-  banks a Dilemma per thread (reframe + first-person summary_md + claimed
-  leads + confirmed flag). deepen() fires on each close — STUBBED.
+  on close it emits a one-line HYPOTHESIS onto a NEGATIVE-SPACE STACK; every
+  later move + the RE-ROOT read that stack and must open territory OUTSIDE it
+  (without it, threads collide on the same charge). re-root finds a genuinely
+  different territory or declares exhausted. caps: ≤3 threads, ≤15 moves.
+  banks a Dilemma per thread (reframe + hypothesis + first-person summary_md +
+  claimed leads + confirmed flag). deepen() fires on each close — STUBBED.
   output: ConjectorResult { dilemmas[] }, unranked.
 
         ↓
@@ -95,17 +97,16 @@ a new Agent, not surgery on a monolith.
 | (survey) | survey | deterministic, no LLM | 14 facets → RawPortrait. pure lookup. |
 | SCRIBE | survey close | fast / Haiku · local | one call per write-in, parallel, joined before the Condenser. |
 | CONDENSER | condense | cognition / Sonnet · cloud | one freeform call. RawPortrait → markdown Portrait. |
-| CONJECTOR | hunt | cognition / Sonnet · local | "Diviner" in prompt. three ops: move (guess/commit) · reroot · summary. budget-paced. |
+| CONJECTOR | hunt | cognition / Sonnet · local | three ops: move (guess/commit) · reroot · summary. budget-paced; negative-space stack. |
 | (deepen) | compile | — | STUBBED. the Compiler arc. |
 
 Runtime `local`/`cloud` is the prod-deployment designation (see CLAUDE.md
 "Local vs cloud"). Today every call is Claude scaffolding.
 
-Naming: in CODE the hunter is the **Conjector**; in its PROMPT it is the
-**Diviner** (the mystic frame sharpens the guesses — deliberate; do not
-collapse the two). All five prompts live in `materials/prompts/`
-(`condenser.md`, `scribe.md`, `conjector/{move,reroot,summary}.md`) — `?raw`
-imports, so they tune on GitHub without a code change.
+All five prompts live in `materials/prompts/` (`condenser.md`, `scribe.md`,
+`conjector/{move,reroot,summary}.md`) — `?raw` imports, so they tune on GitHub
+without a code change. (The legacy `pipeline/antechamber/` has its own,
+separate `diviner` — not this Conjector.)
 
 ---
 
@@ -118,12 +119,14 @@ imports, so they tune on GitHub without a code change.
 - **COLD / WARM / HOT is absolute, not gradient.** COLD eliminates a region;
   HOT confirms. The **reframe** (the depth under the surface dilemma) is the
   payload — not the stated dilemma.
-- **Budget-paced, not anchor-gated.** The Diviner commits when ready, forced
-  by the last move; it keeps the implicit room it works in. No hypothesis
-  upfront, no separate specificity-comparator.
-- **Re-root finds DIFFERENT territory.** Each thread runs blind to prior
-  transcripts (fresh state — kills the elephant). One real dilemma beats
-  three forced ones; re-root may declare the field exhausted.
+- **Budget-paced, not anchor-gated.** The Conjector commits when ready, forced
+  by the last move; it keeps the implicit room it works in. No reframe-shaped
+  hypothesis upfront, no separate specificity-comparator.
+- **Re-root finds DIFFERENT territory via a negative-space stack.** Each closed
+  thread emits a one-line HYPOTHESIS; the stack of them feeds into every later
+  move + the re-root, which must open territory OUTSIDE it. Running the search
+  blind collides on the same charge — this stack is the fix. One real dilemma
+  beats three forced ones; re-root may declare the field exhausted.
 - **Never manufacture.** Exhausted is a valid terminal state. Ship fewer real
   dilemmas over inventing one.
 - **Mirror, not oracle** (carries into the reading): name what is, don't
