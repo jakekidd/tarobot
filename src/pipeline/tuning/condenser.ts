@@ -12,22 +12,33 @@ import CONDENSER_SYSTEM from '../../../materials/prompts/condenser.md?raw';
 import type { LLMAdapter } from '../llm/adapter';
 import type { RawPortrait } from '../introduction-survey';
 import type { Portrait } from './types';
+import type { WriteInEnrichment } from './writeInEnricher';
 
-export async function condense(adapter: LLMAdapter, raw: RawPortrait): Promise<Portrait> {
+export async function condense(
+  adapter: LLMAdapter,
+  raw: RawPortrait,
+  enrichments?: Map<string, WriteInEnrichment>,
+): Promise<Portrait> {
   const payload = {
     name: raw.identity.name || 'unknown',
     age_bracket: raw.identity.age_bracket,
     sun_sign: raw.identity.sun_sign,
     relationship_status: raw.identity.relationship_status,
-    answers: raw.facets.map((f) => ({
-      question: f.question,
-      picked: f.chosen,
-      weight: f.weight,
-      indicators: f.channels.indicators,
-      implications: f.channels.implications,
-      identities: f.channels.identities,
-      declined_shadows: f.shadows,
-    })),
+    answers: raw.facets.map((f) => {
+      // Free-text facets carry empty authored channels; the Scribe's
+      // enrichment stands in for them (channels + weight + free-form notes).
+      const e = f.free_text ? enrichments?.get(f.slug) : undefined;
+      return {
+        question: f.question,
+        picked: f.chosen,
+        weight: e?.weight ?? f.weight,
+        indicators: e?.indicators ?? f.channels.indicators,
+        implications: e?.implications ?? f.channels.implications,
+        identities: e?.identities ?? f.channels.identities,
+        notes: e?.notes ?? f.channels.notes,
+        declined_shadows: f.shadows,
+      };
+    }),
     instruction:
       'synthesize the Portrait now, in the exact markdown structure given. weight is 0-3 charge — let the hot answers lead. third person, present tense, specific.',
   };

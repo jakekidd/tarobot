@@ -26,18 +26,23 @@ import type { RailDriver } from '../rails/types';
 import type { Agent } from './Agent';
 import { ConjectorAgent } from './ConjectorAgent';
 import { condense } from './condenser';
+import type { WriteInEnrichment } from './writeInEnricher';
 import type { ConjectorResult, Portrait } from './types';
 
 export class TuningEngine {
   private readonly adapter: LLMAdapter;
   private readonly raw: RawPortrait;
+  /** Scribe enrichments for the survey's write-ins, keyed by facet slug.
+   *  Empty when the player picked every answer. */
+  private readonly enrichments: Map<string, WriteInEnrichment>;
   private readonly conjector = new ConjectorAgent();
   /** The activities this engine runs, in order. ConjectorAgent first. */
   private readonly agents: Agent[] = [this.conjector];
 
-  constructor(adapter: LLMAdapter, raw: RawPortrait) {
+  constructor(adapter: LLMAdapter, raw: RawPortrait, enrichments?: Map<string, WriteInEnrichment>) {
     this.adapter = adapter;
     this.raw = raw;
+    this.enrichments = enrichments ?? new Map();
   }
 
   /** The survey output this engine was constructed from. */
@@ -48,7 +53,7 @@ export class TuningEngine {
   /** Condenser: RawPortrait → markdown Portrait, one Sonnet call. Synthesis,
    *  not extraction — the read the Conjector hunts off. */
   async paintPortrait(): Promise<Portrait> {
-    return condense(this.adapter, this.raw);
+    return condense(this.adapter, this.raw, this.enrichments);
   }
 
   /** The registered activities, in run order. */

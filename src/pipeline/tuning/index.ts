@@ -5,5 +5,6 @@
 export { TuningEngine } from './TuningEngine';
 export { ConjectorAgent } from './ConjectorAgent';
 export { draftPortrait } from './portraitDraft';
+export { enrichWriteIn, type WriteInEnrichment } from './writeInEnricher';
 export type { Agent, AgentContext } from './Agent';
 export type { Portrait, Dilemma, ConjectorResult, ConjectureRecord } from './types';

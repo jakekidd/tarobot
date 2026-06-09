@@ -21,7 +21,14 @@ import { TuningScreen } from './ui/tuning/TuningScreen';
 import { TuningLoading } from './ui/tuning/TuningLoading';
 import { TuningDone } from './ui/tuning/TuningDone';
 import { IntroductionSurvey, loadSurvey, type RawPortrait } from './pipeline/introduction-survey';
-import { TuningEngine, draftPortrait, type ConjectorResult } from './pipeline/tuning';
+import {
+  TuningEngine,
+  draftPortrait,
+  enrichWriteIn,
+  type ConjectorResult,
+  type WriteInEnrichment,
+} from './pipeline/tuning';
+import type { LLMAdapter } from './pipeline/llm/adapter';
 import type { RailDriver } from './pipeline/rails/types';
 import { TarobotScene } from './ui/scene/TarobotScene';
 import { buildMarisolDemoSeer } from './pipeline/seer';
@@ -98,15 +105,19 @@ export function App() {
   }
 
   async function enterTuning(raw: RawPortrait) {
-    // Survey done → build the TuningEngine, run the Condenser to paint the
-    // Portrait, then hand the Conjector to the rails. The Condenser + Conjector
-    // call the model, so a key is required; with none we just dump the raw.
+    // Survey done → run the Scribe over any write-ins, then the Condenser to
+    // paint the Portrait, then hand the Conjector to the rails. Condenser +
+    // Conjector call the model, so a key is required; with none we just dump.
     if (!apiKey) {
       setPhase({ kind: 'survey_done', raw });
       return;
     }
-    const engine = new TuningEngine(new AnthropicAdapter(createClaudeClient(apiKey)), raw);
+    const adapter = new AnthropicAdapter(createClaudeClient(apiKey));
     setPhase({ kind: 'tuning_loading' });
+    // Scribe: enrich free-text answers into real channels (parallel), join
+    // before the Condenser. A failed enrichment just drops that write-in.
+    const enrichments = await enrichWriteIns(adapter, raw);
+    const engine = new TuningEngine(adapter, raw, enrichments);
     try {
       const portrait = await engine.paintPortrait();
       setPhase({ kind: 'tuning', driver: engine.begin(portrait) });
@@ -115,6 +126,27 @@ export function App() {
       // still runs rather than dead-ending on a bad model call.
       setPhase({ kind: 'tuning', driver: engine.begin(draftPortrait(raw)) });
     }
+  }
+
+  async function enrichWriteIns(
+    adapter: LLMAdapter,
+    raw: RawPortrait,
+  ): Promise<Map<string, WriteInEnrichment>> {
+    const writeIns = raw.facets.filter((f) => f.free_text);
+    if (writeIns.length === 0) return new Map();
+    const bySlug = new Map(loadSurvey().facets.map((f) => [f.slug, f]));
+    const entries = await Promise.all(
+      writeIns.map(async (f) => {
+        const facet = bySlug.get(f.slug);
+        if (!facet) return null;
+        try {
+          return [f.slug, await enrichWriteIn(adapter, facet, f.chosen)] as const;
+        } catch {
+          return null; // a failed enrichment just rides through unenriched
+        }
+      }),
+    );
+    return new Map(entries.filter((e): e is [string, WriteInEnrichment] => e !== null));
   }
 
   // Brief "we're leaving the menu" flag — set when READ DEMO fires so
