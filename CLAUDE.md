@@ -62,18 +62,16 @@ new content.
 
 ```
 materials/
-  pillars.md                      the pillar questions (9 pillars + pool)
-  templates/
-    profile.md                    LivingDoc profile scaffold (sections + HTML-comment instructions)
-    anchor.md                     legacy prose anchor template (superseded by the DilemmaDocument)
+  survey.json                     the 14-facet survey (questions + per-option channels)
   prompts/
-    weaver.md                     candidate-dilemma curator (haiku, every 2 guesses)
-    diviner.md                     20-guess game; batched LOCATE (3 then 2) then COMPOSE drills 1/turn; per-guess response prediction
-    compiler.md                   sieve → DilemmaDocument at antechamber close
-    intention-suggestor.md        intent-chip helper (one per weaver candidate)
-    augur-outline.md              outcome naming (binary/ternary/open)
-    augur-fill.md                 outcome document fills (markdown prose)
-    mantra.md                     closing one-line takeaway
+    condenser.md                  RawPortrait → markdown Portrait (sonnet)
+    scribe.md                     enrich a write-in into channels (haiku)
+    conjector/
+      move.md                     the cold/warm/hot guess loop (the "Diviner")
+      reroot.md                   find a different territory, or declare exhausted
+      summary.md                  first-person dilemma close for the compiler
+    augur-outline.md              outcome naming (binary/ternary/open)   [reading]
+    augur-fill.md                 outcome document fills (markdown prose) [reading]
     seer/
       voice-bible.md              shared craft for all actors
       director-intro.md           prose-brief from the Dilemma
@@ -83,87 +81,62 @@ materials/
       actor-per-card.md           voiced beat from a Set
       actor-closing.md            voiced outro
       actor-chat.md               between-beats reply
+    # LEGACY (antechamber engine, retiring): weaver.md · diviner.md ·
+    # compiler.md · intention-suggestor.md · mantra.md
   names/
     masc.txt                      relationship_pick name bank (one per line)
     fem.txt
   mascot/
     return-lines.md               canned mascot lines for returning RESUME
+  # LEGACY (9-pillar antechamber): pillars.md · templates/{profile,anchor}.md
 ```
 
-## Antechamber engine — the three artifacts
+## Antechamber engine — the artifacts (survey → tuning)
 
-At antechamber close, three artifacts hand off to the Seer:
+> Phase-by-phase truth lives in `docs/PIPELINE.md`; this is the orientation.
+> The pipeline was rebuilt. The older "three artifacts" (profile /
+> investigation / story, from an observer + diviner) are LEGACY — they belong
+> to `src/pipeline/antechamber/`, which still serves the loaded / returning-
+> user path and is being retired.
 
-- **profile** (observer's domain · breadth) — a freeform markdown
-  document the observer rewrites every turn. 9 section headers
-  (`self / history / relationships / joys / fears / insecurities /
-  yearnings / now / tensions`). Plus side-channel reads (signals,
-  patterns, contradictions, avoidances), hooks (verbatim specifics
-  the seer can echo), edges (growth surface — what the user almost-
-  knows), and cast (named people + per-person observer notes).
-- **investigation** (diviner's domain · depth) — a hypothesis ladder
-  (confirmed / probable / tentative / contested / refuted / held)
-  populated by:
-  - the algorithmic seeder (`src/pipeline/antechamber/seeder.ts`),
-    which reads each question's `Inversions:` probe text and seeds
-    deterministic hypotheses into `tentative[]`,
-  - the observer (every turn — elevates / holds / refutes seeds),
-  - the diviner (adds new hypotheses, moves rungs).
-- **story** (diviner's domain · narrative) — the slice across time
-  anchored to the user's fork. Five slots:
-  - `fork: { a, b, is_stasis }` — the two future paths. `is_stasis`
-    true means the diviner constructed it from a stasis pattern
-    (the user has no live decision; the fork is "act on this vs.
-    continue as you are").
-  - `present_pressure` — what makes the fork acute right now.
-  - `past_root` — what in their history pre-figures the fork.
-  - `stakes: { on_a, on_b }` — what is at risk each way.
-  - `hooks` — verbatim concrete specifics.
+The go-forward path runs **Survey → Scribe → Condenser → Conjector**, over the
+portable rails (`src/pipeline/rails/`). Three artifacts move down it:
 
-The cards land on story slots (past_root → past card, present_pressure
-→ present, fork.a + fork.b → the two future cards). The director's
-prose_brief is built around story; the closing director receives the
-held-probe queue (sorted by age DESC) and may take ONE risky swing.
+- **RawPortrait** (the survey's output · deterministic, NO AI) — every facet
+  pick with its authored channels (indicators / implications / identities,
+  plus the declined options' shadows), weight-ranked. Weight only SORTS, it
+  never gates. Write-ins ride through with empty channels for the Scribe.
+- **Portrait** (the Condenser's output · one Sonnet call) — a *markdown*
+  vignette, NOT a schema: central leads (confidence-tagged HIGH/MED/LOW/
+  HUNCH), patterns, tensions, cast, posture. The read the Conjector hunts off.
+- **dilemmas** (the Conjector's output) — each a located charge: the
+  **reframe** (the question under their question, confirmed YES/NO by the
+  player), a first-person `summary_md`, the leads it claimed, and a confirmed
+  flag. These hand to the (unbuilt) Compiler, then the Seer.
 
-## The mascot (the turtle) is the user-facing voice during the antechamber
+## The user-facing voice during the antechamber
 
-Three agents fire per post-opener pick (returning users skip the
-diviner):
+The turtle (the mascot) is the only thing the user sees and hears — reactive,
+RPG-dialogue style, lowercase. The reasoning agents are SILENT: the Condenser
+and the Conjector (**"the Diviner"** in its prompt) never surface their
+thinking to the user. If a future implementation prints the Conjector's
+internal guess-reasoning, or the Portrait, to the user, that's a regression of
+this load-bearing rule.
 
-- **mascot commentary** (local, real-time, in-character) — what the
-  user sees and hears between picks. Reactive lines, RPG-dialogue
-  style. The user-facing layer.
-- **observer** (cognition tier, cloud, async) — psychological profiler.
-  Rewrites profile.body, elevates / refutes hypotheses. SILENT — never
-  surfaces mid-antechamber.
-- **diviner** (deep tier, cloud, async) — story architect + ladder
-  collaborator. Builds the StoryObject, surfaces new hypotheses.
-  SILENT — never surfaces mid-antechamber.
+## The survey facets
 
-Diviner outputs never leak to the user. Only the mascot's
-reactive commentary does. If a future implementation accidentally
-prints diviner thoughts to the user, that's a regression of this
-load-bearing rule.
-
-## Categories — the 9 the observer files under
+The survey is **14 facets** (`materials/survey.json`), one-tap multiple
+choice, each option pre-authored with channels. It replaced the older 9-pillar
+/ observer-category model:
 
 ```
-self           personality · how they come across · belief stance
-history        formative experiences · old wounds · regrets
-relationships  cast dynamics · whose voice they carry
-joys           aliveness · what they nerd out about · pride / built
-fears          anticipated harms · anxieties
-insecurities   self-doubt · comparison · what they hide
-yearnings      unfulfilled wants · the version they want to become
-now            current situation · the live fork · what's pulsing
-tensions       internal contradictions · belief-personality mismatches
-               (observer-derived only, never tagged on a question)
+basics · relationship-status · work · social · joys · rest · body ·
+change · conflict · attachment · ego · family · yearning · agency
 ```
 
-Of the 9, 7 are question-tagged in `materials/pillars.md`. `tensions`
-is observer-derived only — emerges across answers. `pride` collapsed
-into `joys` (people perform humility on direct asks; observer infers
-from indirect signal).
+Each option carries indicators (facts), implications (leads), identities
+(competing character-types), a shadow (what NOT picking it means), and a 0–3
+weight. Authoring discipline + the full list live in `materials/survey.json`.
 
 ---
 
@@ -290,22 +263,26 @@ tier name — Sonnet — distinct from the runtime category "cloud" and from
 the old layer name "cognition." Plan to rename the tier eventually, but
 not load-bearing yet.)
 
-### Antechamber engine (`src/pipeline/antechamber/`)
+### Survey + Tuning engines (`src/pipeline/introduction-survey/`, `src/pipeline/tuning/`)
 
-Two-agent design. Observer + Investigator fire per answered question after
-the openers; Compiler runs once at antechamber close.
+The go-forward antechamber (full shape in `docs/PIPELINE.md`). Two engines
+over the shared rails (`src/pipeline/rails/`):
 
-- Engine is a plain TypeScript class with a subscriber API. UI subscribes;
-  the e2e bot subscribes; the engine itself is framework-agnostic.
-- Tree (`tree.json`) is a flat pool of nodes with optional answer-pointer
-  followups. Each node declares category, format, options, phase eligibility,
-  interpretation hints. Loader validates structure at boot.
-- Heat is *deterministic* (not LLM-controlled). Phase is derived from heat
-  with a monotonic guard. Close criteria are predicate-OR'd (saturation /
-  fatigue / cap).
-- All agent I/O is Zod-validated at the adapter boundary. Malformed output
-  retries once, then falls back deterministically rather than crashing the
-  engine.
+- **IntroductionSurvey** — deterministic, NO AI, Node-portable. Walks the 14
+  facets and rounds picks up into a RawPortrait. A `RailDriver`
+  (`current()` / `submit()` / `subscribe()` / `result()`); no model SDK, no
+  DOM. Heat/phase machinery is gone — it's a fixed-order walk.
+- **TuningEngine** — runs after the survey. Paints the Portrait (the
+  **Condenser** — one Sonnet *freeform* call), then hosts ordered **Agent**s
+  that drive the same rails. The **ConjectorAgent** is activity #1: the
+  cold/warm/hot dilemma hunt ("the Diviner" in its prompt). The **Scribe**
+  (`writeInEnricher`) enriches write-ins before the Condenser.
+
+All agent I/O is Zod-validated at the adapter boundary. A failed Condenser
+falls back to `draftPortrait`; a thrown Conjector call ends the hunt with
+whatever it banked rather than crashing. The legacy `src/pipeline/antechamber/`
+engine (Observer + Investigator + weaver / diviner / compiler) still serves
+the loaded / returning-user path and is being retired.
 
 ### Seer engine (`src/pipeline/seer/`)
 
@@ -393,13 +370,16 @@ tarot birth card). Treat these as ground truth; do not duplicate inline.
 | Anthropic client + MODELS + tier→model map | `src/pipeline/claude.ts` |
 | LLMAdapter interface (provider-agnostic) | `src/pipeline/llm/adapter.ts` |
 | Concrete Anthropic adapter (only file that imports SDK) | `src/pipeline/llm/adapter-anthropic.ts` |
-| AntechamberEngine + agents (weaver/diviner/compiler/shaman/augur) | `src/pipeline/antechamber/` |
+| Survey + Tuning engines (Condenser / Conjector / Scribe) | `src/pipeline/introduction-survey/`, `src/pipeline/tuning/` |
+| UI rails (the portable driver seam) | `src/pipeline/rails/` |
+| AntechamberEngine + agents — LEGACY (loaded-user path, being retired) | `src/pipeline/antechamber/` |
 | SeerEngine + agents (director/actor) | `src/pipeline/seer/` |
 | Card draw mechanics | `src/pipeline/cards.ts` |
 | Spread definitions | `src/pipeline/spreads.ts` |
 | three.js scene (turtle + eyes + perspective table/cards + scene stores) | `src/ui/scene/`, `src/ui/scene/TarobotScene.tsx` |
 | Card face/back canvas painters (used by the perspective layer) | `src/ui/cards/cardTexture.ts`, `glyphs.ts` |
-| Antechamber UI (questions, choices) | `src/ui/Antechamber.tsx`, `src/ui/choices/` |
+| Survey + Conjector UI (rails renderers) | `src/ui/survey/`, `src/ui/tuning/` |
+| Antechamber UI — LEGACY (loaded-user path) | `src/ui/Antechamber.tsx`, `src/ui/choices/` |
 | Reading UI (the Seer screen) | `src/ui/Reading.tsx`, `src/ui/Transcript.tsx` |
 | Persistence (API key, sessions) | `src/storage.ts` |
 | E2E bot harness (Opus archetype + Haiku answerer) | `scripts/e2e/`, `scripts/e2e-antechamber.ts` |
@@ -481,11 +461,12 @@ the doc.
 
 ### Churning
 
-- **Antechamber engine.** Today: synchronous, two-agent (WEAVER+Diviner),
-  heat-driven phase. Research synthesis points toward async continuous
-  Investigator + trigger-fired Observer + specific-guess-injection +
-  flat-pool / runtime-tree. Refactor is gated on actually walking through
-  the reading first, but expect this subsystem to change significantly.
+- **Antechamber engine.** Rebuilt as survey→tuning (`introduction-survey/` +
+  `tuning/`, see `docs/PIPELINE.md`). Survey + Scribe + Condenser + Conjector
+  are wired and playable; the **Compiler arc** (the deepen pool, expert
+  pre-calc, the card deal, and the Conjector→Seer bridge) is the next big
+  build. The legacy `pipeline/antechamber/` engine still serves the loaded
+  path until migrated.
 - **Reading engine.** Fan-out architecture just shipped. Per-card director
   + actor threads spawn per round; user picks which face-down card to
   flip. Slot meanings are load-bearing; FLIP_ANIM_MS (950) is a placeholder
@@ -573,46 +554,33 @@ the doc.
 
 ## How a typical session flows (end to end)
 
-1. User lands. If no API key in localStorage, key-entry screen. Key
-   validated against a tiny smoke call (Haiku, 1 token) before saving.
-2. Menu → `begin` → fresh `Session` in memory (NOT persisted yet). Antechamber starts.
-3. Q1 (name): on submit, `findPeopleMatchingName` runs.
-   - 0 matches → continue normally.
-   - 1+ match → `ReturningUserModal` overlays. User picks **RESUME** →
-     `engine.confirmReturningPerson(match)` folds the Person's profile +
-     history into engine state, skips remaining openers whose data is
-     already known, seeds the (deduped) starter pool, and the mascot
-     delivers one of `RETURN_LINES`. Or **START FRESH** →
-     `deletePerson(match.id)` and the antechamber proceeds as for a new user.
-4. Q2 (birthday), Q3 (has_question) run.
-5. **Save threshold:** once all 3 openers are answered, a Person record
-   is created (new user) or updated (returning), and the active session
-   gets persisted to `tarobot:active_session`. Before this, bailing
-   leaves no localStorage trace.
-6. Antechamber body: engine fires WEAVER → Diviner → Compiler per
-   pick. Starter pool (6 seeds) and Interrogator basket both filter out
-   `prior_answered_node_ids` (hard dedupe across the visitor's history).
-7. Cap (20 post-opener questions): Interrogator suppressed past
-   `cap − STARTER_SEED_COUNT` so the existing queue rides out the last
-   stretch. On the 20th answer, `beginShamanStage()` fires.
-8. Shaman runs (cloud) with `prior_intentions` in its input — it's
-   instructed not to duplicate prior intentions, optionally proposing
-   one "deepening" of the most recent prior. Returns 4 suggestions.
-9. User picks/writes intention. UI shows `last time you asked: ...` as
-   a soft hint when prior_intentions is non-empty. `submitIntention()`
-   triggers Augur (cloud, 2-stage) → SeerEngine constructed →
-   `seer.ready` resolves → state stage = 'reading_ready'.
-10. ENTER → `onComplete(seer)`. Antechamber effect appends the completed
-    visit to the Person record (intention + answered_node_ids +
-    completed_at) and clears active session.
-11. App routes to Reading screen with the prebuilt Seer. Card flow:
-    intro → awaiting_flip → flipping (950ms) → beat → loop →
-    closing_thinking → outro → done. Chat allowed in awaiting_flip /
-    done; actor replies are their own LLM call.
-12. Exit anytime via topbar. If past save threshold, the in-progress
-    Person record persists; resuming returns to the same antechamber state.
+Two paths today: a NEW visitor runs the rebuilt survey→tuning pipeline; a
+LOADED / returning visitor still runs the legacy `pipeline/antechamber/`
+engine (being retired). The new path:
 
-This flow will change. When it does, fix this section.
+1. User lands. No API key in localStorage → key-entry screen (validated
+   against a 1-token Haiku smoke call before saving).
+2. Menu → `begin` → `startNewReading` → a fresh `IntroductionSurvey`
+   (deterministic, no AI). No Session is persisted on this path yet.
+3. Survey: name → 14 facets (one-tap, or type a custom answer) → birthday →
+   done. Picks round up into a RawPortrait. No model fires during the survey.
+4. Survey close → `enterTuning`:
+   - **Scribe** enriches any write-ins into channels (parallel Haiku), joined
+     before the next step.
+   - **Condenser** paints the Portrait (one Sonnet freeform call) behind a
+     "mm, let me look at you a moment" beat. A failed call falls back to
+     `draftPortrait` (the raw amalgam laid out) so the hunt still runs.
+   - **Conjector** takes the rails: cold/warm/hot guesses → a YES/NO reframe,
+     ≤5 moves per thread, re-rooting to new territory, ≤3 dilemmas.
+5. Conjector done → `ConjectorResult` dumped to `TuningDone`. The Compiler
+   that would consume the dilemmas (and the Conjector→Seer bridge) is UNBUILT,
+   so the new path ends here for now.
+6. The **reading** (Augur → SeerEngine → card flow: intro → awaiting_flip →
+   flipping → beat → loop → outro → done) still runs only on the legacy
+   loaded path. Persistence (Person records, resume, returning-user match) is
+   also legacy-only; the new survey path does not persist yet.
+
+This flow is mid-migration. When the Compiler arc lands, fix this section.
 
 ---
 
