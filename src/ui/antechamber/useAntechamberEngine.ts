@@ -10,6 +10,7 @@ import {
   type RenderedQuestion,
 } from '../../pipeline/antechamber';
 import { createClaudeClient } from '../../pipeline/claude';
+import { recordUsage } from '../../debug/usageTally';
 import type { Seer } from '../../pipeline/seer';
 
 import type { AntechamberProfile } from '../../pipeline/antechamber';
@@ -51,7 +52,7 @@ type AntechamberHook = {
 export function useAntechamberEngine(opts: Options): AntechamberHook {
   const engine = useMemo(() => {
     const client = createClaudeClient(opts.apiKey);
-    const adapter = new AnthropicAdapter(client);
+    const adapter = new AnthropicAdapter(client, recordUsage);
     return new AntechamberEngine({
       adapter,
       session_id: opts.sessionId,
