@@ -110,8 +110,8 @@ export function Menu({ onBegin, onReadDemo, onOpenResume, onSettings, onBench, t
       </div>
 
       <p className="menu__consent">
-        by continuing, you consent to sharing anonymous usage data with the
-        development team to improve the experience.
+        this experience is ai-assisted. your answers live in this browser and
+        go only to the model, with your key.
       </p>
     </div>
   );

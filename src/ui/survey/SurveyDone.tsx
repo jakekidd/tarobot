@@ -1,7 +1,7 @@
-// SurveyDone — the end of this pass. The TuningEngine that would consume the
-// RawPortrait isn't wired yet, so instead of continuing we dump the raw
-// object as plaintext with a copy button. This is the iteration surface:
-// run the survey as yourself, read what you produced, tune the channels in
+// SurveyDone — the keyless dead-end. With no API key the Scribe / Condenser /
+// Conjector can't run, so the survey dumps its RawPortrait as plaintext with
+// a copy button instead of entering tuning. Also an iteration surface: run
+// the survey as yourself, read what you produced, tune the channels in
 // materials/survey.json, re-run.
 
 import { useState } from 'react';
