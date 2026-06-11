@@ -16,6 +16,7 @@ Documentation map (what to trust for what):
 | `CLAUDE.md` (this file) | Durable orientation — principles, architecture, conventions. |
 | `docs/PIPELINE.md` | Living truth for the antechamber pipeline (survey → condenser → conjector). |
 | `docs/HANDOFF.md` | Point-in-time onboarding: current build state, lessons, brainstorm context. |
+| `docs/ANTECHAMBER-STATE.md` | Point-in-time close-out audit of the antechamber (checklist, gaps, deferred). |
 | `docs/READING-ANATOMY.md` | The Seer reading engine (director/actor, tranches). |
 | `docs/DILEMMA-SCHEMA.md` | The DilemmaDocument contract — LEGACY compiler output → seer input (still feeds the reading on the loaded path). |
 | `TODO.md` | Deferred-work backlog. |
