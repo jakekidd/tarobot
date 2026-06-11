@@ -8,7 +8,6 @@
 // itself is dumb — no state of its own beyond the editing draft for
 // the prompt textarea.
 
-import { useEffect, useState } from 'react';
 import { Button, Field, Stack, Row, Pill, Empty } from '../../lib';
 import type { SandboxAgent, SandboxConfig } from '../types';
 import { SANDBOX_PALETTE } from '../types';
@@ -160,9 +159,6 @@ function StateKeyMultiSelect({
   value: string[];
   onChange: (next: string[]) => void;
 }) {
-  const [draft, setDraft] = useState<string>('');
-  useEffect(() => { setDraft(''); }, [value]);
-
   if (options.length === 0) {
     return <div className="bench__text-faint bench__text-sm">no state variables declared yet — add one in the State shelf on the left</div>;
   }
@@ -188,8 +184,6 @@ function StateKeyMultiSelect({
           </button>
         );
       })}
-      {/* draft unused — placeholder for future "add new input + create var" */}
-      {draft && <span style={{ display: 'none' }}>{draft}</span>}
     </Row>
   );
 }

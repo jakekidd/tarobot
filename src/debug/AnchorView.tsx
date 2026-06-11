@@ -7,7 +7,7 @@
 // AND we're in the antechamber phase.
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { parseAnchorSections, type AnchorDiff } from '../pipeline/antechamber';
+import { parseAnchorSections } from '../pipeline/antechamber';
 import { subscribeAnchor, type AnchorEvent } from './anchorBus';
 
 type Props = { visible: boolean };
@@ -17,56 +17,52 @@ const FLASH_MS = 700;
 export function AnchorView({ visible }: Props) {
   const [event, setEvent] = useState<AnchorEvent | null>(null);
   /** Per-section "last updated turn" — used for the [✱ T<n>] marker. */
-  const updateMarkers = useRef<Map<string, number>>(new Map());
-  /** Per-section flash bookkeeping — section heading → wall-clock ms
-   *  at which the flash started. */
-  const [flashTimes, setFlashTimes] = useState<Map<string, number>>(new Map());
+  const [updateMarkers, setUpdateMarkers] = useState<Map<string, number>>(new Map());
+  /** Headings currently mid-flash. Render reads ONLY this set; the
+   *  wall-clock bookkeeping lives in the ref below so the render path
+   *  stays pure (no Date.now(), no ref reads). */
+  const [flashing, setFlashing] = useState<ReadonlySet<string>>(new Set());
+  /** Section heading → flash start ms. Pruned by the fadeout interval. */
+  const flashTimes = useRef<Map<string, number>>(new Map());
 
   useEffect(() => {
     return subscribeAnchor((ev) => {
       // Update per-section markers
-      const next = new Map(updateMarkers.current);
-      for (const heading of ev.diff.changed) next.set(heading, ev.turn);
-      for (const heading of ev.diff.added) next.set(heading, ev.turn);
-      for (const heading of ev.diff.removed) next.delete(heading);
-      updateMarkers.current = next;
+      setUpdateMarkers((prev) => {
+        const next = new Map(prev);
+        for (const heading of ev.diff.changed) next.set(heading, ev.turn);
+        for (const heading of ev.diff.added) next.set(heading, ev.turn);
+        for (const heading of ev.diff.removed) next.delete(heading);
+        return next;
+      });
       // Start flash for changed + added sections
       const now = Date.now();
-      const flashNext = new Map<string, number>();
-      for (const [k, v] of flashTimes) {
-        if (now - v < FLASH_MS) flashNext.set(k, v);
+      const times = flashTimes.current;
+      for (const [k, v] of times) {
+        if (now - v >= FLASH_MS) times.delete(k);
       }
       for (const heading of [...ev.diff.changed, ...ev.diff.added]) {
-        flashNext.set(heading, now);
+        times.set(heading, now);
       }
-      setFlashTimes(flashNext);
+      setFlashing(new Set(times.keys()));
       setEvent(ev);
     });
-  }, [flashTimes]);
+  }, []);
 
   // Drive the flash fadeout. Cheap: tick every 100ms while any flash
   // is active, then stop until the next anchor event.
   useEffect(() => {
-    if (flashTimes.size === 0) return;
+    if (flashing.size === 0) return;
     const timer = window.setInterval(() => {
       const now = Date.now();
-      let any = false;
-      const next = new Map<string, number>();
-      for (const [k, v] of flashTimes) {
-        if (now - v < FLASH_MS) {
-          next.set(k, v);
-          any = true;
-        }
+      const times = flashTimes.current;
+      for (const [k, v] of times) {
+        if (now - v >= FLASH_MS) times.delete(k);
       }
-      if (!any) {
-        setFlashTimes(new Map());
-        window.clearInterval(timer);
-      } else if (next.size !== flashTimes.size) {
-        setFlashTimes(next);
-      }
+      if (times.size !== flashing.size) setFlashing(new Set(times.keys()));
     }, 100);
     return () => window.clearInterval(timer);
-  }, [flashTimes]);
+  }, [flashing]);
 
   const sections = useMemo(() => {
     if (!event) return [];
@@ -86,7 +82,6 @@ export function AnchorView({ visible }: Props) {
     );
   }
 
-  const now = Date.now();
   return (
     <section className="anchor-view" aria-label="subject anchor">
       <div className="anchor-view__head">
@@ -96,13 +91,11 @@ export function AnchorView({ visible }: Props) {
         </span>
       </div>
       {sections.map((s) => {
-        const lastTurn = updateMarkers.current.get(s.heading);
-        const flashStart = flashTimes.get(s.heading);
-        const flashing = flashStart !== undefined && now - flashStart < FLASH_MS;
+        const lastTurn = updateMarkers.get(s.heading);
         return (
           <div
             key={s.heading}
-            className={`anchor-view__section${flashing ? ' anchor-view__section--flash' : ''}`}
+            className={`anchor-view__section${flashing.has(s.heading) ? ' anchor-view__section--flash' : ''}`}
           >
             <div className="anchor-view__section-head">
               <span className="anchor-view__section-title">{s.heading}</span>
@@ -118,13 +111,4 @@ export function AnchorView({ visible }: Props) {
       })}
     </section>
   );
-}
-
-/** Convenience: pretty-print a diff for inline use elsewhere. */
-export function formatDiffSummary(diff: AnchorDiff): string {
-  const parts: string[] = [];
-  if (diff.added.length) parts.push(`+${diff.added.length} new`);
-  if (diff.changed.length) parts.push(`±${diff.changed.length} changed`);
-  if (diff.removed.length) parts.push(`-${diff.removed.length} removed`);
-  return parts.length > 0 ? parts.join(', ') : 'no change';
 }

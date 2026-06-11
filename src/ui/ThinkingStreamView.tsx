@@ -30,8 +30,11 @@ export function ThinkingStreamView({ visible }: Props) {
 
   useEffect(() => {
     if (!visible) {
+      // Hidden → we render null anyway; just drop the buffer. Stale `text`
+      // state is fine: the stream's 'start' event resets it before any new
+      // chunk renders. (No setState here — synchronous setState in an effect
+      // body cascades renders.)
       bufferRef.current = '';
-      setText('');
       return;
     }
     return subscribeCompilerStream((event: CompilerStreamEvent) => {
