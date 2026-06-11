@@ -63,14 +63,15 @@ bundle discards the Portrait).
 | Reroot may declare exhausted | ✓ | `fresh: false` → done. Never manufactures. |
 | `deepen()` | ✓ stub | No-op with a TODO; commits the call-site/pipelining seam. No Compiler module exists behind it. |
 | Latency cover between moves | × | Bare "…" Dialogue during `thinking` (~10s Sonnet calls). The known dead-air problem. |
-| Confidence-tag strategy | × | `move.md` never mentions the HIGH/MED/LOW/HUNCH tags. The only steer is the code's default "(open — pick the hottest UNEXPLORED lead)". Probe-HIGH-first-for-trust, risk-LOW-later is unimplemented uplift. |
+| Redundancy / within-thread coverage | ✓ fixed | The mine-the-hit failure (guess 3 = guess 2 + a motive) is cured the same way the cross-thread collision was: explicit fed-forward state. `move.md` now teaches trail-reading (WARM/HOT = settled premise; WARM → move laterally; the "...because..." anti-pattern is forbidden), a dimensional map (identity / dynamic / timing / stakes / trajectory / adjacency), and the symmetric-information test (a guess must teach something whichever way it lands). Each move emits a private `dimension` field that rides the trail and feeds back — the within-thread negative-space stack. Needs live testing. |
+| Confidence-tag strategy | × | `move.md` still doesn't use the HIGH/MED/LOW/HUNCH tags strategically (probe-HIGH-first-for-trust, risk-HUNCH-later). Deliberately left out of the redundancy fix so its effect can be tested unconfounded. |
 
 ### Handoff
 
 | Item | State | Reality |
 |---|---|---|
-| `ConjectorResult { dilemmas[] }` | ✓ | Each Dilemma: id, territory, reframe, confirmed, hypothesis, summary_md, claimed_leads, trail. Unranked, unversioned, no run metadata. |
-| **The output bundle** | × | **The real contract hole.** The Compiler will need identity + Portrait + dilemmas; today `TuningDone` dumps only the dilemmas and the Portrait is discarded with the engine. You cannot correlate a hunt with the read it ran off after the fact. Fix before Compiler: an `AntechamberOutput` bundle { identity, portrait_md, dilemmas } threaded to the done screen. |
+| `ConjectorResult { dilemmas[] }` | ✓ | Each Dilemma: id, territory, reframe, confirmed, hypothesis, summary_md, claimed_leads, trail. Now also carries `ended` ('cap' / 'budget' / 'exhausted' / 'error') + `moves_spent`. |
+| **The output bundle** | ✓ fixed | `AntechamberOutput` { identity, raw_picks, portrait_md, dilemmas, ended, moves_spent } — assembled by `TuningEngine.assemble()`, dumped at `TuningDone`. The hunt and the read it ran off now travel together. |
 | Post-hunt player UX | × | `TuningDone` = dev JSON dump + copy + menu. No turtle close. Acceptable as the iteration surface; it is the dead end until the Compiler bridge. |
 
 ---
@@ -102,15 +103,22 @@ bundle discards the Portrait).
 
 ## Telemetry / tuning loop
 
-- Adapter reports per-call token usage to an `onUsage` callback — **no call
-  site passes one.** Plumbing shipped, consumer missing.
-- AgentActivity debug stream carries every call (system/user/response,
-  ~2KB-truncated) — in-memory only, gone on refresh.
-- The dilemma `trail` rides in the dump ✓; the Portrait does not ✗ (see
-  contract hole above).
+- Token usage: wired ✓ — `recordUsage` (src/debug/usageTally.ts) consumes the
+  adapter's onUsage callback at every adapter construction site; cumulative
+  per-model tally publishes to the debug bus as `llm.tokens`.
+- Transcript fidelity: fixed ✓ — the bus stores the COMPLETE system / user /
+  response (+ extended-thinking deltas, captured adapter-side) for every
+  call; COPY TRANSCRIPT emits all of it in four-backtick blocks. The panel
+  still renders truncated previews; the copied artifact never truncates.
+  Caveat: in-memory only (gone on refresh), capped at 300 events.
+- The full bundle (Portrait + picks + dilemmas + trail) rides in the
+  TuningDone dump ✓.
 - The Pipeline page (topbar) still documents ONLY the legacy agents — no
   scribe/condenser/conjector rows. A lying surface for the new path.
-- Survey captures per-facet answer latency ✓ (unused so far).
+- Survey captures per-facet answer latency ✓ — **owner call (2026-06-11):
+  deliberately NOT fed to the Condenser or anywhere else. Dev-time hesitation
+  is noise (stopping for irrelevant reasons mid-run). Revisit only with real
+  players in front of it.**
 
 ## Housekeeping discovered during audit
 
@@ -126,23 +134,34 @@ bundle discards the Portrait).
 
 ## Close-out plan
 
-**Quick fixes (≈1 hour each, do before Compiler arc):**
-1. `AntechamberOutput` bundle { identity, portrait_md, dilemmas } → TuningDone
-   dump (the contract hole + portrait-in-dump in one move).
-2. Consent line reword (accurate: local-only processing, AI involved).
-3. Stale-comment sweep (incl. draft fence line).
-4. Wire `onUsage` → session token tally (console/debug bus).
-5. Lint: fix the 4 debug/lab errors.
+**Quick fixes — EXECUTED 2026-06-11:**
+1. ✓ `AntechamberOutput` bundle → TuningDone dump (+ `ended` / `moves_spent`
+   run metadata on ConjectorResult).
+2. ✓ Consent line reword (ai-assisted, browser-local, your key).
+3. ✓ Stale-comment sweep (TuningEngine header, TuningLoading "Diviner",
+   draftPortrait fence line, SurveyDone header, App enterTuning).
+4. ✓ `onUsage` → session token tally (debug bus `llm.tokens`).
+5. ✓ Lint: the 4 debug/lab errors fixed (+ dead `draft` state and unused
+   `formatDiffSummary` deleted).
+6. ✓ (unplanned, owner-flagged) Transcript fidelity — full system / user /
+   thinking / response in COPY TRANSCRIPT.
+7. ✓ (unplanned, owner-directed) Conjector redundancy fix — trail-reading
+   discipline + dimensional coverage in `move.md`, `dimension` on the trail.
 
 **Deferred (named, not blocking antechamber-done):**
 - D1 · Reflection-beat latency cover (replace "…" with a pick shown back) — taste work, needs play.
-- D2 · Confidence-tag strategy in `move.md` (HIGH-first trust building) — prompt work, needs live testing.
+- D2 · Confidence-tag strategy in `move.md` (HIGH-first trust building) — prompt work; test separately from the redundancy fix.
 - D3 · Eager Scribe (enrich during survey) — orchestration.
 - D4 · Post-hunt turtle goodbye → lands with the Compiler bridge.
 - D5 · Pipeline page rows for scribe/condenser/conjector.
 - D6 · Vibe-check questions; festival consent (A/V TTL); session timeout — festival arc.
 - D7 · Box Office / queue / Player{} / persistence on the new path — festival arc (needs backend).
 - D8 · Condenser cast split (only if Cast proves weak against real players).
+- D9 · Player-side COLD/WARM/HOT legend (the buttons carry no semantics; the
+  player and the system should share the scale — one-line hint, first guess only).
+- D10 · `hypothesis` vs `reframe` naming on Dilemma (sound alike, aren't —
+  rename pending owner's consult).
 
-**What blocks the Compiler arc: nothing hard.** Item 1 (the bundle) is the
-only pre-req worth doing first — it defines what the Compiler consumes.
+**What blocks the Compiler arc: nothing.** The bundle defines what the
+Compiler consumes; the antechamber is closed pending live-testing the
+redundancy fix.
