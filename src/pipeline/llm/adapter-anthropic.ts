@@ -16,6 +16,7 @@ import {
   startAgentEvent,
   completeAgentEvent,
   failAgentEvent,
+  appendAgentThinking,
 } from '../../debug/agentActivityBus';
 
 let nextAgentEventId = 1;
@@ -256,6 +257,9 @@ export class AnthropicAdapter implements LLMAdapter {
           if (event.type === 'content_block_delta') {
             const delta = event.delta;
             if (delta.type === 'thinking_delta') {
+              // Bus-side capture too, so the transcript holds the full trace
+              // regardless of what the caller does with the stream.
+              appendAgentThinking({ id: eventId, delta: delta.thinking });
               spec.onThinking?.(delta.thinking);
             } else if (delta.type === 'input_json_delta') {
               accumulatedToolInput += delta.partial_json;

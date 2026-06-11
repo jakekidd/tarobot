@@ -1,6 +1,11 @@
 // Shared markdown transcript builder. Used by AgentActivity (COPY
 // button) and SeerError (DOWNLOAD button). Pairs each Q&A pick with
 // the agent events that fired between it and the next pick.
+//
+// FIDELITY RULE: this is the debugging record. Every call's COMPLETE
+// system prompt, user payload, thinking trace, and response goes in —
+// zero inference happens off-transcript. The panel may preview; the
+// transcript may not truncate.
 
 import { getAgentEvents, type AgentEvent } from './agentActivityBus';
 import { getAntechamberState } from './antechamberStateBus';
@@ -63,16 +68,25 @@ export function buildTranscript(events?: readonly AgentEvent[]): string {
         out.push('');
         out.push(`### ${e.label}${status} · ${e.model ?? '?'} · ${dur}`);
         if (e.error) out.push(`error: ${e.error}`);
-        if (e.response_preview) {
-          out.push('```');
-          out.push(e.response_preview);
-          out.push('```');
-        }
+        block(out, 'system', e.system);
+        block(out, 'user', e.user);
+        block(out, 'thinking', e.thinking);
+        block(out, 'response', e.response_full ?? e.response_preview);
       }
     }
     out.push('');
   }
   return out.join('\n');
+}
+
+/** Emit one full-fidelity section. Four-backtick fences so payloads that
+ *  themselves contain ``` (markdown prompts, portraits) can't break out. */
+function block(out: string[], title: string, body: string | undefined): void {
+  if (!body) return;
+  out.push(`#### ${title} (${body.length} chars)`);
+  out.push('````');
+  out.push(body);
+  out.push('````');
 }
 
 export function copyTranscriptToClipboard(): void {

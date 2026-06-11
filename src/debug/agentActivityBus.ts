@@ -8,6 +8,12 @@
 // the model tier, the call ID for matching start/complete, the duration
 // once complete, and an optional response preview (truncated). The UI
 // renders a scrolling log; events older than EVENT_CAP fall off.
+//
+// FIDELITY RULE: the *_preview fields are for the panel; the un-suffixed
+// full fields (`system`, `user`, `response_full`, `thinking`) hold the
+// COMPLETE text of every call. The copied transcript is the debugging
+// record — zero inference happens off-transcript, so nothing here may
+// truncate what the model saw or said.
 
 export type AgentEvent = {
   id: string;
@@ -20,6 +26,14 @@ export type AgentEvent = {
   started_at: number;
   /** Filled when status flips to completed/failed. */
   ended_at?: number;
+  /** COMPLETE system prompt the model saw. */
+  system?: string;
+  /** COMPLETE user message the model saw. */
+  user?: string;
+  /** COMPLETE response (tool JSON pretty-printed, or freeform text). */
+  response_full?: string;
+  /** Extended-thinking trace, when the call ran with a thinking budget. */
+  thinking?: string;
   /** Bytes / chars of the response payload, when known. */
   response_size?: number;
   /** First ~500 chars of the response — useful for "what did the model say". */
@@ -39,7 +53,7 @@ export type AgentEvent = {
   user_size?: number;
 };
 
-const EVENT_CAP = 80;
+const EVENT_CAP = 300;
 
 type Listener = (events: readonly AgentEvent[]) => void;
 
@@ -69,9 +83,9 @@ export function startAgentEvent(args: {
   id: string;
   label: string;
   model?: string;
-  /** Literal system prompt sent to the model. Stored truncated. */
+  /** Literal system prompt sent to the model. Stored in full. */
   system?: string;
-  /** Literal user message sent to the model. Stored truncated. */
+  /** Literal user message sent to the model. Stored in full. */
   user?: string;
 }): void {
   const sys = preview(args.system);
@@ -82,6 +96,8 @@ export function startAgentEvent(args: {
     model: args.model,
     status: 'started',
     started_at: Date.now(),
+    system: args.system,
+    user: args.user,
     system_preview: sys.preview,
     system_size: sys.size,
     user_preview: usr.preview,
@@ -103,14 +119,24 @@ export function completeAgentEvent(args: {
   if (raw !== undefined) {
     let s: string;
     try {
-      s = typeof raw === 'string' ? raw : JSON.stringify(raw);
+      s = typeof raw === 'string' ? raw : JSON.stringify(raw, null, 2);
     } catch {
       s = '[unserializable]';
     }
+    ev.response_full = s;
     ev.response_size = s.length;
     ev.response_preview = s.length > 600 ? `${s.slice(0, 600)}…` : s;
   }
   emit();
+}
+
+/** Accumulate an extended-thinking delta onto an in-flight event. No emit —
+ *  the panel doesn't render thinking live; the transcript reads it at copy
+ *  time. */
+export function appendAgentThinking(args: { id: string; delta: string }): void {
+  const ev = events.find((e) => e.id === args.id);
+  if (!ev) return;
+  ev.thinking = (ev.thinking ?? '') + args.delta;
 }
 
 export function failAgentEvent(args: { id: string; error: string }): void {
