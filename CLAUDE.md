@@ -14,11 +14,12 @@ Documentation map (what to trust for what):
 | Doc | Scope |
 |---|---|
 | `CLAUDE.md` (this file) | Durable orientation — principles, architecture, conventions. |
-| `docs/PIPELINE.md` | Living truth for the antechamber pipeline (phases, agents, in-flight seams). |
-| `docs/DILEMMA-SCHEMA.md` | The DilemmaDocument contract (compiler output → seer input). |
+| `docs/PIPELINE.md` | Living truth for the antechamber pipeline (survey → condenser → conjector). |
+| `docs/HANDOFF.md` | Point-in-time onboarding: current build state, lessons, brainstorm context. |
 | `docs/READING-ANATOMY.md` | The Seer reading engine (director/actor, tranches). |
+| `docs/DILEMMA-SCHEMA.md` | The DilemmaDocument contract — LEGACY compiler output → seer input (still feeds the reading on the loaded path). |
 | `TODO.md` | Deferred-work backlog. |
-| `materials/` | All authored text (pillars, prompts, templates) — edited live. |
+| `materials/` | All authored text (survey.json, prompts) — edited live. |
 | `REFACTOR-V3.md` | Older planning context; lags reality. Historical only. |
 
 When two docs disagree, the code wins; then `docs/PIPELINE.md`; then this

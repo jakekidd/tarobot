@@ -26,22 +26,32 @@ system appearing prescient.
 
 ## How the antechamber works
 
-1. **Openers** — name, then relationship status. Deterministic identity
-   gathers with custom UI per format. No AI fires.
-2. **Pillars** — 9 always-asked questions, in a fixed order. The
-   structural backbone of every reading.
-3. **Birthday + PLAY** — after the pillars, the birthday form (feeds the
-   astrology) and a PLAY intro beat, then the guessing begins.
-4. **The Diviner** — a deep (Opus) call that plays a 20-guess game: it
-   guesses what's weighing on you, you answer COLD / WARM / HOT, it homes
-   in. LOCATE (1–5) casts wide in batches; COMPOSE (6–20) drills.
-5. **WEAVER** — a fast (Haiku) call that curates the candidate dilemmas
-   and owns the early-out when you disengage.
-6. **Compiler** — at close, sieves the session into one Dilemma the Seer
-   reads. **Augur** then predicts 2–4 outcomes branching off the intention.
-7. **The Seer** — director + actor. The director (cloud) plans
-   silently; the actor (the voiced seer) speaks. Each card is its own
-   small fan-out of director+actor calls.
+The antechamber was rebuilt as a clean pipeline — **survey → scribe →
+condenser → conjector** — over a portable UI-rails seam. (The older
+pillars / weaver / diviner engine in `src/pipeline/antechamber/` is legacy,
+still serving returning users, being retired.)
+
+1. **Survey** — a deterministic, no-AI walk through 14 facet questions
+   (name → facets → birthday). Each pick staples pre-authored content into
+   a RawPortrait. `materials/survey.json` holds the questions + per-option
+   channels.
+2. **Scribe** (Haiku) — enriches any write-in answers into the same
+   channels a listed option carries, in parallel, before the Condenser.
+3. **Condenser** (Sonnet) — synthesizes the RawPortrait into a markdown
+   *Portrait*: confidence-tagged central leads, patterns, tensions, cast,
+   posture. The read the Conjector hunts off.
+4. **Conjector** (Sonnet) — the cold/warm/hot dilemma hunt. It guesses
+   what's alive in you; you answer COLD / WARM / HOT; it commits a
+   *reframe* (the question under your question) you confirm YES / NO.
+   Budget-paced; finds up to 3 dilemmas, re-rooting to fresh territory via
+   a negative-space stack.
+5. **Compiler** *(not built yet)* — will deepen each dilemma (expert
+   agents, the card deal) and bridge to the reading.
+6. **The Seer** — director + actor. The director (cloud) plans silently;
+   the actor (the voiced seer) speaks. Each card is its own small fan-out.
+
+Full living detail: **[`docs/PIPELINE.md`](docs/PIPELINE.md)**. Onboarding +
+current state: **[`docs/HANDOFF.md`](docs/HANDOFF.md)**.
 
 ## Authoring questions + prompts (`materials/`)
 
@@ -52,23 +62,21 @@ content. The directory layout:
 
 ```
 materials/
-  pillars.md                      the pillar questions (9 pillars + pool)
-  templates/profile.md            the living-doc profile scaffold
-  templates/anchor.md             legacy prose anchor (superseded by the Dilemma)
-  prompts/diviner.md              the 20-guess game (LOCATE → COMPOSE)
-  prompts/weaver.md               candidate-dilemma curator
-  prompts/compiler.md             sieve → DilemmaDocument at close
-  prompts/augur-{outline,fill}.md outcome naming + document fills
-  prompts/mantra.md               closing one-line takeaway
+  survey.json                     the 14-facet survey (questions + per-option channels)
+  prompts/condenser.md            RawPortrait → markdown Portrait
+  prompts/scribe.md               enrich a write-in into channels
+  prompts/conjector/              the dilemma hunt (move / reroot / summary)
   prompts/seer/                   seer voice bible + per-call prompts
+  prompts/augur-{outline,fill}.md outcome naming + document fills (reading)
   names/{masc,fem}.txt            relationship_pick name banks
   mascot/return-lines.md          returning-user mascot lines
+  # legacy (antechamber engine, retiring): pillars.md, templates/,
+  # prompts/{diviner,weaver,compiler,intention-suggestor,mantra}.md
 ```
 
-The top of `materials/pillars.md` documents the schema for questions
-(Pillars / Pool, Probe sub-fields, Options syntax). There is no
-separate question-ID column — the engine slugifies the question text
-internally.
+The `authoring` block at the top of `materials/survey.json` documents the
+per-option channel schema (indicators / implications / identities / shadow /
+weight) and the authoring discipline.
 
 ## Local dev
 
@@ -82,7 +90,7 @@ pnpm build
 
 ## Layout
 
-- `src/App.tsx` — phase machine (key / menu / antechamber / reading / pipeline).
+- `src/App.tsx` — phase machine (key / menu / survey / tuning / reading / pipeline; legacy antechamber for returning users).
 - `src/pipeline/` — Node-portable cognition. Engines, schemas, static
   data (cards, spreads, personas). The product. Text-shaped content
   (prompts, templates, name banks) lives in `materials/` and is
