@@ -15,10 +15,6 @@
 //
 // Runtime: actor-facing parts are LOCAL (booth box, low latency); reasoning
 // parts are CLOUD (see CLAUDE.md "Local vs cloud").
-//
-// The Condenser (paintPortrait) is the one piece still unwired — it lands next
-// pass. The Conjector engine it feeds is built; until the Condenser exists,
-// the wiring can hand `begin()` a deterministic raw→markdown Portrait.
 
 import type { LLMAdapter } from '../llm/adapter';
 import type { RawPortrait } from '../introduction-survey';
@@ -27,7 +23,7 @@ import type { Agent } from './Agent';
 import { ConjectorAgent } from './ConjectorAgent';
 import { condense } from './condenser';
 import type { WriteInEnrichment } from './writeInEnricher';
-import type { ConjectorResult, Portrait } from './types';
+import type { AntechamberOutput, ConjectorResult, Portrait } from './types';
 
 export class TuningEngine {
   private readonly adapter: LLMAdapter;
@@ -38,6 +34,8 @@ export class TuningEngine {
   private readonly conjector = new ConjectorAgent();
   /** The activities this engine runs, in order. ConjectorAgent first. */
   private readonly agents: Agent[] = [this.conjector];
+  /** The painted Portrait, held from begin() for the final assemble(). */
+  private portrait: Portrait | null = null;
 
   constructor(adapter: LLMAdapter, raw: RawPortrait, enrichments?: Map<string, WriteInEnrichment>) {
     this.adapter = adapter;
@@ -64,7 +62,22 @@ export class TuningEngine {
   /** Prime the first activity (the Conjector) with the painted Portrait and
    *  hand back the RailDriver the UI should drive. */
   begin(portrait: Portrait): RailDriver<ConjectorResult> {
+    this.portrait = portrait;
     this.conjector.init({ adapter: this.adapter, portrait, prior: [] });
     return this.conjector;
+  }
+
+  /** Bundle the antechamber's single handoff artifact: identity + picks +
+   *  the Portrait the hunt ran off + the banked dilemmas. begin() always
+   *  precedes this, so the held Portrait is present. */
+  assemble(result: ConjectorResult): AntechamberOutput {
+    return {
+      identity: this.raw.identity,
+      raw_picks: Object.fromEntries(this.raw.facets.map((f) => [f.slug, f.chosen])),
+      portrait_md: this.portrait?.markdown ?? '',
+      dilemmas: result.dilemmas,
+      ended: result.ended,
+      moves_spent: result.moves_spent,
+    };
   }
 }

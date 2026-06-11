@@ -12,6 +12,10 @@ export const MoveSchema = z.object({
   /** The guess (a specific read in the player's voice) OR the reframe (the
    *  question under their question), per `move`. Lowercase, one sentence. */
   text: z.string().min(1),
+  /** The axis this move probes (identity / dynamic / timing / stakes /
+   *  trajectory / adjacency / …), a few words. Private — logged onto the
+   *  trail and fed back so later moves cover ground instead of re-mining. */
+  dimension: z.string().default(''),
   /** Private self-read: is this thread narrowing or stalling? Logged, not
    *  shown. Reserved for stall-forced-commit; the budget caps it for now. */
   convergence: z.enum(['narrowing', 'stalling']),

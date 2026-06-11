@@ -6,7 +6,7 @@
 // commits a reframe (the question under their question), and banks each as a
 // closed branch. The banked dilemmas are the Conjector → Compiler artifact.
 
-import type { RawPortrait } from '../introduction-survey';
+import type { IdentityBlock, RawPortrait } from '../introduction-survey';
 
 /** The Condenser's output and the Conjector's primary input. Markdown prose
  *  (AI-for-AI context breathes better as prose than JSON), with the
@@ -20,10 +20,15 @@ export type Portrait = {
   raw: RawPortrait;
 };
 
-/** One move the Conjector made in a thread and the player's read of it. */
+/** One move the Conjector made in a thread and the player's read of it.
+ *  `dimension` is the axis the move probed (identity / stakes / timing / …) —
+ *  it rides the trail and feeds back into later move calls so the thread
+ *  covers new ground instead of re-mining a confirmed hit (the within-thread
+ *  analog of the negative-space stack). */
 export type ConjectureRecord = {
   kind: 'guess' | 'commit';
   text: string;
+  dimension?: string;
   response: 'cold' | 'warm' | 'hot' | 'yes' | 'no' | null;
 };
 
@@ -50,8 +55,27 @@ export type Dilemma = {
   trail: ConjectureRecord[];
 };
 
+/** Why the hunt stopped. `error` means a model call died mid-hunt and the
+ *  session shipped whatever was already banked. */
+export type ConjectorEnd = 'cap' | 'budget' | 'exhausted' | 'error';
+
 /** The Conjector → Compiler artifact: the banked dilemmas, in find order,
  *  UNRANKED. Ranking (which becomes the reading's spine) is downstream. */
 export type ConjectorResult = {
   dilemmas: Dilemma[];
+  ended: ConjectorEnd;
+  moves_spent: number;
+};
+
+/** The antechamber's single handoff artifact — everything downstream (the
+ *  Compiler, and later the eval rig) needs in one bundle. The Portrait rides
+ *  along so a hunt can always be correlated with the read it ran off. */
+export type AntechamberOutput = {
+  identity: IdentityBlock;
+  /** facet slug → the answer given (write-ins verbatim). */
+  raw_picks: Record<string, string>;
+  portrait_md: string;
+  dilemmas: Dilemma[];
+  ended: ConjectorEnd;
+  moves_spent: number;
 };

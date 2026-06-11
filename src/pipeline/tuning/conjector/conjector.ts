@@ -20,7 +20,12 @@ function appendix(p: Portrait): string {
 }
 
 function moves(trail: ConjectureRecord[]) {
-  return trail.map((r) => ({ kind: r.kind, text: r.text, response: r.response }));
+  return trail.map((r) => ({
+    kind: r.kind,
+    text: r.text,
+    dimension: r.dimension ?? '',
+    response: r.response,
+  }));
 }
 
 export type MoveInput = {

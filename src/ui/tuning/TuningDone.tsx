@@ -1,20 +1,22 @@
 // TuningDone — the end of the conjector pass. The Compiler that would consume
-// the dilemmas isn't wired yet, so we dump the ConjectorResult as plaintext
-// with a copy button. The iteration surface for the conjector: run it as
-// yourself, read the dilemmas it banked, tune the prompts in
+// the antechamber's output isn't built yet, so we dump the full
+// AntechamberOutput bundle (identity + picks + the Portrait the hunt ran off
+// + the banked dilemmas) as plaintext with a copy button. The iteration
+// surface for the conjector: run it as yourself, read what it banked against
+// the Portrait it hunted from, tune the prompts in
 // materials/prompts/conjector/, re-run. Reuses the survey-done chrome.
 
 import { useState } from 'react';
-import type { ConjectorResult } from '../../pipeline/tuning';
+import type { AntechamberOutput } from '../../pipeline/tuning';
 import '../survey/survey.css';
 
 type Props = {
-  result: ConjectorResult;
+  output: AntechamberOutput;
   onExit: () => void;
 };
 
-export function TuningDone({ result, onExit }: Props) {
-  const json = JSON.stringify(result, null, 2);
+export function TuningDone({ output, onExit }: Props) {
+  const json = JSON.stringify(output, null, 2);
   const [copied, setCopied] = useState(false);
 
   function copy() {
@@ -24,13 +26,13 @@ export function TuningDone({ result, onExit }: Props) {
     });
   }
 
-  const confirmed = result.dilemmas.filter((d) => d.confirmed).length;
+  const confirmed = output.dilemmas.filter((d) => d.confirmed).length;
 
   return (
     <div className="survey-done">
       <div className="survey-done__bar">
         <span className="survey-done__title">
-          done · {result.dilemmas.length} dilemma{result.dilemmas.length === 1 ? '' : 's'} · {confirmed} confirmed
+          done · {output.dilemmas.length} dilemma{output.dilemmas.length === 1 ? '' : 's'} · {confirmed} confirmed · {output.ended}
         </span>
         <div className="survey-done__actions">
           <button type="button" className="btn btn--chrome" onClick={copy}>

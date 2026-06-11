@@ -25,6 +25,7 @@ import {
   TuningEngine,
   draftPortrait,
   enrichWriteIn,
+  type AntechamberOutput,
   type ConjectorResult,
   type WriteInEnrichment,
 } from './pipeline/tuning';
@@ -37,6 +38,7 @@ import { createClaudeClient } from './pipeline/claude';
 import './ui/pipeline.css';
 import { Debug } from './debug/Debug';
 import { DebugInspector } from './debug/DebugInspector';
+import { recordUsage } from './debug/usageTally';
 import { loadDebugVisible, saveDebugVisible } from './debug/visibilityStorage';
 import { publishDebug } from './debug/debugBus';
 import './debug/debug.css';
@@ -59,8 +61,8 @@ type Phase =
   | { kind: 'survey'; survey: IntroductionSurvey }
   | { kind: 'survey_done'; raw: RawPortrait }
   | { kind: 'tuning_loading' }
-  | { kind: 'tuning'; driver: RailDriver<ConjectorResult> }
-  | { kind: 'tuning_done'; result: ConjectorResult };
+  | { kind: 'tuning'; driver: RailDriver<ConjectorResult>; engine: TuningEngine }
+  | { kind: 'tuning_done'; output: AntechamberOutput };
 
 export function App() {
   const [apiKey, setApiKey] = useState<string | null>(() => loadApiKey());
@@ -112,19 +114,19 @@ export function App() {
       setPhase({ kind: 'survey_done', raw });
       return;
     }
-    const adapter = new AnthropicAdapter(createClaudeClient(apiKey));
+    const adapter = new AnthropicAdapter(createClaudeClient(apiKey), recordUsage);
     setPhase({ kind: 'tuning_loading' });
     // Scribe: enrich free-text answers into real channels (parallel), join
-    // before the Condenser. A failed enrichment just drops that write-in.
+    // before the Condenser. A failed enrichment rides through unenriched.
     const enrichments = await enrichWriteIns(adapter, raw);
     const engine = new TuningEngine(adapter, raw, enrichments);
     try {
       const portrait = await engine.paintPortrait();
-      setPhase({ kind: 'tuning', driver: engine.begin(portrait) });
+      setPhase({ kind: 'tuning', driver: engine.begin(portrait), engine });
     } catch {
       // Condenser failed → fall back to the raw-amalgam draft so the hunt
       // still runs rather than dead-ending on a bad model call.
-      setPhase({ kind: 'tuning', driver: engine.begin(draftPortrait(raw)) });
+      setPhase({ kind: 'tuning', driver: engine.begin(draftPortrait(raw)), engine });
     }
   }
 
@@ -165,7 +167,7 @@ export function App() {
     const unsub = subscribeMascotDisintegrateComplete(() => {
       unsub();
       const s: Session = { ...newSession(), phase: 'tent' };
-      const adapter = new AnthropicAdapter(createClaudeClient(apiKey));
+      const adapter = new AnthropicAdapter(createClaudeClient(apiKey), recordUsage);
       setPhase({
         kind: 'reading',
         session: s,
@@ -296,12 +298,14 @@ export function App() {
           {phase.kind === 'tuning' && (
             <TuningScreen
               driver={phase.driver}
-              onDone={(result) => setPhase({ kind: 'tuning_done', result })}
+              onDone={(result) =>
+                setPhase({ kind: 'tuning_done', output: phase.engine.assemble(result) })
+              }
             />
           )}
 
           {phase.kind === 'tuning_done' && (
-            <TuningDone result={phase.result} onExit={goMenu} />
+            <TuningDone output={phase.output} onExit={goMenu} />
           )}
         </main>
 

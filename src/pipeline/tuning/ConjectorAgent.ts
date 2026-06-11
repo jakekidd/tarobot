@@ -15,7 +15,7 @@
 import type { Agent, AgentContext } from './Agent';
 import type { LLMAdapter } from '../llm/adapter';
 import type { RailStep, RailInput } from '../rails/types';
-import type { ConjectorResult, ConjectureRecord, Dilemma, Portrait } from './types';
+import type { ConjectorEnd, ConjectorResult, ConjectureRecord, Dilemma, Portrait } from './types';
 import { conjectorMove, conjectorReroot, conjectorSummary } from './conjector/conjector';
 
 /** Moves per thread (a move is a guess OR the committing reframe; the Conjector
@@ -30,7 +30,7 @@ type Branch = {
   opening: string;
   trail: ConjectureRecord[];
   leads: string[];
-  pending: { kind: 'guess' | 'commit'; text: string } | null;
+  pending: { kind: 'guess' | 'commit'; text: string; dimension: string } | null;
 };
 
 type Phase =
@@ -49,6 +49,9 @@ export class ConjectorAgent implements Agent<ConjectorResult> {
   private readonly dilemmas: Dilemma[] = [];
   private movesSpent = 0;
   private busy = false;
+  /** Why the hunt stopped — set at each terminal; 'error' covers the
+   *  thrown-call path (run()'s catch ends the session on whatever banked). */
+  private ended: ConjectorEnd = 'error';
 
   init(ctx: AgentContext): void {
     this.adapter = ctx.adapter;
@@ -87,7 +90,9 @@ export class ConjectorAgent implements Agent<ConjectorResult> {
   }
 
   result(): ConjectorResult | null {
-    return this.phase.kind === 'done' ? { dilemmas: this.dilemmas } : null;
+    return this.phase.kind === 'done'
+      ? { dilemmas: this.dilemmas, ended: this.ended, moves_spent: this.movesSpent }
+      : null;
   }
 
   // ── thread lifecycle (each step runs INSIDE one run() per submit) ──
@@ -124,7 +129,7 @@ export class ConjectorAgent implements Agent<ConjectorResult> {
     });
     this.movesSpent += 1;
     b.leads.push(...move.leads);
-    b.pending = { kind: move.move, text: move.text };
+    b.pending = { kind: move.move, text: move.text, dimension: move.dimension };
     this.phase =
       move.move === 'guess'
         ? { kind: 'guess', text: move.text }
@@ -165,6 +170,7 @@ export class ConjectorAgent implements Agent<ConjectorResult> {
 
   private async advance(): Promise<void> {
     if (this.dilemmas.length >= MAX_BRANCHES || this.movesSpent >= GLOBAL_MOVE_BUDGET) {
+      this.ended = this.dilemmas.length >= MAX_BRANCHES ? 'cap' : 'budget';
       this.phase = { kind: 'done' };
       return;
     }
@@ -177,6 +183,7 @@ export class ConjectorAgent implements Agent<ConjectorResult> {
       })),
     });
     if (!rr.fresh || !rr.territory) {
+      this.ended = 'exhausted';
       this.phase = { kind: 'done' };
       return;
     }
@@ -199,7 +206,12 @@ export class ConjectorAgent implements Agent<ConjectorResult> {
   private record(r: NonNullable<ConjectureRecord['response']>): void {
     const b = this.branch;
     if (!b?.pending) return;
-    b.trail.push({ kind: b.pending.kind, text: b.pending.text, response: r });
+    b.trail.push({
+      kind: b.pending.kind,
+      text: b.pending.text,
+      dimension: b.pending.dimension,
+      response: r,
+    });
     b.pending = null;
   }
 
