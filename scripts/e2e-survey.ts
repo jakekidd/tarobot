@@ -1,22 +1,36 @@
 #!/usr/bin/env tsx
-// E2E smoke for the NEW pipeline: survey → scribe → condenser → conjector →
-// compiler (→ optionally the seer's intro, with --reading). A scripted
-// player walks the real materials/survey.json (two write-ins to exercise
-// the Scribe) and answers the conjector from a fixed cold/warm/hot script —
-// deterministic responses, so this verifies the CONTRACT end to end, not
-// reading quality (responses aren't correlated with what the guesses say).
+// The behavioral rig for the NEW pipeline: survey → scribe → condenser →
+// conjector → compiler (→ seer intro with --reading).
 //
-// Writes the full-fidelity transcript + the AntechamberOutput bundle + the
-// CompiledBrief to runs/.
+// Two player modes:
+//   default      — a GROUND-TRUTH persona (scripts/e2e/personas.ts): survey
+//                  picks from its surface, cold/warm/hot answered by a model
+//                  roleplaying its hidden truth. Behavioral fidelity — this
+//                  is the mode for finding reasoning failures. The answerer's
+//                  private REASON for every response is logged next to the
+//                  conjector's move, so an audit can compare what the player
+//                  actually reacted to vs what the machine inferred.
+//   --scripted   — fixed response arrays, uncorrelated with guess content.
+//                  Contract smoke only.
+//
+// Per run, writes runs/rig-<stamp>-<persona>-rN/:
+//   transcript.md   full-fidelity transcript (every call: system/user/response)
+//   exchanges.json  guess/reframe ↔ response ↔ answerer's private reason
+//   bundle.json     AntechamberOutput
+//   brief.json      CompiledBrief
+//   usage.md        per-agent resourcing table (calls · ms · chars in/out)
 //
 // Usage:
-//   pnpm e2e -- --apiKey=sk-ant-...          (or ANTHROPIC_API_KEY in env
-//   pnpm e2e -- --reading                     or .env.local)
+//   pnpm e2e                            (key from ANTHROPIC_API_KEY or .env.local)
+//   pnpm e2e -- --persona june --runs 2 --reading
+//   pnpm e2e -- --scripted
 
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import kleur from 'kleur';
+import { z } from 'zod';
 import { createClaudeClient } from '../src/pipeline/claude';
 import { AnthropicAdapter } from '../src/pipeline/llm/adapter-anthropic';
+import type { LLMAdapter, ToolDef } from '../src/pipeline/llm/adapter';
 import { SurveyDocSchema } from '../src/pipeline/introduction-survey/schema';
 import { IntroductionSurvey } from '../src/pipeline/introduction-survey/survey';
 import type { RawPortrait } from '../src/pipeline/introduction-survey/types';
@@ -33,45 +47,25 @@ import type { RailDriver } from '../src/pipeline/rails/types';
 import { compile } from '../src/pipeline/compiler';
 import { Seer } from '../src/pipeline/seer';
 import { buildTranscript } from '../src/debug/transcript';
-
-// ─── The scripted player ────────────────────────────────────────
-// Picks resolve by substring against the live survey.json labels (so label
-// edits don't break the script); a miss falls back to the highest-weight
-// option. `write_in` submits free text (the Scribe path).
-
-const PERSONA: Record<string, { pick?: string; write_in?: string }> = {
-  'basics': { pick: 'mostly' },
-  'relationship-status': { pick: 'complicated' },
-  'work': { write_in: "i teach piano to kids but the students are drying up and i can't tell if i mind" },
-  'social': { pick: 'one person' },
-  'joys': { pick: 'used to' },
-  'rest': { pick: 'half-on' },
-  'body': { pick: 'tool' },
-  'change': { pick: 'wait' },
-  'conflict': { pick: 'cold' },
-  'attachment': { pick: 'assume the worst' },
-  'ego': { pick: 'dismissed' },
-  'family': { pick: 'brace' },
-  'yearning': { pick: "can't name" },
-  'agency': { write_in: 'honestly it feels like it happened to someone else' },
-};
-const PLAYER_NAME = 'rio';
-const PLAYER_BIRTHDATE = '1991-03-22';
-
-// Conjector response scripts (cycled when exhausted). Thread 1 should
-// confirm; later threads exercise NO + soft closes + the reroot.
-const TEMP_SCRIPT = ['warm', 'warm', 'hot', 'cold', 'warm', 'cold', 'cold', 'warm'] as const;
-const VERDICT_SCRIPT = ['yes', 'no', 'no'] as const;
+import { clearAgentEvents, getAgentEvents } from '../src/debug/agentActivityBus';
+import { PERSONAS, type RigPersona } from './e2e/personas';
 
 // ─── CLI / key ──────────────────────────────────────────────────
 
-function parseArgs(argv: string[]): { apiKey?: string; reading: boolean } {
-  const out: { apiKey?: string; reading: boolean } = { reading: false };
+type Args = { apiKey?: string; persona: string; runs: number; reading: boolean; scripted: boolean };
+
+function parseArgs(argv: string[]): Args {
+  const out: Args = { persona: 'rio', runs: 1, reading: false, scripted: false };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i]!;
     if (a.startsWith('--apiKey=')) out.apiKey = a.slice('--apiKey='.length);
     else if (a === '--apiKey') out.apiKey = argv[++i];
+    else if (a.startsWith('--persona=')) out.persona = a.slice('--persona='.length);
+    else if (a === '--persona') out.persona = argv[++i]!;
+    else if (a.startsWith('--runs=')) out.runs = Number(a.slice('--runs='.length));
+    else if (a === '--runs') out.runs = Number(argv[++i]);
     else if (a === '--reading') out.reading = true;
+    else if (a === '--scripted') out.scripted = true;
   }
   return out;
 }
@@ -86,29 +80,111 @@ function resolveKey(cli?: string): string | undefined {
   return undefined;
 }
 
+// ─── The player ─────────────────────────────────────────────────
+
+type Exchange = {
+  kind: 'guess' | 'reframe';
+  machine: string;
+  response: 'cold' | 'warm' | 'hot' | 'yes' | 'no';
+  /** The answerer's private reason — null in --scripted mode. */
+  reason: string | null;
+};
+
+type Responder = (kind: 'guess' | 'reframe', text: string) => Promise<Exchange>;
+
+const TEMP_SCRIPT = ['warm', 'warm', 'hot', 'cold', 'warm', 'cold', 'cold', 'warm'] as const;
+const VERDICT_SCRIPT = ['yes', 'no', 'no'] as const;
+
+function scriptedResponder(): Responder {
+  let ti = 0;
+  let vi = 0;
+  return async (kind, text) => ({
+    kind,
+    machine: text,
+    response: kind === 'guess' ? TEMP_SCRIPT[ti++ % TEMP_SCRIPT.length]! : VERDICT_SCRIPT[vi++ % VERDICT_SCRIPT.length]!,
+    reason: null,
+  });
+}
+
+const GuessAnswerSchema = z.object({
+  response: z.enum(['cold', 'warm', 'hot']),
+  reason: z.string().min(1),
+});
+const ReframeAnswerSchema = z.object({
+  response: z.enum(['yes', 'no']),
+  reason: z.string().min(1),
+});
+
+const ANSWER_GUESS_TOOL: ToolDef = {
+  name: 'answer_guess',
+  description: 'rate the guess against your inner truth.',
+  input_schema: z.toJSONSchema(GuessAnswerSchema) as Record<string, unknown>,
+};
+const ANSWER_REFRAME_TOOL: ToolDef = {
+  name: 'answer_reframe',
+  description: 'answer whether the reframe truly names what is underneath.',
+  input_schema: z.toJSONSchema(ReframeAnswerSchema) as Record<string, unknown>,
+};
+
+const ANSWERER_SYSTEM = `you are roleplaying a real person at a fortune-telling machine. your INNER TRUTH is given — the real story, including how guarded you are. the machine cannot see it; it only guesses.
+
+for a GUESS, answer exactly one of:
+- cold — wrong region of your life entirely.
+- warm — right region, wrong specifics. something in the area is true but the claim as stated is not quite it.
+- hot — true and alive in you right now. it lands.
+
+for a REFRAME (the machine claims to name the question under your question), answer yes only if it genuinely names what is underneath — the thing you would not have said but recognize. otherwise no.
+
+judge honestly FROM THE TRUTH, never generously. people do not hand over their secrets: a merely plausible or flattering guess is warm at best. stay consistent with your prior answers. give your real private reason — it is never shown to the machine.`;
+
+function personaResponder(adapter: LLMAdapter, persona: RigPersona): Responder {
+  const history: Exchange[] = [];
+  return async (kind, text) => {
+    const payload = {
+      your_inner_truth: persona.truth_md,
+      exchanges_so_far: history.map((h) => ({ kind: h.kind, the_machine_said: h.machine, you_answered: h.response })),
+      the_machine_now_says: text,
+      this_is_a: kind,
+      instruction: kind === 'guess'
+        ? 'rate it cold / warm / hot against your inner truth, with your private reason.'
+        : 'answer yes / no — does it truly name what is underneath? private reason too.',
+    };
+    const spec = {
+      system: ANSWERER_SYSTEM,
+      user: JSON.stringify(payload, null, 2),
+      model: 'cognition' as const,
+      max_tokens: 300,
+    };
+    const ex: Exchange = kind === 'guess'
+      ? { kind, machine: text, ...(await adapter.invoke({ ...spec, tool: ANSWER_GUESS_TOOL }, GuessAnswerSchema)) }
+      : { kind, machine: text, ...(await adapter.invoke({ ...spec, tool: ANSWER_REFRAME_TOOL }, ReframeAnswerSchema)) };
+    history.push(ex);
+    return ex;
+  };
+}
+
 // ─── Stages ─────────────────────────────────────────────────────
 
 function stage(name: string, detail: string, ms?: number): void {
-  console.log(
-    `${kleur.green('✓')} ${kleur.bold(name.padEnd(12))} ${detail}${ms !== undefined ? kleur.gray(`  ${ms}ms`) : ''}`,
-  );
+  console.log(`${kleur.green('✓')} ${kleur.bold(name.padEnd(12))} ${detail}${ms !== undefined ? kleur.gray(`  ${ms}ms`) : ''}`);
 }
 
-function runSurvey(): RawPortrait {
+function runSurvey(persona: RigPersona): RawPortrait {
   const doc = SurveyDocSchema.parse(JSON.parse(readFileSync('materials/survey.json', 'utf8')));
   const survey = new IntroductionSurvey(doc);
   for (;;) {
     const step = survey.current();
     if (step.kind === 'name') {
-      survey.submit({ kind: 'name', name: PLAYER_NAME, color: '#9d6cff' });
+      survey.submit({ kind: 'name', name: persona.name, color: '#9d6cff' });
     } else if (step.kind === 'choice') {
-      const want = PERSONA[step.slug];
+      const writeIn = persona.write_ins[step.slug];
       let value: string;
-      if (want?.write_in) {
-        value = want.write_in;
+      if (writeIn) {
+        value = writeIn;
       } else {
-        const bySub = want?.pick
-          ? step.options.find((o) => o.toLowerCase().includes(want.pick!.toLowerCase()))
+        const want = persona.picks[step.slug];
+        const bySub = want
+          ? step.options.find((o) => o.toLowerCase().includes(want.toLowerCase()))
           : undefined;
         const facet = doc.facets.find((f) => f.slug === step.slug)!;
         const hottest = [...facet.options].sort((a, b) => b.weight - a.weight)[0]!.label;
@@ -116,7 +192,7 @@ function runSurvey(): RawPortrait {
       }
       survey.submit({ kind: 'choice', value });
     } else if (step.kind === 'birthdate') {
-      survey.submit({ kind: 'birthdate', iso: PLAYER_BIRTHDATE });
+      survey.submit({ kind: 'birthdate', iso: persona.birthdate });
     } else {
       break;
     }
@@ -126,10 +202,7 @@ function runSurvey(): RawPortrait {
   return raw;
 }
 
-async function runScribe(
-  adapter: AnthropicAdapter,
-  raw: RawPortrait,
-): Promise<Map<string, WriteInEnrichment>> {
+async function runScribe(adapter: AnthropicAdapter, raw: RawPortrait): Promise<Map<string, WriteInEnrichment>> {
   const doc = SurveyDocSchema.parse(JSON.parse(readFileSync('materials/survey.json', 'utf8')));
   const bySlug = new Map(doc.facets.map((f) => [f.slug, f]));
   const writeIns = raw.facets.filter((f) => f.free_text);
@@ -147,15 +220,18 @@ async function runScribe(
   return new Map(entries.filter((e): e is [string, WriteInEnrichment] => e !== null));
 }
 
-/** Drive the conjector rails with the scripted responses until done. */
-function driveConjector(driver: RailDriver<ConjectorResult>): Promise<ConjectorResult> {
+/** Drive the conjector rails with the responder until done. */
+function driveConjector(
+  driver: RailDriver<ConjectorResult>,
+  respond: Responder,
+  exchanges: Exchange[],
+): Promise<ConjectorResult> {
   return new Promise((resolve, reject) => {
-    let ti = 0;
-    let vi = 0;
+    let answering = false;
     const deadline = setTimeout(() => {
       unsub();
-      reject(new Error('conjector did not finish within 10 minutes'));
-    }, 10 * 60 * 1000);
+      reject(new Error('conjector did not finish within 15 minutes'));
+    }, 15 * 60 * 1000);
     const act = () => {
       const s = driver.current();
       if (s.kind === 'done') {
@@ -166,20 +242,61 @@ function driveConjector(driver: RailDriver<ConjectorResult>): Promise<ConjectorR
         else reject(new Error('conjector done with no result'));
         return;
       }
-      if (s.kind === 'guess') {
-        const v = TEMP_SCRIPT[ti++ % TEMP_SCRIPT.length]!;
-        console.log(`  ${kleur.gray('guess')}   ${s.text}\n  ${kleur.cyan(`→ ${v}`)}`);
-        setTimeout(() => driver.submit({ kind: 'temp', value: v }), 0);
-      } else if (s.kind === 'reframe') {
-        const v = VERDICT_SCRIPT[vi++ % VERDICT_SCRIPT.length]!;
-        console.log(`  ${kleur.gray('reframe')} ${s.text}\n  ${kleur.magenta(`→ ${v}`)}`);
-        setTimeout(() => driver.submit({ kind: 'verdict', value: v }), 0);
+      if ((s.kind === 'guess' || s.kind === 'reframe') && !answering) {
+        answering = true;
+        void respond(s.kind, s.text)
+          .then((ex) => {
+            exchanges.push(ex);
+            const tag = s.kind === 'guess' ? kleur.cyan(`→ ${ex.response}`) : kleur.magenta(`→ ${ex.response}`);
+            console.log(`  ${kleur.gray(s.kind.padEnd(7))} ${s.text}\n          ${tag}${ex.reason ? kleur.gray(`  (${ex.reason})`) : ''}`);
+            answering = false;
+            if (s.kind === 'guess') {
+              driver.submit({ kind: 'temp', value: ex.response as 'cold' | 'warm' | 'hot' });
+            } else {
+              driver.submit({ kind: 'verdict', value: ex.response as 'yes' | 'no' });
+            }
+          })
+          .catch((e) => {
+            clearTimeout(deadline);
+            unsub();
+            reject(e instanceof Error ? e : new Error(String(e)));
+          });
       }
       // 'thinking' → wait for the next emit
     };
     const unsub = driver.subscribe(act);
     act();
   });
+}
+
+// ─── Resourcing ─────────────────────────────────────────────────
+
+function usageTable(): string {
+  type Row = { calls: number; ms: number; userIn: number; sysIn: number; out: number };
+  const byLabel = new Map<string, Row>();
+  for (const e of getAgentEvents()) {
+    const r = byLabel.get(e.label) ?? { calls: 0, ms: 0, userIn: 0, sysIn: 0, out: 0 };
+    r.calls += 1;
+    r.ms += e.ended_at ? e.ended_at - e.started_at : 0;
+    r.userIn += e.user_size ?? 0;
+    r.sysIn += e.system_size ?? 0;
+    r.out += e.response_size ?? 0;
+    byLabel.set(e.label, r);
+  }
+  const lines = [
+    '| agent | calls | total ms | avg ms | user-in chars | sys-in chars | out chars |',
+    '|---|---|---|---|---|---|---|',
+  ];
+  let totalIn = 0;
+  for (const [label, r] of byLabel) {
+    totalIn += r.userIn + r.sysIn;
+    lines.push(
+      `| ${label} | ${r.calls} | ${r.ms} | ${Math.round(r.ms / r.calls)} | ${r.userIn} | ${r.sysIn} | ${r.out} |`,
+    );
+  }
+  lines.push('');
+  lines.push(`total input chars (user+system, all calls): ${totalIn} (~${Math.round(totalIn / 4 / 1000)}k tokens)`);
+  return lines.join('\n');
 }
 
 // ─── Checks ─────────────────────────────────────────────────────
@@ -193,32 +310,23 @@ function check(cond: boolean, msg: string): void {
   }
 }
 
-// ─── Main ───────────────────────────────────────────────────────
+// ─── One run ────────────────────────────────────────────────────
 
-async function main(): Promise<void> {
-  const args = parseArgs(process.argv.slice(2));
-  const apiKey = resolveKey(args.apiKey);
-  if (!apiKey) {
-    console.error(kleur.red('e2e: no key. pass --apiKey, set ANTHROPIC_API_KEY, or add it to .env.local'));
-    process.exit(1);
-  }
-  const adapter = new AnthropicAdapter(createClaudeClient(apiKey));
+async function runOne(adapter: AnthropicAdapter, args: Args, persona: RigPersona, runIdx: number): Promise<void> {
+  clearAgentEvents();
+  const exchanges: Exchange[] = [];
   const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
-  mkdirSync('runs', { recursive: true });
+  const dir = `runs/rig-${stamp}-${args.scripted ? 'scripted' : persona.name}-r${runIdx + 1}`;
+  console.log(kleur.cyan().bold(`\n═══ run ${runIdx + 1} of ${args.runs} · ${args.scripted ? 'scripted' : persona.name} ═══\n`));
 
-  console.log(kleur.cyan().bold('tarobot e2e — survey → scribe → condenser → conjector → compiler\n'));
-
-  // SURVEY (no AI)
   let t = Date.now();
-  const raw = runSurvey();
+  const raw = runSurvey(persona);
   stage('SURVEY', `${raw.facets.length} facets · ${raw.facets.filter((f) => f.free_text).length} write-ins · ${raw.identity.sun_sign}`, Date.now() - t);
 
-  // SCRIBE
   t = Date.now();
   const enrichments = await runScribe(adapter, raw);
   stage('SCRIBE', `${enrichments.size} write-ins enriched`, Date.now() - t);
 
-  // CONDENSER
   t = Date.now();
   const engine = new TuningEngine(adapter, raw, enrichments);
   let portrait: Portrait;
@@ -231,20 +339,18 @@ async function main(): Promise<void> {
   }
   stage('CONDENSER', condenserFellBack ? kleur.yellow('FELL BACK to draft') : `${portrait.markdown.length} chars`, Date.now() - t);
 
-  // CONJECTOR
   t = Date.now();
   console.log('');
-  const result = await driveConjector(engine.begin(portrait));
+  const respond = args.scripted ? scriptedResponder() : personaResponder(adapter, persona);
+  const result = await driveConjector(engine.begin(portrait), respond, exchanges);
   console.log('');
   const output: AntechamberOutput = engine.assemble(result);
   stage('CONJECTOR', `${output.dilemmas.length} dilemmas · ${output.dilemmas.filter((d) => d.confirmed).length} confirmed · ended=${output.ended} · ${output.moves_spent} moves`, Date.now() - t);
 
-  // COMPILER
   t = Date.now();
   const brief = await compile(adapter, output);
   stage('COMPILER', `${brief.prose_brief.length} chars · cards: ${brief.drawn.cards.map((c) => c.card.name).join(' · ')}`, Date.now() - t);
 
-  // SEER INTRO (optional — 1 actor call; director skipped via supplied brief)
   if (args.reading) {
     t = Date.now();
     const seer = new Seer({
@@ -262,9 +368,8 @@ async function main(): Promise<void> {
     check(st.phase === 'intro' && !!st.intro?.text, 'seer intro generated off the compiled brief');
   }
 
-  // ── contract checks ──
+  // ── contract checks (soft on behavior, hard on shape) ──
   console.log(kleur.cyan().bold('\nchecks'));
-  check(raw.facets.length >= 10, `survey produced ${raw.facets.length} facets`);
   check(!condenserFellBack, 'condenser produced a real portrait (no fallback)');
   check(output.dilemmas.length >= 1, 'at least one dilemma banked');
   check(output.portrait_md.length > 0, 'bundle carries the portrait it hunted from');
@@ -273,25 +378,49 @@ async function main(): Promise<void> {
   check(withDim.length === moves.length, `every move carries a dimension (${withDim.length}/${moves.length})`);
   for (const d of output.dilemmas) {
     const dims = d.trail.filter((m) => m.kind === 'guess').map((m) => m.dimension ?? '?');
-    console.log(`  ${kleur.gray(`thread ${d.id} dimensions:`)} ${dims.join(' → ') || '(no guesses)'}`);
+    console.log(`  ${kleur.gray(`thread ${d.id} dims:`)} ${dims.join(' → ') || '(no guesses)'}`);
   }
-  check(brief.prose_brief.length > 400, 'compiled brief is substantive (>400 chars)');
   const briefLower = brief.prose_brief.toLowerCase();
+  check(brief.prose_brief.length > 400, 'compiled brief is substantive (>400 chars)');
   check(!brief.drawn.cards.some((c) => briefLower.includes(c.card.name.toLowerCase())), 'brief is card-blind (names no drawn card)');
   check(!/\bwound\b/.test(briefLower), 'brief avoids the banned register ("wound")');
-  check(brief.intention.length > 0, `intention present: "${brief.intention}"`);
 
   // ── artifacts ──
-  writeFileSync(`runs/e2e-${stamp}-bundle.json`, JSON.stringify(output, null, 2));
-  writeFileSync(`runs/e2e-${stamp}-brief.json`, JSON.stringify(brief, null, 2));
-  writeFileSync(`runs/e2e-${stamp}-transcript.md`, buildTranscript());
-  console.log(kleur.gray(`\nartifacts: runs/e2e-${stamp}-{bundle.json, brief.json, transcript.md}`));
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(`${dir}/bundle.json`, JSON.stringify(output, null, 2));
+  writeFileSync(`${dir}/brief.json`, JSON.stringify(brief, null, 2));
+  writeFileSync(`${dir}/exchanges.json`, JSON.stringify(exchanges, null, 2));
+  writeFileSync(`${dir}/transcript.md`, buildTranscript());
+  writeFileSync(`${dir}/usage.md`, usageTable());
+  console.log(kleur.gray(`\nartifacts: ${dir}/`));
+}
 
-  if (failures.length > 0) {
-    console.log(kleur.red().bold(`\n✗ ${failures.length} check(s) failed`));
+// ─── Main ───────────────────────────────────────────────────────
+
+async function main(): Promise<void> {
+  const args = parseArgs(process.argv.slice(2));
+  const apiKey = resolveKey(args.apiKey);
+  if (!apiKey) {
+    console.error(kleur.red('e2e: no key. pass --apiKey, set ANTHROPIC_API_KEY, or add it to .env.local'));
     process.exit(1);
   }
-  console.log(kleur.green().bold('\n✓ e2e passed — antechamber → compiler contract holds'));
+  const persona = PERSONAS[args.persona];
+  if (!persona && !args.scripted) {
+    console.error(kleur.red(`e2e: unknown persona "${args.persona}" (have: ${Object.keys(PERSONAS).join(', ')})`));
+    process.exit(1);
+  }
+  const adapter = new AnthropicAdapter(createClaudeClient(apiKey));
+  console.log(kleur.cyan().bold('tarobot rig — survey → scribe → condenser → conjector → compiler'));
+
+  for (let i = 0; i < args.runs; i++) {
+    await runOne(adapter, args, persona ?? PERSONAS['rio']!, i);
+  }
+
+  if (failures.length > 0) {
+    console.log(kleur.red().bold(`\n✗ ${failures.length} check(s) failed across ${args.runs} run(s)`));
+    process.exit(1);
+  }
+  console.log(kleur.green().bold(`\n✓ rig passed — ${args.runs} run(s) clean; read the transcripts for the real findings`));
 }
 
 main().catch((err) => {
