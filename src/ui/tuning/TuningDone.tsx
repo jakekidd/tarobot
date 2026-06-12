@@ -12,10 +12,12 @@ import '../survey/survey.css';
 
 type Props = {
   output: AntechamberOutput;
+  /** Hand the bundle to the Compiler and enter the reading (the E2E path). */
+  onContinue: () => void;
   onExit: () => void;
 };
 
-export function TuningDone({ output, onExit }: Props) {
+export function TuningDone({ output, onContinue, onExit }: Props) {
   const json = JSON.stringify(output, null, 2);
   const [copied, setCopied] = useState(false);
 
@@ -35,6 +37,9 @@ export function TuningDone({ output, onExit }: Props) {
           done · {output.dilemmas.length} dilemma{output.dilemmas.length === 1 ? '' : 's'} · {confirmed} confirmed · {output.ended}
         </span>
         <div className="survey-done__actions">
+          <button type="button" className="btn btn--primary" onClick={onContinue}>
+            enter the tent
+          </button>
           <button type="button" className="btn btn--chrome" onClick={copy}>
             {copied ? 'copied ✓' : 'copy'}
           </button>

@@ -80,6 +80,11 @@ export type SeerOpts = {
   //  antechamber-engine-v2 Phase 2. The Seer's per-card and closing
   //  director already get story + heldProbes through explicit args;
   //  the dead Investigation pass-through was unused storage.)
+  /** A Compiler-supplied prose brief (the antechamber→reading seam). When
+   *  present, directorIntro is SKIPPED — the brief is the director's work,
+   *  done at compile time — and the actor voices the intro straight off it.
+   *  All per-card / closing directors read it as usual. */
+  prose_brief?: string;
   preferred_intro?: Monologue;
   /** Onstage actor voicing the reading. Defaults to the registry default
    *  (currently the Geometer). Director Set is voice-agnostic; only the
@@ -131,8 +136,9 @@ export class Seer {
     this.state = {
       inputs: {
         profile: opts.profile,
-        // Filled by directorIntro (or '<demo>' for preferred_intro path).
-        prose_brief: '',
+        // Compiler-supplied, or filled by directorIntro (or '<demo>' for
+        // the preferred_intro path).
+        prose_brief: opts.prose_brief ?? '',
         drawn: opts.drawn,
         ...(opts.preferred_intro ? { preferred_intro: opts.preferred_intro } : {}),
       },
@@ -166,23 +172,28 @@ export class Seer {
 
     this.setState({ phase: 'thinking', awaiting_layer: 'director' });
     try {
-      // STAGE 1: director — produce the clinical brief / guide.
-      const brief = await directorIntro(this.adapter, {
-        story: this.story,
-        profile: this.state.inputs.profile,
-        intention: this.intention,
-        antechamberHistory: this.antechamberHistory,
-        outcomes: this.outcomes,
-      });
-      // Mutate inputs in place — all per-card/closing director calls
-      // downstream read this field.
-      this.state.inputs.prose_brief = brief;
+      // STAGE 1: director — produce the clinical brief / guide. Skipped
+      // when the Compiler already supplied prose_brief (the antechamber →
+      // reading seam): the brief IS the director's intro work, done at
+      // compile time.
+      if (!this.state.inputs.prose_brief) {
+        const brief = await directorIntro(this.adapter, {
+          story: this.story,
+          profile: this.state.inputs.profile,
+          intention: this.intention,
+          antechamberHistory: this.antechamberHistory,
+          outcomes: this.outcomes,
+        });
+        // Mutate inputs in place — all per-card/closing director calls
+        // downstream read this field.
+        this.state.inputs.prose_brief = brief;
+      }
 
       // STAGE 2: actor — turn the brief into the spoken intro.
       this.setState({ phase: 'thinking', awaiting_layer: 'actor' });
       const intro = await actorIntro(this.adapter, this.actor, {
         profile: this.state.inputs.profile,
-        prose_brief: brief,
+        prose_brief: this.state.inputs.prose_brief,
       });
       this.setState({ phase: 'intro', intro, awaiting_layer: null });
     } catch (err) {

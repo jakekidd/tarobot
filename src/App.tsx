@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import type { Seer } from './pipeline/seer';
+import { Seer } from './pipeline/seer';
 import {
   loadApiKey,
   newSession,
@@ -20,6 +20,7 @@ import { SurveyDone } from './ui/survey/SurveyDone';
 import { TuningScreen } from './ui/tuning/TuningScreen';
 import { TuningLoading } from './ui/tuning/TuningLoading';
 import { TuningDone } from './ui/tuning/TuningDone';
+import { CompilingScreen } from './ui/tuning/CompilingScreen';
 import { IntroductionSurvey, loadSurvey, type RawPortrait } from './pipeline/introduction-survey';
 import {
   TuningEngine,
@@ -29,6 +30,7 @@ import {
   type ConjectorResult,
   type WriteInEnrichment,
 } from './pipeline/tuning';
+import { compile } from './pipeline/compiler';
 import type { LLMAdapter } from './pipeline/llm/adapter';
 import type { RailDriver } from './pipeline/rails/types';
 import { TarobotScene } from './ui/scene/TarobotScene';
@@ -62,7 +64,8 @@ type Phase =
   | { kind: 'survey_done'; raw: RawPortrait }
   | { kind: 'tuning_loading' }
   | { kind: 'tuning'; driver: RailDriver<ConjectorResult>; engine: TuningEngine }
-  | { kind: 'tuning_done'; output: AntechamberOutput };
+  | { kind: 'tuning_done'; output: AntechamberOutput }
+  | { kind: 'compiling' };
 
 export function App() {
   const [apiKey, setApiKey] = useState<string | null>(() => loadApiKey());
@@ -149,6 +152,41 @@ export function App() {
       }),
     );
     return new Map(entries.filter((e): e is [string, WriteInEnrichment] => e !== null));
+  }
+
+  /** The Compiler stage — the clean cut between antechamber and reading.
+   *  AntechamberOutput in → CompiledBrief out → Seer constructed from the
+   *  brief alone. On failure we land back on the dump screen so nothing
+   *  is lost. */
+  async function enterReading(output: AntechamberOutput) {
+    if (!apiKey) return;
+    const adapter = new AnthropicAdapter(createClaudeClient(apiKey), recordUsage);
+    setPhase({ kind: 'compiling' });
+    try {
+      const brief = await compile(adapter, output);
+      publishDebug(
+        'compiler.brief',
+        `${brief.prose_brief.length} chars · ${brief.drawn.cards.map((c) => c.card.name).join(' · ')}`,
+      );
+      const seer = new Seer({
+        adapter,
+        profile: brief.profile,
+        antechamberHistory: [],
+        intention: brief.intention,
+        drawn: brief.drawn,
+        outcomes: brief.outcomes,
+        prose_brief: brief.prose_brief,
+      });
+      const s: Session = { ...newSession(), phase: 'tent' };
+      const unsub = subscribeMascotDisintegrateComplete(() => {
+        unsub();
+        setPhase({ kind: 'reading', session: s, seer });
+      });
+      triggerMascotDisintegrate();
+    } catch (e) {
+      console.error('[compiler] failed; returning to the dump', e);
+      setPhase({ kind: 'tuning_done', output });
+    }
   }
 
   // Brief "we're leaving the menu" flag — set when READ DEMO fires so
@@ -305,8 +343,14 @@ export function App() {
           )}
 
           {phase.kind === 'tuning_done' && (
-            <TuningDone output={phase.output} onExit={goMenu} />
+            <TuningDone
+              output={phase.output}
+              onContinue={() => void enterReading(phase.output)}
+              onExit={goMenu}
+            />
           )}
+
+          {phase.kind === 'compiling' && <CompilingScreen />}
         </main>
 
       <Debug visible={debugVisible} />

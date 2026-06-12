@@ -61,15 +61,24 @@ CONJECTOR  (ConjectorAgent — cognition / Sonnet)
 
         ↓
 
-COMPILER  (the deepen arc — NOT BUILT)
-  per-dilemma expert / pre-calc fan-out (psych, mythology, …) + brief
-  assembly + the card deal + the cheat. fires off the deepen() seam.
-  open design: which experts, run-at-end vs pipelined-per-close, and how
-  dilemmas + experts assemble into the Seer's brief.
+COMPILER  (naive v1 — src/pipeline/compiler/)
+  the clean-cut seam: AntechamberOutput in → CompiledBrief out → the
+  reading consumes CompiledBrief and nothing upstream of it.
+  naive v1 = the card deal (compile time, 4-card diamond) + ONE cognition
+  call (materials/prompts/compiler/brief.md) that extrapolates the
+  core-story prose brief — CARD-BLIND, so per-card directors never see
+  unflipped faces — + an honest mechanical Profile assembly (dilemmas →
+  hunches; nothing invented). outcomes: [] for now.
+  NOT YET BUILT (the in-depth compiler): the expert fan-out (psych,
+  mythology, …), the Augur outcome docs, the Cheat, per-card pre-calc off
+  the deepen() seam.
 
         ↓
 
 READING  (out of scope here — docs/READING-ANATOMY.md)
+  reachable E2E: TuningDone → "enter the tent" → compile → Seer. the
+  Seer accepts a Compiler-supplied prose_brief (skips directorIntro,
+  actor still voices the intro).
 ```
 
 ---
@@ -97,8 +106,8 @@ a new Agent, not surgery on a monolith.
 | (survey) | survey | deterministic, no LLM | 14 facets → RawPortrait. pure lookup. |
 | SCRIBE | survey close | fast / Haiku · local | one call per write-in, parallel, joined before the Condenser. |
 | CONDENSER | condense | cognition / Sonnet · cloud | one freeform call. RawPortrait → markdown Portrait. |
-| CONJECTOR | hunt | cognition / Sonnet · local | three ops: move (guess/commit) · reroot · summary. budget-paced; negative-space stack. |
-| (deepen) | compile | — | STUBBED. the Compiler arc. |
+| CONJECTOR | hunt | cognition / Sonnet · local | three ops: move (guess/commit) · reroot · summary. budget-paced; negative-space stack; per-move `dimension` fed back for coverage. |
+| COMPILER | compile | cognition / Sonnet · cloud | naive v1: one card-blind narrative call + the deal + profile assembly. `deepen()` (per-dilemma expert pre-calc) still STUBBED. |
 
 Runtime `local`/`cloud` is the prod-deployment designation (see CLAUDE.md
 "Local vs cloud"). Today every call is Claude scaffolding.
@@ -136,12 +145,11 @@ separate `diviner` — not this Conjector.)
 
 ## In flight / next (high-signal, expect change)
 
-1. **The Compiler arc (the deepen pool).** `deepen()` is stubbed. Open:
-   which experts / pre-calc per dilemma; run-at-end-of-Conjector vs pipelined
-   on-close; how dilemmas + experts assemble into the Seer's brief; the card
-   deal + the cheat. The Conjector→Seer bridge is unbuilt — the Seer still
-   consumes the OLD compiler's DilemmaDocument (docs/DILEMMA-SCHEMA.md) on the
-   loaded path.
+1. **The in-depth Compiler (the deepen pool).** Naive v1 shipped (one
+   narrative call + the deal). Still open: the expert fan-out (which
+   experts; run-at-end vs pipelined on `deepen()`), the Augur outcome docs,
+   the Cheat. The legacy loaded path still consumes the OLD compiler's
+   DilemmaDocument (docs/DILEMMA-SCHEMA.md).
 2. **Eager Scribe.** Today the Scribe fires at survey close (joined before the
    Condenser). The latency-hide — firing each write-in eagerly DURING the
    survey so it finishes under the remaining questions — is deferred (needs a
