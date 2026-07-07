@@ -1,0 +1,130 @@
+[
+  {
+    "id": "the-fool",
+    "name": "the fool",
+    "symbols": ["cliff edge", "white rose", "small dog at the heel", "bindle over the shoulder"],
+    "themes": ["beginnings before readiness", "faith in the leap", "lightness chosen on purpose"],
+    "shadow": ["recklessness dressed as freedom", "refusing to look down"],
+    "voice_note": "gesture at the step not yet taken, and the lightness they miss."
+  },
+  {
+    "id": "the-lovers",
+    "name": "the lovers",
+    "symbols": ["two figures", "angel overhead", "tree of flame", "tree of fruit"],
+    "themes": ["a choice that defines", "union", "values meeting desire"],
+    "shadow": ["choosing by not choosing", "outsourcing the decision"],
+    "voice_note": "name the two pulls without ranking them."
+  },
+  {
+    "id": "the-hermit",
+    "name": "the hermit",
+    "symbols": ["lantern with a star inside", "grey cloak", "mountain peak"],
+    "themes": ["withdrawal that clarifies", "counsel from solitude", "the long look inward"],
+    "shadow": ["isolation past its usefulness", "hiding called wisdom"],
+    "voice_note": "honor the retreat, then ask what the lantern is for."
+  },
+  {
+    "id": "wheel-of-fortune",
+    "name": "wheel of fortune",
+    "symbols": ["turning wheel", "sphinx on top", "figures rising and falling"],
+    "themes": ["cycles", "timing", "what turns without permission"],
+    "shadow": ["waiting for the wheel to decide", "calling drift fate"],
+    "voice_note": "point at the turn already underway."
+  },
+  {
+    "id": "justice",
+    "name": "justice",
+    "symbols": ["scales", "upright sword", "red robe"],
+    "themes": ["weighing", "consequence", "the accounting that is due"],
+    "shadow": ["keeping score instead of living", "verdicts passed on the self"],
+    "voice_note": "the scales are theirs; never hand down the verdict."
+  },
+  {
+    "id": "death",
+    "name": "death",
+    "symbols": ["white rose banner", "sun rising between towers", "armored rider"],
+    "themes": ["ending that makes room", "transformation", "the door that only opens closed"],
+    "shadow": ["gripping what has already ended", "mourning as residence"],
+    "voice_note": "never say ending first; say what is already over."
+  },
+  {
+    "id": "temperance",
+    "name": "temperance",
+    "symbols": ["water poured between cups", "one foot on land one in water", "iridescent wings"],
+    "themes": ["blending", "patience", "the middle path made by hand"],
+    "shadow": ["dilution", "endless balancing that never commits"],
+    "voice_note": "the mixing is active, not passive — ask what they are blending."
+  },
+  {
+    "id": "the-devil",
+    "name": "the devil",
+    "symbols": ["loose chains", "inverted star", "two bound figures"],
+    "themes": ["chosen bondage", "appetite", "the comfortable cage"],
+    "shadow": ["naming the captor to avoid the door", "pleasure as anesthesia"],
+    "voice_note": "the chains are loose; gesture, never accuse."
+  },
+  {
+    "id": "the-tower",
+    "name": "the tower",
+    "symbols": ["lightning-struck crown", "falling figures", "a single bolt"],
+    "themes": ["sudden collapse of the built thing", "revelation by demolition"],
+    "shadow": ["rebuilding the same tower faster", "calling collapse betrayal"],
+    "voice_note": "aim at the relief hiding inside the dread of it falling."
+  },
+  {
+    "id": "the-star",
+    "name": "the star",
+    "symbols": ["water poured on land and pool", "eight stars", "bare figure kneeling"],
+    "themes": ["quiet renewal after ruin", "hope without noise", "being seen undefended"],
+    "shadow": ["hope as postponement", "waiting to deserve rest"],
+    "voice_note": "lower the volume; the star follows the tower."
+  },
+  {
+    "id": "the-moon",
+    "name": "the moon",
+    "symbols": ["two towers", "dog and wolf", "crayfish rising from water", "a path in moonlight"],
+    "themes": ["the unlit road", "what distorts by half-light", "intuition and fear in one channel"],
+    "shadow": ["making monsters of shapes", "refusing dawn"],
+    "voice_note": "name the distortion, not the monster."
+  },
+  {
+    "id": "two-of-swords",
+    "name": "two of swords",
+    "symbols": ["blindfold", "crossed swords held level", "back to the sea"],
+    "themes": ["stalemate held with effort", "refusing to look as a strategy"],
+    "shadow": ["the choice making itself while they hold still"],
+    "voice_note": "the blindfold is self-tied; ask what looking would cost."
+  },
+  {
+    "id": "four-of-cups",
+    "name": "four of cups",
+    "symbols": ["three cups in a row", "a fourth offered from a cloud", "folded arms under a tree"],
+    "themes": ["refusal of the offered thing", "discontent as habit"],
+    "shadow": ["apathy protecting an old disappointment"],
+    "voice_note": "point at the fourth cup gently."
+  },
+  {
+    "id": "eight-of-cups",
+    "name": "eight of cups",
+    "symbols": ["stacked cups with a gap", "figure walking toward mountains", "waning moon watching"],
+    "themes": ["leaving the nearly-complete thing", "the walk away no one applauds"],
+    "shadow": ["leaving as reflex", "the gap in the stack unnamed"],
+    "voice_note": "the cups are not knocked over — the leaving is orderly. ask about the gap."
+  },
+  {
+    "id": "ten-of-wands",
+    "name": "ten of wands",
+    "symbols": ["figure bent under ten staves", "town in sight"],
+    "themes": ["carrying by choice", "the load almost home", "competence as trap"],
+    "shadow": ["martyrdom accounted as love", "refusing to set one stave down"],
+    "voice_note": "name the carrying, not the weakness. who handed them which stave."
+  },
+  {
+    "id": "queen-of-cups",
+    "name": "queen of cups",
+    "symbols": ["ornate closed cup", "throne at the sea's edge", "still water"],
+    "themes": ["feeling held with composure", "the one others bring their water to"],
+    "shadow": ["tending every cup but her own", "the closed lid"],
+    "voice_note": "hers is the only closed cup on the table. ask what is in it."
+  }
+]
