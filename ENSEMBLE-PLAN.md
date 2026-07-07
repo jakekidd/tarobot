@@ -12,9 +12,11 @@ wins.
 1. This file, fully, before touching anything.
 2. `CLAUDE.md`: binding conventions (TS strict, zod at boundaries, barrel
    imports, lowercase UI copy, no emoji, comment only the why).
-3. `src/pipeline/oracle/`: the shipped baseline. It is the ancestor of
-   half the shapes here and it MUST KEEP RUNNING UNMODIFIED: it is a
-   comparison arm (§8).
+3. `src/pipeline/oracle/`: the recovered baseline (committed on this
+   branch 2026-07-06; it typechecks but has NEVER RUN LIVE — no UI or
+   script imports it yet). It is the ancestor of half the shapes here
+   and it MUST NOT BE MODIFIED: it is a comparison arm (§8). Its first
+   live run is P1's baseline smoke (§11).
 4. THE SPEC (google-doc export): historical color only.
 5. `REFACTOR-V3.md`, `docs/PIPELINE.md`: other subsystems; do not touch.
 
@@ -169,10 +171,19 @@ Brief at session start (template in §6.11), with zero added start latency.
 
 The ensemble consumes the same `OracleBrief` the baseline does (import it
 from `../oracle/types`; this is load-bearing: all three arms must run the
-same briefs). Brief sources, all three swappable in the lab: fixtures
-(build 2-3 from `archetypes/marisol*.json` material), the naive compiler's
-output (`src/pipeline/compiler/`), and the oracle mini-intake compile
-(`materials/prompts/oracle/compile.md`).
+same briefs). It also inherits the baseline's `mode: 'session' | 'chat'`:
+**chat mode is a requirement, not an option** (conversation from zero with
+the same ensemble). In chat mode `brief.cards` is empty, the lab shows no
+flip buttons, the `read` move never fires, and frame v1 omits the
+dressings section. `CHAT_BRIEF` in `../oracle/fixtures` is the seed.
+
+Brief sources at mvp, swappable in the lab: fixtures (build 2-3 from
+`archetypes/marisol*.json` material), the oracle mini-intake compile
+(`materials/prompts/oracle/compile.md`; the picker hosts the small
+`MiniIntake` form), and a raw brief JSON editor. The naive compiler's
+output (`src/pipeline/compiler/`) is NOT a drop-in source: `CompiledBrief`
+has no guides, opening, or mantra, so it needs a generation step; deferred
+(§13).
 
 ```ts
 type Economy = { budget: number;            // fills by listening, empties by speaking
@@ -180,7 +191,8 @@ type Economy = { budget: number;            // fills by listening, empties by sp
                  carry: boolean;            // ratio < CARRY_RATIO -> she performs
                  newWordsSinceFan: number; turnsSinceFan: number };
 
-type EnsembleSnapshot = { phase: 'idle' | 'live' | 'closed';
+type EnsembleSnapshot = { mode: 'session' | 'chat';
+                          phase: 'idle' | 'live' | 'closed';
                           scroll: readonly ScrollEntry[];
                           piles: PilesView; frame: Frame; economy: Economy;
                           flipped: readonly number[];
@@ -204,11 +216,10 @@ on visitorLine(text):
 
 on flip(slot):
   scroll.append(ev flip)
-  attention.trigger('flip')              // async; driver waits up to
-  dispatch(event = flip + brief guide)   // FLIP_ATTN_GRACE_MS for the new
-                                         // frame, then proceeds; the guide
-                                         // rides the event, so a stale frame
-                                         // is safe
+  attention.trigger('flip')              // async, never awaited: the guide
+  dispatch(event = flip + brief guide)   // rides the event, so a stale
+                                         // frame is safe; the regen lands
+                                         // when it lands (visible in lab)
 on silenceTick():                        // lab clock, SILENCE_TICK_MS
   economy.tick()
   dispatch(event = silence)
@@ -235,10 +246,21 @@ maybeFan():
        triggers (flip / frame_stale / backstop).
 ```
 
+`turnsSinceFan` counts only turns containing new visitor material, so a
+long carried silence never summons the fan against a zero delta.
+
 **Hot path is exactly two blocking calls.** The fan never blocks; a fan
 result landing after the next beat is fine: it anchors to what it read
 (hindsight is allowed to be late; speech is not). One fan in flight, one
 pending, coalesced.
+
+**FAN_BLOCKING (lab toggle, default off).** When on, dispatch awaits the
+fan before calling the driver, so the driver sees fresh cognition instead
+of hindsight. This exists because the lab has no latency constraint and
+the hindsight design was chosen for prod latency: the toggle turns that
+choice into a measurable experiment (do press/bank/honor land better with
+synchronous cognition?). Arms results with it ON do not transfer to booth
+hardware; label exports accordingly.
 
 **Failure covers.** Fan agent throws: log to its pane, skip the write,
 session continues. Driver throws: retry once, then a canned intent
@@ -409,7 +431,9 @@ f(beats_delta, own_tail) => Prediction
 
 JUDGE                                                         tier: fast
 f(prediction, actual_next_utterance) => verdict: hit | graze | miss
-  fired inside the next fan; verdict stamped onto the prediction; the
+  fired inside the next fan, only when the next visitor LINE arrived; a
+  flip or close intervening marks the prediction superseded (no verdict,
+  excluded from the rate). verdict stamped onto the prediction; the
   lab charts the hit rate. gate for ever promoting her (speculative
   pre-drafting of driver intents): sustained hit+graze rate worth
   believing: eyeball threshold ~40% hit, tune by feel.
@@ -754,8 +778,11 @@ frame that lags. topics in taboos do not exist.
 One surface. The reading demo IS the lab: this build exists entirely to
 debug and iterate, so the xray is always on. `src/lab/xray/`, its own
 world like Bench (no CRT filter, no three.js scene), reached from the
-menu as READING DEMO. The intake demo menu entry is the existing
-antechamber path, unchanged.
+menu as XRAY LAB (renamed from READING DEMO: the menu already has a
+READ DEMO entry for the legacy marisol seer path, and two near-identical
+labels invite misclicks). The intake demo is the existing BEGIN
+antechamber path, unchanged. The route + stub landed with this
+amendment (P0, §11).
 
 ```
 +--------------------------------------------------------------------+
@@ -780,7 +807,10 @@ antechamber path, unchanged.
 Pane behaviors, feature by feature:
 1. **the table**: visitor types and sends; seer lines render with a
    typewriter commit (the speech commit, per §3.1); interrupt button
-   truncates mid-render and marks the beat.
+   truncates mid-render and marks the beat. the silence clock is
+   MANUAL-FIRST: a "tick silence" button + hotkey, with an auto-tick
+   toggle default OFF (an auto clock in a lab where the operator reads
+   panes between lines would summon the seer on every pause).
 2. **flip buttons**: emit flip events for unflipped slots. no card art
    anywhere; the card is a name in the event log and a guide in the
    brief.
@@ -791,9 +821,12 @@ Pane behaviors, feature by feature:
    assembled request: system text, messages, model, params, plus usage
    and latency. capture the InvocationSpec at call time; show precisely
    what the model saw. this is the single most important lab feature.
-5. **hot path panes**: driver and persona stream raw output as it
-   generates (`Stream` from lab/lib); canned/fallback results render
-   red-flagged.
+5. **inference panes, ALL agents streamed**: driver, persona, every fan
+   agent, and attention stream raw output as it generates (`Stream` from
+   lab/lib; tool calls stream via `invokeStreaming`'s `onToolInput`,
+   freeform via `onChunk`). telemetry visibility is the point of this
+   build: watching thoughts accumulate live is a requirement, not a
+   nicety. canned/fallback results render red-flagged.
 6. **frame pane**: current frame markdown; version list; diff view
    between any two versions.
 7. **smart transcript drawer**: beats with marginalia interleaved under
@@ -831,12 +864,21 @@ from `src/lab/useEngine.ts`. New buses for pile writes and frame regens.
 Three arms, one Brief, one visitor track, blind-ranked transcripts.
 
 ```
-naive     one call per beat: [wildcard card][brief: portrait + fork +
-          opening + mantra][full beats] -> line. fixed cap 40 words. no
-          moves, no budget, no cognition. THE SPEC's honest benchmark.
-baseline  src/pipeline/oracle OracleEngine, exactly as shipped.
+naive     one call per beat: [trimmed wildcard card][brief: portrait +
+          fork + opening + mantra][full beats] -> line. fixed cap 40
+          words. no moves, no budget, no cognition. THE SPEC's honest
+          benchmark. the trimmed card strips every reference to intents,
+          bits, and offstage notes (naive has none of that machinery;
+          a card describing inputs that never arrive contaminates the
+          arm).
+baseline  src/pipeline/oracle OracleEngine, exactly as committed.
 ensemble  this plan.
 ```
+
+The baseline arm is wired into the lab in P2, not P6: P3's acceptance
+compares against it, the comparison needs it runnable, and until then it
+has never executed at all. Its snapshot surface already mirrors the
+ensemble's, so the table pane runs either engine.
 
 Protocol: pick a brief and a visitor track (recorded human session or
 auto-visitor with a fixed script seed). run all three arms over the same
@@ -862,9 +904,11 @@ CARRY_CAP_MIN        20      cap floor while carrying
 AMMO_MAX_WORDS       12
 FAN_MIN_NEW_WORDS    12      visitor words to summon the fan
 FAN_BACKSTOP_TURNS   2       fan fires anyway after this many turns
+                             (turns with new visitor material only)
 FRAME_BACKSTOP_TURNS 4       attention regen backstop
-FLIP_ATTN_GRACE_MS   4000    driver waits this long for a flip regen
-SILENCE_TICK_MS      7000    lab silence clock
+SILENCE_TICK_MS      7000    lab silence clock (when auto-tick is on)
+SILENCE_AUTO         off     auto-tick toggle; manual button is primary
+FAN_BLOCKING         off     dispatch awaits fan before driver (§4)
 FRAME_MAX_WORDS      250
 TAIL_READS           2       } tail windows
 TAIL_THOUGHTS        3       }
@@ -902,36 +946,47 @@ adapter implementation, not an engine change.
 
 ## 11. build order
 
-Six phases. Each is sized for one fresh Claude Code session (2-3 tasks,
-comfortably inside half a context window), lands runnable, and has
-acceptance you can check before the next phase starts. Commit per task.
-Do not start a phase until the previous one's acceptance passed.
+Six phases after P0. Each is sized for one fresh Claude Code session
+(2-3 tasks, comfortably inside half a context window), lands runnable,
+and has acceptance you can check before the next phase starts. Commit
+per task. Do not start a phase until the previous one's acceptance
+passed.
+
+**P0: recovery + route. DONE 2026-07-06.**
+Branch `ensemble-lab` cut; the orphaned oracle module + this plan
+committed; App phase `xray` + menu entry XRAY LAB + stub surface landed.
 
 **P1: state + engine core, headless.**
 Tasks: (1) `src/pipeline/ensemble/` types, zod schemas, scroll, piles
 (tails / refresh / anchors / ledger merge), frame store + deterministic
 v1 assembly, economy. (2) engine with STUB agents (canned outputs),
-events, generation interrupts, fan dispatcher. (3) vitest coverage:
-economy arithmetic, pile mechanics, turn derivation, fan trigger rules.
-Acceptance: `pnpm test` green; a headless script
-(`scripts/ensemble-smoke.ts`, pattern of `scripts/smoke-pipeline.ts`)
-plays a scripted session against stubs and prints the scroll.
+events, generation interrupts, fan dispatcher, both modes. (3) vitest
+coverage: economy arithmetic, pile mechanics, turn derivation, fan
+trigger rules. (4) baseline smoke: a headless script runs ONE live
+session through `OracleEngine` on an api key (`--apiKey=`, pattern of
+`scripts/e2e-survey.ts`): the baseline's first-ever execution; fix
+transport-level breakage only, never behavior.
+Acceptance: `pnpm test` green; `scripts/ensemble-smoke.ts` plays a
+scripted session against stubs and prints the scroll; the baseline
+smoke transcript reads sane.
 
-**P2: lab shell.**
-Tasks: (1) `src/lab/xray/` surface + App phase `xray` + menu entry
-READING DEMO (lowercase source per convention). the table, flip buttons,
-silence clock, interrupt. (2) hot path + pile panes wired to buses,
-rendering stub traffic; brief picker with 2-3 fixture briefs built from
-the marisol material. Acceptance: full stubbed session playable in the
-browser; every pane moves.
+**P2: lab shell + baseline arm.**
+Tasks: (1) `src/lab/xray/` real surface on the P0 stub: the table, flip
+buttons, manual silence tick, interrupt. (2) hot path + pile panes wired
+to buses, rendering stub traffic; brief picker with 2-3 fixture briefs
+built from the marisol material + the raw JSON editor. (3) arm switcher
+v0: the table runs the BASELINE engine live end-to-end (its panes: note
+channel + budget only). Acceptance: full stubbed ensemble session AND a
+live baseline session playable in the browser; every pane moves.
 
 **P3: hot path live.**
 Tasks: (1) driver agent + prompt + schema; persona agent + wildcard
 card; context assembly per §5.1/5.2 including cache-correct ordering.
 (2) economy live (caps, carry), failure covers (retry once, canned
-fallbacks, red flags in lab). Acceptance: a real 4-flip session against
-yourself, on api key, feels at least as good as the baseline arm; the
-inspector shows exact prompts for both calls.
+fallbacks, red flags in lab). Acceptance: a real 4-flip session AND a
+from-zero chat session against yourself, on api key; feels at least as
+good as the baseline arm (now runnable, per P2); the inspector shows
+exact prompts for both calls.
 
 **P4: the fan.**
 Tasks: (1) interpreter + psychic + detective + beholder agents, piles
@@ -949,8 +1004,9 @@ contradiction (visitor corrects a fact) propagates ledger -> frame.
 
 **P6: instrumentation + arms.**
 Tasks: (1) judge + cassandra scoreboard; telemetry strip; constants
-panel live-tuning the engine. (2) naive arm runner + baseline arm embed
-+ arm switcher; auto-visitor; record/replay; session + blind exports.
+panel live-tuning the engine (including FAN_BLOCKING). (2) naive arm
+runner (trimmed card, §8) completing the switcher; auto-visitor;
+record/replay; session + blind exports.
 Acceptance: one recorded track replayed through all three arms yields
 three blind transcripts + a metrics table; constants move mid-session
 without restart.
@@ -995,6 +1051,18 @@ ordering is deliberate: measurement before wordsmithing.
   hits, eyeballed).
 - **casting/resolver** (pronoun resolution pass): gate: transcripts show
   reads visibly confused by referents.
+- **compiler-output brief source** (`CompiledBrief` -> `OracleBrief`:
+  needs guide/opening/mantra generation, roughly the mini-intake compile
+  fed with antechamber material): gate: the antechamber -> ensemble
+  bridge matters, i.e. the ensemble has won the arms.
+- **think escalation** (THE SPEC's THINK-or-SPEAK: the driver escalating
+  to extended thinking via the adapter's `thinking_budget` on heavy
+  beats): gate: lab transcripts show the driver visibly shallow at heavy
+  moments.
+- **api prompt caching** (anthropic cache_control in the adapter): the
+  cache-correct context ordering is a prod-serving discipline the lab
+  preserves but does not exercise; add api-side caching only if lab
+  spend actually hurts.
 - **local serving adapter** (mlx / llama.cpp behind LLMAdapter): gate:
   hardware decision final; bench fan agents on target minis.
 - **voice I/O** (parakeet stt, kokoro tts, pipecat): gate: text-lab
@@ -1012,10 +1080,12 @@ ordering is deliberate: measurement before wordsmithing.
    stub is fine for every phase here.
 3. the blind-ranking ritual: who ranks besides you and jade, and how
    many transcripts count as "repeatedly."
-4. confirm one-surface (xray always on) vs a clean demo view earlier
-   than the §13 gate.
-5. agent names are prompt-file names; if any should be rechristened
-   (attention? beholder?), say so before P4 lands them everywhere.
+4. RESOLVED 2026-07-06: one surface, xray always on; the clean demo view
+   stays behind its §13 gate.
+5. RESOLVED 2026-07-06: names ship as-is (driver, persona/wildcard,
+   interpreter, psychic, detective, beholder, joker, cassandra,
+   attention, judge). rechristening after P4 is a rename-only commit if
+   jake ever wants one.
 
 ## 15. kickoff prompt for the executing agent
 
@@ -1035,4 +1105,19 @@ the §3-§6 contracts and append a dated note under §16 deviations.
 
 ## 16. deviations
 
-(append dated notes here during the build; empty at plan time)
+- 2026-07-06 (pre-build repo audit, applied throughout this doc): chat
+  mode reinstated as a first-class requirement (§3.4: it existed in the
+  baseline and in jake's ask, and had fallen out of the plan). baseline
+  honestly reframed as never-yet-run; its first live run and the arm
+  wiring pulled forward (P1 smoke, P2 arm) so P3's acceptance is actually
+  checkable. compiler-output brief source deferred (`CompiledBrief` lacks
+  guides/opening/mantra). FLIP_ATTN_GRACE_MS deleted (contradicted the
+  two-blocking-calls rule for no benefit: the guide rides the event).
+  FAN_BLOCKING toggle added (§4) to turn the hindsight-vs-synchronous
+  cognition choice into an experiment. all agent panes streamed, not just
+  the hot path. lab silence clock demoted to manual-first. naive arm gets
+  a trimmed character card. menu entry renamed XRAY LAB (READ DEMO
+  already exists). cassandra judging rule: a prediction is judged only
+  when the next visitor LINE arrives; a flip or close intervening marks
+  it superseded, no verdict. fan backstop counts only turns with new
+  visitor material. P0 (recovery + route) executed same day.
