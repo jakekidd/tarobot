@@ -88,6 +88,11 @@ materials/
       actor-chat.md               between-beats reply
     # LEGACY (antechamber engine, retiring): weaver.md · diviner.md ·
     # compiler.md · intention-suggestor.md · mantra.md
+  oracle/
+    deck/                         the Deck Bible — full 78-card RWS, one json
+                                  per suit + majors; symbols/themes/shadow/
+                                  charge/voice_note per card (readers: the
+                                  oracle compile + ensemble flip enrichment)
   names/
     masc.txt                      relationship_pick name bank (one per line)
     fem.txt

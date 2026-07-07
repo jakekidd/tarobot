@@ -1,0 +1,222 @@
+[
+  {
+    "id": "the-fool",
+    "name": "the fool",
+    "arcana": "major",
+    "symbols": ["cliff edge one step away", "white rose held loosely", "small dog at the heel", "bindle carrying almost nothing", "face turned up, not down"],
+    "themes": ["a beginning taken before readiness arrives", "lightness chosen on purpose", "faith placed in the step, not the landing"],
+    "shadow": ["recklessness wearing freedom's clothes", "refusing to look down until the ground decides for you"],
+    "charge": "what would you start if you were allowed to not know how it ends?",
+    "voice_note": "gesture at the step not yet taken, and the lightness they keep postponing."
+  },
+  {
+    "id": "the-magician",
+    "name": "the magician",
+    "arcana": "major",
+    "symbols": ["one hand up, one hand down", "all four tools laid on the table", "the sideways eight above the head", "roses and lilies growing where he works"],
+    "themes": ["everything needed is already on the table", "will as the bridge between wanting and having", "the moment of naming what you intend"],
+    "shadow": ["performing capability instead of using it", "the trick that impresses everyone but the trickster"],
+    "charge": "you have the tools. what is the sentence you have not said over them?",
+    "voice_note": "point at the table, not the sky. the power in this one is close at hand and unclaimed."
+  },
+  {
+    "id": "the-high-priestess",
+    "name": "the high priestess",
+    "arcana": "major",
+    "symbols": ["a veil between two pillars", "the scroll half-hidden in her lap", "a thin moon at her feet", "water beginning somewhere behind the curtain"],
+    "themes": ["what is known but not yet said", "the answer that arrives in stillness, not in asking", "a threshold guarded by patience"],
+    "shadow": ["hoarding the knowing to stay in control of it", "calling avoidance intuition"],
+    "charge": "what do you already know that you are waiting for permission to know?",
+    "voice_note": "lower the volume. this one is read in the pauses; ask less and leave the veil in place."
+  },
+  {
+    "id": "the-empress",
+    "name": "the empress",
+    "arcana": "major",
+    "symbols": ["a cushioned throne in an open field", "wheat ripe at her feet", "a crown of stars worn casually", "the river running unbothered behind her"],
+    "themes": ["abundance that comes from tending, not forcing", "the body as a place to live rather than a tool", "making something grow by staying near it"],
+    "shadow": ["caretaking as a way to never be the one cared for", "smothering what needed weather to ripen"],
+    "charge": "what have you been feeding that has never once fed you back?",
+    "voice_note": "warm, unhurried. speak of growing things and let them find who they have been watering."
+  },
+  {
+    "id": "the-emperor",
+    "name": "the emperor",
+    "arcana": "major",
+    "symbols": ["a stone throne with no cushion", "armor worn under robes at home", "rams' heads at every corner", "a thin river barely surviving the mountains"],
+    "themes": ["order built so nothing can shake again", "authority accepted as a weight", "the structure that protects and confines the same person"],
+    "shadow": ["control mistaken for safety", "ruling a kingdom no one asked to live in"],
+    "charge": "who taught you that if you sit down, everything falls?",
+    "voice_note": "respect the armor before naming it armor. this one bruises if handled fast."
+  },
+  {
+    "id": "the-hierophant",
+    "name": "the hierophant",
+    "arcana": "major",
+    "symbols": ["two fingers up, two folded", "crossed keys at the feet", "two petitioners kneeling", "the institution's roof overhead"],
+    "themes": ["the rules that raised you", "belonging bought with obedience", "the teacher between a person and their own knowing"],
+    "shadow": ["outsourcing the conscience", "staying in the pew because leaving means the family notices"],
+    "charge": "whose blessing are you still waiting for, and what has the wait cost?",
+    "voice_note": "name the tradition kindly, then ask who it fits now. never mock what they were raised in."
+  },
+  {
+    "id": "the-lovers",
+    "name": "the lovers",
+    "arcana": "major",
+    "symbols": ["two figures unclothed and unhidden", "an angel over both", "the tree of fruit and the tree of flame", "a mountain rising exactly between them"],
+    "themes": ["a choice that defines by being chosen", "being seen without the usual covering", "the alignment of want and value, or the gap between them"],
+    "shadow": ["choosing what soothes over what fits", "keeping one foot out the door and calling it independence"],
+    "charge": "if both roads cost you something, which loss could you live inside?",
+    "voice_note": "this one is a fork wearing romance's face. read the choice, not the couple."
+  },
+  {
+    "id": "the-chariot",
+    "name": "the chariot",
+    "arcana": "major",
+    "symbols": ["two sphinxes pulling against each other", "armor decorated with moons", "a city wall left behind", "reins that are nowhere in the picture"],
+    "themes": ["motion held together by sheer will", "two wants harnessed to one direction", "victory that requires not stopping"],
+    "shadow": ["momentum as a way to avoid deciding", "winning the race chosen at nineteen"],
+    "charge": "if you stopped moving, what would catch up with you?",
+    "voice_note": "match their speed first, then ask where the chariot is actually pointed."
+  },
+  {
+    "id": "strength",
+    "name": "strength",
+    "arcana": "major",
+    "symbols": ["a hand resting on a lion's jaw", "no weapon anywhere", "the sideways eight again, worn lightly", "flowers where a leash would be"],
+    "themes": ["gentleness applied to what could devour", "the slow taming that force would ruin", "courage that looks like calm"],
+    "shadow": ["muzzling the animal instead of knowing it", "being so composed no one notices the lion"],
+    "charge": "what in you have you been holding shut with a bare hand, and for how long?",
+    "voice_note": "honor the composure, then ask what it costs to keep the mouth closed."
+  },
+  {
+    "id": "the-hermit",
+    "name": "the hermit",
+    "arcana": "major",
+    "symbols": ["a lantern holding one star", "a staff that has taken years of weight", "grey heights above the treeline", "light lifted for someone not yet visible"],
+    "themes": ["withdrawal with a purpose inside it", "the answer that only comes when the room empties", "carrying light without company"],
+    "shadow": ["solitude hardened into hiding", "waiting on the mountain for someone to climb up and ask"],
+    "charge": "is the retreat still a search, or has it become the address?",
+    "voice_note": "quiet register. do not chase them down the mountain; set the lantern where they can see it."
+  },
+  {
+    "id": "wheel-of-fortune",
+    "name": "wheel of fortune",
+    "arcana": "major",
+    "symbols": ["a wheel turning without a hand on it", "figures rising and falling at its rim", "creatures in the corners, reading and waiting", "the hub that does not move"],
+    "themes": ["the turn that was never yours to schedule", "luck as weather, not verdict", "the still point at the center of the spinning"],
+    "shadow": ["taking credit for the up and blame for the down", "waiting for the wheel to decide what you already could"],
+    "charge": "which part of this was ever in your hands, and which part have you been gripping anyway?",
+    "voice_note": "separate the turning from the person. relief hides in this one: not everything was their doing."
+  },
+  {
+    "id": "justice",
+    "name": "justice",
+    "arcana": "major",
+    "symbols": ["scales held perfectly level", "a sword upright, edge visible", "a crown squared over steady eyes", "the small foot emerging from the robe"],
+    "themes": ["the accounting that has been postponed", "cause meeting effect without cruelty", "clarity as a form of mercy"],
+    "shadow": ["keeping score as a way of keeping distance", "demanding a verdict where an amends would do"],
+    "charge": "what would balance actually require of you — not of them, of you?",
+    "voice_note": "even tone, no verdicts. hold the scales up and let them do their own weighing."
+  },
+  {
+    "id": "the-hanged-man",
+    "name": "the hanged man",
+    "arcana": "major",
+    "symbols": ["hung by one foot, unhurt", "hands loose behind the back", "a halo around an upside-down head", "the rope tied by no visible hand"],
+    "themes": ["the pause that is doing more than the motion did", "seeing it from the reversed angle", "surrender that is chosen, not suffered"],
+    "shadow": ["martyrdom worn as identity", "calling limbo patience because climbing down means choosing"],
+    "charge": "what does it look like from up there that you could not see standing?",
+    "voice_note": "do not rush this one down. ask what the hanging is for, and who tied the knot."
+  },
+  {
+    "id": "death",
+    "name": "death",
+    "arcana": "major",
+    "symbols": ["a white rose on a black flag", "the sun rising between two towers", "a bishop pleading, a child offering flowers", "armor that has no one inside it"],
+    "themes": ["the ending already underway", "what must be laid down for the next thing to have hands", "the season, not the sentence"],
+    "shadow": ["propping up the finished thing", "grieving so loudly the door never gets opened"],
+    "charge": "what has already ended that you are still attending?",
+    "voice_note": "never say the name like a threat. point at the sunrise between the towers."
+  },
+  {
+    "id": "temperance",
+    "name": "temperance",
+    "arcana": "major",
+    "symbols": ["water poured between two cups without spilling", "one foot on land, one in the stream", "a road running back toward the light", "wings held still while the hands work"],
+    "themes": ["the mixture that neither part could be alone", "patience as an active craft", "the middle path walked on purpose"],
+    "shadow": ["diluting the self to keep every party comfortable", "moderation as a fear of wanting"],
+    "charge": "what two things in your life are waiting for you to stop keeping them separate?",
+    "voice_note": "steady, blending register. this one reads as repair; find what is being mixed."
+  },
+  {
+    "id": "the-devil",
+    "name": "the devil",
+    "arcana": "major",
+    "symbols": ["chains loose enough to lift off", "an inverted torch still burning", "two figures grown small at the feet", "the perch above them, occupied and bored"],
+    "themes": ["the arrangement that was comfort before it was cage", "appetite mistaken for identity", "servitude with the door unlocked"],
+    "shadow": ["blaming the chain instead of the neck that fits it", "one more round of the thing that stopped working years ago"],
+    "charge": "the chain is loose. what would you have to feel if you lifted it off?",
+    "voice_note": "no shame in the voice, ever. note how loose the chains hang and leave the lifting to them."
+  },
+  {
+    "id": "the-tower",
+    "name": "the tower",
+    "arcana": "major",
+    "symbols": ["lightning striking the crown first", "two figures leaping into open air", "fire lit from outside the walls", "the rock it was built on, unmoved"],
+    "themes": ["the collapse of what was built too certain", "truth arriving as demolition", "the clearing disguised as catastrophe"],
+    "shadow": ["rebuilding the same tower, faster this time", "calling the strike bad luck instead of overdue"],
+    "charge": "what are you still standing in that has already been struck?",
+    "voice_note": "do not soften it. name what cracked, then point at the ground it clears."
+  },
+  {
+    "id": "the-star",
+    "name": "the star",
+    "arcana": "major",
+    "symbols": ["water given back to the pool", "one foot resting on the surface without sinking", "eight stars over bare shoulders", "the bird watching from the one tree"],
+    "themes": ["what remains after the tower: quiet, undefended", "hope without performance", "replenishment as a slow act"],
+    "shadow": ["staying at the pool forever because the world has weather", "hope postponed into a someday that never gets a date"],
+    "charge": "what would you look like undefended — after the load is down, after the audience leaves?",
+    "voice_note": "close quiet. no triumph. this one is permission, poured slowly."
+  },
+  {
+    "id": "the-moon",
+    "name": "the moon",
+    "arcana": "major",
+    "symbols": ["a road with no figures on it", "the dog and the wolf howling at the same light", "the crayfish half out of the pool", "two towers with nothing between them"],
+    "themes": ["the hour when familiar things wear strange faces", "fear as a landscape to be walked, not solved", "what surfaces when the light is indirect"],
+    "shadow": ["treating the 3am version of the story as the true one", "staying in the shallows because the road is unlit"],
+    "charge": "which of your fears is a wolf, and which is just the dog, howling along?",
+    "voice_note": "walk beside them in this one. name the strangeness as weather that passes with the hour."
+  },
+  {
+    "id": "the-sun",
+    "name": "the sun",
+    "arcana": "major",
+    "symbols": ["a child riding bareback with arms open", "sunflowers over a garden wall", "a banner that hides nothing", "light with no angle to it"],
+    "themes": ["joy that requires no defense", "the simplicity on the far side of complexity", "being seen in full light and staying anyway"],
+    "shadow": ["performing brightness to keep questions away", "distrusting the good thing because it came easy"],
+    "charge": "when did you last let something be simply good, without auditing it?",
+    "voice_note": "let warmth in the voice. the reading here is whether they can receive it without flinching."
+  },
+  {
+    "id": "judgement",
+    "name": "judgement",
+    "arcana": "major",
+    "symbols": ["the horn sounding over open graves", "figures rising with their arms wide", "a flag marked with the plain cross", "mountains that no longer block the sound"],
+    "themes": ["the call that has already been heard", "rising to a life that fits the person you became", "forgiveness as a door out of the coffin"],
+    "shadow": ["hitting snooze on the calling for another decade", "self-judgment so loud the horn cannot get through"],
+    "charge": "you have heard it already. what would answering actually change by friday?",
+    "voice_note": "this one is a summons, not a scolding. read what is rising, never what is guilty."
+  },
+  {
+    "id": "the-world",
+    "name": "the world",
+    "arcana": "major",
+    "symbols": ["a wreath closed into a circle", "the dancer holding two wands, not one", "the four watchers now at ease", "nothing left outside the frame"],
+    "themes": ["the completion that was earned in chapters", "the circle closing where it opened", "arrival that includes everything it took"],
+    "shadow": ["refusing to call it done so the next thing never has to start", "finishing everyone's story but one's own"],
+    "charge": "what circle in your life is one honest gesture away from closed?",
+    "voice_note": "settle the room. name what is complete and let the silence hold the wreath."
+  }
+]

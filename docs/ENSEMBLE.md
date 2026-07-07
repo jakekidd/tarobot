@@ -136,7 +136,11 @@ Consecutive stalls cap at `STALL_MAX_CONSECUTIVE`.
 ## 5. the loop
 
 Per event (visitor line / flip / silence tick / open): driver call →
-intent → persona call → speech commit. Exactly two blocking calls; the
+intent → persona call → speech commit. A flip event carries the brief's
+guide plus the card's Deck Bible entry (symbols + charge from
+`materials/oracle/deck/`, 78 authored cards); attention receives the
+full entry for every flipped card, which is what feeds the frame's
+dressings section. Exactly two blocking calls; the
 fan fires on thresholds (new visitor words, flips, a turns backstop),
 one in flight, one pending, coalesced, never blocking. Attention regens
 the frame on flip / stale flag / drift backstop, independently.

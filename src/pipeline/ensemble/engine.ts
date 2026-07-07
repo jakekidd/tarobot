@@ -12,6 +12,7 @@
 // in-flight results stale, and stale results are discarded, not spoken.
 
 import type { LLMAdapter } from '../llm/adapter';
+import { deckCard } from '../oracle/deck';
 import {
   callAttention,
   callBeholder,
@@ -550,11 +551,20 @@ export class EnsembleEngine {
         brief: brief
           ? JSON.stringify(
               { name: brief.name, fork: brief.fork, leads: brief.leads, mantra: brief.mantra,
-                cards: brief.cards.map((c) => ({
-                  slot: c.slot,
-                  flipped: this.flipped.includes(c.slot),
-                  guide: c.guide,
-                })) },
+                cards: brief.cards.map((c) => {
+                  const flipped = this.flipped.includes(c.slot);
+                  const entry = flipped ? deckCard(c.id) : undefined;
+                  return {
+                    slot: c.slot,
+                    flipped,
+                    guide: c.guide,
+                    // flipped cards bring their full deck-bible entry so
+                    // the dressings section has real imagery to hand out
+                    ...(entry
+                      ? { symbols: entry.symbols, charge: entry.charge, shadow: entry.shadow }
+                      : {}),
+                  };
+                }) },
               null,
               2,
             )
@@ -669,8 +679,16 @@ export class EnsembleEngine {
         return `the opening. scenario: ${this.input.scenario}`;
       case 'visitor_line':
         return 'the visitor just spoke; their line is the last beat of the conversation.';
-      case 'card_flip':
-        return `card flip ${event.flip_number} of 4, slot ${event.slot}. its guide: ${event.guide}`;
+      case 'card_flip': {
+        // the deck bible rides the flip: symbols to dress the read in,
+        // the charge as the question the card puts to this person
+        const card = this.input.brief?.cards.find((c) => c.slot === event.slot);
+        const entry = card ? deckCard(card.id) : undefined;
+        const bible = entry
+          ? ` | the card's imagery: ${entry.symbols.join('; ')} | its charge: ${entry.charge}`
+          : '';
+        return `card flip ${event.flip_number} of 4, slot ${event.slot}. its guide: ${event.guide}${bible}`;
+      }
       case 'silence':
         return 'the visitor has let the silence run.';
     }
