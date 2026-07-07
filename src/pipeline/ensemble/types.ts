@@ -267,7 +267,12 @@ export type EnsembleConstants = {
   START_BUDGET: number;
   CAP_MIN: number;
   CAP_MAX: number;
-  CARRY_RATIO: number;
+  /** carry keys on ABSOLUTE visitor underfeeding (mean words over the
+   *  last CARRY_WINDOW visitor beats), never on word-share: share-based
+   *  carry was a feedback loop — seer verbosity lowered the visitor's
+   *  share, tripping carry, licensing more seer words (exp01 finding) */
+  CARRY_VISITOR_WORDS: number;
+  CARRY_WINDOW: number;
   RATIO_WINDOW: number;
   CARRY_CAP_MIN: number;
   AMMO_MAX_WORDS: number;
@@ -296,7 +301,8 @@ export const ENSEMBLE_CONSTANTS: EnsembleConstants = {
   START_BUDGET: 20,
   CAP_MIN: 10,
   CAP_MAX: 40,
-  CARRY_RATIO: 0.35,
+  CARRY_VISITOR_WORDS: 8,
+  CARRY_WINDOW: 3,
   RATIO_WINDOW: 6,
   CARRY_CAP_MIN: 20,
   AMMO_MAX_WORDS: 12,

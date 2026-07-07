@@ -21,7 +21,8 @@ const NUMERIC_KEYS = [
   'START_BUDGET',
   'CAP_MIN',
   'CAP_MAX',
-  'CARRY_RATIO',
+  'CARRY_VISITOR_WORDS',
+  'CARRY_WINDOW',
   'RATIO_WINDOW',
   'CARRY_CAP_MIN',
   'AMMO_MAX_WORDS',
@@ -58,7 +59,7 @@ export function ConfigPanel({ constants, onChange }: Props) {
               <span>{key}</span>
               <input
                 type="number"
-                step={key === 'CARRY_RATIO' ? 0.05 : 1}
+                step={1}
                 value={constants[key]}
                 onChange={(e) => {
                   const n = Number(e.target.value);

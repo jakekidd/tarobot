@@ -29,6 +29,33 @@ delete from here.
 
 ## just-deferred (most recent first)
 
+### rank the exp01 blind bundle (jake, human-in-the-loop)
+The arms protocol ran (2× naive / baseline / ensemble over the scripted
+maya track). Six beats-only transcripts sit shuffled in
+`runs/experiments/exp01-a/blind/` (A–F; mapping sealed in
+`MAPPING-sealed.json` — don't peek before ranking). Rank: which seer
+would you sit with again; where did each land a hit; where did each
+trample one. Findings + labeled analysis: `docs/experiments/exp01-arms.md`.
+The ranking decides whether the ensemble has earned its complexity yet.
+
+### exp14 — economy sweep (verbosity is a slider, find its setting)
+Ensemble talks ~22 w/beat vs naive's ~13; carry redesign didn't move it
+(it's the fill curve: FILL_K × ~15-word visitor lines + FLIP_FILL keep
+the cap high). Grid a few (FILL_K, CAP_MAX, FLIP_FILL) points over the
+scripted track, blind-prefer. Watch: too low and card reads starve
+again (that's what FLIP_FILL fixed).
+
+### exp06 — ammo efficacy (measure before tightening)
+The driver passes psychic ammo on nearly every beat despite "only when
+exactly right". Either the rule is wrong or the driver is greedy.
+Compare beats-with-ammo vs without on landed-hit judgments before
+touching the prompt.
+
+### exp07 — retention probe (needs long auto-visitor sessions)
+Plant a fact at beat ~3 of a 40-beat `--auto` session; probe whether
+the seer can use it at beat ~35. Tests ledger → carried → persona, the
+whole memory-tier design. Blocked on nothing; just costs a longer run.
+
 ### body-header expansion (observer-only)
 If observer writing feels thin after launch around dimensions the
 9-category set doesn't cover well, expand `materials/templates/

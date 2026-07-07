@@ -219,7 +219,9 @@ Not yet established / open observations:
 
 Each: hypothesis → method → what decides it. Control the visitor track
 (scripted or recorded), accept model variance, N≥5 repeats per
-condition, rank transcripts blind before reading metrics.
+condition, rank transcripts blind before reading metrics. Scripts live
+in `scripts/experiments/` (`pnpm exp:audit / exp:arms / exp:stall`);
+curated results in `docs/experiments/` (README.md is the index).
 
 1. **arms** — does the ensemble beat naive and baseline? same brief +
    track through all three, blind-rank. the gate for everything else.

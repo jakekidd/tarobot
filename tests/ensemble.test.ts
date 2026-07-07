@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { cap, fillFromLine, spend, talkRatio } from '../src/pipeline/ensemble/economy';
+import { cap, carryFromScroll, fillFromLine, spend, talkRatio } from '../src/pipeline/ensemble/economy';
 import { frameV1 } from '../src/pipeline/ensemble/frame';
 import { Piles } from '../src/pipeline/ensemble/piles';
 import { pickStallKind } from '../src/pipeline/ensemble/stall';
@@ -44,6 +44,28 @@ describe('economy', () => {
     ];
     expect(talkRatio(scroll, C)).toBeCloseTo(6 / 8);
     expect(talkRatio([], C)).toBe(0.5);
+  });
+
+  it('carry keys on absolute visitor underfeeding, not share', () => {
+    // a verbose seer with a normally-fed visitor must NOT trip carry
+    const fed = [
+      beat('seer', Array(60).fill('word').join(' ')),
+      beat('visitor', 'nine whole words arrive from the visitor right here'),
+      beat('seer', Array(60).fill('word').join(' ')),
+      beat('visitor', 'nine whole words arrive from the visitor right here'),
+      beat('visitor', 'nine whole words arrive from the visitor right here'),
+    ];
+    expect(carryFromScroll(fed, C)).toBe(false);
+
+    const starved = [
+      beat('visitor', 'fine.'),
+      beat('visitor', 'yeah.'),
+      beat('visitor', 'i guess.'),
+    ];
+    expect(carryFromScroll(starved, C)).toBe(true);
+
+    // too few visitor beats to judge
+    expect(carryFromScroll([beat('visitor', 'hi.')], C)).toBe(false);
   });
 });
 

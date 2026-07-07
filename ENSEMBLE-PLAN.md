@@ -976,8 +976,11 @@ FLIP_FILL            25      a flip buys room to read the card (live-run
                              finding: without it, reads starve at 5 words)
 START_BUDGET         20
 CAP_MIN / CAP_MAX    10 / 40 driver cap = clamp(round5(budget), MIN, MAX)
-CARRY_RATIO          0.35    visitor word-share below this -> carry
-RATIO_WINDOW         6       turns in the ratio computation
+CARRY_VISITOR_WORDS  8       mean visitor words (last CARRY_WINDOW visitor
+                             beats) below this -> carry. NEVER share-based:
+                             share-carry was a feedback loop (exp01)
+CARRY_WINDOW         3       visitor beats in the carry computation
+RATIO_WINDOW         6       turns in the (telemetry-only) ratio
 CARRY_CAP_MIN        20      cap floor while carrying
 AMMO_MAX_WORDS       12
 FAN_MIN_NEW_WORDS    12      visitor words to summon the fan

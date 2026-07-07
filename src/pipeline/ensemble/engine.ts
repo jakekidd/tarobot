@@ -32,7 +32,7 @@ import {
   renderTail,
   type AgentEnv,
 } from './agents';
-import { cap, fillFromLine, fillFromSilence, spend, talkRatio } from './economy';
+import { cap, carryFromScroll, fillFromLine, fillFromSilence, spend, talkRatio } from './economy';
 import { FrameStore, frameV1 } from './frame';
 import { Piles } from './piles';
 import { pickStallKind, STALL_GUIDANCE } from './stall';
@@ -598,9 +598,7 @@ export class EnsembleEngine {
   }
 
   private carry(): boolean {
-    const beats = this.scroll.filter((e): e is Beat => e.kind === 'beat');
-    if (beats.length < 4) return false; // too early to judge the room
-    return this.ratio() < this.c.CARRY_RATIO;
+    return carryFromScroll(this.scroll, this.c);
   }
 
   private taboos(): string[] {
@@ -646,6 +644,16 @@ export class EnsembleEngine {
       parts.push('unavailable: you have stalled enough. move.');
     } else {
       parts.push('available');
+      // the condition stall exists for must be VISIBLE to the driver
+      // (exp04: with silent staleness, the brake was never chosen once)
+      const lastVisitorIdx = this.scroll.reduce(
+        (idx, e, i) => (e.kind === 'beat' && e.speaker === 'visitor' ? i : idx),
+        -1,
+      );
+      const lastRead = this.piles.reads.last();
+      if (lastVisitorIdx >= 0 && (!lastRead || lastRead.anchor.beat < lastVisitorIdx)) {
+        parts.push('note: cognition has NOT digested the newest visitor material yet.');
+      }
     }
     if (this.stallDebt) {
       parts.push(
@@ -710,7 +718,13 @@ export class EnsembleEngine {
     if (intent.move === 'close' && this.input.brief?.mantra) {
       lines.push(`the mantra, the last thing they hear: ${this.input.brief.mantra}`);
     }
-    if (this.input.brief?.name) lines.push(`their name: ${this.input.brief.name}`);
+    // the name rides only the first and last beats — handed over every
+    // beat, the persona wears it out (live audit: 14/14 seer beats said
+    // "maya"; the run with no name passed said it zero times)
+    const isOpening = !this.scroll.some((e) => e.kind === 'beat' && e.speaker === 'seer');
+    if (this.input.brief?.name && (isOpening || intent.move === 'close')) {
+      lines.push(`their name, use it sparingly: ${this.input.brief.name}`);
+    }
     lines.push(`approximately ${words} words. under is better.`);
     return lines.join('\n');
   }

@@ -45,6 +45,22 @@ export function talkRatio(scroll: readonly ScrollEntry[], c: EnsembleConstants):
   return visitor / total;
 }
 
+/** carry = the visitor is underfeeding in absolute terms. never derived
+ *  from word-share: the seer talking more would lower the visitor's
+ *  share and self-license even more seer words. */
+export function carryFromScroll(
+  scroll: readonly ScrollEntry[],
+  c: EnsembleConstants,
+): boolean {
+  const visitorBeats = scroll.filter(
+    (e): e is Beat => e.kind === 'beat' && e.speaker === 'visitor',
+  );
+  if (visitorBeats.length < c.CARRY_WINDOW) return false; // too early to judge
+  const recent = visitorBeats.slice(-c.CARRY_WINDOW);
+  const mean = recent.reduce((n, b) => n + countWords(b.text), 0) / recent.length;
+  return mean < c.CARRY_VISITOR_WORDS;
+}
+
 export function cap(budget: number, carry: boolean, c: EnsembleConstants): number {
   const round5 = Math.round(budget / 5) * 5;
   const floor = carry ? Math.max(c.CAP_MIN, c.CARRY_CAP_MIN) : c.CAP_MIN;

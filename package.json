@@ -17,6 +17,9 @@
     "smoke": "node --import ./scripts/register-raw-loader.mjs --import tsx scripts/smoke-pipeline.ts",
     "smoke:ensemble": "node --import ./scripts/register-raw-loader.mjs --import tsx scripts/ensemble-smoke.ts",
     "e2e:ensemble": "node --import ./scripts/register-raw-loader.mjs --import tsx scripts/e2e-ensemble.ts",
+    "exp:audit": "node --import ./scripts/register-raw-loader.mjs --import tsx scripts/experiments/exp12-audit.ts",
+    "exp:arms": "node --import ./scripts/register-raw-loader.mjs --import tsx scripts/experiments/exp01-arms.ts",
+    "exp:stall": "node --import ./scripts/register-raw-loader.mjs --import tsx scripts/experiments/exp04-stall.ts",
     "preview": "node --import ./scripts/register-raw-loader.mjs --import tsx scripts/prompt-preview.ts"
   },
   "dependencies": {
