@@ -15,6 +15,8 @@ Documentation map (what to trust for what):
 |---|---|
 | `CLAUDE.md` (this file) | Durable orientation — principles, architecture, conventions. |
 | `docs/PIPELINE.md` | Living truth for the antechamber pipeline (survey → condenser → conjector). |
+| `docs/ENSEMBLE.md` | Living truth for the oracle ensemble (the chat-first reading engine) + xray lab, web AND headless. |
+| `ENSEMBLE-PLAN.md` | The build plan that produced the ensemble. Rationale mine; historical. |
 | `docs/HANDOFF.md` | Point-in-time onboarding: current build state, lessons, brainstorm context. |
 | `docs/ANTECHAMBER-STATE.md` | Point-in-time close-out audit of the antechamber (checklist, gaps, deferred). |
 | `docs/ANTI-RUBRICS.md` | The failure-mode catalog (AR-ids) the behavioral rig audits transcripts against. |
@@ -377,6 +379,9 @@ tarot birth card). Treat these as ground truth; do not duplicate inline.
 | UI rails (the portable driver seam) | `src/pipeline/rails/` |
 | AntechamberEngine + agents — LEGACY (loaded-user path, being retired) | `src/pipeline/antechamber/` |
 | SeerEngine + agents (director/actor) | `src/pipeline/seer/` |
+| Ensemble reading engine (behavior/cognition, piles, frame, stall) | `src/pipeline/ensemble/` (see `docs/ENSEMBLE.md`) |
+| Oracle baseline (single-voice comparison arm — do not modify) | `src/pipeline/oracle/` |
+| Xray lab (ensemble debug surface, docs manager, inspector) | `src/lab/xray/` |
 | Card draw mechanics | `src/pipeline/cards.ts` |
 | Spread definitions | `src/pipeline/spreads.ts` |
 | three.js scene (turtle + eyes + perspective table/cards + scene stores) | `src/ui/scene/`, `src/ui/scene/TarobotScene.tsx` |
@@ -436,6 +441,13 @@ the doc.
   synthetic participant (Opus), runs them through the live antechamber engine
   with a Haiku-driven answerer, writes a timestamped run log to `runs/`.
   Pass `--load <name>` to reuse an existing archetype from `archetypes/`.
+- `pnpm smoke:ensemble` — stub-adapter loop check for the ensemble
+  engine (no key, no network).
+- `pnpm e2e:ensemble` — the ensemble's live headless run (scripted or
+  `--auto` model visitor; `--stub` for a no-key dry run). Writes
+  full-fidelity `transcript.md` + `session.json` per run — the same
+  `SessionRecord` the xray lab's export button produces. See
+  `docs/ENSEMBLE.md` §6.
 - **Deploy = push to GitHub `main`.** Vercel auto-deploys it. The project is
   owned by the **personal scope `jakekidds-projects`** — NOT the
   `ubitel-projects` work team. (It used to be wrongly linked under Ubitel. If a
@@ -477,6 +489,12 @@ the doc.
   real walkthroughs. The READ DEMO menu path skips antechamber and uses a hand-
   authored Marisol fixture — useful for iterating on the reading without
   burning antechamber time.
+- **Ensemble reading engine (the go-forward bet).** `src/pipeline/ensemble/`
+  + the XRAY LAB menu path. Chat-first; behavior/cognition split; must
+  beat naive AND the `src/pipeline/oracle/` baseline blind before it
+  earns permanence. Arms protocol, auto-visitor-in-browser, and
+  record/replay are unbuilt. `docs/ENSEMBLE.md` is the living truth and
+  holds the experiments backlog.
 - **Card faces.** Currently unicode-glyph + roman-numeral placeholders.
   Real art replaces this later; the contract (each card has a glyph + label)
   stays the same.
