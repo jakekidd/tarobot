@@ -60,11 +60,17 @@ gives three words a beat cannot be out-waited.
 
 ## 2. load-bearing principles
 
-1. **The membrane, enforced by topology.** Cognition judges and never
-   speaks; the persona speaks and never judges. The only crossings are the
-   frame (standing orientation), the intent (per-beat assignment), one
-   licensed flavor channel (the joker's bit), and one licensed wording
-   crossing (ammo, §5.1). Nothing else reaches the persona, ever.
+1. **The membrane, enforced by topology.** COGNITION (everything async)
+   judges and never speaks; BEHAVIOR (the hot path: blocking, serialized,
+   with room to parallelize members later) speaks and never judges. These
+   two names are the official vocabulary, in code and in the lab. The
+   only crossings are the frame (standing orientation), the intent
+   (per-beat assignment), one licensed flavor channel (the joker's bit),
+   and one licensed wording crossing (ammo, §5.1). Nothing else reaches
+   the persona, ever. (And yes, still this: conclusions drawn over
+   hidden accumulated information, smuggled to the persona pre-digested.
+   That is not a trick; it is the subconscious/conscious split working
+   as designed.)
 2. **Charge over truth.** Aim where the heat is, not where certainty is.
    A wrong guess that provokes correction beats a right fact that sits
    inert. Commit to reads and hold them.
@@ -169,20 +175,46 @@ Brief at session start (template in §6.11), with zero added start latency.
 
 ### 3.4 brief, economy, snapshot
 
-The ensemble consumes the same `OracleBrief` the baseline does (import it
-from `../oracle/types`; this is load-bearing: all three arms must run the
-same briefs). It also inherits the baseline's `mode: 'session' | 'chat'`:
-**chat mode is a requirement, not an option** (conversation from zero with
-the same ensemble). In chat mode `brief.cards` is empty, the lab shows no
-flip buttons, the `read` move never fires, and frame v1 omits the
-dressings section. `CHAT_BRIEF` in `../oracle/fixtures` is the seed.
+**Chat is the tricycle.** The engine is built chat-first: a conversation
+from zero with the full ensemble, no cards. Session mode (the structured
+four-flip activity) is the expansion, same engine, and stays functional,
+but chat is the primary development target and the lab's default.
 
-Brief sources at mvp, swappable in the lab: fixtures (build 2-3 from
-`archetypes/marisol*.json` material), the oracle mini-intake compile
-(`materials/prompts/oracle/compile.md`; the picker hosts the small
-`MiniIntake` form), and a raw brief JSON editor. The naive compiler's
-output (`src/pipeline/compiler/`) is NOT a drop-in source: `CompiledBrief`
-has no guides, opening, or mantra, so it needs a generation step; deferred
+The engine's input is `EnsembleInput`:
+
+```ts
+type InputDoc = { id: string; name: string; md: string; updatedAt: number };
+
+type EnsembleInput = {
+  mode: 'chat' | 'session';
+  docs: InputDoc[];         // intake documents about the visitor, markdown
+  scenario: string;         // turn-0 given circumstances + instruction,
+                            // e.g. "the player sits down across from you.
+                            // greet them; you have not met."
+  brief?: OracleBrief;      // required for session mode (cards + guides
+                            // + mantra); optional color in chat mode
+};
+```
+
+**Input docs are the experimental channel.** Managed in the lab (created,
+edited, saved locally in the browser), selected per session. The default
+doc ships as a portrait-profile-style intake document; different kinds of
+input (raw survey dumps, condensed portraits, freeform notes) are exactly
+what gets experimented with. Docs are markdown, model-facing verbatim, fed
+to the driver and attention (never the persona: membrane).
+
+**The scenario is turn 0's structure.** Chat without it is random; the
+scenario is an editable given-circumstances line that drives the opening
+dispatch through the normal hot path (event `open`), so the first line is
+generated in character, not canned. `brief.opening` remains for the
+baseline arm only.
+
+In chat mode there are no flip buttons and the `read` move never fires;
+frame v1 omits the dressings section. Session mode requires `brief` (the
+fixture built on `../oracle/fixtures` at mvp; the mini-intake compile and
+a raw JSON editor remain the other sources). The naive compiler's output
+(`src/pipeline/compiler/`) is NOT a drop-in source: `CompiledBrief` has
+no guides, opening, or mantra, so it needs a generation step; deferred
 (§13).
 
 ```ts
@@ -300,13 +332,57 @@ f(brief_digest, frame, beats_window, tails, economy, event) => Intent
            AMMO: at most one verbatim sentence, lifted from the thoughts
            tail, <= AMMO_MAX_WORDS, passed only when it is exactly right;
            this is the single licensed wording crossing.
+           STALL: the brake (below). available only when STALL_STATE
+           says so.
   writes:  intents pile (its note field is the private read of record)
-  output:  Intent { move: hold|press|bank|honor|reflect|read|respond|close,
-                    thread, accomplish, ammo?, approx_words, note }
+  output:  Intent { move: hold|press|bank|honor|reflect|read|respond|
+                          close|stall,
+                    thread, accomplish, ammo?, approx_words, note,
+                    stall_kind? }
 ```
 
-`Move` is imported from the baseline (`../oracle/types`): same eight
-moves, deliberately.
+The eight baseline moves plus `stall`, defined locally (the baseline's
+`Move` stays untouched; arm comparability is behavioral, not nominal).
+
+### 5.1b stall: the brake between behavior and cognition
+
+The missing middle decision the original spec never made: speak now, or
+buy a beat while cognition catches up. The driver makes it. When the
+visitor lands something heavy and the tails are thin (cognition has not
+digested it yet), the driver outputs `stall` instead of guessing: the
+persona speaks a LOW-COMMITMENT line (a question, a reflection, a
+confirmation: stalling is still speaking, the two are not mutually
+exclusive), the fan force-fires immediately, and by the time the visitor
+answers, cognition has landed and the driver decides from a full picture.
+
+Stall kinds, a hardcoded weighted catalog (weights are config):
+
+```
+reflect_back     w3   repeat back the essence of what you heard, their
+                      words distilled, no interpretation added
+question_direct  w3   one direct question about what they just said
+confirm_feeling  w2   name the feeling you suspect and check it
+question_detail  w2   ask for one concrete detail (when, where, who)
+observation      w2   one small observation, no conclusion drawn
+invite           w1   minimal door-opener: "go on." "say more."
+```
+
+Mechanics:
+- the driver may name `stall_kind` itself when it knows what the moment
+  needs; otherwise the ENGINE picks by weighted random and the kind is
+  presented to the persona as the assignment. either way the driver's
+  `accomplish` rides along as the aim ("the question should point at
+  the sister").
+- a stall force-fires the fan (bypasses thresholds), and records a
+  STALL DEBT: { what was stalled on, the kind played, consecutive count }.
+- the next driver call receives the debt in STALL_STATE: "you bought a
+  beat on X; cognition has now weighed in; deliver." the debt clears
+  when a non-stall move commits.
+- consecutive stalls are capped by STALL_MAX_CONSECUTIVE (default 1,
+  config: jake explicitly wants to experiment with 2). at the cap,
+  STALL_STATE marks stall unavailable and the driver must move.
+- stall is never available on the `open` event (turn 0 has nothing to
+  stall for).
 
 ### 5.2 persona: hot path, speaks. she is THE WILDCARD
 
@@ -910,6 +986,8 @@ SILENCE_TICK_MS      7000    lab silence clock (when auto-tick is on)
 SILENCE_AUTO         off     auto-tick toggle; manual button is primary
 FAN_BLOCKING         off     dispatch awaits fan before driver (§4)
 FRAME_MAX_WORDS      250
+STALL_MAX_CONSECUTIVE 1     stalls in a row before the driver must move
+STALL_WEIGHTS        (§5.1b) per-kind weights, each a slider
 TAIL_READS           2       } tail windows
 TAIL_THOUGHTS        3       }
 TAIL_QUESTIONS       3       }
@@ -1121,3 +1199,13 @@ the §3-§6 contracts and append a dated note under §16 deviations.
   when the next visitor LINE arrives; a flip or close intervening marks
   it superseded, no verdict. fan backstop counts only turns with new
   visitor material. P0 (recovery + route) executed same day.
+- 2026-07-06 (second pass, jake's digest round, greenlit): chat-first is
+  the build order (chat is the tricycle; session mode is the expansion).
+  input docs added: browser-managed markdown intake documents as the
+  experimental input channel, plus a turn-0 scenario that drives a
+  GENERATED opening through the hot path (brief.opening demoted to the
+  baseline arm). BEHAVIOR/COGNITION made the official track names. the
+  stall mechanic added (§5.1b): driver-as-brake, weighted stall kinds,
+  stall debt, STALL_MAX_CONSECUTIVE config. build executed in one pass
+  (state + engine + agents + lab surface) rather than strictly phased;
+  arms protocol, auto-visitor, and record/replay remain per §11 P6.
