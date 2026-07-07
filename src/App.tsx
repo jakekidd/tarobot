@@ -328,7 +328,7 @@ export function App() {
           )}
 
           {phase.kind === 'xray' && apiKey && (
-            <XrayLab onExit={goMenu} />
+            <XrayLab apiKey={apiKey} onExit={goMenu} />
           )}
 
           {phase.kind === 'survey' && (

@@ -1,0 +1,248 @@
+/* xray lab — layout on top of bench.css tokens. three columns:
+   cognition piles | the table | behavior + frame. */
+
+.xray {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  overflow: hidden;
+}
+
+.xray__topbar {
+  display: flex;
+  align-items: center;
+  gap: var(--p3);
+  padding: var(--p3) var(--p4);
+  border-bottom: 1px solid var(--rule);
+  flex: none;
+}
+
+.xray__topbar-title {
+  font-family: var(--font-mono);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+}
+
+.xray__topbar-spacer { flex: 1; }
+
+.xray__layout {
+  display: grid;
+  grid-template-columns: 320px 1fr 360px;
+  gap: 0;
+  flex: 1;
+  min-height: 0;
+}
+
+.xray__col {
+  overflow-y: auto;
+  padding: var(--p3) var(--p4);
+  border-right: 1px solid var(--rule-soft);
+  min-width: 0;
+}
+.xray__col:last-child { border-right: none; }
+
+/* ---- setup view ---- */
+
+.xray__setup {
+  max-width: 920px;
+  margin: 0 auto;
+  padding: var(--p5) var(--p4);
+  overflow-y: auto;
+  width: 100%;
+}
+
+.xray__doc-edit {
+  width: 100%;
+  min-height: 260px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.5;
+  padding: var(--p3);
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  background: var(--bg-alt);
+  color: var(--fg);
+  resize: vertical;
+}
+
+.xray__scenario {
+  width: 100%;
+  min-height: 56px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  padding: var(--p2) var(--p3);
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  background: var(--bg-alt);
+  color: var(--fg);
+  resize: vertical;
+}
+
+.xray__doc-row {
+  display: flex;
+  align-items: center;
+  gap: var(--p2);
+  padding: var(--p1) 0;
+}
+
+.xray__doc-name {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--fg);
+  padding: 2px var(--p1);
+  flex: 1;
+}
+.xray__doc-name:focus { border-color: var(--rule); background: var(--bg-alt); outline: none; }
+
+/* ---- the table ---- */
+
+.xray__table {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+
+.xray__scrollview {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--p3) 0;
+  min-height: 0;
+}
+
+.xray__beat { margin: 0 0 var(--p3); }
+.xray__beat-speaker {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--fg-faint);
+}
+.xray__beat--seer .xray__beat-text {
+  font-size: 15px;
+  color: var(--fg);
+}
+.xray__beat--visitor .xray__beat-text { color: var(--fg-muted); }
+
+.xray__ev {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--fg-faint);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  margin: 0 0 var(--p3);
+}
+
+.xray__composer {
+  flex: none;
+  border-top: 1px solid var(--rule);
+  padding-top: var(--p3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--p2);
+}
+
+.xray__input {
+  width: 100%;
+  min-height: 60px;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  padding: var(--p2) var(--p3);
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  background: var(--bg-alt);
+  color: var(--fg);
+  resize: vertical;
+}
+
+/* ---- panes ---- */
+
+.xray__item {
+  padding: var(--p2) 0;
+  border-bottom: 1px solid var(--rule-soft);
+  font-size: 12px;
+}
+.xray__item:last-child { border-bottom: none; }
+
+.xray__anchor {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--fg-faint);
+  margin-right: var(--p2);
+}
+
+.xray__quote { font-style: italic; }
+
+.xray__frame-md {
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  white-space: pre-wrap;
+  background: var(--bg-alt);
+  padding: var(--p3);
+  border-radius: 4px;
+  max-height: 340px;
+  overflow-y: auto;
+}
+
+/* ---- inspector modal ---- */
+
+.xray__modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(24, 24, 27, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 50;
+}
+
+.xray__modal {
+  background: var(--bg);
+  border-radius: 6px;
+  width: min(900px, 92vw);
+  max-height: 86vh;
+  overflow-y: auto;
+  padding: var(--p4) var(--p5);
+  box-shadow: 0 12px 48px rgba(0, 0, 0, 0.25);
+}
+
+.xray__pre {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  white-space: pre-wrap;
+  background: var(--bg-alt);
+  padding: var(--p3);
+  border-radius: 4px;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+/* ---- config ---- */
+
+.xray__config-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: var(--p2) var(--p4);
+}
+
+.xray__config-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--p2);
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+.xray__config-row input[type='number'] {
+  width: 72px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  padding: 2px var(--p1);
+  border: 1px solid var(--rule);
+  border-radius: 3px;
+  background: var(--bg-alt);
+  color: var(--fg);
+}
