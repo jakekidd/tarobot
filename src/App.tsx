@@ -15,6 +15,7 @@ import { Antechamber as AntechamberScreen } from './ui/Antechamber';
 import { Reading } from './ui/Reading';
 import { Pipeline } from './ui/Pipeline';
 import { Bench } from './lab/Bench';
+import { XrayLab } from './lab/xray/XrayLab';
 import { IntroductionSurveyScreen } from './ui/survey/IntroductionSurveyScreen';
 import { SurveyDone } from './ui/survey/SurveyDone';
 import { TuningScreen } from './ui/tuning/TuningScreen';
@@ -60,6 +61,7 @@ type Phase =
   | { kind: 'reading'; session: Session; seer: Seer }
   | { kind: 'pipeline' }
   | { kind: 'bench' }
+  | { kind: 'xray' }
   | { kind: 'survey'; survey: IntroductionSurvey }
   | { kind: 'survey_done'; raw: RawPortrait }
   | { kind: 'tuning_loading' }
@@ -224,13 +226,14 @@ export function App() {
     setPhase({ kind: 'reading', session, seer });
   }
 
-  // Bench is its own world — no CRT filter, no Three.js scene, no
-  // main-app topbar. The lab/ subtree owns its entire visual surface.
-  const inBench = phase.kind === 'bench';
+  // Bench and the xray lab are their own worlds — no CRT filter, no
+  // Three.js scene, no main-app topbar. The lab/ subtree owns its
+  // entire visual surface.
+  const inLab = phase.kind === 'bench' || phase.kind === 'xray';
 
   return (
     <div className="app">
-      {!inBench && (
+      {!inLab && (
         <>
           {/* Full-screen Three.js scene — renders the cat wherever a ReaderAnchor is mounted */}
           <TarobotScene />
@@ -290,6 +293,7 @@ export function App() {
               onOpenResume={() => setPhase({ kind: 'resume' })}
               onSettings={() => setPhase({ kind: 'settings' })}
               onBench={() => setPhase({ kind: 'bench' })}
+              onXray={() => setPhase({ kind: 'xray' })}
               transitioning={menuTransitioning}
             />
           )}
@@ -321,6 +325,10 @@ export function App() {
 
           {phase.kind === 'bench' && apiKey && (
             <Bench apiKey={apiKey} onExit={goMenu} />
+          )}
+
+          {phase.kind === 'xray' && apiKey && (
+            <XrayLab onExit={goMenu} />
           )}
 
           {phase.kind === 'survey' && (
