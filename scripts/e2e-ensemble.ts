@@ -89,6 +89,7 @@ const SCRIPT: { line?: string; flip?: 1 | 2 | 3 | 4; silence?: boolean }[] = [
   { line: 'if i leave, who catches it all? that is the thing nobody answers.' },
   { flip: 4 },
   { line: 'okay. yes. that lands. i hate that it lands.' },
+  { line: 'thank you. i think i knew i needed to hear that.' },
 ];
 
 const VISITOR_SYSTEM =
@@ -131,7 +132,9 @@ async function main() {
     adapter = new AnthropicAdapter(createClaudeClient(key));
   }
 
-  const docs = defaultDocs();
+  // the maya doc only — the blank template is authoring scaffolding, not
+  // context the driver should read
+  const docs = defaultDocs().slice(0, 1);
   const input = args.mode === 'session' ? defaultSessionInput(docs) : defaultChatInput(docs);
 
   const calls = new Map<string, CallRecord>();
@@ -174,12 +177,11 @@ async function main() {
   await settle(engine, 120_000);
   logSeer(engine, say);
 
+  // scripted mode always plays the WHOLE track (the close needs flip 4);
+  // --turns sizes the model-driven visitor only
   const steps = args.auto
     ? Array.from({ length: args.turns }, () => ({ auto: true as const }))
-    : SCRIPT.filter((s) => input.mode === 'session' || s.flip === undefined).slice(
-        0,
-        args.turns + 4,
-      );
+    : SCRIPT.filter((s) => input.mode === 'session' || s.flip === undefined);
 
   for (const step of steps) {
     const snap = engine.snapshot();

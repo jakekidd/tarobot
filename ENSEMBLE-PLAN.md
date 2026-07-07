@@ -972,6 +972,8 @@ FIRST, read metrics second: the metrics explain, the ranking decides.
 WORD_MAX             60      budget ceiling
 FILL_K               8       budget fill: FILL_K * ln(1 + visitor words)
 SILENCE_FILL         3       budget per silence tick
+FLIP_FILL            25      a flip buys room to read the card (live-run
+                             finding: without it, reads starve at 5 words)
 START_BUDGET         20
 CAP_MIN / CAP_MAX    10 / 40 driver cap = clamp(round5(budget), MIN, MAX)
 CARRY_RATIO          0.35    visitor word-share below this -> carry
@@ -1209,3 +1211,18 @@ the §3-§6 contracts and append a dated note under §16 deviations.
   stall debt, STALL_MAX_CONSECUTIVE config. build executed in one pass
   (state + engine + agents + lab surface) rather than strictly phased;
   arms protocol, auto-visitor, and record/replay remain per §11 P6.
+- 2026-07-06 (first live runs, six sessions on a real key): the pipeline
+  held — final run 99 calls, 0 errors, full move vocabulary, close with
+  verbatim mantra. fixes from the transcripts: invokeStreaming now
+  retries malformed tool JSON once (contract parity with invoke; a haiku
+  interpreter emitted thoughts as a string blob); FLIP_FILL added (flips
+  never fed the budget, so card reads starved at 5 words); the mantra is
+  shown to the driver only once the close is in reach (it leaked on beat
+  two when advertised every beat); close posture rebalanced (never on
+  the flip itself, but default once the fourth card is read — the first
+  correction made the driver unable to end); beholder files only
+  new-or-changed facts and its schema tolerates absence/overflow.
+  observed, left for tuning: the driver never once chose stall (fan
+  results arrive fast relative to scripted sends; may differ with real
+  typing pauses), and cassandra graded 0 hit / 1 graze / 3 miss on the
+  deflecting script — the scoreboard doing its job.

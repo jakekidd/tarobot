@@ -209,6 +209,7 @@ export class EnsembleEngine {
     const card = this.input.brief.cards.find((c) => c.slot === slot);
     if (!card || this.flipped.includes(slot)) return;
     this.flipped.push(slot);
+    this.budget = Math.min(this.budget + this.c.FLIP_FILL, this.c.WORD_MAX);
     this.scroll.push({ kind: 'ev', ev: 'flip', slot, t: Date.now() });
     this.lastEventWasFlip = true;
     this.triggerAttention('flip');
@@ -670,6 +671,13 @@ export class EnsembleEngine {
   private driverPayload(event: EnsembleEvent) {
     const brief = this.input.brief;
     const capN = cap(this.budget, this.carry(), this.c);
+    // the mantra is the close's payload — showing it to the driver every
+    // beat gets it spent early (live-run finding: it leaked on beat two).
+    // it appears only when the ending is in reach.
+    const closeNear =
+      this.mode === 'session' ? this.flipped.length >= 4 : this.anchor().turn >= 4;
+    const mantraNote =
+      closeNear && brief?.mantra ? ` | mantra on close: ${brief.mantra}` : '';
     return {
       mode: this.mode,
       taboos: this.taboos().join('; ') || '(none)',
@@ -681,7 +689,7 @@ export class EnsembleEngine {
         `thoughts, the visitor's own voice (ammo candidates):\n${renderTail(this.piles.thoughts.tail(this.c.TAIL_THOUGHTS), fmtThought)}`,
         `open questions:\n${renderTail(this.piles.questions.tail(this.c.TAIL_QUESTIONS), fmtQuestion)}`,
       ].join('\n\n'),
-      economy: `cap ${capN} words | visitor talk-share ${this.ratio().toFixed(2)} | carry ${this.carry()}${brief?.mantra ? ` | mantra on close: ${brief.mantra}` : ''}`,
+      economy: `cap ${capN} words | visitor talk-share ${this.ratio().toFixed(2)} | carry ${this.carry()}${mantraNote}`,
       stallState: this.stallState(event),
       event: this.describeEvent(event),
     };

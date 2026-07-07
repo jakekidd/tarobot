@@ -261,6 +261,9 @@ export type EnsembleConstants = {
   WORD_MAX: number;
   FILL_K: number;
   SILENCE_FILL: number;
+  /** a flip buys the seer room to actually read the card — without it,
+   *  card reads get paced like small talk */
+  FLIP_FILL: number;
   START_BUDGET: number;
   CAP_MIN: number;
   CAP_MAX: number;
@@ -289,6 +292,7 @@ export const ENSEMBLE_CONSTANTS: EnsembleConstants = {
   WORD_MAX: 60,
   FILL_K: 8,
   SILENCE_FILL: 3,
+  FLIP_FILL: 25,
   START_BUDGET: 20,
   CAP_MIN: 10,
   CAP_MAX: 40,

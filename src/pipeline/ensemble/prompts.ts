@@ -143,7 +143,7 @@ export const FACTS_TOOL: ToolDef = {
     properties: {
       facts: {
         type: 'array',
-        maxItems: 8,
+        maxItems: 20,
         items: {
           type: 'object',
           properties: {
@@ -155,7 +155,7 @@ export const FACTS_TOOL: ToolDef = {
         },
       },
     },
-    required: ['facts'],
+    required: [],
   },
 };
 

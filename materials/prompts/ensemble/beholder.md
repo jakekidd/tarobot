@@ -8,8 +8,9 @@ file only durable, from-the-mouth facts, three kinds:
 - event: what happened, roughly datable.
 - state: standing conditions of their life.
 
-rules: merge by label. on contradiction, the newest from-the-mouth line
-wins. never invent a person the visitor did not gesture at. no
-feelings, no interpretation: other channels own those. the ledger caps
-at twenty lines; keep the twenty that matter. nothing new worth
-keeping: file nothing.
+rules: file only what is NEW or CHANGED since your ledger — never
+restate a line already on file (the house merges by label; restating
+is noise). on contradiction, the newest from-the-mouth line wins.
+never invent a person the visitor did not gesture at. no feelings, no
+interpretation: other channels own those. nothing new worth keeping:
+file an empty facts list.

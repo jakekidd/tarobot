@@ -22,7 +22,12 @@ const FeelingSchema = z.object({
 
 export const ReadSchema = z.object({
   expressing: z.string(),
-  thoughts: z.array(z.string()).max(3),
+  // small models occasionally emit the array as one string blob; a lone
+  // string degrades to a single thought instead of failing the read
+  thoughts: z.preprocess(
+    (v) => (typeof v === 'string' ? [v] : v),
+    z.array(z.string()).max(3),
+  ),
   feelings: z.array(FeelingSchema).max(3),
   behavior: z.string().optional(),
   cue: z.enum(['press', 'bank', 'honor', 'none']),
@@ -52,6 +57,9 @@ export const QuestionsSchema = z.object({
 });
 
 export const FactsSchema = z.object({
+  // tolerant on purpose: a missing field means "nothing new", and an
+  // over-eager model restating its ledger dedupes at merge — a failed
+  // call loses strictly more than a long list does
   facts: z
     .array(
       z.object({
@@ -60,7 +68,8 @@ export const FactsSchema = z.object({
         note: z.string(),
       }),
     )
-    .max(8),
+    .max(20)
+    .default([]),
 });
 
 export const BitSchema = z.object({

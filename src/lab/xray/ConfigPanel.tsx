@@ -17,6 +17,7 @@ const NUMERIC_KEYS = [
   'WORD_MAX',
   'FILL_K',
   'SILENCE_FILL',
+  'FLIP_FILL',
   'START_BUDGET',
   'CAP_MIN',
   'CAP_MAX',
