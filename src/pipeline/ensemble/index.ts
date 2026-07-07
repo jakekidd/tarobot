@@ -1,5 +1,6 @@
 export { EnsembleEngine } from './engine';
 export { DEFAULT_TIERS } from './agents';
+export { buildSessionLog, serializeSession, type SessionRecord } from './serialize';
 export { frameV1 } from './frame';
 export { pickStallKind, STALL_GUIDANCE } from './stall';
 export {

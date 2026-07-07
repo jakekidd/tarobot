@@ -11,9 +11,11 @@ import { AnthropicAdapter } from '../../pipeline/antechamber';
 import { createClaudeClient } from '../../pipeline/claude';
 import { recordUsage } from '../../debug/usageTally';
 import {
+  buildSessionLog,
   DEFAULT_SCENARIO_CHAT,
   EnsembleEngine,
   FIXTURE_BRIEF,
+  serializeSession,
   type CallRecord,
   type EnsembleInput,
   type EnsembleMode,
@@ -132,21 +134,28 @@ export function XrayLab({ apiKey, onExit }: Props) {
     return () => window.clearInterval(handle);
   }, [autoSilence, engine, livePhase]);
 
-  function exportSession() {
-    if (!engine) return;
-    const payload = {
-      exportedAt: new Date().toISOString(),
-      input: engine.input,
-      snapshot: engine.snapshot(),
-      calls: [...callStore.values()],
-    };
-    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+  function download(name: string, content: string, type: string) {
+    const blob = new Blob([content], { type });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `xray-session-${Date.now()}.json`;
+    a.download = name;
     a.click();
     URL.revokeObjectURL(url);
+  }
+
+  // the SAME SessionRecord shape the headless e2e writes — a browser
+  // session and a terminal session are interchangeable evidence
+  function exportSession() {
+    if (!engine) return;
+    const record = serializeSession(engine.input, engine.snapshot(), [...callStore.values()]);
+    download(`xray-session-${Date.now()}.json`, JSON.stringify(record, null, 2), 'application/json');
+  }
+
+  function exportLog() {
+    if (!engine) return;
+    const record = serializeSession(engine.input, engine.snapshot(), [...callStore.values()]);
+    download(`xray-transcript-${Date.now()}.md`, buildSessionLog(record), 'text/markdown');
   }
 
   const inspecting = inspectId ? (callStore.get(inspectId) ?? null) : null;
@@ -163,6 +172,9 @@ export function XrayLab({ apiKey, onExit }: Props) {
             <>
               <Button variant="ghost" onClick={exportSession}>
                 export json
+              </Button>
+              <Button variant="ghost" onClick={exportLog}>
+                export log
               </Button>
               <Button variant="danger" onClick={endSession}>
                 end session

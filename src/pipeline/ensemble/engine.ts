@@ -86,7 +86,10 @@ export class EnsembleEngine {
 
   // fan state
   private fanInFlight = false;
-  private pendingFan = false;
+  /** coalesced re-run request; carries force so a stall's fan (which
+   *  promises "cognition has weighed in") survives arriving while
+   *  another fan is mid-flight */
+  private pendingFan: { force: boolean } | null = null;
   private newWordsSinceFan = 0;
   private turnsWithMaterialSinceFan = 0;
   private visitorWordsThisTurn = 0;
@@ -139,7 +142,7 @@ export class EnsembleEngine {
       scroll: this.scroll.slice(),
       piles: this.piles.view(),
       frame: this.frames.current(),
-      frames: this.frames.history(),
+      frames: [...this.frames.history()],
       economy: { budget: this.budget, ratio: this.ratio(), carry: this.carry() },
       flipped: this.flipped.slice(),
       busy: this.busy,
@@ -370,7 +373,7 @@ export class EnsembleEngine {
 
   private maybeFan(force = false): void {
     if (this.fanInFlight) {
-      this.pendingFan = true;
+      this.pendingFan = { force: force || (this.pendingFan?.force ?? false) };
       return;
     }
     const due =
@@ -385,7 +388,7 @@ export class EnsembleEngine {
 
   private async runFan(): Promise<void> {
     if (this.fanInFlight) {
-      this.pendingFan = true;
+      this.pendingFan = { force: this.pendingFan?.force ?? false };
       return;
     }
     this.fanInFlight = true;
@@ -489,8 +492,9 @@ export class EnsembleEngine {
 
     this.emit();
     if (this.pendingFan) {
-      this.pendingFan = false;
-      this.maybeFan();
+      const { force } = this.pendingFan;
+      this.pendingFan = null;
+      this.maybeFan(force);
     }
   }
 
