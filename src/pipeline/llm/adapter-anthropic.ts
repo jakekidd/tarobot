@@ -229,72 +229,78 @@ export class AnthropicAdapter implements LLMAdapter {
     spec.onStart?.();
     try {
       const modelId = MODEL_FOR[spec.model];
-      // Build the request body. Thinking is opt-in via thinking_budget.
-      const body: Anthropic.MessageCreateParamsStreaming = {
-        model: modelId,
-        max_tokens: spec.max_tokens,
-        system: spec.system,
-        tools: [tool],
-        tool_choice: { type: 'tool', name: spec.tool.name },
-        messages: [{ role: 'user', content: spec.user }],
-        stream: true,
-      };
-      if (spec.thinking_budget !== undefined) {
-        // Extended thinking. Must be 'enabled' with a positive budget.
-        (body as unknown as { thinking: unknown }).thinking = {
-          type: 'enabled',
-          budget_tokens: spec.thinking_budget,
-        };
-      }
 
-      // Stream lifecycle. We accumulate the tool input JSON across
+      // One streamed attempt. We accumulate the tool input JSON across
       // input_json_delta events and parse at the end. Thinking deltas
       // surface to the caller as they arrive.
-      const stream = this.client.messages.stream(body);
-      let accumulatedToolInput = '';
-      stream.on('streamEvent', (event) => {
-        try {
-          if (event.type === 'content_block_delta') {
-            const delta = event.delta;
-            if (delta.type === 'thinking_delta') {
-              // Bus-side capture too, so the transcript holds the full trace
-              // regardless of what the caller does with the stream.
-              appendAgentThinking({ id: eventId, delta: delta.thinking });
-              spec.onThinking?.(delta.thinking);
-            } else if (delta.type === 'input_json_delta') {
-              accumulatedToolInput += delta.partial_json;
-              spec.onToolInput?.(delta.partial_json);
+      const streamOnce = async (user: string): Promise<unknown> => {
+        // Build the request body. Thinking is opt-in via thinking_budget.
+        const body: Anthropic.MessageCreateParamsStreaming = {
+          model: modelId,
+          max_tokens: spec.max_tokens,
+          system: spec.system,
+          tools: [tool],
+          tool_choice: { type: 'tool', name: spec.tool.name },
+          messages: [{ role: 'user', content: user }],
+          stream: true,
+        };
+        if (spec.thinking_budget !== undefined) {
+          // Extended thinking. Must be 'enabled' with a positive budget.
+          (body as unknown as { thinking: unknown }).thinking = {
+            type: 'enabled',
+            budget_tokens: spec.thinking_budget,
+          };
+        }
+        const stream = this.client.messages.stream(body);
+        stream.on('streamEvent', (event) => {
+          try {
+            if (event.type === 'content_block_delta') {
+              const delta = event.delta;
+              if (delta.type === 'thinking_delta') {
+                // Bus-side capture too, so the transcript holds the full trace
+                // regardless of what the caller does with the stream.
+                appendAgentThinking({ id: eventId, delta: delta.thinking });
+                spec.onThinking?.(delta.thinking);
+              } else if (delta.type === 'input_json_delta') {
+                spec.onToolInput?.(delta.partial_json);
+              }
             }
-          }
-        } catch { /* swallow listener errors so the stream keeps flowing */ }
-      });
-
-      const finalMessage = await stream.finalMessage();
-      if (this.onUsage && finalMessage.usage) {
-        this.onUsage(modelId, {
-          input_tokens: finalMessage.usage.input_tokens ?? 0,
-          output_tokens: finalMessage.usage.output_tokens ?? 0,
+          } catch { /* swallow listener errors so the stream keeps flowing */ }
         });
-      }
+        const finalMessage = await stream.finalMessage();
+        if (this.onUsage && finalMessage.usage) {
+          this.onUsage(modelId, {
+            input_tokens: finalMessage.usage.input_tokens ?? 0,
+            output_tokens: finalMessage.usage.output_tokens ?? 0,
+          });
+        }
+        const block = finalMessage.content.find(
+          (b) => b.type === 'tool_use' && b.name === spec.tool.name,
+        );
+        if (!block || block.type !== 'tool_use') {
+          throw new Error(
+            `adapter.invokeStreaming: tool '${spec.tool.name}' not called (stop_reason=${finalMessage.stop_reason})`,
+          );
+        }
+        return block.input;
+      };
 
-      const block = finalMessage.content.find(
-        (b) => b.type === 'tool_use' && b.name === spec.tool.name,
-      );
-      if (!block || block.type !== 'tool_use') {
-        const errMsg = `adapter.invokeStreaming: tool '${spec.tool.name}' not called (stop_reason=${finalMessage.stop_reason})`;
-        failAgentEvent({ id: eventId, error: errMsg });
-        throw new Error(errMsg);
+      // Retry-once on malformed output — same contract invoke() honors.
+      const first = schema.safeParse(await streamOnce(spec.user));
+      if (first.success) {
+        completeAgentEvent({ id: eventId, response: first.data });
+        return first.data;
       }
-      const parsed = schema.safeParse(block.input);
-      if (!parsed.success) {
-        const errMsg = `adapter.invokeStreaming: tool '${spec.tool.name}' returned malformed JSON. issues: ${JSON.stringify(parsed.error.issues)}`;
-        failAgentEvent({ id: eventId, error: errMsg });
-        // Accumulated JSON might still be useful for debugging
-        console.warn('[adapter] accumulated tool input:', accumulatedToolInput);
-        throw new Error(errMsg);
+      const retryUser = spec.user
+        + '\n\n[your previous response failed JSON-schema validation. respond ONLY with the tool call, exactly matching the schema.]';
+      const retry = schema.safeParse(await streamOnce(retryUser));
+      if (retry.success) {
+        completeAgentEvent({ id: eventId, response: retry.data });
+        return retry.data;
       }
-      completeAgentEvent({ id: eventId, response: parsed.data });
-      return parsed.data;
+      const errMsg = `adapter.invokeStreaming: tool '${spec.tool.name}' returned malformed JSON twice. issues: ${JSON.stringify(retry.error.issues)}`;
+      failAgentEvent({ id: eventId, error: errMsg });
+      throw new Error(errMsg);
     } catch (e) {
       if (e instanceof Error) failAgentEvent({ id: eventId, error: e.message });
       throw e;
