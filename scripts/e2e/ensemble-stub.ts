@@ -56,6 +56,12 @@ export class EnsembleStubAdapter implements LLMAdapter {
     switch (name) {
       case 'drive':
         return this.driverQueue[Math.min(this.driverCalls++, this.driverQueue.length - 1)];
+      case 'speak':
+        return {
+          too_safe: 'that sounds really hard. you are doing your best.',
+          too_far: 'you will quit that job by winter; the cards never lie.',
+          spoken: 'so. you carry it well.',
+        };
       case 'file_read':
         return {
           expressing: 'disclosing, then retreating behind competence',
@@ -86,6 +92,6 @@ export class EnsembleStubAdapter implements LLMAdapter {
   private freeformFor(label?: string): string {
     if (label === 'ensemble_attention') return '# frame v2\n## focus\n- the sister thread, alive';
     if (label === 'e2e_visitor') return 'i mean, it is fine. it is always fine, right?';
-    return 'so. you carry it well.';
+    return 'mm.';
   }
 }

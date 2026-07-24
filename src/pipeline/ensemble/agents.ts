@@ -12,6 +12,7 @@ import type {
   EnsembleTelemetry,
   Fact,
   Intent,
+  PersonaLine,
   PileItem,
   Prediction,
   Question,
@@ -22,6 +23,7 @@ import {
   BIT_TOOL,
   DRIVER_TOOL,
   FACTS_TOOL,
+  PERSONA_TOOL,
   PREDICTION_TOOL,
   QUESTIONS_TOOL,
   READ_TOOL,
@@ -33,6 +35,7 @@ import {
   BitSchema,
   FactsSchema,
   IntentSchema,
+  PersonaLineSchema,
   PredictionSchema,
   QuestionsSchema,
   ReadSchema,
@@ -149,6 +152,7 @@ export type DriverPayload = {
   frame: string;
   conversation: string;
   cognition: string;
+  goals: string;
   economy: string;
   stallState: string;
   event: string;
@@ -163,6 +167,7 @@ export function callDriver(env: AgentEnv, p: DriverPayload): Promise<Intent> {
     `FRAME:\n${p.frame}`,
     `CONVERSATION (recent):\n${p.conversation}`,
     `COGNITION:\n${p.cognition}`,
+    `GOALS:\n${p.goals}`,
     `ECONOMY: ${p.economy}`,
     `STALL_STATE: ${p.stallState}`,
     `EVENT: ${p.event}`,
@@ -178,11 +183,19 @@ export type PersonaPayload = {
   assignment: string;
 };
 
-export function callPersona(env: AgentEnv, p: PersonaPayload): Promise<string> {
+export function callPersona(env: AgentEnv, p: PersonaPayload): Promise<PersonaLine> {
   const sections = [`[the conversation so far]\n${p.conversation}`, `[your orientation]\n${p.frame}`];
   if (p.bit) sections.push(`[a bit in your pocket, playable or not]\n${p.bit}`);
   sections.push(`[the intent]\n${p.assignment}`);
-  return freeform(env, 'persona', SYSTEMS.wildcard, sections.join('\n\n'), 400);
+  return structured(
+    env,
+    'persona',
+    SYSTEMS.wildcard,
+    sections.join('\n\n'),
+    PERSONA_TOOL,
+    PersonaLineSchema,
+    600,
+  );
 }
 
 // ------------------------------------------------------------ cognition
@@ -195,7 +208,7 @@ type FanPayload = {
 
 function fanUser(p: FanPayload): string {
   const sections = [`CONVERSATION (newest visitor material marked NEW):\n${p.conversation}`];
-  if (p.frame) sections.push(`SEER'S CURRENT FRAME:\n${p.frame}`);
+  if (p.frame) sections.push(`ORACLE'S CURRENT FRAME:\n${p.frame}`);
   sections.push(`YOUR RECENT FILINGS:\n${p.ownTail}`);
   return sections.join('\n\n');
 }

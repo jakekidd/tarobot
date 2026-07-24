@@ -175,7 +175,7 @@ async function main() {
   console.log(`\n=== ensemble e2e · ${input.mode} · visitor: ${args.auto ? 'model' : 'scripted'} ===`);
   engine.start();
   await settle(engine, 120_000);
-  logSeer(engine, say);
+  logOracle(engine, say);
 
   // scripted mode always plays the WHOLE track (the close needs flip 4);
   // --turns sizes the model-driven visitor only
@@ -202,7 +202,7 @@ async function main() {
       engine.visitorLine(step.line);
     }
     await settle(engine, 120_000);
-    logSeer(engine, say);
+    logOracle(engine, say);
   }
 
   // serialize — the SAME SessionRecord the lab's export button writes
@@ -223,13 +223,13 @@ async function main() {
 }
 
 let lastSpokenCount = 0;
-function logSeer(engine: EnsembleEngine, say: (who: string, text: string) => void): void {
+function logOracle(engine: EnsembleEngine, say: (who: string, text: string) => void): void {
   const beats = engine
     .snapshot()
-    .scroll.filter((e) => e.kind === 'beat' && e.speaker === 'seer');
+    .scroll.filter((e) => e.kind === 'beat' && e.speaker === 'oracle');
   for (let i = lastSpokenCount; i < beats.length; i++) {
     const b = beats[i]!;
-    if (b.kind === 'beat') say('seer', b.text);
+    if (b.kind === 'beat') say('oracle', b.text);
   }
   lastSpokenCount = beats.length;
 }

@@ -12,6 +12,7 @@ import { createClaudeClient } from '../../pipeline/claude';
 import { recordUsage } from '../../debug/usageTally';
 import {
   buildSessionLog,
+  DEFAULT_GREETING_CHAT,
   DEFAULT_SCENARIO_CHAT,
   EnsembleEngine,
   FIXTURE_BRIEF,
@@ -43,6 +44,7 @@ export function XrayLab({ apiKey, onExit }: Props) {
   });
   const [mode, setMode] = useState<EnsembleMode>('chat');
   const [scenario, setScenario] = useState(DEFAULT_SCENARIO_CHAT);
+  const [greeting, setGreeting] = useState(DEFAULT_GREETING_CHAT);
   const [briefJson, setBriefJson] = useState(() => JSON.stringify(FIXTURE_BRIEF, null, 2));
   const [briefError, setBriefError] = useState<string | null>(null);
 
@@ -77,6 +79,7 @@ export function XrayLab({ apiKey, onExit }: Props) {
       mode,
       docs: docs.filter((d) => selected.includes(d.id)),
       scenario,
+      greeting: greeting.trim() ? greeting : undefined,
       brief,
       taboos: [],
     };
@@ -196,6 +199,8 @@ export function XrayLab({ apiKey, onExit }: Props) {
             onModeChange={setMode}
             scenario={scenario}
             onScenarioChange={setScenario}
+            greeting={greeting}
+            onGreetingChange={setGreeting}
             briefJson={briefJson}
             onBriefJsonChange={setBriefJson}
             briefError={briefError}

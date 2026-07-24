@@ -6,7 +6,7 @@
 //
 // The word economy is enforced in the loop, not asked for in a prompt:
 // the budget fills sub-linearly as the visitor talks (FILL_K * ln(1+words)),
-// ticks up slowly through silence, and empties by the seer's own word count.
+// ticks up slowly through silence, and empties by the oracle's own word count.
 //
 // Node-portable: no DOM, no timers. The silence clock belongs to the caller
 // (the beta UI ticks silenceTick(); a CLI runner would own its own timer).
@@ -147,7 +147,7 @@ export class OracleEngine {
   }
 
   private speak(text: string): void {
-    this.scroll.push({ kind: 'beat', speaker: 'seer', text, t: Date.now() });
+    this.scroll.push({ kind: 'beat', speaker: 'oracle', text, t: Date.now() });
     this.budget = Math.max(0, this.budget - countWords(text));
   }
 
@@ -271,7 +271,7 @@ function describeEvent(event: OracleEvent): Record<string, unknown> {
  *  strip transport artifacts, never rewrite content. */
 function sanitizeLine(raw: string): string {
   let s = raw.trim();
-  s = s.replace(/^seer:\s*/i, '');
+  s = s.replace(/^(oracle|seer):\s*/i, '');
   if (
     (s.startsWith('"') && s.endsWith('"')) ||
     (s.startsWith('“') && s.endsWith('”'))

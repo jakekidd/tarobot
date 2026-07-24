@@ -1,7 +1,7 @@
 // Headless ensemble smoke — drives EnsembleEngine through a scripted
 // chat session against a stub adapter (no API key, no network) and
-// asserts the loop's mechanics: open dispatch, stall debt lifecycle,
-// fan write-through, prediction judging. Prints the scroll at the end.
+// asserts the loop's mechanics: the scripted greeting, stall debt
+// lifecycle, fan write-through, prediction judging. Prints the scroll.
 //
 //   node --import ./scripts/register-raw-loader.mjs --import tsx scripts/ensemble-smoke.ts
 
@@ -10,7 +10,6 @@ import { defaultChatInput, defaultDocs } from '../src/pipeline/ensemble/fixtures
 import { EnsembleStubAdapter } from './e2e/ensemble-stub';
 
 const driverQueue: unknown[] = [
-  { move: 'respond', thread: 'the room', accomplish: 'land her in the room', approx_words: 15, note: 'opening' },
   { move: 'stall', thread: 'the sister', accomplish: 'buy a beat; aim at the sister', approx_words: 10, note: 'heavy line, thin tails — braking' },
   { move: 'press', thread: 'the sister', accomplish: 'name the load she carries for the sister', approx_words: 20, note: 'debt paid' },
 ];
@@ -39,11 +38,13 @@ async function main() {
     input: defaultChatInput(defaultDocs()),
   });
 
-  console.log('open:');
+  console.log('open — the scripted greeting:');
   engine.start();
   await settle(engine);
   let s = engine.snapshot();
-  assert(s.scroll.some((e) => e.kind === 'beat' && e.speaker === 'seer'), 'opening line committed');
+  assert(s.scroll.some((e) => e.kind === 'beat' && e.speaker === 'oracle'), 'greeting beats committed');
+  assert(s.piles.intents.length === 0, 'no model call spent on the greeting');
+  assert(s.stage === 'opening', `stage is opening (got ${s.stage})`);
   assert(s.stallDebt === null, 'no stall debt at open');
 
   console.log('heavy line -> driver stalls:');

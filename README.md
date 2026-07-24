@@ -1,9 +1,15 @@
 # tarobot
 
-A tarot-themed web app. Dark purple game-feel CRT scene. A turtle (the
-mascot) interviews you in the antechamber; then a four-card diamond
-spread is read by the Seer. The reading is the thing the rest exists to
-serve.
+A tarot-themed web app. The reading is the thing the rest exists to
+serve; the reader character is **the oracle**.
+
+**Current focus:** the app boots into the **xray lab** — the debug
+surface for the ensemble reading engine (`src/pipeline/ensemble/`, see
+[`docs/ENSEMBLE.md`](docs/ENSEMBLE.md)) — chat-first oracle, scripted
+greeting, driver/persona behavior track, six-agent cognition fan. The
+older turtle world (dark purple CRT scene, antechamber interview,
+four-card diamond read) is parked behind the lab's ← menu button while
+the ensemble earns its keep.
 
 Tarot is about healing — about unraveling the stories we inevitably
 get stuck telling ourselves, to uncover new meaning, perspective,
@@ -47,8 +53,8 @@ still serving returning users, being retired.)
    a negative-space stack.
 5. **Compiler** *(not built yet)* — will deepen each dilemma (expert
    agents, the card deal) and bridge to the reading.
-6. **The Seer** — director + actor. The director (cloud) plans silently;
-   the actor (the voiced seer) speaks. Each card is its own small fan-out.
+6. **The reading** — legacy path: director + actor (`src/pipeline/seer/`).
+   The go-forward reading engine is the ensemble (`docs/ENSEMBLE.md`).
 
 Full living detail: **[`docs/PIPELINE.md`](docs/PIPELINE.md)**. Onboarding +
 current state: **[`docs/HANDOFF.md`](docs/HANDOFF.md)**.
@@ -66,7 +72,9 @@ materials/
   prompts/condenser.md            RawPortrait → markdown Portrait
   prompts/scribe.md               enrich a write-in into channels
   prompts/conjector/              the dilemma hunt (move / reroot / summary)
-  prompts/seer/                   seer voice bible + per-call prompts
+  prompts/ensemble/               one system prompt per ensemble agent
+  prompts/seer/                   legacy seer voice bible + per-call prompts
+  ensemble/greeting-*.md          the oracle's screenwritten opening
   prompts/augur-{outline,fill}.md outcome naming + document fills (reading)
   names/{masc,fem}.txt            relationship_pick name banks
   mascot/return-lines.md          returning-user mascot lines

@@ -71,8 +71,11 @@ type Phase =
 
 export function App() {
   const [apiKey, setApiKey] = useState<string | null>(() => loadApiKey());
+  // the xray lab is the front door for now: the ensemble is the
+  // go-forward bet and the turtle app is parked. the menu (and the whole
+  // turtle world) stays reachable via the lab's ← menu button.
   const [phase, setPhase] = useState<Phase>(() =>
-    loadApiKey() ? { kind: 'menu' } : { kind: 'key' },
+    loadApiKey() ? { kind: 'xray' } : { kind: 'key' },
   );
 
   // Debug overlay toggle — persists between sessions.
@@ -283,7 +286,7 @@ export function App() {
 
       <main className={`app__main ${phase.kind === 'reading' ? 'app__main--full' : ''}`}>
           {phase.kind === 'key' && (
-            <KeyEntry onValidated={(k) => { setApiKey(k); goMenu(); }} />
+            <KeyEntry onValidated={(k) => { setApiKey(k); setPhase({ kind: 'xray' }); }} />
           )}
 
           {phase.kind === 'menu' && (

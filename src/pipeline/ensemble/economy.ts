@@ -1,5 +1,5 @@
 // The word economy — pacing, never permission. The budget sizes lines;
-// it never gates whether the seer may speak. Carry license fires when
+// it never gates whether the oracle may speak. Carry license fires when
 // the visitor underfeeds.
 
 import { countWords, type Beat, type EnsembleConstants, type ScrollEntry } from './types';
@@ -17,17 +17,17 @@ export function spend(budget: number, line: string): number {
 }
 
 /** visitor word-share over the last RATIO_WINDOW turns. a turn spans one
- *  seer speech commit to the next; approximated here over the trailing
+ *  oracle speech commit to the next; approximated here over the trailing
  *  beats window, which is equivalent for the ratio's purpose. */
 export function talkRatio(scroll: readonly ScrollEntry[], c: EnsembleConstants): number {
   const beats = scroll.filter((e): e is Beat => e.kind === 'beat');
-  // Walk back RATIO_WINDOW seer commits.
-  let seerSeen = 0;
+  // Walk back RATIO_WINDOW oracle commits.
+  let oracleSeen = 0;
   let start = 0;
   for (let i = beats.length - 1; i >= 0; i--) {
-    if (beats[i].speaker === 'seer') {
-      seerSeen += 1;
-      if (seerSeen >= c.RATIO_WINDOW) {
+    if (beats[i].speaker === 'oracle') {
+      oracleSeen += 1;
+      if (oracleSeen >= c.RATIO_WINDOW) {
         start = i;
         break;
       }
@@ -46,8 +46,8 @@ export function talkRatio(scroll: readonly ScrollEntry[], c: EnsembleConstants):
 }
 
 /** carry = the visitor is underfeeding in absolute terms. never derived
- *  from word-share: the seer talking more would lower the visitor's
- *  share and self-license even more seer words. */
+ *  from word-share: the oracle talking more would lower the visitor's
+ *  share and self-license even more oracle words. */
 export function carryFromScroll(
   scroll: readonly ScrollEntry[],
   c: EnsembleConstants,

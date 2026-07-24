@@ -29,6 +29,33 @@ delete from here.
 
 ## just-deferred (most recent first)
 
+### the psychedelic table — phosphene visuals for the oracle
+Jake authored an animated phosphene visualization in a claude.ai chat
+(what he saw recovering from optic-nerve damage; the press-on-your-eyes
+percept): a rough-edged luminous mass with a punched-out hole, stepped
+noise clock (~3.3 Hz), two-level breathing envelope, flash-decay
+dimming. A handoff doc from that chat describes adapting it to eyes
+floating in darkness for the oracle — **get that handoff file into the
+repo** (`materials/` or `docs/`) before it's lost to chat history.
+First adaptation attempt (two side-by-side blobs) read as "two eye
+sockets" — rejected. Direction that survives: smoother, appealing,
+psychedelic — compatible with a visitor at Burning Man who is tripping
+and may not read words at all. The lesson from the vibe-coded rival
+app: the experience must land non-verbally too. Don't build a rubric
+for "psychedelic"; build the sim, put sliders on it (the chat workflow
+that worked: expose the disputed parameter as a slider, let jake match
+memory), and iterate against jake's eyes. three.js shader or canvas;
+lives beside the scene layer, not in the pipeline.
+
+### mad-libs slots in the greeting beyond {{name}}
+The greeting is screenwritten now (`materials/ensemble/greeting-*.md`,
+rendered by `pipeline/ensemble/greeting.ts` — verbatim, no model call).
+Next step when authoring wants it: `[[blank: description]]` slots the
+persona fills in-character from the docs — personalization stays
+slot-shaped, invention stays impossible. Also: the disclaimers slot in
+the templates is an empty html comment on purpose; when the festival
+needs one (recording, age, etc.), it becomes a paragraph in her voice.
+
 ### rank the exp01 blind bundle (jake, human-in-the-loop)
 The arms protocol ran (2× naive / baseline / ensemble over the scripted
 maya track). Six beats-only transcripts sit shuffled in

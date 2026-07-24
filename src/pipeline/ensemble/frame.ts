@@ -1,4 +1,4 @@
-// The frame — the seer's standing orientation. Markdown, not schema.
+// The frame — the oracle's standing orientation. Markdown, not schema.
 // Frame v1 is assembled deterministically from the input (no model call,
 // zero start latency); attention regenerates it whole thereafter.
 

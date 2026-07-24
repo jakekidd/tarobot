@@ -28,7 +28,7 @@ type Arm = 'naive' | 'baseline' | 'ensemble';
 const NAIVE_CARD =
   WILDCARD_RAW.slice(0, WILDCARD_RAW.indexOf('[each beat]')).trim() +
   '\n\n[delivery]\nyou receive the brief and the conversation. speak the ' +
-  "seer's next line and nothing else: no quotes, no stage directions, no " +
+  "oracle's next line and nothing else: no quotes, no stage directions, no " +
   'markdown. keep it under 40 words. lowercase.';
 
 async function runNaive(adapter: LLMAdapter): Promise<SimpleBeat[]> {
@@ -36,8 +36,8 @@ async function runNaive(adapter: LLMAdapter): Promise<SimpleBeat[]> {
   const beats: SimpleBeat[] = [];
   const transcript: string[] = [];
   const speak = (text: string) => {
-    beats.push({ speaker: 'seer', text });
-    transcript.push(`seer: ${text}`);
+    beats.push({ speaker: 'oracle', text });
+    transcript.push(`oracle: ${text}`);
   };
   speak(b.opening);
 
@@ -61,12 +61,12 @@ async function runNaive(adapter: LLMAdapter): Promise<SimpleBeat[]> {
     }
     const line = await adapter.invokeFreeform({
       system: NAIVE_CARD,
-      user: `BRIEF:\n${briefText}\n\nCONVERSATION:\n${transcript.join('\n')}\n\nthe seer's next line:`,
+      user: `BRIEF:\n${briefText}\n\nCONVERSATION:\n${transcript.join('\n')}\n\nthe oracle's next line:`,
       model: 'cognition',
       max_tokens: 300,
       label: 'exp01_naive',
     });
-    speak(line.trim().replace(/^seer:\s*/i, ''));
+    speak(line.trim().replace(/^oracle:\s*/i, ''));
   }
   return beats;
 }
@@ -88,7 +88,7 @@ async function runBaseline(adapter: LLMAdapter): Promise<SimpleBeat[]> {
   return engine
     .snapshot()
     .scroll.filter((e): e is Extract<typeof e, { kind: 'beat' }> => e.kind === 'beat')
-    .map((bt) => ({ speaker: bt.speaker === 'seer' ? ('seer' as const) : ('visitor' as const), text: bt.text }));
+    .map((bt) => ({ speaker: bt.speaker === 'oracle' ? ('oracle' as const) : ('visitor' as const), text: bt.text }));
 }
 
 // ─── ensemble arm ───────────────────────────────────────────────

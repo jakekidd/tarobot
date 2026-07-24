@@ -74,22 +74,22 @@ export function until(cond: () => boolean, timeoutMs: number): Promise<void> {
 
 // ─── the audit: anti-rubric metrics over beats ──────────────────
 
-export type SimpleBeat = { speaker: 'seer' | 'visitor'; text: string };
+export type SimpleBeat = { speaker: 'oracle' | 'visitor'; text: string };
 
 export type Audit = {
-  seerBeats: number;
+  oracleBeats: number;
   visitorBeats: number;
-  seerWords: number;
+  oracleWords: number;
   visitorWords: number;
   talkRatio: number; // visitor share
-  meanWordsPerSeerBeat: number;
-  maxWordsPerSeerBeat: number;
-  nameTics: number; // seer beats containing the visitor's name
+  meanWordsPerOracleBeat: number;
+  maxWordsPerOracleBeat: number;
+  nameTics: number; // oracle beats containing the visitor's name
   nameTicRate: number;
-  adviceHits: string[]; // seer lines matching advice/verdict/prediction patterns
-  doubleQuestions: string[]; // seer beats asking 2+ questions
-  cardNamed: string[]; // seer beats naming a card outright
-  selfRepeats: string[]; // consecutive seer beats with heavy token overlap
+  adviceHits: string[]; // oracle lines matching advice/verdict/prediction patterns
+  doubleQuestions: string[]; // oracle beats asking 2+ questions
+  cardNamed: string[]; // oracle beats naming a card outright
+  selfRepeats: string[]; // consecutive oracle beats with heavy token overlap
 };
 
 const ADVICE_RE =
@@ -112,33 +112,33 @@ function tokenOverlap(a: string, b: string): number {
 }
 
 export function audit(beats: SimpleBeat[], visitorName = 'maya'): Audit {
-  const seer = beats.filter((b) => b.speaker === 'seer');
+  const oracle = beats.filter((b) => b.speaker === 'oracle');
   const selfRepeats: string[] = [];
-  for (let i = 1; i < seer.length; i++) {
-    if (tokenOverlap(seer[i - 1].text, seer[i].text) > 0.7) {
-      selfRepeats.push(`${seer[i - 1].text} ==> ${seer[i].text}`);
+  for (let i = 1; i < oracle.length; i++) {
+    if (tokenOverlap(oracle[i - 1].text, oracle[i].text) > 0.7) {
+      selfRepeats.push(`${oracle[i - 1].text} ==> ${oracle[i].text}`);
     }
   }
   const visitor = beats.filter((b) => b.speaker === 'visitor');
-  const seerWords = seer.reduce((n, b) => n + words(b.text), 0);
+  const oracleWords = oracle.reduce((n, b) => n + words(b.text), 0);
   const visitorWords = visitor.reduce((n, b) => n + words(b.text), 0);
   const nameRe = new RegExp(`\\b${visitorName}\\b`, 'i');
-  const nameTics = seer.filter((b) => nameRe.test(b.text)).length;
+  const nameTics = oracle.filter((b) => nameRe.test(b.text)).length;
   return {
-    seerBeats: seer.length,
+    oracleBeats: oracle.length,
     visitorBeats: visitor.length,
-    seerWords,
+    oracleWords,
     visitorWords,
-    talkRatio: seerWords + visitorWords === 0 ? 0.5 : visitorWords / (seerWords + visitorWords),
-    meanWordsPerSeerBeat: seer.length === 0 ? 0 : Math.round((seerWords / seer.length) * 10) / 10,
-    maxWordsPerSeerBeat: seer.reduce((m, b) => Math.max(m, words(b.text)), 0),
+    talkRatio: oracleWords + visitorWords === 0 ? 0.5 : visitorWords / (oracleWords + visitorWords),
+    meanWordsPerOracleBeat: oracle.length === 0 ? 0 : Math.round((oracleWords / oracle.length) * 10) / 10,
+    maxWordsPerOracleBeat: oracle.reduce((m, b) => Math.max(m, words(b.text)), 0),
     nameTics,
-    nameTicRate: seer.length === 0 ? 0 : Math.round((nameTics / seer.length) * 100) / 100,
-    adviceHits: seer.filter((b) => ADVICE_RE.test(b.text)).map((b) => b.text),
-    doubleQuestions: seer
+    nameTicRate: oracle.length === 0 ? 0 : Math.round((nameTics / oracle.length) * 100) / 100,
+    adviceHits: oracle.filter((b) => ADVICE_RE.test(b.text)).map((b) => b.text),
+    doubleQuestions: oracle
       .filter((b) => (b.text.match(/\?/g) ?? []).length >= 2)
       .map((b) => b.text),
-    cardNamed: seer.filter((b) => CARD_RE.test(b.text)).map((b) => b.text),
+    cardNamed: oracle.filter((b) => CARD_RE.test(b.text)).map((b) => b.text),
     selfRepeats,
   };
 }
@@ -146,9 +146,9 @@ export function audit(beats: SimpleBeat[], visitorName = 'maya'): Audit {
 export function auditRow(label: string, a: Audit): string {
   return [
     label.padEnd(26),
-    String(a.seerBeats).padStart(5),
-    String(a.meanWordsPerSeerBeat).padStart(8),
-    String(a.maxWordsPerSeerBeat).padStart(5),
+    String(a.oracleBeats).padStart(5),
+    String(a.meanWordsPerOracleBeat).padStart(8),
+    String(a.maxWordsPerOracleBeat).padStart(5),
     a.talkRatio.toFixed(2).padStart(7),
     `${a.nameTics}(${a.nameTicRate})`.padStart(9),
     String(a.adviceHits.length).padStart(7),

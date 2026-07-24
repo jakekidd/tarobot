@@ -35,7 +35,9 @@ import {
 } from './agents';
 import { cap, carryFromScroll, fillFromLine, fillFromSilence, spend, talkRatio } from './economy';
 import { FrameStore, frameV1 } from './frame';
+import { renderGreeting } from './greeting';
 import { Piles } from './piles';
+import { deriveStage, stageGoals } from './stages';
 import { pickStallKind, STALL_GUIDANCE } from './stall';
 import {
   countWords,
@@ -82,6 +84,8 @@ export class EnsembleEngine {
 
   private stallDebt: StallDebt | null = null;
   private stallConsecutive = 0;
+  /** scripted greeting beats don't count as performed turns */
+  private greetingBeatCount = 0;
 
   private gen = 0;
 
@@ -140,6 +144,7 @@ export class EnsembleEngine {
     return {
       mode: this.mode,
       phase: this.phase,
+      stage: this.stage(),
       scroll: this.scroll.slice(),
       piles: this.piles.view(),
       frame: this.frames.current(),
@@ -191,6 +196,20 @@ export class EnsembleEngine {
     if (this.phase !== 'idle') return;
     this.phase = 'live';
     this.scroll.push({ kind: 'ev', ev: 'open', t: Date.now() });
+    const greeting = this.input.greeting
+      ? renderGreeting(this.input.greeting, { name: this.input.brief?.name })
+      : [];
+    if (greeting.length > 0) {
+      // the greeting is screenwritten: spoken verbatim, free of the
+      // budget, no model in the loop. the opening is where an unfounded
+      // generated line costs the most.
+      for (const text of greeting) {
+        this.scroll.push({ kind: 'beat', speaker: 'oracle', text, t: Date.now() });
+      }
+      this.greetingBeatCount = greeting.length;
+      this.emit();
+      return;
+    }
     void this.dispatch({ type: 'open' });
   }
 
@@ -233,10 +252,10 @@ export class EnsembleEngine {
 
   /** the UI's interrupt: the typewriter was cut off mid-render. the beat
    *  stays (it was spoken up to here), truncated and marked. */
-  truncateLastSeerBeat(visibleText: string): void {
+  truncateLastOracleBeat(visibleText: string): void {
     for (let i = this.scroll.length - 1; i >= 0; i--) {
       const e = this.scroll[i];
-      if (e.kind === 'beat' && e.speaker === 'seer') {
+      if (e.kind === 'beat' && e.speaker === 'oracle') {
         e.text = visibleText;
         e.truncated = true;
         break;
@@ -295,9 +314,9 @@ export class EnsembleEngine {
 
       const clean = sanitizeLine(line);
       if (clean) {
-        this.scroll.push({ kind: 'beat', speaker: 'seer', text: clean, t: Date.now() });
+        this.scroll.push({ kind: 'beat', speaker: 'oracle', text: clean, t: Date.now() });
         this.budget = spend(this.budget, clean);
-        // turn boundary: a seer speech commit closes the turn.
+        // turn boundary: an oracle speech commit closes the turn.
         if (this.visitorWordsThisTurn > 0) this.turnsWithMaterialSinceFan += 1;
         this.visitorWordsThisTurn = 0;
         this.turnsSinceFrameRegen += 1;
@@ -357,11 +376,13 @@ export class EnsembleEngine {
       bit: this.bitTail(),
       assignment: this.assignment(intent),
     };
+    // the goldilocks pass: three takes come back, only `spoken` is
+    // performed — the drafts stay in the call record for the lab
     try {
-      return await callPersona(this.env, payload);
+      return (await callPersona(this.env, payload)).spoken;
     } catch {
       try {
-        return await callPersona(this.env, payload);
+        return (await callPersona(this.env, payload)).spoken;
       } catch {
         const line = CANNED_LINES[this.cannedIdx % CANNED_LINES.length];
         this.cannedIdx += 1;
@@ -597,10 +618,21 @@ export class EnsembleEngine {
   // ------------------------------------------------------------- context
 
   private anchor(): Anchor {
-    const turn = this.scroll.filter(
-      (e): e is Beat => e.kind === 'beat' && e.speaker === 'seer',
+    const spoken = this.scroll.filter(
+      (e): e is Beat => e.kind === 'beat' && e.speaker === 'oracle',
     ).length;
+    // turns are performed beats; the scripted greeting isn't one
+    const turn = Math.max(0, spoken - this.greetingBeatCount);
     return { turn, beat: Math.max(0, this.scroll.length - 1) };
+  }
+
+  private stage() {
+    return deriveStage({
+      mode: this.mode,
+      scroll: this.scroll,
+      flippedCount: this.flipped.length,
+      phase: this.phase,
+    });
   }
 
   private ratio(): number {
@@ -715,10 +747,18 @@ export class EnsembleEngine {
         `thoughts, the visitor's own voice (ammo candidates):\n${renderTail(this.piles.thoughts.tail(this.c.TAIL_THOUGHTS), fmtThought)}`,
         `open questions:\n${renderTail(this.piles.questions.tail(this.c.TAIL_QUESTIONS), fmtQuestion)}`,
       ].join('\n\n'),
+      goals: this.renderGoals(),
       economy: `cap ${capN} words | visitor talk-share ${this.ratio().toFixed(2)} | carry ${this.carry()}${mantraNote}`,
       stallState: this.stallState(event),
       event: this.describeEvent(event),
     };
+  }
+
+  private renderGoals(): string {
+    const stage = this.stage();
+    const goals = stageGoals(this.mode, stage);
+    if (goals.length === 0) return `stage: ${stage} | (no standing goals)`;
+    return [`stage: ${stage} — P0 highest`, ...goals].join('\n');
   }
 
   private assignment(intent: Intent): string {
@@ -737,9 +777,9 @@ export class EnsembleEngine {
       lines.push(`the mantra, the last thing they hear: ${this.input.brief.mantra}`);
     }
     // the name rides only the first and last beats — handed over every
-    // beat, the persona wears it out (live audit: 14/14 seer beats said
+    // beat, the persona wears it out (live audit: 14/14 oracle beats said
     // "maya"; the run with no name passed said it zero times)
-    const isOpening = !this.scroll.some((e) => e.kind === 'beat' && e.speaker === 'seer');
+    const isOpening = !this.scroll.some((e) => e.kind === 'beat' && e.speaker === 'oracle');
     if (this.input.brief?.name && (isOpening || intent.move === 'close')) {
       lines.push(`their name, use it sparingly: ${this.input.brief.name}`);
     }
@@ -752,7 +792,7 @@ export class EnsembleEngine {
  *  strip transport artifacts, never rewrite content. */
 function sanitizeLine(raw: string): string {
   let s = raw.trim();
-  s = s.replace(/^(seer|wildcard):\s*/i, '');
+  s = s.replace(/^(oracle|seer|wildcard):\s*/i, '');
   if ((s.startsWith('"') && s.endsWith('"')) || (s.startsWith('“') && s.endsWith('”'))) {
     s = s.slice(1, -1).trim();
   }

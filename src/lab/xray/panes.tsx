@@ -4,11 +4,15 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { Button, Empty, Kv, Panel, Pill, Row, Stack, Stream } from '../lib';
-import type {
-  AgentName,
-  CallRecord,
-  EnsembleSnapshot,
-  PileItem,
+import {
+  CHAT_STOPS,
+  SESSION_STOPS,
+  stopIndex,
+  type AgentName,
+  type CallRecord,
+  type EnsembleSnapshot,
+  type PersonaLine,
+  type PileItem,
 } from '../../pipeline/ensemble';
 
 // ------------------------------------------------------------ shared
@@ -178,6 +182,32 @@ export function CognitionColumn({
   );
 }
 
+// ---------------------------------------------------------- the train line
+
+/** the overhead nav: every stop on the session's line, the current one
+ *  lit, the next one flashing. stages are derived, never model-decided. */
+function TrainLine({ snap }: { snap: EnsembleSnapshot }) {
+  const stops = snap.mode === 'session' ? SESSION_STOPS : CHAT_STOPS;
+  const here = stopIndex(snap.mode, snap.stage);
+  const done = snap.phase === 'closed';
+  return (
+    <div className="xray__trainline">
+      {stops.map((s, i) => {
+        const cls = ['xray__stop'];
+        if (i < here || (done && i <= here)) cls.push('xray__stop--past');
+        else if (i === here) cls.push('xray__stop--here');
+        else if (i === here + 1) cls.push('xray__stop--next');
+        return (
+          <div key={s.id} className={cls.join(' ')}>
+            <span className="xray__stop-dot" />
+            <span className="xray__stop-label">{s.label}</span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 // ------------------------------------------------------------ the table
 
 export function TablePane({
@@ -212,6 +242,7 @@ export function TablePane({
 
   return (
     <div className="xray__table">
+      <TrainLine snap={snap} />
       <Row gap={2} wrap>
         <Pill variant={snap.phase === 'live' ? 'good' : 'default'}>{snap.phase}</Pill>
         {snap.busy && <Pill variant="warm">behavior: {snap.busy}…</Pill>}
@@ -291,6 +322,29 @@ export function TablePane({
 
 // ------------------------------------------------------------ behavior
 
+/** the goldilocks pass, visible: the two takes she wrote to know where
+ *  the floor and the cliff are, and the one she spoke. */
+function PersonaTakes({ calls }: { calls: CallRecord[] }) {
+  const call = latestCall(calls, 'persona');
+  const out = call?.output as Partial<PersonaLine> | undefined;
+  if (!out || typeof out.spoken !== 'string') {
+    return <Empty>her spoken take lands on the table; the rejected takes show here</Empty>;
+  }
+  return (
+    <div className="xray__takes">
+      <div className="xray__take xray__take--rejected">
+        <span className="xray__take-tag">too safe</span> “{out.too_safe}”
+      </div>
+      <div className="xray__take xray__take--rejected">
+        <span className="xray__take-tag">too far</span> “{out.too_far}”
+      </div>
+      <div className="xray__take">
+        <span className="xray__take-tag">spoken</span> “{out.spoken}”
+      </div>
+    </div>
+  );
+}
+
 export function BehaviorColumn({
   snap,
   calls,
@@ -334,7 +388,7 @@ export function BehaviorColumn({
       </AgentPanel>
 
       <AgentPanel agent="persona" title="persona — the wildcard" calls={calls} onInspect={onInspect}>
-        <Empty>her lines land on the table; raw stream shows here while she speaks</Empty>
+        <PersonaTakes calls={calls} />
       </AgentPanel>
 
       <Panel

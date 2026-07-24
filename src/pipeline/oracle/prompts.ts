@@ -14,12 +14,12 @@ export const VOICE_SYSTEM = VOICE_SYSTEM_RAW;
 
 export const DIRECT_TOOL: ToolDef = {
   name: 'direct',
-  description: 'decide the seer\'s next move: what the line must accomplish, or hold.',
+  description: 'decide the oracle\'s next move: what the line must accomplish, or hold.',
   input_schema: z.toJSONSchema(DirectorSetSchema) as Record<string, unknown>,
 };
 
 export const COMPILE_TOOL: ToolDef = {
   name: 'compile_brief',
-  description: 'produce the frozen brief the seer reads from at the table.',
+  description: 'produce the frozen brief the oracle reads from at the table.',
   input_schema: z.toJSONSchema(CompiledBriefSchema) as Record<string, unknown>,
 };

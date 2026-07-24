@@ -30,7 +30,7 @@ export const SYSTEMS = {
 
 export const DRIVER_TOOL: ToolDef = {
   name: 'drive',
-  description: 'decide the next action for the seer to perform',
+  description: 'decide the next action for the oracle to perform',
   input_schema: {
     type: 'object',
     properties: {
@@ -43,6 +43,20 @@ export const DRIVER_TOOL: ToolDef = {
       stall_kind: { type: 'string', enum: [...STALL_KINDS] },
     },
     required: ['move', 'thread', 'accomplish', 'approx_words', 'note'],
+  },
+};
+
+export const PERSONA_TOOL: ToolDef = {
+  name: 'speak',
+  description: 'write three takes; only `spoken` is performed at the table',
+  input_schema: {
+    type: 'object',
+    properties: {
+      too_safe: { type: 'string' },
+      too_far: { type: 'string' },
+      spoken: { type: 'string' },
+    },
+    required: ['too_safe', 'too_far', 'spoken'],
   },
 };
 
@@ -161,7 +175,7 @@ export const FACTS_TOOL: ToolDef = {
 
 export const BIT_TOOL: ToolDef = {
   name: 'file_bit',
-  description: 'file zero or one joke setup for the seer to maybe play',
+  description: 'file zero or one joke setup for the oracle to maybe play',
   input_schema: {
     type: 'object',
     properties: {

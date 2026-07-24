@@ -14,17 +14,22 @@ bottom section rots, delete it rather than patch it.
 ## 1. what this is
 
 The ensemble is the live reading engine: the cluster of agents that runs
-a conversation between the seer (the wildcard) and a visitor. It is
+a conversation between the oracle (the wildcard) and a visitor. It is
 built **chat-first** — a conversation from zero is the primary mode; the
 structured four-card session is the same engine with cards, flips, and a
 close that lands a mantra.
+
+Naming: the character is **the oracle** (renamed from "the seer",
+2026-07-24). The legacy director/actor engine at `src/pipeline/seer/`
+keeps its old name until it is retired; `src/pipeline/oracle/` is the
+single-voice baseline arm, which always carried the character's name.
 
 The benchmark is explicit: the ensemble must beat (a) naive single
 inference and (b) the single-voice baseline (`src/pipeline/oracle/`) on
 real transcripts, blind-ranked. Until it does, the honest product is the
 baseline. Both are kept runnable for exactly this reason.
 
-The register is the house register: mirror, not oracle. The seer never
+The register is the house register: mirror, not prophecy. The oracle never
 advises, predicts, or delivers verdicts. The win condition is the
 visitor feeling seen — and the smartest the system ever gets is from
 material the visitor provides, so the engine is tuned to return the
@@ -55,7 +60,7 @@ these.
    scroll are the record.
 4. **Economy as pacing, not permission.** The word budget sizes lines;
    it never gates whether she may speak. A visitor who underfeeds gets
-   a seer licensed to carry the room.
+   an oracle licensed to carry the room.
 5. **Cache correctness.** The persona's context prefix (character card,
    then beats) is append-only and never edited. Everything volatile
    (frame, bit, intent) rides after it. This is the prod local-serving
@@ -79,14 +84,14 @@ field lists).
 
 - **The scroll** — the pure record: beats (spoken lines) and events
   (open/flip/silence/close), append-only, nothing cognitive. Turns are
-  derived (count of seer speech commits), not stored.
+  derived (count of oracle speech commits), not stored.
 - **The piles** — cognition's output, detached from the scroll. Every
   item is anchored to what its agent was reading. Refiling
   (`refreshes: id`) moves content to the tail; what stops being refiled
   slides out of every model's view but never out of the record. The
   facts pile is the one exception: a ledger merged by label, newest
   from-the-mouth wins, consumed whole by attention only.
-- **The frame** — the seer's orientation, markdown, regenerated whole
+- **The frame** — the oracle's orientation, markdown, regenerated whole
   by attention (focus / dressings / stance / carried / prohibitions).
   Versioned; models only ever see the current one. Frame v1 is
   assembled deterministically from the input at start — no call, no
@@ -94,23 +99,42 @@ field lists).
 - **The economy** — budget (fills sub-linearly by listening, empties by
   speaking, flips buy room to read), talk ratio, carry flag.
 
-Input is `EnsembleInput { mode, docs, scenario, brief?, taboos }`:
+Input is `EnsembleInput { mode, docs, scenario, greeting?, brief?, taboos }`:
 
 - **docs** — markdown intake documents about the visitor, the
   experimental input channel. Managed in the lab (localStorage), fed
   verbatim to the driver and attention, never the persona.
-- **scenario** — turn 0's given circumstances ("the player has just sat
-  down…"). The opening is GENERATED through the normal hot path with
-  the scenario as the event; chat without this structure is random.
+- **greeting** — the screenwritten opening speech
+  (`materials/ensemble/greeting-{chat,session}.md`), spoken verbatim as
+  the first beats: no model call, no budget spend, no invented facts.
+  The opening is where an unfounded generated line costs the most (live
+  finding: "they have been waiting this long"). One beat per paragraph;
+  `{{name}}`-carrying lines drop when no name is known; html comments
+  are authoring notes (the disclaimers slot lives there, empty for
+  now). Personalization is slot-filling, never invention — mad-libs
+  blanks beyond the name are a future step.
+- **scenario** — turn 0's given circumstances. Drives the opening
+  through the hot path ONLY when the greeting is empty (the old way,
+  kept as fallback and for auto-runs that want a generated open).
 - **brief** — required in session mode (cards, guides, mantra); the
   `OracleBrief` shape shared with the baseline arm.
+
+**Stages (the train line).** Where the session is on its line is
+DERIVED from the scroll and flips (`stages.ts`), never model-decided:
+session runs `opening → table → card_1..4 → closing → closed`, chat
+runs `opening → talk → closed`. Each stage carries an authored goal
+ladder (P0/P1/P2) that rides into the driver as a `GOALS` section —
+goals order the driver's attention, they never force a move. This is
+what gives the robot a direction in chat-from-zero instead of aimless
+politeness. The lab renders the line as an overhead metro strip:
+current stop lit, next stop flashing.
 
 ## 4. the cast
 
 | agent | track | tier | reads | writes |
 |---|---|---|---|---|
 | driver | behavior | cognition | docs, frame, beats window, tails, economy, stall state, event | intents pile |
-| persona (the wildcard) | behavior | cognition | character card, full beats, frame, bit tail, intent | the seer beat |
+| persona (the wildcard) | behavior | cognition | character card, full beats, frame, bit tail, intent | the oracle beat |
 | interpreter | cognition | fast | beats delta, own tail, frame | reads pile |
 | psychic | cognition | fast | beats delta, own tail | thoughts pile (the magic words / ammo candidates) |
 | detective | cognition | fast | beats delta, own open questions | questions pile |
@@ -124,6 +148,17 @@ Prompts: one file per agent under `materials/prompts/ensemble/`,
 editable without a code change. The driver's moves: `hold · press ·
 bank · honor · reflect · read · respond · stall · close`.
 
+**The goldilocks pass.** The persona's call is structured now: she
+files three takes — `too_safe` (the polite machine: agreeable,
+costless), `too_far` (the boardwalk fortune teller: concludes too
+much, predicts, advises), and `spoken`, the line between the floor and
+the cliff. Only `spoken` reaches the scroll; the rejected takes stay
+in the call record and show in the lab's persona panel. This is the
+same self-calibration the Hand (ENSEMBLE-PLAN: ace/king candidate
+intents + selection) was designed for, at one call instead of several
+— **the Hand is dead** (decision 2026-07-24: too many agents already;
+the goldilocks pass replaces it).
+
 **The stall** is the brake between the tracks: when the moment is heavy
 and the tails are thin, the driver outputs `stall` instead of guessing.
 The persona speaks a low-commitment line (kind picked by the driver or
@@ -136,7 +171,9 @@ Consecutive stalls cap at `STALL_MAX_CONSECUTIVE`.
 ## 5. the loop
 
 Per event (visitor line / flip / silence tick / open): driver call →
-intent → persona call → speech commit. A flip event carries the brief's
+intent → persona call → speech commit. The open is the one exception:
+with a greeting supplied it is scripted — beats commit directly, no
+calls, and the greeting doesn't count as performed turns. A flip event carries the brief's
 guide plus the card's Deck Bible entry (symbols + charge from
 `materials/oracle/deck/`, 78 authored cards); attention receives the
 full entry for every flipped card, which is what feeds the frame's
@@ -154,9 +191,10 @@ stale results are discarded, not spoken.
 
 ## 6. operating it
 
-**Web:** menu → XRAY LAB (own world, like Bench). Setup: pick/edit
-input docs, edit the scenario, choose chat or session (session gets the
-brief JSON editor), begin. Live: cognition column (one panel per agent,
+**Web:** the app boots INTO the xray lab (key entry first if no key) —
+the turtle world is parked and reachable via ← menu. Setup: pick/edit
+input docs, edit the greeting (the scripted opening) and the scenario,
+choose chat or session (session gets the brief JSON editor), begin. Live: cognition column (one panel per agent,
 streams while in flight, filed items with anchors), the table (type as
 the visitor, tick silence — manual-first, auto toggle default off, flip
 buttons in session mode), behavior column (driver intent, persona
@@ -245,17 +283,17 @@ curated results in `docs/experiments/` (README.md is the index).
    "sentence they were thinking" moments land? the magic-words
    hypothesis, measured.
 7. **retention probe** — plant a fact at beat 3 of a 40-beat
-   auto-visitor session; check whether the seer can use it at beat 35.
+   auto-visitor session; check whether the oracle can use it at beat 35.
    tests ledger → carried → persona, the whole memory-tier design.
 8. **contradiction propagation** — visitor corrects a fact mid-session;
-   does the ledger update, the frame carry it, the seer stop being
+   does the ledger update, the frame carry it, the oracle stop being
    wrong?
 9. **doc-input sweep** — same track with (a) rich portrait doc, (b) raw
    survey dump, (c) three bullet points, (d) nothing. tests the
    texture-beats-biography claim: sparse-structured may beat
    verbose-raw.
 10. **reticence sweep** — auto-visitor dial chatty/normal/guarded; does
-    carry fire, does the seer hold a guarded room? talk-ratio curves.
+    carry fire, does the oracle hold a guarded room? talk-ratio curves.
 11. **tier sweep** — driver and persona on fast/cognition/deep; find
     the actual quality bottleneck before optimizing anything.
 12. **anti-rubric audits** — automated transcript scans (advice verbs,
@@ -264,3 +302,22 @@ curated results in `docs/experiments/` (README.md is the index).
     residual. negative engineering first, per house method.
 13. **duplication rate** — how often do psychic thoughts ≈ interpreter
     thoughts? high overlap means one channel is redundant.
+14. **consensus profilers (wisdom of crowds)** — three differently-cast
+    profilers (ideally different model families — same-family personas
+    buy less diversity than they look like) read the same visitor
+    BLIND to each other, over the course of a session. merge is a
+    judge, not a ballot box: weight agreement by IMPROBABILITY
+    (corroboration × surprisal — two blind profilers landing the same
+    crazy guess is a coincidence too costly to be chance; agreement on
+    the Barnum modal discounts toward zero). contradictions classify
+    three ways: reader noise (drop both), adjudicable error (check the
+    transcript), subject ambivalence (the jackpot — an externally
+    discovered pole pair; route to the fork hunt as a lead, never the
+    trash). blindness during generation is load-bearing: conformity is
+    an interaction phenomenon, and the literature (degeneration-of-
+    thought, hivemind collapse) says don't let them talk. candidate
+    mechanisms: extremizing, surprisingly-popular (ask each profiler
+    what it thinks the others said; elevate answers that beat their
+    predicted popularity). what decides it: does the consensus profile
+    beat the single condenser's portrait, blind-ranked, on the same
+    session records?

@@ -14,6 +14,12 @@ export const IntentSchema = z.object({
   stall_kind: z.enum(STALL_KINDS).optional(),
 });
 
+export const PersonaLineSchema = z.object({
+  too_safe: z.string(),
+  too_far: z.string(),
+  spoken: z.string(),
+});
+
 const FeelingSchema = z.object({
   emotion: z.string(),
   toward: z.string().optional(),

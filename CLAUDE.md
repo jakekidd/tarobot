@@ -88,6 +88,15 @@ materials/
       actor-chat.md               between-beats reply
     # LEGACY (antechamber engine, retiring): weaver.md · diviner.md ·
     # compiler.md · intention-suggestor.md · mantra.md
+    ensemble/
+      driver.md · wildcard.md · interpreter.md · psychic.md ·
+      detective.md · beholder.md · joker.md · cassandra.md ·
+      judge.md · attention.md   one system prompt per ensemble agent
+  ensemble/
+    greeting-chat.md              the screenwritten opening speech (the
+    greeting-session.md           "greeting") — spoken verbatim, no model
+                                  call; {{name}} lines drop when unknown;
+                                  disclaimers slot lives in the comments
   oracle/
     deck/                         the Deck Bible — full 78-card RWS, one json
                                   per suit + majors; symbols/themes/shadow/
@@ -384,7 +393,7 @@ tarot birth card). Treat these as ground truth; do not duplicate inline.
 | UI rails (the portable driver seam) | `src/pipeline/rails/` |
 | AntechamberEngine + agents — LEGACY (loaded-user path, being retired) | `src/pipeline/antechamber/` |
 | SeerEngine + agents (director/actor) | `src/pipeline/seer/` |
-| Ensemble reading engine (behavior/cognition, piles, frame, stall) | `src/pipeline/ensemble/` (see `docs/ENSEMBLE.md`) |
+| Ensemble reading engine — the oracle (behavior/cognition, piles, frame, stall, stages) | `src/pipeline/ensemble/` (see `docs/ENSEMBLE.md`) |
 | Oracle baseline (single-voice comparison arm — do not modify) | `src/pipeline/oracle/` |
 | Xray lab (ensemble debug surface, docs manager, inspector) | `src/lab/xray/` |
 | Card draw mechanics | `src/pipeline/cards.ts` |
@@ -495,11 +504,16 @@ the doc.
   authored Marisol fixture — useful for iterating on the reading without
   burning antechamber time.
 - **Ensemble reading engine (the go-forward bet).** `src/pipeline/ensemble/`
-  + the XRAY LAB menu path. Chat-first; behavior/cognition split; must
-  beat naive AND the `src/pipeline/oracle/` baseline blind before it
-  earns permanence. Arms protocol, auto-visitor-in-browser, and
-  record/replay are unbuilt. `docs/ENSEMBLE.md` is the living truth and
-  holds the experiments backlog.
+  + the xray lab, which is now the app's FRONT DOOR (key entry → xray;
+  the turtle world is parked behind the lab's ← menu button). The
+  character is **the oracle** (renamed from "the seer"; the legacy
+  `pipeline/seer/` engine keeps its name until retired). Chat-first;
+  behavior/cognition split; scripted greeting; stage goals (P0/P1/P2)
+  feed the driver; the persona runs a goldilocks pass (too_safe /
+  too_far / spoken — the Hand is dead). Must beat naive AND the
+  `src/pipeline/oracle/` baseline blind before it earns permanence.
+  `docs/ENSEMBLE.md` is the living truth and holds the experiments
+  backlog.
 - **Card faces.** Currently unicode-glyph + roman-numeral placeholders.
   Real art replaces this later; the contract (each card has a glyph + label)
   stays the same.
@@ -580,9 +594,14 @@ the doc.
 
 ## How a typical session flows (end to end)
 
-Two paths today: a NEW visitor runs the rebuilt survey→tuning pipeline; a
-LOADED / returning visitor still runs the legacy `pipeline/antechamber/`
-engine (being retired). The new path:
+**Current boot posture (2026-07-24): the app lands in the xray lab** —
+key entry if no key, then straight to the ensemble's debug surface. The
+turtle flow below still exists behind the lab's ← menu button, but it
+is parked while the ensemble is the bet.
+
+Two paths behind the menu: a NEW visitor runs the rebuilt survey→tuning
+pipeline; a LOADED / returning visitor still runs the legacy
+`pipeline/antechamber/` engine (being retired). The new path:
 
 1. User lands. No API key in localStorage → key-entry screen (validated
    against a 1-token Haiku smoke call before saving).

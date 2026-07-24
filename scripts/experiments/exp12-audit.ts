@@ -13,7 +13,7 @@ type SessionRecord = {
   input: { mode: string };
   snapshot: {
     phase: string;
-    scroll: ({ kind: 'beat'; speaker: 'seer' | 'visitor'; text: string } | { kind: 'ev' })[];
+    scroll: ({ kind: 'beat'; speaker: 'oracle' | 'visitor'; text: string } | { kind: 'ev' })[];
     piles: {
       intents: { payload: { move: string; ammo?: string } }[];
       predictions: { payload: { confidence: number; verdict?: string } }[];

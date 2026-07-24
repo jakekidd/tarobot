@@ -120,7 +120,7 @@
   letter-spacing: 0.1em;
   color: var(--fg-faint);
 }
-.xray__beat--seer .xray__beat-text {
+.xray__beat--oracle .xray__beat-text {
   font-size: 15px;
   color: var(--fg);
 }
@@ -245,4 +245,110 @@
   border-radius: 3px;
   background: var(--bg-alt);
   color: var(--fg);
+}
+
+/* ---- the train line ---- */
+
+.xray__trainline {
+  display: flex;
+  align-items: flex-start;
+  padding: var(--p2) 0 var(--p3);
+  border-bottom: 1px solid var(--rule);
+  margin-bottom: var(--p2);
+}
+
+.xray__stop {
+  position: relative;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+
+/* the rail — drawn behind the dots, segment per stop */
+.xray__stop + .xray__stop::before {
+  content: '';
+  position: absolute;
+  top: 4px;
+  right: 50%;
+  width: 100%;
+  height: 1px;
+  background: var(--rule);
+}
+
+.xray__stop-dot {
+  position: relative;
+  z-index: 1;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  border: 1px solid var(--fg-faint);
+  background: var(--bg);
+}
+
+.xray__stop-label {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--fg-faint);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+.xray__stop--past .xray__stop-dot {
+  background: var(--fg-faint);
+  border-color: var(--fg-faint);
+}
+
+.xray__stop--here .xray__stop-dot {
+  background: var(--accent);
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 25%, transparent);
+}
+.xray__stop--here .xray__stop-label {
+  color: var(--fg);
+}
+
+.xray__stop--next .xray__stop-dot {
+  border-color: var(--accent);
+  animation: xray-stop-blink 1.1s ease-in-out infinite;
+}
+.xray__stop--next .xray__stop-label {
+  color: var(--fg-muted);
+}
+
+@keyframes xray-stop-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.25; }
+}
+
+/* ---- persona takes ---- */
+
+.xray__takes {
+  display: flex;
+  flex-direction: column;
+  gap: var(--p1);
+  font-size: 12px;
+}
+
+.xray__take--rejected {
+  color: var(--fg-faint);
+}
+
+.xray__take-tag {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--fg-faint);
+  margin-right: var(--p1);
+}
+
+.xray__take:not(.xray__take--rejected) .xray__take-tag {
+  color: var(--accent);
 }

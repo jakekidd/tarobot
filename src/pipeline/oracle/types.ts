@@ -38,7 +38,7 @@ export type OracleBrief = {
   taboos: string[];
 };
 
-export type Beat = { kind: 'beat'; speaker: 'seer' | 'visitor'; text: string; t: number };
+export type Beat = { kind: 'beat'; speaker: 'oracle' | 'visitor'; text: string; t: number };
 /** director-private observation — the Scroll's one non-spoken channel */
 export type Note = { kind: 'note'; text: string; t: number };
 export type ScrollEntry = Beat | Note;

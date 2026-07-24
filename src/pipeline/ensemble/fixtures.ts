@@ -3,10 +3,17 @@
 // the turn-0 scenarios, and the session-mode brief (reused from the
 // oracle baseline so both arms run the same material).
 
+import GREETING_CHAT_RAW from '../../../materials/ensemble/greeting-chat.md?raw';
+import GREETING_SESSION_RAW from '../../../materials/ensemble/greeting-session.md?raw';
 import { FIXTURE_BRIEF } from '../oracle/fixtures';
 import type { EnsembleInput, InputDoc } from './types';
 
 export { FIXTURE_BRIEF } from '../oracle/fixtures';
+
+/** the screenwritten opening speeches (materials/ensemble/) — see
+ *  greeting.ts for the slot rules */
+export const DEFAULT_GREETING_CHAT = GREETING_CHAT_RAW;
+export const DEFAULT_GREETING_SESSION = GREETING_SESSION_RAW;
 
 /** the default intake document — maya, matching FIXTURE_BRIEF so chat
  *  and session modes share one coherent visitor. */
@@ -74,7 +81,13 @@ export const DEFAULT_SCENARIO_SESSION =
   'land them in the room, and let them know the cards wait on them.';
 
 export function defaultChatInput(docs: InputDoc[]): EnsembleInput {
-  return { mode: 'chat', docs, scenario: DEFAULT_SCENARIO_CHAT, taboos: [] };
+  return {
+    mode: 'chat',
+    docs,
+    scenario: DEFAULT_SCENARIO_CHAT,
+    greeting: DEFAULT_GREETING_CHAT,
+    taboos: [],
+  };
 }
 
 export function defaultSessionInput(docs: InputDoc[]): EnsembleInput {
@@ -82,6 +95,7 @@ export function defaultSessionInput(docs: InputDoc[]): EnsembleInput {
     mode: 'session',
     docs,
     scenario: DEFAULT_SCENARIO_SESSION,
+    greeting: DEFAULT_GREETING_SESSION,
     brief: FIXTURE_BRIEF,
     taboos: [],
   };
