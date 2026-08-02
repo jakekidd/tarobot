@@ -5,29 +5,34 @@
 
 import type { ZodType } from 'zod';
 import type { LLMAdapter, ToolDef } from '../llm/adapter';
+import { z } from 'zod';
 import type {
   AgentName,
   CallRecord,
   EnsembleTelemetry,
-  Fact,
   Intent,
   PersonaLine,
   PileItem,
   Read,
 } from './types';
 import {
+  CONJECTOR_TOOL,
   DRIVER_TOOL,
-  FACTS_TOOL,
   PERSONA_TOOL,
+  PROFILE_TOOL,
   READ_TOOL,
   SYSTEMS,
 } from './prompts';
 import {
-  FactsSchema,
+  ConjectorFilingSchema,
   IntentSchema,
   PersonaLineSchema,
+  ProfileFilingSchema,
   ReadSchema,
 } from './schemas';
+
+export type ProfileFiling = z.infer<typeof ProfileFilingSchema>;
+export type ConjectorFiling = z.infer<typeof ConjectorFilingSchema>;
 
 export type AgentEnv = {
   adapter: LLMAdapter;
@@ -39,8 +44,10 @@ export const DEFAULT_TIERS: Record<AgentName, 'fast' | 'cognition' | 'deep'> = {
   driver: 'cognition',
   persona: 'cognition',
   attention: 'cognition',
+  // the conjector is the magic; its quality is load-bearing
+  conjector: 'cognition',
   interpreter: 'fast',
-  beholder: 'fast',
+  profiler: 'fast',
 };
 
 let nextCallId = 1;
@@ -196,17 +203,38 @@ export function callInterpreter(env: AgentEnv, p: FanPayload): Promise<Read> {
   return structured(env, 'interpreter', SYSTEMS.interpreter, fanUser(p), READ_TOOL, ReadSchema, 600);
 }
 
-export async function callBeholder(env: AgentEnv, p: FanPayload): Promise<Fact[]> {
-  const out = await structured(
-    env,
-    'beholder',
-    SYSTEMS.beholder,
-    fanUser(p),
-    FACTS_TOOL,
-    FactsSchema,
-    500,
-  );
-  return out.facts;
+export type ProfilerPayload = {
+  conversation: string;
+  facetList: string;
+  profile: string;
+};
+
+export function callProfiler(env: AgentEnv, p: ProfilerPayload): Promise<ProfileFiling> {
+  const user = [
+    `FACETS:\n${p.facetList}`,
+    `PROFILE SO FAR:\n${p.profile}`,
+    `CONVERSATION (newest visitor material marked NEW):\n${p.conversation}`,
+  ].join('\n\n');
+  return structured(env, 'profiler', SYSTEMS.profiler, user, PROFILE_TOOL, ProfileFilingSchema, 500);
+}
+
+export type ConjectorPayload = {
+  profile: string;
+  conversation: string;
+  prevGuess: string;
+  dilemma: string;
+  ask: string;
+};
+
+export function callConjector(env: AgentEnv, p: ConjectorPayload): Promise<ConjectorFiling> {
+  const user = [
+    `PROFILE:\n${p.profile}`,
+    `CONVERSATION (recent):\n${p.conversation}`,
+    `YOUR PREVIOUS GUESS: ${p.prevGuess}`,
+    `DILEMMA DOCUMENT:\n${p.dilemma}`,
+    `THIS CYCLE: ${p.ask}`,
+  ].join('\n\n');
+  return structured(env, 'conjector', SYSTEMS.conjector, user, CONJECTOR_TOOL, ConjectorFilingSchema, 900);
 }
 
 export type AttentionPayload = {
@@ -255,6 +283,3 @@ export function fmtRead(r: Read): string {
   return `expressing: ${r.expressing}${thoughts ? ` | thinking: ${thoughts}` : ''}${feelings ? ` | feeling: ${feelings}` : ''}${r.behavior ? ` | heading: ${r.behavior}` : ''} | cue: ${r.cue}`;
 }
 
-export function fmtFact(f: Fact): string {
-  return `${f.kind}: ${f.label} — ${f.note}`;
-}

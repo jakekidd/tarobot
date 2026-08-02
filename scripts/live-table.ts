@@ -25,7 +25,7 @@ import { createClaudeClient } from '../src/pipeline/claude';
 import { AnthropicAdapter } from '../src/pipeline/llm/adapter-anthropic';
 import type { LLMAdapter } from '../src/pipeline/llm/adapter';
 import { EnsembleEngine } from '../src/pipeline/ensemble/engine';
-import { defaultDocs, defaultSessionInput } from '../src/pipeline/ensemble/fixtures';
+import { defaultSessionInput } from '../src/pipeline/ensemble/fixtures';
 import { buildSessionLog, serializeSession, type SessionRecord } from '../src/pipeline/ensemble/serialize';
 import type {
   AgentName,
@@ -86,6 +86,10 @@ function buildAudit(record: SessionRecord): string {
       lines.push({ t: c.startedAt, text: `  ${c.agent} ${ms} → ERROR ${c.error}` });
       continue;
     }
+    if (c.output === undefined) {
+      lines.push({ t: c.startedAt, text: `  ${c.agent} ${ms} → (in flight at session end)` });
+      continue;
+    }
     switch (c.agent) {
       case 'driver': {
         const i = c.output as Intent;
@@ -111,13 +115,23 @@ function buildAudit(record: SessionRecord): string {
         });
         break;
       }
-      case 'beholder': {
-        const f = c.output as { facts?: { label: string }[] } | { label: string }[];
-        const facts = Array.isArray(f) ? f : (f?.facts ?? []);
-        lines.push({
-          t: c.startedAt,
-          text: `  beholder ${ms} → ${facts.length === 0 ? 'nothing new' : facts.map((x) => x.label).join('; ')}`,
-        });
+      case 'profiler': {
+        const f = c.output as { updates?: { facet: string; answer: string }[]; elevate?: { facet: string; angle: string }[] };
+        const ups = (f.updates ?? []).map((u) => `${u.facet}=${u.answer}`).join('; ');
+        const el = (f.elevate ?? []).map((e) => e.facet).join(',');
+        lines.push({ t: c.startedAt, text: `  profiler ${ms} → ${ups || 'nothing new'}${el ? ` · ask: ${el}` : ''}` });
+        break;
+      }
+      case 'conjector': {
+        const o = c.output as { prev?: string; guess?: string; problem_md?: string; options_md?: string; quest_md?: string };
+        const bits = [
+          o.prev ? `prev ${o.prev}` : '',
+          o.guess ? `GUESS ${q(o.guess)}` : '',
+          o.problem_md ? `PROBLEM: ${o.problem_md}` : '',
+          o.options_md ? `OPTIONS: ${o.options_md}` : '',
+          o.quest_md ? `QUEST: ${o.quest_md}` : '',
+        ].filter(Boolean);
+        lines.push({ t: c.startedAt, text: `  conjector ${ms} → ${bits.join('\n    ') || '(no change)'}` });
         break;
       }
       case 'attention':
@@ -190,8 +204,8 @@ async function main() {
   const inbox = `${dir}/inbox.txt`;
   writeFileSync(inbox, '');
 
-  const docs = defaultDocs().slice(0, 1);
-  const input = defaultSessionInput(docs);
+  // blind start — the real thing. no docs, no brief; cards drawn live.
+  const input = defaultSessionInput();
 
   const calls = new Map<string, CallRecord>();
   const engine = new EnsembleEngine({
@@ -209,7 +223,12 @@ async function main() {
         if (!rec) return;
         rec.output = output;
         rec.endedAt = Date.now();
-        if (rec.agent === 'driver') {
+        if (rec.agent === 'conjector') {
+          const o = output as { guess?: string; problem_md?: string; quest_md?: string };
+          if (o.guess) console.log(`  [conjector] guess: "${o.guess}"`);
+          if (o.problem_md) console.log(`  [conjector] PROBLEM committed`);
+          if (o.quest_md) console.log(`  [conjector] quest drafted`);
+        } else if (rec.agent === 'driver') {
           const i = output as Intent;
           console.log(`  [driver] ${i.move} · ${i.accomplish}${i.ammo ? ` · ammo "${i.ammo}"` : ''}`);
         } else if (rec.agent === 'interpreter') {
@@ -237,7 +256,8 @@ async function main() {
     }
   });
 
-  console.log(`\n=== live table · ${input.mode}${args.driverTier ? ` · driver=${args.driverTier}` : ''} ===`);
+  console.log(`\n=== live table · ${input.mode} · blind${args.driverTier ? ` · driver=${args.driverTier}` : ''} ===`);
+  console.log(`drawn: ${engine.drawn.map((d) => `${d.slot}:${d.card.id}`).join('  ')}`);
   console.log(`commands → append to ${inbox}`);
   console.log(`  say <text> | flip <1-4> | tick | end\n`);
 

@@ -57,7 +57,7 @@ async function main() {
   assert(s.stallDebt !== null, 'stall debt recorded');
   assert(s.stallDebt!.kind !== undefined, `engine picked stall kind: ${s.stallDebt!.kind}`);
   assert(s.piles.reads.length > 0, 'fan force-fired: read filed (thoughts ride inside it)');
-  assert(s.piles.facts.length > 0, 'ledger has the sister');
+  assert(s.profile.length > 0, 'profiler filled a facet');
 
   console.log('next line -> debt paid:');
   engine.visitorLine('i mean someone has to hold it together and my mom certainly is not going to be the one');

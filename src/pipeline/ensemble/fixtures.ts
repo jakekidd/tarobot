@@ -5,10 +5,7 @@
 
 import GREETING_CHAT_RAW from '../../../materials/ensemble/greeting-chat.md?raw';
 import GREETING_SESSION_RAW from '../../../materials/ensemble/greeting-session.md?raw';
-import { FIXTURE_BRIEF } from '../oracle/fixtures';
 import type { EnsembleInput, InputDoc } from './types';
-
-export { FIXTURE_BRIEF } from '../oracle/fixtures';
 
 /** the screenwritten opening speeches (materials/ensemble/) — see
  *  greeting.ts for the slot rules */
@@ -90,13 +87,14 @@ export function defaultChatInput(docs: InputDoc[]): EnsembleInput {
   };
 }
 
-export function defaultSessionInput(docs: InputDoc[]): EnsembleInput {
+/** the default session is BLIND — no docs, no brief; the engine draws
+ *  its own cards and the profiler builds the picture in-session */
+export function defaultSessionInput(docs: InputDoc[] = []): EnsembleInput {
   return {
     mode: 'session',
     docs,
     scenario: DEFAULT_SCENARIO_SESSION,
     greeting: DEFAULT_GREETING_SESSION,
-    brief: FIXTURE_BRIEF,
     taboos: [],
   };
 }

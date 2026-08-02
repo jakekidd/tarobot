@@ -15,7 +15,6 @@ export {
   defaultChatInput,
   defaultDocs,
   defaultSessionInput,
-  FIXTURE_BRIEF,
 } from './fixtures';
 export {
   AGENT_NAMES,
@@ -37,7 +36,6 @@ export {
   type EnsembleSnapshot,
   type EnsembleTelemetry,
   type Ev,
-  type Fact,
   type Frame,
   type InputDoc,
   type Intent,

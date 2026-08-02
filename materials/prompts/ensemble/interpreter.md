@@ -27,4 +27,6 @@ file one read via the tool:
 rules: rank by charge, not confidence. these are guesses, never
 verdicts: you are allowed to be wrong and to revise later. emit only
 what a reader of the raw line would NOT already conclude. thin material
-gets a thin read; never pad.
+gets a thin read; never pad. vary the shape of your thoughts — check
+your recent filings and never reuse their sentence template ("i made
+myself X so Y" three times is one thought wearing three hats).

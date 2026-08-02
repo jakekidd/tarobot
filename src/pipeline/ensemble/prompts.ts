@@ -5,7 +5,8 @@
 import WILDCARD_RAW from '../../../materials/prompts/ensemble/wildcard.md?raw';
 import DRIVER_RAW from '../../../materials/prompts/ensemble/driver.md?raw';
 import INTERPRETER_RAW from '../../../materials/prompts/ensemble/interpreter.md?raw';
-import BEHOLDER_RAW from '../../../materials/prompts/ensemble/beholder.md?raw';
+import PROFILER_RAW from '../../../materials/prompts/ensemble/profiler.md?raw';
+import CONJECTOR_RAW from '../../../materials/prompts/ensemble/conjector.md?raw';
 import ATTENTION_RAW from '../../../materials/prompts/ensemble/attention.md?raw';
 import type { ToolDef } from '../llm/adapter';
 import { ENSEMBLE_MOVES, STALL_KINDS } from './types';
@@ -14,7 +15,8 @@ export const SYSTEMS = {
   wildcard: WILDCARD_RAW,
   driver: DRIVER_RAW,
   interpreter: INTERPRETER_RAW,
-  beholder: BEHOLDER_RAW,
+  profiler: PROFILER_RAW,
+  conjector: CONJECTOR_RAW,
   attention: ATTENTION_RAW,
 } as const;
 
@@ -79,25 +81,53 @@ export const READ_TOOL: ToolDef = {
   },
 };
 
-export const FACTS_TOOL: ToolDef = {
-  name: 'file_facts',
-  description: 'file durable from-the-mouth facts for the ledger',
+export const PROFILE_TOOL: ToolDef = {
+  name: 'file_profile',
+  description: 'update the profile and elevate the facets worth asking about',
   input_schema: {
     type: 'object',
     properties: {
-      facts: {
+      updates: {
         type: 'array',
-        maxItems: 20,
+        maxItems: 6,
         items: {
           type: 'object',
           properties: {
-            kind: { type: 'string', enum: ['person', 'event', 'state'] },
-            label: { type: 'string' },
-            note: { type: 'string' },
+            facet: { type: 'string' },
+            answer: { type: 'string' },
           },
-          required: ['kind', 'label', 'note'],
+          required: ['facet', 'answer'],
         },
       },
+      elevate: {
+        type: 'array',
+        maxItems: 2,
+        items: {
+          type: 'object',
+          properties: {
+            facet: { type: 'string' },
+            angle: { type: 'string' },
+          },
+          required: ['facet', 'angle'],
+        },
+      },
+    },
+    required: [],
+  },
+};
+
+export const CONJECTOR_TOOL: ToolDef = {
+  name: 'conject',
+  description:
+    'grade the previous guess, then either file the next guess or write/edit the dilemma document (include only the passages you are writing this cycle)',
+  input_schema: {
+    type: 'object',
+    properties: {
+      prev: { type: 'string', enum: ['cold', 'warm', 'hot', 'unplayed'] },
+      guess: { type: 'string' },
+      problem_md: { type: 'string' },
+      options_md: { type: 'string' },
+      quest_md: { type: 'string' },
     },
     required: [],
   },

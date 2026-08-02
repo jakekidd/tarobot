@@ -40,19 +40,23 @@ export const ReadSchema = z.object({
   frame_stale: z.boolean(),
 });
 
-export const FactsSchema = z.object({
-  // tolerant on purpose: a missing field means "nothing new", and an
-  // over-eager model restating its ledger dedupes at merge — a failed
-  // call loses strictly more than a long list does
-  facts: z
-    .array(
-      z.object({
-        kind: z.enum(['person', 'event', 'state']),
-        label: z.string(),
-        note: z.string(),
-      }),
-    )
-    .max(20)
+// tolerant on purpose: missing fields mean "nothing new this cycle"
+export const ProfileFilingSchema = z.object({
+  updates: z
+    .array(z.object({ facet: z.string(), answer: z.string() }))
+    .max(6)
     .default([]),
+  elevate: z
+    .array(z.object({ facet: z.string(), angle: z.string() }))
+    .max(2)
+    .default([]),
+});
+
+export const ConjectorFilingSchema = z.object({
+  prev: z.enum(['cold', 'warm', 'hot', 'unplayed']).optional(),
+  guess: z.string().optional(),
+  problem_md: z.string().optional(),
+  options_md: z.string().optional(),
+  quest_md: z.string().optional(),
 });
 

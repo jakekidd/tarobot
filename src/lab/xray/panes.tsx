@@ -108,13 +108,47 @@ export function CognitionColumn({
         ))}
       </AgentPanel>
 
-      <AgentPanel agent="beholder" title={`facts ledger · ${piles.facts.length}`} calls={calls} onInspect={onInspect}>
-        {piles.facts.length === 0 && <Empty>ledger empty</Empty>}
-        {piles.facts.map((item) => (
-          <div key={item.id} className="xray__item">
-            <Pill>{item.payload.kind}</Pill> <strong>{item.payload.label}</strong> — {item.payload.note}
+      <AgentPanel agent="profiler" title={`profile · ${snap.profile.length}/14`} calls={calls} onInspect={onInspect}>
+        {snap.profile.length === 0 && <Empty>nothing known yet — blind start</Empty>}
+        {snap.profile.map((e) => (
+          <div key={e.facet} className="xray__item">
+            <strong>{e.facet}</strong> — {e.answer}
           </div>
         ))}
+        {snap.elevated.map((e) => (
+          <div key={`el-${e.facet}`} className="xray__item">
+            <Pill variant="warm">ask</Pill> {e.facet}: {e.angle}
+          </div>
+        ))}
+      </AgentPanel>
+
+      <AgentPanel agent="conjector" title="conjector — the hunt" calls={calls} onInspect={onInspect}>
+        {snap.pendingGuess && (
+          <div className="xray__item">
+            <Pill variant="warm">pending guess</Pill>
+            <div className="xray__quote">“{snap.pendingGuess}”</div>
+          </div>
+        )}
+        {snap.dilemma.problem_md ? (
+          <div className="xray__item">
+            <Pill variant="accent">the problem</Pill>
+            <div>{snap.dilemma.problem_md}</div>
+          </div>
+        ) : (
+          !snap.pendingGuess && <Empty>asleep until there is enough to hunt with</Empty>
+        )}
+        {snap.dilemma.options_md && (
+          <div className="xray__item">
+            <Pill variant="accent">the options</Pill>
+            <div>{snap.dilemma.options_md}</div>
+          </div>
+        )}
+        {snap.dilemma.quest_md && (
+          <div className="xray__item">
+            <Pill variant="good">the quest</Pill>
+            <div>{snap.dilemma.quest_md}</div>
+          </div>
+        )}
       </AgentPanel>
 
     </Stack>

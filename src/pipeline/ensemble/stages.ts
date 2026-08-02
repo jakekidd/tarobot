@@ -38,12 +38,11 @@ export function deriveStage(args: {
 
 const SESSION_GOALS: Record<StageId, string[]> = {
   opening: [
-    'P0 land them in the room; zero demands, zero questions about why they came',
-    'P1 let them find their own reason to speak first',
-    'P2 the cards wait; never sell them',
+    'P0 land them in the room; zero demands',
+    'P1 this is question time: one real question, theirs to refuse',
   ],
   table: [
-    'P0 learn what they walked in carrying — their words, not the docs',
+    'P0 question time: learn who sat down — one real question at a time, never two',
     'P1 warm the room until flipping feels like their idea',
     'P2 bank anything that lands; it is fuel for the cards',
   ],
@@ -68,7 +67,7 @@ const SESSION_GOALS: Record<StageId, string[]> = {
     'P2 gather what the close will spend',
   ],
   closing: [
-    'P0 close while it still means something; the mantra is the last thing they hear',
+    'P0 the quest is the close: hand it over whole, the last thing they hear',
     'P1 no new territory; spend only what is banked',
     'P2 an ending held open goes stale — end it',
   ],

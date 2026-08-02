@@ -6,7 +6,8 @@
 // maintaining the frame). The scroll is the pure record of what
 // happened in the room; nothing cognitive attaches to it.
 
-import type { OracleBrief } from '../oracle/types';
+import type { OracleDeckCard } from '../oracle/deck';
+import type { DilemmaDoc, ElevatedFacet, ProfileEntry } from './profile';
 
 export type EnsembleMode = 'chat' | 'session';
 
@@ -42,7 +43,8 @@ export type InputDoc = {
 
 export type EnsembleInput = {
   mode: EnsembleMode;
-  /** intake documents about the visitor — the experimental channel */
+  /** optional lab experiment channel; real sessions start BLIND —
+   *  the profiler builds the picture in-session */
   docs: InputDoc[];
   /** turn-0 given circumstances + instruction; drives the `open` event */
   scenario: string;
@@ -50,8 +52,6 @@ export type EnsembleInput = {
    *  no model call. absent/empty falls back to generating the opening
    *  through the hot path with `scenario` as the event. */
   greeting?: string;
-  /** required in session mode (cards/guides/mantra); optional color in chat */
-  brief?: OracleBrief;
   taboos?: string[];
 };
 
@@ -65,12 +65,13 @@ export const AGENT_NAMES = [
   'driver',
   'persona',
   'interpreter',
-  'beholder',
+  'profiler',
+  'conjector',
   'attention',
 ] as const;
 export type AgentName = (typeof AGENT_NAMES)[number];
 
-export const FAN_AGENTS = ['interpreter', 'beholder'] as const;
+export const FAN_AGENTS = ['interpreter', 'profiler'] as const;
 export type FanAgent = (typeof FAN_AGENTS)[number];
 
 // ---------------------------------------------------------------- piles
@@ -96,15 +97,8 @@ export type Read = {
   frame_stale: boolean;
 };
 
-export type Fact = {
-  kind: 'person' | 'event' | 'state';
-  label: string;
-  note: string;
-};
-
 export type PilesView = {
   reads: PileItem<Read>[];
-  facts: PileItem<Fact>[];
   intents: PileItem<Intent>[];
 };
 
@@ -224,6 +218,12 @@ export type EnsembleSnapshot = {
   frames: readonly Frame[];
   economy: Economy;
   flipped: readonly number[];
+  /** the four cards the engine drew at start, slots 1-4 */
+  drawn: readonly { slot: 1 | 2 | 3 | 4; card: OracleDeckCard }[];
+  profile: ProfileEntry[];
+  elevated: ElevatedFacet[];
+  dilemma: DilemmaDoc;
+  pendingGuess: string | null;
   busy: BusyLayer;
   lastIntent: Intent | null;
   stallDebt: StallDebt | null;
@@ -283,6 +283,10 @@ export type EnsembleConstants = {
    *  nudged that banked material is ripe — accumulation should trigger
    *  spending, not just storage */
   BANKED_THOUGHTS: number;
+  /** the conjector wakes when the profile has this many facets filled,
+   *  or the visitor has taken this many turns — whichever first */
+  CONJECTOR_WAKE_FACETS: number;
+  CONJECTOR_WAKE_TURNS: number;
   FAN_MIN_NEW_WORDS: number;
   FAN_BACKSTOP_TURNS: number;
   FAN_BLOCKING: boolean;
@@ -311,6 +315,8 @@ export const ENSEMBLE_CONSTANTS: EnsembleConstants = {
   CARRY_CAP_MIN: 20,
   AMMO_MAX_WORDS: 12,
   BANKED_THOUGHTS: 3,
+  CONJECTOR_WAKE_FACETS: 4,
+  CONJECTOR_WAKE_TURNS: 4,
   FAN_MIN_NEW_WORDS: 12,
   FAN_BACKSTOP_TURNS: 2,
   FAN_BLOCKING: false,

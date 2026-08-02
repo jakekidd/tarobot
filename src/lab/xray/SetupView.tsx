@@ -24,9 +24,6 @@ type Props = {
   onScenarioChange: (s: string) => void;
   greeting: string;
   onGreetingChange: (s: string) => void;
-  briefJson: string;
-  onBriefJsonChange: (s: string) => void;
-  briefError: string | null;
   onStart: () => void;
 };
 
@@ -74,7 +71,7 @@ export function SetupView(p: Props) {
           </Row>
         </Panel>
 
-        <Panel title="input docs" meta={`${p.selected.length} selected`}>
+        <Panel title="input docs — optional lab channel (real sessions start blind)" meta={`${p.selected.length} selected`}>
           <Stack gap={2}>
             {p.docs.length === 0 && <Empty>no docs — create one</Empty>}
             {p.docs.map((d) => (
@@ -157,22 +154,11 @@ export function SetupView(p: Props) {
           </Field>
         </Panel>
 
-        {p.mode === 'session' && (
-          <Panel title="brief (session mode)" meta={p.briefError ? <Pill variant="hot">invalid</Pill> : <Pill variant="good">ok</Pill>}>
-            <Field label="OracleBrief json — cards, guides, mantra" hint={p.briefError ?? 'editable; the fixture is maya'}>
-              <textarea
-                className="xray__doc-edit"
-                value={p.briefJson}
-                onChange={(e) => p.onBriefJsonChange(e.target.value)}
-              />
-            </Field>
-          </Panel>
-        )}
 
         <Divider />
         <Row gap={2}>
-          <Button variant="primary" onClick={p.onStart} disabled={p.selected.length === 0}>
-            begin session
+          <Button variant="primary" onClick={p.onStart}>
+            begin session — blind is the real thing; docs are a lab experiment
           </Button>
         </Row>
       </Stack>

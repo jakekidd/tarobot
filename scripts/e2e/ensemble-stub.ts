@@ -72,8 +72,13 @@ export class EnsembleStubAdapter implements LLMAdapter {
           cue: 'honor',
           frame_stale: false,
         };
-      case 'file_facts':
-        return { facts: [{ kind: 'person', label: 'the sister', note: 'older; load-bearing' }] };
+      case 'file_profile':
+        return {
+          updates: [{ facet: 'family', answer: 'a sister who calls; she answers with fine' }],
+          elevate: [{ facet: 'work', angle: 'the job came up sideways; ask what it used to be' }],
+        };
+      case 'conject':
+        return { prev: 'unplayed', guess: 'are you the kind of person who apologizes when someone else bumps into you?' };
       default:
         throw new Error(`stub has no answer for tool ${name}`);
     }

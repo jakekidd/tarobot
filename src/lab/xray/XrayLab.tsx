@@ -15,7 +15,6 @@ import {
   DEFAULT_GREETING_SESSION,
   DEFAULT_SCENARIO_SESSION,
   EnsembleEngine,
-  FIXTURE_BRIEF,
   serializeSession,
   type CallRecord,
   type EnsembleInput,
@@ -23,7 +22,6 @@ import {
   type EnsembleSnapshot,
   type InputDoc,
 } from '../../pipeline/ensemble';
-import type { OracleBrief } from '../../pipeline/oracle/types';
 import { ConfigPanel } from './ConfigPanel';
 import { loadDocs, saveDocs } from './docStore';
 import { Inspector } from './Inspector';
@@ -46,8 +44,6 @@ export function XrayLab({ apiKey, onExit }: Props) {
   const [mode, setMode] = useState<EnsembleMode>('session');
   const [scenario, setScenario] = useState(DEFAULT_SCENARIO_SESSION);
   const [greeting, setGreeting] = useState(DEFAULT_GREETING_SESSION);
-  const [briefJson, setBriefJson] = useState(() => JSON.stringify(FIXTURE_BRIEF, null, 2));
-  const [briefError, setBriefError] = useState<string | null>(null);
 
   useEffect(() => {
     saveDocs(docs);
@@ -66,22 +62,11 @@ export function XrayLab({ apiKey, onExit }: Props) {
   const calls = [...callStore.values()];
 
   function start() {
-    let brief: OracleBrief | undefined;
-    if (mode === 'session') {
-      try {
-        brief = JSON.parse(briefJson) as OracleBrief;
-        setBriefError(null);
-      } catch (e) {
-        setBriefError(e instanceof Error ? e.message : 'invalid json');
-        return;
-      }
-    }
     const input: EnsembleInput = {
       mode,
       docs: docs.filter((d) => selected.includes(d.id)),
       scenario,
       greeting: greeting.trim() ? greeting : undefined,
-      brief,
       taboos: [],
     };
     const store = new Map<string, CallRecord>();
@@ -202,9 +187,6 @@ export function XrayLab({ apiKey, onExit }: Props) {
             onScenarioChange={setScenario}
             greeting={greeting}
             onGreetingChange={setGreeting}
-            briefJson={briefJson}
-            onBriefJsonChange={setBriefJson}
-            briefError={briefError}
             onStart={start}
           />
         )}
