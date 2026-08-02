@@ -24,7 +24,10 @@ file one read via the tool:
 - frame_stale: true if the oracle's current frame no longer fits what you
   now believe about this person.
 
-rules: rank by charge, not confidence. these are guesses, never
+rules: the oracle can be wrong — when her line misquotes or overclaims
+(a count they never gave, words they never said), file that plainly as
+her error; never rationalize it into being true. rank by charge, not
+confidence. these are guesses, never
 verdicts: you are allowed to be wrong and to revise later. emit only
 what a reader of the raw line would NOT already conclude. thin material
 gets a thin read; never pad. vary the shape of your thoughts — check
