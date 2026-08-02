@@ -108,9 +108,11 @@ field lists).
 - **The piles** — cognition's output, detached from the scroll. Every
   item is anchored to what its agent was reading. Refiling
   (`refreshes: id`) moves content to the tail; what stops being refiled
-  slides out of every model's view but never out of the record. The
-  facts pile is the one exception: a ledger merged by label, newest
-  from-the-mouth wins, consumed whole by attention only.
+  slides out of every model's view but never out of the record.
+  Alongside the piles: the PROFILE (14 facets, filled freeform by the
+  profiler) and the DILEMMA DOCUMENT (the conjector's problem /
+  options / quest passages) — both grow monotonically, both are
+  consumed by the driver and attention.
 - **The frame** — the oracle's orientation, markdown, regenerated whole
   by attention (focus / dressings / stance / carried / prohibitions).
   Versioned; models only ever see the current one. Frame v1 is
@@ -119,7 +121,7 @@ field lists).
 - **The economy** — budget (fills sub-linearly by listening, empties by
   speaking, flips buy room to read), talk ratio, carry flag.
 
-Input is `EnsembleInput { mode, docs, scenario, greeting?, brief?, taboos }`:
+Input is `EnsembleInput { mode, docs, scenario, greeting?, taboos }`:
 
 - **docs** — markdown intake documents about the visitor, the
   experimental input channel. Managed in the lab (localStorage), fed
@@ -136,8 +138,9 @@ Input is `EnsembleInput { mode, docs, scenario, greeting?, brief?, taboos }`:
 - **scenario** — turn 0's given circumstances. Drives the opening
   through the hot path ONLY when the greeting is empty (the old way,
   kept as fallback and for auto-runs that want a generated open).
-- **brief** — required in session mode (cards, guides, mantra); the
-  `OracleBrief` shape shared with the baseline arm.
+- (the OracleBrief is GONE from this engine — the four cards are drawn
+  by the engine itself from the Deck Bible at construction; the quest
+  replaces the mantra; the profile replaces the intake.)
 
 **Stages (the train line).** Where the session is on its line is
 DERIVED from the scroll and flips (`stages.ts`), never model-decided:

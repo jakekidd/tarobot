@@ -508,12 +508,13 @@ the doc.
   the turtle world is parked behind the lab's ← menu button). The
   character is **the oracle** (renamed from "the seer"; the legacy
   `pipeline/seer/` engine keeps its name until retired). Session mode
-  is the product (chat-from-zero is a lab probe only). Whittled cast of
-  five (driver / persona / interpreter / beholder / attention — see
-  ENSEMBLE.md §4 for what was pruned and why, plus the profiler and
-  the rescued conjector — sessions start BLIND, the engine draws its
-  own cards, the conjector writes the dilemma document and the close
-  hands over a quest); scripted greeting; stage goals (P0/P1/P2) feed
+  is the product (chat-from-zero is a lab probe only). Cast of six:
+  driver / persona / interpreter / profiler / conjector / attention
+  (see ENSEMBLE.md §4 for the pruning history). Sessions start BLIND —
+  the engine draws its own cards, the profiler fills the survey
+  in-session, the conjector hunts guesses then writes the dilemma
+  document, and the close hands over a quest. Scripted greeting; stage
+  goals (P0/P1/P2) feed
   the driver; the persona runs a goldilocks pass (too_safe / too_far /
   spoken — the Hand is dead). Must beat naive AND the
   `src/pipeline/oracle/` baseline blind before it earns permanence.
