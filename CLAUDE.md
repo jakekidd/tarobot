@@ -89,9 +89,9 @@ materials/
     # LEGACY (antechamber engine, retiring): weaver.md · diviner.md ·
     # compiler.md · intention-suggestor.md · mantra.md
     ensemble/
-      driver.md · wildcard.md · interpreter.md · psychic.md ·
-      detective.md · beholder.md · joker.md · cassandra.md ·
-      judge.md · attention.md   one system prompt per ensemble agent
+      driver.md · wildcard.md · interpreter.md · beholder.md ·
+      attention.md              one system prompt per ensemble agent
+                                (the whittled five — see ENSEMBLE.md §4)
   ensemble/
     greeting-chat.md              the screenwritten opening speech (the
     greeting-session.md           "greeting") — spoken verbatim, no model
@@ -507,10 +507,12 @@ the doc.
   + the xray lab, which is now the app's FRONT DOOR (key entry → xray;
   the turtle world is parked behind the lab's ← menu button). The
   character is **the oracle** (renamed from "the seer"; the legacy
-  `pipeline/seer/` engine keeps its name until retired). Chat-first;
-  behavior/cognition split; scripted greeting; stage goals (P0/P1/P2)
-  feed the driver; the persona runs a goldilocks pass (too_safe /
-  too_far / spoken — the Hand is dead). Must beat naive AND the
+  `pipeline/seer/` engine keeps its name until retired). Session mode
+  is the product (chat-from-zero is a lab probe only). Whittled cast of
+  five (driver / persona / interpreter / beholder / attention — see
+  ENSEMBLE.md §4 for what was pruned and why); scripted greeting; stage
+  goals (P0/P1/P2) feed the driver; the persona runs a goldilocks pass
+  (too_safe / too_far / spoken — the Hand is dead). Must beat naive AND the
   `src/pipeline/oracle/` baseline blind before it earns permanence.
   `docs/ENSEMBLE.md` is the living truth and holds the experiments
   backlog.

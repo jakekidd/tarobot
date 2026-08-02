@@ -7,40 +7,26 @@ import type { ZodType } from 'zod';
 import type { LLMAdapter, ToolDef } from '../llm/adapter';
 import type {
   AgentName,
-  Bit,
   CallRecord,
   EnsembleTelemetry,
   Fact,
   Intent,
   PersonaLine,
   PileItem,
-  Prediction,
-  Question,
   Read,
-  Thought,
 } from './types';
 import {
-  BIT_TOOL,
   DRIVER_TOOL,
   FACTS_TOOL,
   PERSONA_TOOL,
-  PREDICTION_TOOL,
-  QUESTIONS_TOOL,
   READ_TOOL,
   SYSTEMS,
-  THOUGHTS_TOOL,
-  VERDICT_TOOL,
 } from './prompts';
 import {
-  BitSchema,
   FactsSchema,
   IntentSchema,
   PersonaLineSchema,
-  PredictionSchema,
-  QuestionsSchema,
   ReadSchema,
-  ThoughtsSchema,
-  VerdictSchema,
 } from './schemas';
 
 export type AgentEnv = {
@@ -54,12 +40,7 @@ export const DEFAULT_TIERS: Record<AgentName, 'fast' | 'cognition' | 'deep'> = {
   persona: 'cognition',
   attention: 'cognition',
   interpreter: 'fast',
-  psychic: 'fast',
-  detective: 'fast',
   beholder: 'fast',
-  joker: 'fast',
-  cassandra: 'fast',
-  judge: 'fast',
 };
 
 let nextCallId = 1;
@@ -179,13 +160,11 @@ export type PersonaPayload = {
   /** full session beats, verbatim — the append-only cached prefix */
   conversation: string;
   frame: string;
-  bit: string | null;
   assignment: string;
 };
 
 export function callPersona(env: AgentEnv, p: PersonaPayload): Promise<PersonaLine> {
   const sections = [`[the conversation so far]\n${p.conversation}`, `[your orientation]\n${p.frame}`];
-  if (p.bit) sections.push(`[a bit in your pocket, playable or not]\n${p.bit}`);
   sections.push(`[the intent]\n${p.assignment}`);
   return structured(
     env,
@@ -217,38 +196,6 @@ export function callInterpreter(env: AgentEnv, p: FanPayload): Promise<Read> {
   return structured(env, 'interpreter', SYSTEMS.interpreter, fanUser(p), READ_TOOL, ReadSchema, 600);
 }
 
-export type ThoughtFiling = { thought: string; confidence: 1 | 2 | 3; refreshes?: string };
-
-export async function callPsychic(env: AgentEnv, p: FanPayload): Promise<ThoughtFiling[]> {
-  const out = await structured(
-    env,
-    'psychic',
-    SYSTEMS.psychic,
-    fanUser(p),
-    THOUGHTS_TOOL,
-    ThoughtsSchema,
-    500,
-  );
-  return out.thoughts;
-}
-
-export type QuestionsFiling = {
-  open: { question: string; refreshes?: string }[];
-  answered: { question: string; answer: string }[];
-};
-
-export function callDetective(env: AgentEnv, p: FanPayload): Promise<QuestionsFiling> {
-  return structured(
-    env,
-    'detective',
-    SYSTEMS.detective,
-    fanUser(p),
-    QUESTIONS_TOOL,
-    QuestionsSchema,
-    500,
-  );
-}
-
 export async function callBeholder(env: AgentEnv, p: FanPayload): Promise<Fact[]> {
   const out = await structured(
     env,
@@ -260,36 +207,6 @@ export async function callBeholder(env: AgentEnv, p: FanPayload): Promise<Fact[]
     500,
   );
   return out.facts;
-}
-
-export async function callJoker(env: AgentEnv, p: FanPayload): Promise<Bit | null> {
-  const out = await structured(env, 'joker', SYSTEMS.joker, fanUser(p), BIT_TOOL, BitSchema, 400);
-  return out.bit;
-}
-
-export function callCassandra(env: AgentEnv, p: FanPayload): Promise<Prediction> {
-  return structured(
-    env,
-    'cassandra',
-    SYSTEMS.cassandra,
-    fanUser(p),
-    PREDICTION_TOOL,
-    PredictionSchema,
-    300,
-  );
-}
-
-export async function callJudge(
-  env: AgentEnv,
-  prediction: Prediction,
-  actual: string,
-): Promise<'hit' | 'graze' | 'miss'> {
-  const user = [
-    `PREDICTION: ${JSON.stringify({ gist: prediction.gist, opening: prediction.opening })}`,
-    `ACTUAL: ${actual}`,
-  ].join('\n');
-  const out = await structured(env, 'judge', SYSTEMS.judge, user, VERDICT_TOOL, VerdictSchema, 100);
-  return out.verdict;
 }
 
 export type AttentionPayload = {
@@ -336,14 +253,6 @@ export function fmtRead(r: Read): string {
     .join('; ');
   const thoughts = r.thoughts.map((t) => `"${t}"`).join(' ');
   return `expressing: ${r.expressing}${thoughts ? ` | thinking: ${thoughts}` : ''}${feelings ? ` | feeling: ${feelings}` : ''}${r.behavior ? ` | heading: ${r.behavior}` : ''} | cue: ${r.cue}`;
-}
-
-export function fmtThought(t: Thought): string {
-  return `"${t.thought}" (confidence ${t.confidence})`;
-}
-
-export function fmtQuestion(q: Question): string {
-  return q.status === 'answered' ? `${q.question} -> ${q.answer}` : q.question;
 }
 
 export function fmtFact(f: Fact): string {

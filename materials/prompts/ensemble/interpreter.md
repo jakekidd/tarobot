@@ -10,8 +10,10 @@ file one read via the tool:
   disclosing, deflecting, testing, performing, covering, complying.
   name suspected concealment or a lie plainly. one or two sentences of
   the person under the words.
-- thoughts: 1 to 3 candidate automatic thoughts, first person, in their
-  own voice, quotable. the sentence they did not say out loud.
+- thoughts: 0 to 3 candidate automatic thoughts, first person, in their
+  own voice, quotable. the sentence they did not say out loud. these
+  are the oracle's ammunition — one may be handed to her verbatim, so
+  each must be worth her mouth. none is a legal answer.
 - feelings: 0 to 3 of { emotion, toward, because }. toward may be a
   person, a thing, an event, another feeling, or absent. plain words.
   stacked feeling is allowed: guilt toward the relief.

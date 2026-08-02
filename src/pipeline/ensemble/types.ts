@@ -1,10 +1,10 @@
-// The ensemble — the live reading engine per ENSEMBLE-PLAN.md.
+// The ensemble — the live reading engine (see docs/ENSEMBLE.md).
 //
 // Two tracks that never call each other: BEHAVIOR (the hot path —
 // blocking, serialized: driver decides, persona speaks) and COGNITION
-// (everything async — the fan agents filing into detached piles, and
-// attention maintaining the frame). The scroll is the pure record of
-// what happened in the room; nothing cognitive attaches to it.
+// (async — the two-agent fan filing into detached piles, and attention
+// maintaining the frame). The scroll is the pure record of what
+// happened in the room; nothing cognitive attaches to it.
 
 import type { OracleBrief } from '../oracle/types';
 
@@ -57,28 +57,20 @@ export type EnsembleInput = {
 
 // ---------------------------------------------------------------- agents
 
+// the whittled cast (2026-08-02): psychic merged into the interpreter
+// (they filed the same `thoughts`), detective / joker / cassandra /
+// judge pruned — none of their filings changed what the driver did,
+// and every fan call is latency the driver must wade through.
 export const AGENT_NAMES = [
   'driver',
   'persona',
   'interpreter',
-  'psychic',
-  'detective',
   'beholder',
-  'joker',
-  'cassandra',
-  'judge',
   'attention',
 ] as const;
 export type AgentName = (typeof AGENT_NAMES)[number];
 
-export const FAN_AGENTS = [
-  'interpreter',
-  'psychic',
-  'detective',
-  'beholder',
-  'joker',
-  'cassandra',
-] as const;
+export const FAN_AGENTS = ['interpreter', 'beholder'] as const;
 export type FanAgent = (typeof FAN_AGENTS)[number];
 
 // ---------------------------------------------------------------- piles
@@ -104,36 +96,15 @@ export type Read = {
   frame_stale: boolean;
 };
 
-export type Thought = { thought: string; confidence: 1 | 2 | 3 };
-
-export type Question = {
-  question: string;
-  status: 'open' | 'answered';
-  answer?: string;
-};
-
 export type Fact = {
   kind: 'person' | 'event' | 'state';
   label: string;
   note: string;
 };
 
-export type Bit = { setup: string; play_when: string };
-
-export type Prediction = {
-  gist: string;
-  opening?: string;
-  confidence: 1 | 2 | 3;
-  verdict?: 'hit' | 'graze' | 'miss' | 'superseded';
-};
-
 export type PilesView = {
   reads: PileItem<Read>[];
-  thoughts: PileItem<Thought>[];
-  questions: PileItem<Question>[];
   facts: PileItem<Fact>[];
-  bits: PileItem<Bit>[];
-  predictions: PileItem<Prediction>[];
   intents: PileItem<Intent>[];
 };
 
@@ -258,7 +229,6 @@ export type EnsembleSnapshot = {
   stallDebt: StallDebt | null;
   fanInFlight: boolean;
   attentionInFlight: boolean;
-  cassandra: { hit: number; graze: number; miss: number };
   error: string | null;
   constants: EnsembleConstants;
 };
@@ -309,6 +279,10 @@ export type EnsembleConstants = {
   RATIO_WINDOW: number;
   CARRY_CAP_MIN: number;
   AMMO_MAX_WORDS: number;
+  /** unspent interpreter thoughts pile up; at this count the driver is
+   *  nudged that banked material is ripe — accumulation should trigger
+   *  spending, not just storage */
+  BANKED_THOUGHTS: number;
   FAN_MIN_NEW_WORDS: number;
   FAN_BACKSTOP_TURNS: number;
   FAN_BLOCKING: boolean;
@@ -317,9 +291,6 @@ export type EnsembleConstants = {
   STALL_MAX_CONSECUTIVE: number;
   STALL_WEIGHTS: Record<StallKind, number>;
   TAIL_READS: number;
-  TAIL_THOUGHTS: number;
-  TAIL_QUESTIONS: number;
-  TAIL_BITS: number;
   LEDGER_CAP: number;
   BEATS_WINDOW_DRIVER: number;
   BEATS_WINDOW_ATTN: number;
@@ -339,6 +310,7 @@ export const ENSEMBLE_CONSTANTS: EnsembleConstants = {
   RATIO_WINDOW: 6,
   CARRY_CAP_MIN: 20,
   AMMO_MAX_WORDS: 12,
+  BANKED_THOUGHTS: 3,
   FAN_MIN_NEW_WORDS: 12,
   FAN_BACKSTOP_TURNS: 2,
   FAN_BLOCKING: false,
@@ -353,10 +325,7 @@ export const ENSEMBLE_CONSTANTS: EnsembleConstants = {
     observation: 2,
     invite: 1,
   },
-  TAIL_READS: 2,
-  TAIL_THOUGHTS: 3,
-  TAIL_QUESTIONS: 3,
-  TAIL_BITS: 1,
+  TAIL_READS: 3,
   LEDGER_CAP: 20,
   BEATS_WINDOW_DRIVER: 8,
   BEATS_WINDOW_ATTN: 12,

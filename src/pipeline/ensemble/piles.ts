@@ -7,15 +7,11 @@
 import type {
   AgentName,
   Anchor,
-  Bit,
   Fact,
   Intent,
   PileItem,
   PilesView,
-  Prediction,
-  Question,
   Read,
-  Thought,
 } from './types';
 
 let nextItemId = 1;
@@ -65,10 +61,6 @@ class Pile<P> {
 
 export class Piles {
   readonly reads = new Pile<Read>();
-  readonly thoughts = new Pile<Thought>();
-  readonly questions = new Pile<Question>();
-  readonly bits = new Pile<Bit>();
-  readonly predictions = new Pile<Prediction>();
   readonly intents = new Pile<Intent>();
 
   // The ledger — merged by label, newest from-the-mouth wins.
@@ -104,11 +96,7 @@ export class Piles {
   view(): PilesView {
     return {
       reads: this.reads.all(),
-      thoughts: this.thoughts.all(),
-      questions: this.questions.all(),
       facts: this.ledger(),
-      bits: this.bits.all(),
-      predictions: this.predictions.all(),
       intents: this.intents.all(),
     };
   }

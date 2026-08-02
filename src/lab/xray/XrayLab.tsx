@@ -12,8 +12,8 @@ import { createClaudeClient } from '../../pipeline/claude';
 import { recordUsage } from '../../debug/usageTally';
 import {
   buildSessionLog,
-  DEFAULT_GREETING_CHAT,
-  DEFAULT_SCENARIO_CHAT,
+  DEFAULT_GREETING_SESSION,
+  DEFAULT_SCENARIO_SESSION,
   EnsembleEngine,
   FIXTURE_BRIEF,
   serializeSession,
@@ -42,9 +42,10 @@ export function XrayLab({ apiKey, onExit }: Props) {
     const first = loadDocs()[0];
     return first ? [first.id] : [];
   });
-  const [mode, setMode] = useState<EnsembleMode>('chat');
-  const [scenario, setScenario] = useState(DEFAULT_SCENARIO_CHAT);
-  const [greeting, setGreeting] = useState(DEFAULT_GREETING_CHAT);
+  // session is the product; chat-from-zero is kept only as a lab probe
+  const [mode, setMode] = useState<EnsembleMode>('session');
+  const [scenario, setScenario] = useState(DEFAULT_SCENARIO_SESSION);
+  const [greeting, setGreeting] = useState(DEFAULT_GREETING_SESSION);
   const [briefJson, setBriefJson] = useState(() => JSON.stringify(FIXTURE_BRIEF, null, 2));
   const [briefError, setBriefError] = useState<string | null>(null);
 

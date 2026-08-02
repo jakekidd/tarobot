@@ -16,19 +16,12 @@ import { deckCard } from '../oracle/deck';
 import {
   callAttention,
   callBeholder,
-  callCassandra,
-  callDetective,
   callDriver,
   callInterpreter,
-  callJoker,
-  callJudge,
   callPersona,
-  callPsychic,
   DEFAULT_TIERS,
   fmtFact,
-  fmtQuestion,
   fmtRead,
-  fmtThought,
   renderDocs,
   renderTail,
   type AgentEnv,
@@ -106,8 +99,9 @@ export class EnsembleEngine {
   private pendingAttention: FrameTrigger | null = null;
   private turnsSinceFrameRegen = 0;
 
-  // cassandra state — the newest unjudged prediction and where it was filed
-  private pendingPrediction: { id: string; scrollIndex: number } | null = null;
+  /** accumulation: interpreter thoughts filed since the driver last
+   *  spent one as ammo — past BANKED_THOUGHTS the driver gets nudged */
+  private thoughtsSinceAmmo = 0;
 
   private listeners = new Set<Listener>();
 
@@ -134,13 +128,6 @@ export class EnsembleEngine {
   // ------------------------------------------------------------- surface
 
   snapshot(): EnsembleSnapshot {
-    const preds = this.piles.predictions.all();
-    const counts = { hit: 0, graze: 0, miss: 0 };
-    for (const p of preds) {
-      if (p.payload.verdict === 'hit') counts.hit += 1;
-      else if (p.payload.verdict === 'graze') counts.graze += 1;
-      else if (p.payload.verdict === 'miss') counts.miss += 1;
-    }
     return {
       mode: this.mode,
       phase: this.phase,
@@ -156,7 +143,6 @@ export class EnsembleEngine {
       stallDebt: this.stallDebt,
       fanInFlight: this.fanInFlight,
       attentionInFlight: this.attentionInFlight,
-      cassandra: counts,
       error: this.error,
       constants: { ...this.c },
     };
@@ -283,6 +269,7 @@ export class EnsembleEngine {
 
       this.lastIntent = intent;
       this.piles.intents.append('driver', this.anchor(), intent);
+      if (intent.ammo) this.thoughtsSinceAmmo = 0;
 
       let assignmentIntent = intent;
       if (intent.move === 'stall' && event.type !== 'open') {
@@ -373,7 +360,6 @@ export class EnsembleEngine {
     const payload = {
       conversation: this.renderBeats(Infinity),
       frame: this.frames.current().md,
-      bit: this.bitTail(),
       assignment: this.assignment(intent),
     };
     // the goldilocks pass: three takes come back, only `spoken` is
@@ -421,90 +407,27 @@ export class EnsembleEngine {
     const conversation = this.renderFanDelta();
     const frameMd = this.frames.current().md;
 
-    // Judge the pending prediction first: it grades against the newest
-    // visitor line; an intervening flip/close supersedes it instead.
-    const judging = this.judgePending();
-
-    const results = await Promise.allSettled([
+    const [read, facts] = await Promise.allSettled([
       callInterpreter(this.env, {
         conversation,
         frame: frameMd,
         ownTail: renderTail(this.piles.reads.tail(this.c.TAIL_READS), fmtRead),
       }),
-      callPsychic(this.env, {
-        conversation,
-        ownTail: renderTail(this.piles.thoughts.tail(this.c.TAIL_THOUGHTS), fmtThought),
-      }),
-      callDetective(this.env, {
-        conversation,
-        ownTail: renderTail(
-          this.piles.questions.tail(this.c.TAIL_QUESTIONS).filter((q) => q.payload.status === 'open'),
-          fmtQuestion,
-        ),
-      }),
       callBeholder(this.env, {
         conversation,
         ownTail: renderTail(this.piles.ledger(), fmtFact),
       }),
-      callJoker(this.env, {
-        conversation,
-        ownTail: renderTail(this.piles.bits.tail(3), (b) => `${b.setup} (${b.play_when})`),
-      }),
-      callCassandra(this.env, {
-        conversation,
-        ownTail: renderTail(
-          this.piles.predictions.tail(2),
-          (p) => `${p.gist}${p.verdict ? ` [${p.verdict}]` : ''}`,
-        ),
-      }),
     ]);
 
     let frameStale = false;
-    const [read, thoughts, questions, facts, bit, prediction] = results;
-
     if (read.status === 'fulfilled') {
       this.piles.reads.append('interpreter', anchor, read.value);
+      this.thoughtsSinceAmmo += read.value.thoughts.length;
       if (read.value.frame_stale) frameStale = true;
-    }
-    if (thoughts.status === 'fulfilled') {
-      for (const t of thoughts.value) {
-        this.piles.thoughts.append(
-          'psychic',
-          anchor,
-          { thought: t.thought, confidence: t.confidence },
-          t.refreshes,
-        );
-      }
-    }
-    if (questions.status === 'fulfilled') {
-      for (const a of questions.value.answered) {
-        this.piles.questions.append('detective', anchor, {
-          question: a.question,
-          status: 'answered',
-          answer: a.answer,
-        });
-      }
-      for (const q of questions.value.open) {
-        this.piles.questions.append(
-          'detective',
-          anchor,
-          { question: q.question, status: 'open' },
-          q.refreshes,
-        );
-      }
     }
     if (facts.status === 'fulfilled' && facts.value.length > 0) {
       this.piles.mergeFacts('beholder', anchor, facts.value, this.c.LEDGER_CAP);
     }
-    if (bit.status === 'fulfilled' && bit.value) {
-      this.piles.bits.append('joker', anchor, bit.value);
-    }
-    if (prediction.status === 'fulfilled') {
-      const item = this.piles.predictions.append('cassandra', anchor, prediction.value);
-      this.pendingPrediction = { id: item.id, scrollIndex: this.scroll.length };
-    }
-
-    await judging;
 
     this.newWordsSinceFan = 0;
     this.turnsWithMaterialSinceFan = 0;
@@ -518,39 +441,6 @@ export class EnsembleEngine {
       const { force } = this.pendingFan;
       this.pendingFan = null;
       this.maybeFan(force);
-    }
-  }
-
-  private async judgePending(): Promise<void> {
-    const pending = this.pendingPrediction;
-    if (!pending) return;
-    this.pendingPrediction = null;
-
-    let actual: string | null = null;
-    for (let i = pending.scrollIndex; i < this.scroll.length; i++) {
-      const e = this.scroll[i];
-      if (e.kind === 'beat' && e.speaker === 'visitor') {
-        actual = e.text;
-        break;
-      }
-      if (e.kind === 'ev' && (e.ev === 'flip' || e.ev === 'close')) {
-        this.piles.predictions.patch(pending.id, (p) => ({ ...p, verdict: 'superseded' }));
-        return;
-      }
-    }
-    if (actual === null) {
-      // nothing arrived yet — leave it pending for the next fan
-      this.pendingPrediction = pending;
-      return;
-    }
-
-    const item = this.piles.predictions.all().find((p) => p.id === pending.id);
-    if (!item) return;
-    try {
-      const verdict = await callJudge(this.env, item.payload, actual);
-      this.piles.predictions.patch(pending.id, (p) => ({ ...p, verdict }));
-    } catch {
-      /* judge throws: verdict skipped */
     }
   }
 
@@ -594,8 +484,6 @@ export class EnsembleEngine {
         conversation: this.renderBeats(this.c.BEATS_WINDOW_ATTN),
         piles: [
           `reads:\n${renderTail(this.piles.reads.tail(this.c.TAIL_READS * 2), fmtRead)}`,
-          `thoughts:\n${renderTail(this.piles.thoughts.tail(this.c.TAIL_THOUGHTS * 2), fmtThought)}`,
-          `questions:\n${renderTail(this.piles.questions.tail(this.c.TAIL_QUESTIONS * 2), fmtQuestion)}`,
           `facts ledger (whole):\n${renderTail(this.piles.ledger(), fmtFact)}`,
         ].join('\n\n'),
         frame: this.frames.current().md,
@@ -672,13 +560,6 @@ export class EnsembleEngine {
       .join('\n');
   }
 
-  private bitTail(): string | null {
-    const tail = this.piles.bits.tail(this.c.TAIL_BITS);
-    if (tail.length === 0) return null;
-    const b = tail[tail.length - 1].payload;
-    return `${b.setup}\n(when: ${b.play_when})`;
-  }
-
   private stallState(event: EnsembleEvent): string {
     if (event.type === 'open') return 'unavailable (the opening)';
     const parts: string[] = [];
@@ -736,19 +617,20 @@ export class EnsembleEngine {
       this.mode === 'session' ? this.flipped.length >= 4 : this.anchor().turn >= 4;
     const mantraNote =
       closeNear && brief?.mantra ? ` | mantra on close: ${brief.mantra}` : '';
+    // accumulation trigger: banked material should get SPENT, not stored
+    const bankedNote =
+      this.thoughtsSinceAmmo >= this.c.BANKED_THOUGHTS
+        ? ` | banked: ${this.thoughtsSinceAmmo} unspent guesses have piled up — if one is ripe for this moment, spend it as ammo`
+        : '';
     return {
       mode: this.mode,
       taboos: this.taboos().join('; ') || '(none)',
       docs: renderDocs(this.input.docs),
       frame: this.frames.current().md,
       conversation: this.renderBeats(this.c.BEATS_WINDOW_DRIVER),
-      cognition: [
-        `reads (newest last):\n${renderTail(this.piles.reads.tail(this.c.TAIL_READS), fmtRead)}`,
-        `thoughts, the visitor's own voice (ammo candidates):\n${renderTail(this.piles.thoughts.tail(this.c.TAIL_THOUGHTS), fmtThought)}`,
-        `open questions:\n${renderTail(this.piles.questions.tail(this.c.TAIL_QUESTIONS), fmtQuestion)}`,
-      ].join('\n\n'),
+      cognition: `reads, newest last (their "thinking" lines are ammo candidates, the visitor's own inner voice):\n${renderTail(this.piles.reads.tail(this.c.TAIL_READS), fmtRead)}`,
       goals: this.renderGoals(),
-      economy: `cap ${capN} words | visitor talk-share ${this.ratio().toFixed(2)} | carry ${this.carry()}${mantraNote}`,
+      economy: `cap ${capN} words | visitor talk-share ${this.ratio().toFixed(2)} | carry ${this.carry()}${mantraNote}${bankedNote}`,
       stallState: this.stallState(event),
       event: this.describeEvent(event),
     };

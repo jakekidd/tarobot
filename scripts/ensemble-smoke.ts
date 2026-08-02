@@ -56,10 +56,8 @@ async function main() {
   assert(s.lastIntent?.move === 'stall', 'driver chose stall');
   assert(s.stallDebt !== null, 'stall debt recorded');
   assert(s.stallDebt!.kind !== undefined, `engine picked stall kind: ${s.stallDebt!.kind}`);
-  assert(s.piles.reads.length > 0, 'fan force-fired: read filed');
-  assert(s.piles.thoughts.length > 0, 'psychic filed');
+  assert(s.piles.reads.length > 0, 'fan force-fired: read filed (thoughts ride inside it)');
   assert(s.piles.facts.length > 0, 'ledger has the sister');
-  assert(s.piles.predictions.length > 0, 'cassandra predicted');
 
   console.log('next line -> debt paid:');
   engine.visitorLine('i mean someone has to hold it together and my mom certainly is not going to be the one');
@@ -67,8 +65,6 @@ async function main() {
   s = engine.snapshot();
   assert(s.lastIntent?.move === 'press', 'driver pressed');
   assert(s.stallDebt === null, 'stall debt cleared on non-stall commit');
-  const judged = s.piles.predictions.some((p) => p.payload.verdict === 'graze');
-  assert(judged, 'pending prediction judged against the new line');
 
   console.log('\nthe scroll:');
   for (const e of s.scroll) {

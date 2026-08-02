@@ -108,31 +108,6 @@ export function CognitionColumn({
         ))}
       </AgentPanel>
 
-      <AgentPanel agent="psychic" title={`thoughts · ${piles.thoughts.length}`} calls={calls} onInspect={onInspect}>
-        {piles.thoughts.length === 0 && <Empty>no guesses yet</Empty>}
-        {piles.thoughts.slice(-8).map((item) => (
-          <div key={item.id} className="xray__item">
-            <AnchorChip item={item} />
-            <span className="xray__quote">“{item.payload.thought}”</span>{' '}
-            <Pill variant={item.payload.confidence === 3 ? 'hot' : item.payload.confidence === 2 ? 'warm' : 'cold'}>
-              c{item.payload.confidence}
-            </Pill>
-          </div>
-        ))}
-      </AgentPanel>
-
-      <AgentPanel agent="detective" title={`questions · ${piles.questions.length}`} calls={calls} onInspect={onInspect}>
-        {piles.questions.length === 0 && <Empty>no questions yet</Empty>}
-        {piles.questions.slice(-8).map((item) => (
-          <div key={item.id} className="xray__item">
-            <AnchorChip item={item} />
-            <Pill variant={item.payload.status === 'answered' ? 'good' : 'default'}>{item.payload.status}</Pill>{' '}
-            {item.payload.question}
-            {item.payload.answer && <div className="xray__anchor">→ {item.payload.answer}</div>}
-          </div>
-        ))}
-      </AgentPanel>
-
       <AgentPanel agent="beholder" title={`facts ledger · ${piles.facts.length}`} calls={calls} onInspect={onInspect}>
         {piles.facts.length === 0 && <Empty>ledger empty</Empty>}
         {piles.facts.map((item) => (
@@ -142,42 +117,6 @@ export function CognitionColumn({
         ))}
       </AgentPanel>
 
-      <AgentPanel agent="joker" title={`bits · ${piles.bits.length}`} calls={calls} onInspect={onInspect}>
-        {piles.bits.length === 0 && <Empty>nothing funny yet</Empty>}
-        {piles.bits.slice(-4).map((item) => (
-          <div key={item.id} className="xray__item">
-            <AnchorChip item={item} />
-            {item.payload.setup}
-            <div className="xray__anchor">when: {item.payload.play_when}</div>
-          </div>
-        ))}
-      </AgentPanel>
-
-      <AgentPanel agent="cassandra" title={`predictions · ${piles.predictions.length}`} calls={calls} onInspect={onInspect}>
-        {piles.predictions.length === 0 && <Empty>no predictions yet</Empty>}
-        {piles.predictions.slice(-6).map((item) => (
-          <div key={item.id} className="xray__item">
-            <AnchorChip item={item} />
-            {item.payload.verdict && (
-              <Pill
-                variant={
-                  item.payload.verdict === 'hit'
-                    ? 'good'
-                    : item.payload.verdict === 'graze'
-                      ? 'warm'
-                      : item.payload.verdict === 'miss'
-                        ? 'hot'
-                        : 'default'
-                }
-              >
-                {item.payload.verdict}
-              </Pill>
-            )}{' '}
-            {item.payload.gist}
-            {item.payload.opening && <div className="xray__quote">opens: “{item.payload.opening}”</div>}
-          </div>
-        ))}
-      </AgentPanel>
     </Stack>
   );
 }
@@ -404,28 +343,6 @@ export function BehaviorColumn({
               value: snap.stallDebt
                 ? `debt: ${snap.stallDebt.accomplish} (${snap.stallDebt.kind})`
                 : 'clear',
-            },
-          ]}
-        />
-      </Panel>
-
-      <Panel
-        title="cassandra scoreboard"
-        meta={`${snap.cassandra.hit}h ${snap.cassandra.graze}g ${snap.cassandra.miss}m`}
-      >
-        <Kv
-          rows={[
-            { key: 'hit', value: String(snap.cassandra.hit) },
-            { key: 'graze', value: String(snap.cassandra.graze) },
-            { key: 'miss', value: String(snap.cassandra.miss) },
-            {
-              key: 'rate',
-              value: (() => {
-                const total = snap.cassandra.hit + snap.cassandra.graze + snap.cassandra.miss;
-                return total === 0
-                  ? '—'
-                  : `${Math.round(((snap.cassandra.hit + snap.cassandra.graze * 0.5) / total) * 100)}%`;
-              })(),
             },
           ]}
         />

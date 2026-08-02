@@ -45,7 +45,7 @@ these.
    (everything async — the fan, attention). Cognition judges and never
    speaks; the persona speaks and never judges. The only crossings:
    the frame (standing orientation), the intent (per-beat assignment),
-   the joker's bit (flavor), and ammo (one licensed verbatim sentence).
+   and ammo (one licensed verbatim sentence).
    This is the structural defense against sycophancy — the half that
    decides what is true never faces the visitor, so it has nothing to
    soften for. It holds by topology, not by prompt.
@@ -63,7 +63,7 @@ these.
    an oracle licensed to carry the room.
 5. **Cache correctness.** The persona's context prefix (character card,
    then beats) is append-only and never edited. Everything volatile
-   (frame, bit, intent) rides after it. This is the prod local-serving
+   (frame, intent) rides after it. This is the prod local-serving
    budget (RadixAttention-style prefix reuse on small hardware); the
    lab does not exercise it but must not break the ordering.
 6. **Charge over truth, texture beats biography** — inherited from the
@@ -133,16 +133,25 @@ current stop lit, next stop flashing.
 
 | agent | track | tier | reads | writes |
 |---|---|---|---|---|
-| driver | behavior | cognition | docs, frame, beats window, tails, economy, stall state, event | intents pile |
-| persona (the wildcard) | behavior | cognition | character card, full beats, frame, bit tail, intent | the oracle beat |
-| interpreter | cognition | fast | beats delta, own tail, frame | reads pile |
-| psychic | cognition | fast | beats delta, own tail | thoughts pile (the magic words / ammo candidates) |
-| detective | cognition | fast | beats delta, own open questions | questions pile |
+| driver | behavior | cognition | docs, frame, beats window, reads tail, goals, economy (incl. banked count), stall state, event | intents pile |
+| persona (the wildcard) | behavior | cognition | character card, full beats, frame, intent | three takes; `spoken` becomes the oracle beat |
+| interpreter | cognition | fast | beats delta, own tail, frame | reads pile — each read carries the visitor's inner-voice "thinking" lines (the ammo pool) |
 | beholder | cognition | fast | beats delta, ledger | facts ledger (new/changed only) |
-| joker | cognition | fast | beats delta, own tail | bits pile (tail-1 goes straight to the persona) |
-| cassandra | cognition | fast | beats delta, own tail | predictions pile (feeds nothing; calibration meter) |
-| judge | cognition | fast | prediction + actual next line | verdict stamped on the prediction |
 | attention | cognition | cognition | everything (docs, brief, piles, ledger whole, frame) | the frame, whole |
+
+**The whittling (2026-08-02).** The cast was ten; it is five. psychic
+merged into the interpreter (both filed the visitor's unsaid sentences
+— the `thoughts` field was literally duplicated across their schemas).
+detective, joker, cassandra, and judge were pruned: across every live
+run, no filing of theirs visibly changed a driver decision (cassandra
+graded 0 hit / 3 miss and fed nothing by design; joker's bits were
+banked but never played; detective had the weakest coupling and the
+stage GOALS now carry "what to find out"). The fan is two haiku calls.
+Ensemble principle applied: members must be DIVERSE AND CONSUMED —
+a channel nobody reads is not diversity, it is noise plus latency.
+Restore any of them from git history only with evidence they change
+behavior. Accumulation now triggers spending: unspent interpreter
+thoughts past `BANKED_THOUGHTS` nudge the driver to play one as ammo.
 
 Prompts: one file per agent under `materials/prompts/ensemble/`,
 editable without a code change. The driver's moves: `hold · press ·
@@ -198,7 +207,7 @@ choose chat or session (session gets the brief JSON editor), begin. Live: cognit
 streams while in flight, filed items with anchors), the table (type as
 the visitor, tick silence — manual-first, auto toggle default off, flip
 buttons in session mode), behavior column (driver intent, persona
-stream, economy HUD, cassandra scoreboard, frame versions, config panel
+stream (with the two rejected takes), economy HUD, frame versions, config panel
 with every constant live including FAN_BLOCKING and stall weights).
 Click "inspect last call" anywhere for the exact prompt the model saw —
 the single most important lab feature. Export json / export log.
@@ -211,7 +220,17 @@ pnpm e2e:ensemble -- --stub          # validates the runner itself, no key
 pnpm e2e:ensemble                    # live; key from --apiKey / ANTHROPIC_API_KEY / .env.local
 pnpm e2e:ensemble -- --mode=session  # four flips, close, mantra
 pnpm e2e:ensemble -- --auto --turns=8  # haiku plays the visitor from a hidden truth
+pnpm live                            # THE LIVE TABLE: play a session turn by turn
+pnpm live -- --driver-tier=fast      # A/B a haiku driver
 ```
+
+`pnpm live` is the sit-across-from-it harness: it watches
+`runs/live-<stamp>/inbox.txt` for `say <text>` / `flip <n>` / `tick` /
+`end`, prints the oracle's beats plus the offstage thinking live, and
+on end writes `audit.md` — the chronological thinking audit (every
+intent, every rejected persona take, every filing) that answers
+`docs/experiments/NORTH-STAR.md`'s question: which thinking changed
+behavior, and which was noise.
 
 Each live run writes `runs/ensemble-<stamp>-<mode>/`:
 `transcript.md` (the scroll, then EVERY call full-fidelity —
@@ -267,18 +286,19 @@ curated results in `docs/experiments/` (README.md is the index).
 
 1. **arms** — does the ensemble beat naive and baseline? same brief +
    track through all three, blind-rank. the gate for everything else.
-2. **leave-one-out ablations** — disable one fan agent (empty tail) per
-   condition. if the driver's decisions don't degrade, that agent is
-   latency without value. start with detective (weakest coupling).
+2. **leave-one-out ablations** — RESOLVED BY THE WHITTLING (2026-08-02):
+   detective, joker, cassandra, judge pruned; psychic merged into the
+   interpreter. the residual version of this experiment: does the
+   two-agent fan still earn its keep vs driver-only?
 3. **FAN_BLOCKING A/B** — hindsight vs synchronous cognition. does
    press/bank/honor timing improve when the driver sees fresh reads?
    caveat: blocking results don't transfer to booth latency.
 4. **stall stress** — tracks with heavy-disclosure-then-deflect, plus
    artificially emptied tails, to see if the brake ever earns its keep;
    force-stall runs to judge whether stall lines feel natural.
-5. **cassandra calibration** — bulk auto-visitor runs; chart hit rate
-   by her own confidence (1/2/3). calibrated confidence is the gate for
-   promoting her to speculative pre-drafting.
+5. **cassandra calibration** — RETIRED: cassandra pruned (0 hit / 3
+   miss on the sample; fed nothing). revisit only if speculative
+   pre-drafting ever becomes the latency plan.
 6. **ammo efficacy** — beats with ammo passed vs without: do the
    "sentence they were thinking" moments land? the magic-words
    hypothesis, measured.
@@ -300,8 +320,8 @@ curated results in `docs/experiments/` (README.md is the index).
     verdicts, name-tic frequency, two-questions-in-a-breath, retraction
     after press) against `docs/ANTI-RUBRICS.md`; humans blind-rank the
     residual. negative engineering first, per house method.
-13. **duplication rate** — how often do psychic thoughts ≈ interpreter
-    thoughts? high overlap means one channel is redundant.
+13. **duplication rate** — RESOLVED: the schemas already showed the
+    overlap (both filed `thoughts`); psychic merged into interpreter.
 14. **consensus profilers (wisdom of crowds)** — three differently-cast
     profilers (ideally different model families — same-family personas
     buy less diversity than they look like) read the same visitor

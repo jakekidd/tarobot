@@ -40,28 +40,6 @@ export const ReadSchema = z.object({
   frame_stale: z.boolean(),
 });
 
-export const ThoughtsSchema = z.object({
-  thoughts: z
-    .array(
-      z.object({
-        thought: z.string(),
-        confidence: z.union([z.literal(1), z.literal(2), z.literal(3)]),
-        refreshes: z.string().optional(),
-      }),
-    )
-    .min(1)
-    .max(3),
-});
-
-export const QuestionsSchema = z.object({
-  open: z
-    .array(z.object({ question: z.string(), refreshes: z.string().optional() }))
-    .max(3),
-  answered: z
-    .array(z.object({ question: z.string(), answer: z.string() }))
-    .max(5),
-});
-
 export const FactsSchema = z.object({
   // tolerant on purpose: a missing field means "nothing new", and an
   // over-eager model restating its ledger dedupes at merge — a failed
@@ -78,18 +56,3 @@ export const FactsSchema = z.object({
     .default([]),
 });
 
-export const BitSchema = z.object({
-  bit: z
-    .object({ setup: z.string(), play_when: z.string() })
-    .nullable(),
-});
-
-export const PredictionSchema = z.object({
-  gist: z.string(),
-  opening: z.string().optional(),
-  confidence: z.union([z.literal(1), z.literal(2), z.literal(3)]),
-});
-
-export const VerdictSchema = z.object({
-  verdict: z.enum(['hit', 'graze', 'miss']),
-});

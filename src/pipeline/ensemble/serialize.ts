@@ -48,8 +48,7 @@ export function buildSessionLog(record: SessionRecord): string {
   out.push('## piles at close');
   out.push('');
   const p = snapshot.piles;
-  out.push(`- reads ${p.reads.length} · thoughts ${p.thoughts.length} · questions ${p.questions.length} · facts ${p.facts.length} · bits ${p.bits.length} · predictions ${p.predictions.length} · intents ${p.intents.length}`);
-  out.push(`- cassandra: ${snapshot.cassandra.hit} hit / ${snapshot.cassandra.graze} graze / ${snapshot.cassandra.miss} miss`);
+  out.push(`- reads ${p.reads.length} · facts ${p.facts.length} · intents ${p.intents.length}`);
   out.push(`- frame versions: ${snapshot.frames.map((f) => `v${f.v}(${f.trigger})`).join(' → ')}`);
   out.push('');
 

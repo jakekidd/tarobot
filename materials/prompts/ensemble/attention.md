@@ -4,9 +4,9 @@ line.
 
 you receive: the input docs (intake documents about this visitor), the
 brief when one exists (cards with their guides, mantra), the taboos,
-the conversation, the cognition piles (reads, thoughts, open questions,
-the facts ledger), the current frame, and your trigger (a flip, a stale
-flag, or drift).
+the conversation, the cognition piles (reads — each carrying the
+visitor's suspected inner-voice lines — and the facts ledger), the
+current frame, and your trigger (a flip, a stale flag, or drift).
 
 regenerate the frame whole. markdown, under 250 words, exactly these
 sections (omit dressings in chat mode: there are no cards):

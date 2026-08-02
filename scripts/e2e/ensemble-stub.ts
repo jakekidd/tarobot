@@ -72,18 +72,8 @@ export class EnsembleStubAdapter implements LLMAdapter {
           cue: 'honor',
           frame_stale: false,
         };
-      case 'file_thoughts':
-        return { thoughts: [{ thought: 'if i put it down, everything falls.', confidence: 2 }] };
-      case 'file_questions':
-        return { open: [{ question: 'who does she think pays for her leaving' }], answered: [] };
       case 'file_facts':
         return { facts: [{ kind: 'person', label: 'the sister', note: 'older; load-bearing' }] };
-      case 'file_bit':
-        return { bit: null };
-      case 'file_prediction':
-        return { gist: 'she deflects into a joke about the job', confidence: 2 };
-      case 'grade':
-        return { verdict: 'graze' };
       default:
         throw new Error(`stub has no answer for tool ${name}`);
     }

@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
-    "preview": "vite preview",
+    "preview": "node --import ./scripts/register-raw-loader.mjs --import tsx scripts/prompt-preview.ts",
     "typecheck": "tsc -b --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
@@ -17,10 +17,10 @@
     "smoke": "node --import ./scripts/register-raw-loader.mjs --import tsx scripts/smoke-pipeline.ts",
     "smoke:ensemble": "node --import ./scripts/register-raw-loader.mjs --import tsx scripts/ensemble-smoke.ts",
     "e2e:ensemble": "node --import ./scripts/register-raw-loader.mjs --import tsx scripts/e2e-ensemble.ts",
+    "live": "node --import ./scripts/register-raw-loader.mjs --import tsx scripts/live-table.ts",
     "exp:audit": "node --import ./scripts/register-raw-loader.mjs --import tsx scripts/experiments/exp12-audit.ts",
     "exp:arms": "node --import ./scripts/register-raw-loader.mjs --import tsx scripts/experiments/exp01-arms.ts",
-    "exp:stall": "node --import ./scripts/register-raw-loader.mjs --import tsx scripts/experiments/exp04-stall.ts",
-    "preview": "node --import ./scripts/register-raw-loader.mjs --import tsx scripts/prompt-preview.ts"
+    "exp:stall": "node --import ./scripts/register-raw-loader.mjs --import tsx scripts/experiments/exp04-stall.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.95.1",
