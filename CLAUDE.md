@@ -89,9 +89,9 @@ materials/
     # LEGACY (antechamber engine, retiring): weaver.md · diviner.md ·
     # compiler.md · intention-suggestor.md · mantra.md
     ensemble/
-      driver.md · wildcard.md · interpreter.md · beholder.md ·
-      attention.md              one system prompt per ensemble agent
-                                (the whittled five — see ENSEMBLE.md §4)
+      driver.md · wildcard.md · interpreter.md · profiler.md ·
+      conjector.md · attention.md   one system prompt per ensemble
+                                agent (see ENSEMBLE.md §4)
   ensemble/
     greeting-chat.md              the screenwritten opening speech (the
     greeting-session.md           "greeting") — spoken verbatim, no model
@@ -469,7 +469,7 @@ the doc.
   project — re-link to `jakekidds-projects`, do not deploy from Ubitel.) Don't
   run `vercel --prod` by hand; the push IS the deploy. Inspect with
   `vercel ls --scope jakekidds-projects` /
-  `vercel project ls --scope jakekidds-projects`. The `tarobot-sage.vercel.app`
+  `vercel project ls --scope jakekidds-projects`. The `tarobot-eosin.vercel.app`
   alias points at production; build runs `git rev-parse --short HEAD` via
   `vite.config.ts` → `__APP_COMMIT__` for the topbar version string.
 
@@ -510,9 +510,12 @@ the doc.
   `pipeline/seer/` engine keeps its name until retired). Session mode
   is the product (chat-from-zero is a lab probe only). Whittled cast of
   five (driver / persona / interpreter / beholder / attention — see
-  ENSEMBLE.md §4 for what was pruned and why); scripted greeting; stage
-  goals (P0/P1/P2) feed the driver; the persona runs a goldilocks pass
-  (too_safe / too_far / spoken — the Hand is dead). Must beat naive AND the
+  ENSEMBLE.md §4 for what was pruned and why, plus the profiler and
+  the rescued conjector — sessions start BLIND, the engine draws its
+  own cards, the conjector writes the dilemma document and the close
+  hands over a quest); scripted greeting; stage goals (P0/P1/P2) feed
+  the driver; the persona runs a goldilocks pass (too_safe / too_far /
+  spoken — the Hand is dead). Must beat naive AND the
   `src/pipeline/oracle/` baseline blind before it earns permanence.
   `docs/ENSEMBLE.md` is the living truth and holds the experiments
   backlog.

@@ -13,11 +13,31 @@ bottom section rots, delete it rather than patch it.
 
 ## 1. what this is
 
-The ensemble is the live reading engine: the cluster of agents that runs
-a conversation between the oracle (the wildcard) and a visitor. It is
-built **chat-first** — a conversation from zero is the primary mode; the
-structured four-card session is the same engine with cards, flips, and a
-close that lands a mantra.
+The ensemble is the live reading engine: the cluster of agents that
+runs a four-card session between the oracle (the wildcard) and a
+visitor who sits down BLIND — no intake, no brief, no upstream
+pipeline. The engine draws its own cards; everything it knows, it
+learns in the room. (Chat mode survives as a lab probe only.)
+
+**The thesis.** Two claims, made literal as architecture:
+
+1. *Good tarot names a dilemma.* When a reading is actually useful, it
+   takes your noise and hands back the problem and the fork, better
+   verbalized than you could — then leaves the choice yours. The
+   conjector IS this claim: guess → grade → the dilemma document
+   (problem / options / quest), delivered as the naming and the
+   questgiver close.
+2. *Psychic is a hidden channel plus inference.* Everything that reads
+   as supernatural is attention to signal the visitor doesn't know
+   they're emitting — word choice, dodges, what they repeat, what they
+   correct, what they laugh off. The interpreter and profiler ARE this
+   channel; the cards are constraint noise that forces a specific
+   angle and licenses saying it out loud.
+
+The wager: eerie accuracy with no trick beyond listening, usefulness
+with no advice — the visitor leaves with their choice named and a
+quest to test it. The win condition is still feeling SEEN, by
+something that demonstrably was paying attention.
 
 Naming: the character is **the oracle** (renamed from "the seer",
 2026-07-24). The legacy director/actor engine at `src/pipeline/seer/`
@@ -136,8 +156,15 @@ current stop lit, next stop flashing.
 | driver | behavior | cognition | docs, frame, beats window, reads tail, goals, economy (incl. banked count), stall state, event | intents pile |
 | persona (the wildcard) | behavior | cognition | character card, full beats, frame, intent | three takes; `spoken` becomes the oracle beat |
 | interpreter | cognition | fast | beats delta, own tail, frame | reads pile — each read carries the visitor's inner-voice "thinking" lines (the ammo pool) |
-| beholder | cognition | fast | beats delta, ledger | facts ledger (new/changed only) |
-| attention | cognition | cognition | everything (docs, brief, piles, ledger whole, frame) | the frame, whole |
+| profiler | cognition | fast | beats delta, facet list, profile | the profile: the 14 survey facets filled freeform in-session, plus 2 elevated facets that steer the driver's question-led intro |
+| conjector | cognition | cognition | profile, beats window, own last guess, dilemma doc | pending guess ("are you the kind of person who X when Y") until hot, then the dilemma document: problem_md / options_md / quest_md, re-edited one passage per cycle |
+| attention | cognition | cognition | everything (docs when present, cards, piles, profile, frame) | the frame, whole |
+
+The conjector is the interview's guesser rescued whole: it self-grades
+cold/warm/hot off the visitor's actual reaction instead of buttons,
+wakes only past `CONJECTOR_WAKE_FACETS` / `_TURNS`, and its document
+is the session's spine — the naming at the midpoint ("the cards tell
+me you have a choice"), the quest at the close.
 
 **The whittling (2026-08-02).** The cast was ten; it is five. psychic
 merged into the interpreter (both filed the visitor's unsaid sentences

@@ -5,8 +5,9 @@ serve; the reader character is **the oracle**.
 
 **Current focus:** the app boots into the **xray lab** — the debug
 surface for the ensemble reading engine (`src/pipeline/ensemble/`, see
-[`docs/ENSEMBLE.md`](docs/ENSEMBLE.md)) — chat-first oracle, scripted
-greeting, driver/persona behavior track, six-agent cognition fan. The
+[`docs/ENSEMBLE.md`](docs/ENSEMBLE.md)) — blind four-card sessions,
+scripted greeting, driver/persona behavior track, profiler + conjector
+cognition (the dilemma named mid-session, a quest at the close). The
 older turtle world (dark purple CRT scene, antechamber interview,
 four-card diamond read) is parked behind the lab's ← menu button while
 the ensemble earns its keep.
