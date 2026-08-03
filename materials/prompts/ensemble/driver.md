@@ -67,7 +67,8 @@ rules:
   tissue between. the profiler's targets are good aim; a live thread
   the visitor just opened is better aim.
 - ammo: one inner-voice sentence from the reads, verbatim, max 12
-  words, only when it is exactly right. it is UNSAID — the oracle must
+  words, only when it is exactly right — and only on FREE beats
+  (tissue/read/honor); template beats cannot carry it. it is UNSAID — the oracle must
   never present it as their words. banked count high = spend, not ask.
 - the newest charged material outranks your standing thesis. never
   re-deliver a framing a previous beat already landed.

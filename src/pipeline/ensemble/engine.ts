@@ -102,6 +102,7 @@ export class EnsembleEngine {
 
   // arc state
   private questionsAsked = 0;
+  private framesUsed = new Map<QuestionFrame, number>();
   private namingDelivered = false;
   private namingReadySince: number | null = null; // oracle-beat count when ready
   private dealReadySince: number | null = null;
@@ -367,6 +368,9 @@ export class EnsembleEngine {
 
   private namingReady(): boolean {
     if (this.namingDelivered || !dilemmaCommitted(this.dilemma)) return false;
+    // never speak a document mid-edit — the passages must include the
+    // newest material (live finding: the naming raced the disclosure)
+    if (this.conjectorInFlight) return false;
     if (this.coherence < this.c.COHERENCE_GATE) return false;
     if (this.mode === 'chat') return this.anchor().turn >= 4;
     return this.flipped.length >= 2;
@@ -586,7 +590,16 @@ export class EnsembleEngine {
   }
 
   private async performQuestion(intent: Intent, myGen: number): Promise<void> {
-    const frame: QuestionFrame = intent.frame ?? 'THREAD';
+    // a frame wears out: the second verbatim use reads as a machine.
+    // an over-used pick swaps to the least-used frame instead.
+    let frame: QuestionFrame = intent.frame ?? 'THREAD';
+    if ((this.framesUsed.get(frame) ?? 0) >= 1) {
+      const fresh = (Object.keys(BEATS.question_frames) as QuestionFrame[]).sort(
+        (a, b) => (this.framesUsed.get(a) ?? 0) - (this.framesUsed.get(b) ?? 0),
+      )[0];
+      frame = fresh;
+    }
+    this.framesUsed.set(frame, (this.framesUsed.get(frame) ?? 0) + 1);
     const entry = BEATS.question_frames[frame];
     const materials = [
       intent.target ? `aim: ${intent.target}` : '',
