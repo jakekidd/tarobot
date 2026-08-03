@@ -234,9 +234,20 @@ stale results are discarded, not spoken.
 ## 6. operating it
 
 **Web:** the app boots INTO the xray lab (key entry first if no key) —
-the turtle world is parked and reachable via ← menu. Setup: pick/edit
-input docs, edit the greeting (the scripted opening) and the scenario,
-choose chat or session (session gets the brief JSON editor), begin. Live: cognition column (one panel per agent,
+the turtle world is parked and reachable via ← menu. Setup: the
+visitor casting (the dossier the sim plays — SESSION-V2 §9), optional
+lab docs, the scenario note, chat or session, begin. Live: the card
+strip (balatro row — face-down cards carry their position labels,
+click to flip), and TWO composers: the left is you (keeps its text
+until sent; enter sends it), the right is the CAST VISITOR — after
+each oracle turn it predicts the dossier-person's next line, locks
+while predicting, unlocks for editing once landed, clears+relocks on
+any send, and never regenerates over an unsent line. "← use as mine"
+copies it into your box. "copy xray" in the topbar puts the full
+transcript on the clipboard — speech unindented, everything offstage
+(engine decisions, every agent's thinking, the rejected persona takes)
+tab-indented, in time order. Same format headlessly: every `pnpm
+live` run writes `xray.txt`; `pnpm xray:render` regenerates them. Live: cognition column (one panel per agent,
 streams while in flight, filed items with anchors), the table (type as
 the visitor, tick silence — manual-first, auto toggle default off, flip
 buttons in session mode), behavior column (driver intent, persona

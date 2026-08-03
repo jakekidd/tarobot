@@ -26,9 +26,17 @@ export function checkSession(record: SessionRecord, only?: number[]): Result[] {
     (e) => e.kind === 'beat' && e.speaker === 'visitor',
   );
   const intro = (i: number) => (dealIdx === -1 ? true : i < dealIdx);
-  const escaped = oracle.some(
-    (b) => b.beatType === 'rant_bid' && b.text.includes('the hard way'),
-  );
+  const escaped =
+    oracle.some((b) => b.beatType === 'rant_bid' && b.text.includes('the hard way')) ||
+    // the demand path: the visitor asked for the cards during intro
+    scroll.some(
+      (e, i) =>
+        e.kind === 'beat' &&
+        e.speaker === 'visitor' &&
+        intro(i) &&
+        /\b(cards?|do the cards|show me the cards)\b/i.test(e.text) &&
+        /\b(do|show|deal|give|see|please)\b/i.test(e.text),
+    );
   const intents = record.snapshot.piles.intents.map((i) => i.payload as Intent);
 
   const results: Result[] = [];

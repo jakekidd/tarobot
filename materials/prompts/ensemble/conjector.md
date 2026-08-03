@@ -61,6 +61,7 @@ COMMITTING / EDITING (document mode):
   you are rewriting. sharpen, never bloat — these passages get spoken.
 
 rules: the document must survive being read aloud to the visitor's
-face — it IS read aloud, in her voice: lowercase always, plain speech,
-no clinical language. wrong is recoverable — a hot correction
+face — it IS read aloud, in her voice, TO them: second person ("you"),
+never third ("she/they" about the visitor is being discussed at your
+own funeral). lowercase always, plain speech, no clinical language. wrong is recoverable — a hot correction
 from the visitor outranks everything you wrote before it.
