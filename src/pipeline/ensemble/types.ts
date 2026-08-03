@@ -1,12 +1,14 @@
-// The ensemble — the live reading engine (see docs/ENSEMBLE.md).
+// The ensemble — the live reading engine (see docs/SESSION-V2.md).
 //
 // Two tracks that never call each other: BEHAVIOR (the hot path —
-// blocking, serialized: driver decides, persona speaks) and COGNITION
-// (async — the two-agent fan filing into detached piles, and attention
-// maintaining the frame). The scroll is the pure record of what
-// happened in the room; nothing cognitive attaches to it.
+// blocking, serialized: driver selects the beat, persona voices it) and
+// COGNITION (async — interpreter + profiler fan, the conjector's hunt,
+// attention maintaining the frame). Speech runs on the beat grammar:
+// structural lines are authored or template-filled with validated
+// slots; the model improvises only in reactive tissue.
 
 import type { OracleDeckCard } from '../oracle/deck';
+import type { BeatType, DilemmaClass, QuestionFrame, SpreadClass } from './beats';
 import type { DilemmaDoc, ElevatedFacet, ProfileEntry } from './profile';
 
 export type EnsembleMode = 'chat' | 'session';
@@ -20,13 +22,17 @@ export type Beat = {
   speaker: 'oracle' | 'visitor';
   text: string;
   t: number;
+  /** which grammar beat produced an oracle line (visitor beats: absent) */
+  beatType?: BeatType;
+  /** validated template fills, recorded for the mechanical checker */
+  fills?: { key: string; text: string }[];
   truncated?: boolean;
 };
 
 export type Ev = {
   kind: 'ev';
-  ev: 'open' | 'flip' | 'silence' | 'close';
-  slot?: 1 | 2 | 3 | 4;
+  ev: 'open' | 'deal' | 'flip' | 'silence' | 'close';
+  slot?: number;
   t: number;
 };
 
@@ -43,24 +49,15 @@ export type InputDoc = {
 
 export type EnsembleInput = {
   mode: EnsembleMode;
-  /** optional lab experiment channel; real sessions start BLIND —
-   *  the profiler builds the picture in-session */
+  /** optional lab experiment channel; real sessions start BLIND */
   docs: InputDoc[];
-  /** turn-0 given circumstances + instruction; drives the `open` event */
+  /** given circumstances note for the driver (color, not script) */
   scenario: string;
-  /** the scripted opening speech (see greeting.ts) — spoken verbatim,
-   *  no model call. absent/empty falls back to generating the opening
-   *  through the hot path with `scenario` as the event. */
-  greeting?: string;
   taboos?: string[];
 };
 
 // ---------------------------------------------------------------- agents
 
-// the whittled cast (2026-08-02): psychic merged into the interpreter
-// (they filed the same `thoughts`), detective / joker / cassandra /
-// judge pruned — none of their filings changed what the driver did,
-// and every fan call is latency the driver must wade through.
 export const AGENT_NAMES = [
   'driver',
   'persona',
@@ -94,6 +91,8 @@ export type Read = {
   feelings: Feeling[];
   behavior?: string;
   cue: 'press' | 'bank' | 'honor' | 'none';
+  /** 3 lucid … 0 word salad — gates the naming and the quest (§8) */
+  coherence: 0 | 1 | 2 | 3;
   frame_stale: boolean;
 };
 
@@ -105,22 +104,20 @@ export type PilesView = {
 // ---------------------------------------------------------------- stages
 
 /** where the session is on the line — derived, never model-decided.
- *  session runs opening → table → card_1..4 → closing → closed; chat
- *  runs opening → talk → closed. derivation + goal ladders: stages.ts */
+ *  session: intro → deal → reading → naming → closing → closed
+ *  chat (lab probe): intro → talk → closing → closed */
 export type StageId =
-  | 'opening'
-  | 'table'
-  | 'card_1'
-  | 'card_2'
-  | 'card_3'
-  | 'card_4'
+  | 'intro'
+  | 'deal'
+  | 'reading'
+  | 'naming'
   | 'closing'
   | 'talk'
   | 'closed';
 
 // ---------------------------------------------------------------- frame
 
-export type FrameTrigger = 'boot' | 'flip' | 'stale' | 'backstop';
+export type FrameTrigger = 'boot' | 'flip' | 'stale' | 'backstop' | 'deal';
 
 export type Frame = {
   v: number;
@@ -131,58 +128,32 @@ export type Frame = {
 
 // ---------------------------------------------------------------- intent
 
-export const ENSEMBLE_MOVES = [
-  'hold',
-  'press',
-  'bank',
-  'honor',
-  'reflect',
-  'read',
-  'respond',
-  'stall',
-  'close',
-] as const;
-export type EnsembleMove = (typeof ENSEMBLE_MOVES)[number];
-
-export const STALL_KINDS = [
-  'reflect_back',
-  'question_direct',
-  'confirm_feeling',
-  'question_detail',
-  'observation',
-  'invite',
-] as const;
-export type StallKind = (typeof STALL_KINDS)[number];
-
+/** the driver's output: which beat comes next, and its fill material.
+ *  the engine clamps the beat to the menu it offered — structure binds. */
 export type Intent = {
-  move: EnsembleMove;
-  thread: string;
+  beat: BeatType;
+  /** question beats: which frame from the library */
+  frame?: QuestionFrame;
+  /** question beats: the facet/thread being aimed at */
+  target?: string;
+  /** rant_bid beats: which authored variant */
+  variant?: 'primary' | 'fallback' | 'escape';
+  /** read beats: the position job this read serves (stamped by engine) */
+  position?: string;
   accomplish: string;
   ammo?: string;
   approx_words: number;
   note: string;
-  stall_kind?: StallKind;
   /** set by the engine when this intent is a fallback, never by the model */
   canned?: boolean;
 };
 
-/** the persona's goldilocks pass — one call, three takes. the first two
- *  are deliberately wrong (too_safe: the polite machine; too_far: the
- *  boardwalk fortune teller) so the third has walls to land between.
- *  only `spoken` ever reaches the scroll; the drafts are lab evidence.
- *  this replaces the Hand from ENSEMBLE-PLAN (candidate generation +
- *  selection as separate agents) at a fraction of the cost. */
+/** the persona's goldilocks pass (F beats) — one call, three takes;
+ *  only `spoken` reaches the scroll. */
 export type PersonaLine = {
   too_safe: string;
   too_far: string;
   spoken: string;
-};
-
-/** outstanding debt from a stall — the next driver call must deliver */
-export type StallDebt = {
-  accomplish: string;
-  kind: StallKind;
-  consecutive: number;
 };
 
 // ---------------------------------------------------------------- economy
@@ -200,13 +171,15 @@ export type Economy = {
 export type EnsembleEvent =
   | { type: 'open' }
   | { type: 'visitor_line' }
-  | { type: 'card_flip'; slot: 1 | 2 | 3 | 4; flip_number: number; guide: string }
+  | { type: 'card_flip'; slot: number; flip_number: number }
   | { type: 'silence' };
 
 // ---------------------------------------------------------------- engine
 
 export type EnsemblePhase = 'idle' | 'live' | 'closed';
 export type BusyLayer = 'driver' | 'persona' | null;
+
+export type DrawnCard = { slot: number; card: OracleDeckCard; position: string };
 
 export type EnsembleSnapshot = {
   mode: EnsembleMode;
@@ -217,16 +190,21 @@ export type EnsembleSnapshot = {
   frame: Frame;
   frames: readonly Frame[];
   economy: Economy;
+  /** empty until the deal — nothing on the table pre-exists the visitor */
+  drawn: readonly DrawnCard[];
+  spreadClass: SpreadClass | null;
   flipped: readonly number[];
-  /** the four cards the engine drew at start, slots 1-4 */
-  drawn: readonly { slot: 1 | 2 | 3 | 4; card: OracleDeckCard }[];
   profile: ProfileEntry[];
   elevated: ElevatedFacet[];
   dilemma: DilemmaDoc;
+  dilemmaClass: DilemmaClass | null;
   pendingGuess: string | null;
+  namingDelivered: boolean;
+  /** latest interpreter coherence read; 3 until evidence says otherwise */
+  coherence: 0 | 1 | 2 | 3;
+  questionsAsked: number;
   busy: BusyLayer;
   lastIntent: Intent | null;
-  stallDebt: StallDebt | null;
   fanInFlight: boolean;
   attentionInFlight: boolean;
   error: string | null;
@@ -264,38 +242,35 @@ export type EnsembleConstants = {
   WORD_MAX: number;
   FILL_K: number;
   SILENCE_FILL: number;
-  /** a flip buys the oracle room to actually read the card — without it,
-   *  card reads get paced like small talk */
+  /** a flip buys the oracle room to actually read the card */
   FLIP_FILL: number;
   START_BUDGET: number;
   CAP_MIN: number;
   CAP_MAX: number;
-  /** carry keys on ABSOLUTE visitor underfeeding (mean words over the
-   *  last CARRY_WINDOW visitor beats), never on word-share: share-based
-   *  carry was a feedback loop — oracle verbosity lowered the visitor's
-   *  share, tripping carry, licensing more oracle words (exp01 finding) */
+  /** carry keys on ABSOLUTE visitor underfeeding (exp01 finding) */
   CARRY_VISITOR_WORDS: number;
   CARRY_WINDOW: number;
   RATIO_WINDOW: number;
   CARRY_CAP_MIN: number;
   AMMO_MAX_WORDS: number;
-  /** unspent interpreter thoughts pile up; at this count the driver is
-   *  nudged that banked material is ripe — accumulation should trigger
-   *  spending, not just storage */
+  /** unspent interpreter thoughts past this count nudge the driver */
   BANKED_THOUGHTS: number;
-  /** the conjector wakes when the profile has this many facets filled,
-   *  or the visitor has taken this many turns — whichever first */
-  CONJECTOR_WAKE_FACETS: number;
-  CONJECTOR_WAKE_TURNS: number;
+  /** intro template questions before the deal is mandated */
+  QUESTION_BUDGET: number;
+  /** beats of grace after naming conditions turn true before it is forced */
+  NAMING_GRACE_BEATS: number;
+  /** naming and quest require coherence at or above this (§8) */
+  COHERENCE_GATE: number;
+  /** the conjector wakes on the first visitor turn this many words long */
+  CONJECTOR_WAKE_WORDS: number;
+  /** tissue beats: free-generation word cap */
+  TISSUE_CAP: number;
   FAN_MIN_NEW_WORDS: number;
   FAN_BACKSTOP_TURNS: number;
   FAN_BLOCKING: boolean;
   FRAME_BACKSTOP_TURNS: number;
   FRAME_MAX_WORDS: number;
-  STALL_MAX_CONSECUTIVE: number;
-  STALL_WEIGHTS: Record<StallKind, number>;
   TAIL_READS: number;
-  LEDGER_CAP: number;
   BEATS_WINDOW_DRIVER: number;
   BEATS_WINDOW_ATTN: number;
   FAN_DELTA_OVERLAP: number;
@@ -315,24 +290,17 @@ export const ENSEMBLE_CONSTANTS: EnsembleConstants = {
   CARRY_CAP_MIN: 20,
   AMMO_MAX_WORDS: 12,
   BANKED_THOUGHTS: 3,
-  CONJECTOR_WAKE_FACETS: 4,
-  CONJECTOR_WAKE_TURNS: 4,
+  QUESTION_BUDGET: 4,
+  NAMING_GRACE_BEATS: 2,
+  COHERENCE_GATE: 2,
+  CONJECTOR_WAKE_WORDS: 15,
+  TISSUE_CAP: 8,
   FAN_MIN_NEW_WORDS: 12,
   FAN_BACKSTOP_TURNS: 2,
   FAN_BLOCKING: false,
   FRAME_BACKSTOP_TURNS: 4,
   FRAME_MAX_WORDS: 250,
-  STALL_MAX_CONSECUTIVE: 1,
-  STALL_WEIGHTS: {
-    reflect_back: 3,
-    question_direct: 3,
-    confirm_feeling: 2,
-    question_detail: 2,
-    observation: 2,
-    invite: 1,
-  },
   TAIL_READS: 3,
-  LEDGER_CAP: 20,
   BEATS_WINDOW_DRIVER: 8,
   BEATS_WINDOW_ATTN: 12,
   FAN_DELTA_OVERLAP: 2,

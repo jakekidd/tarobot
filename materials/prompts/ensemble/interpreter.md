@@ -21,6 +21,10 @@ file one read via the tool:
   interrupts it.
 - cue: press | bank | honor | none. what the moment made available,
   whether or not it was taken.
+- coherence: 0-3. how lucid is the visitor RIGHT NOW — 3 clear and
+  tracking, 2 rambly but present, 1 altered or fragmenting (the house
+  drops to anchor mode: no excavation), 0 word salad. judge the
+  person's state, not their grammar.
 - frame_stale: true if the oracle's current frame no longer fits what you
   now believe about this person.
 

@@ -95,7 +95,7 @@ function buildAudit(record: SessionRecord): string {
         const i = c.output as Intent;
         lines.push({
           t: c.startedAt,
-          text: `  driver ${ms} → ${i.move} · thread ${q(i.thread)} · do ${q(i.accomplish)}${i.ammo ? ` · ammo ${q(i.ammo)}` : ''} · ~${i.approx_words}w\n    note: ${i.note}`,
+          text: `  driver ${ms} → ${i.beat}${i.frame ? `/${i.frame}` : ''}${i.target ? ` @ ${i.target}` : ''} · do ${q(i.accomplish)}${i.ammo ? ` · ammo ${q(i.ammo)}` : ''}\n    note: ${i.note}`,
         });
         break;
       }
@@ -224,13 +224,14 @@ async function main() {
         rec.output = output;
         rec.endedAt = Date.now();
         if (rec.agent === 'conjector') {
-          const o = output as { guess?: string; problem_md?: string; quest_md?: string };
+          const o = output as { guess?: string; class?: string; problem_md?: string; quest_md?: string };
           if (o.guess) console.log(`  [conjector] guess: "${o.guess}"`);
-          if (o.problem_md) console.log(`  [conjector] PROBLEM committed`);
+          if (o.class) console.log(`  [conjector] CLASSIFIED: ${o.class}`);
+          if (o.problem_md) console.log(`  [conjector] problem committed`);
           if (o.quest_md) console.log(`  [conjector] quest drafted`);
         } else if (rec.agent === 'driver') {
           const i = output as Intent;
-          console.log(`  [driver] ${i.move} · ${i.accomplish}${i.ammo ? ` · ammo "${i.ammo}"` : ''}`);
+          console.log(`  [driver] ${i.beat}${i.frame ? `/${i.frame}` : ''} · ${i.accomplish}${i.ammo ? ` · ammo "${i.ammo}"` : ''}`);
         } else if (rec.agent === 'interpreter') {
           const r = output as Read;
           console.log(`  [interpreter] ${r.expressing} · cue ${r.cue}`);
@@ -247,6 +248,7 @@ async function main() {
     },
   });
 
+  let dealShown = false;
   let printed = 0;
   engine.subscribe((snap) => {
     const beats = snap.scroll.filter((e) => e.kind === 'beat');
@@ -257,7 +259,12 @@ async function main() {
   });
 
   console.log(`\n=== live table · ${input.mode} · blind${args.driverTier ? ` · driver=${args.driverTier}` : ''} ===`);
-  console.log(`drawn: ${engine.drawn.map((d) => `${d.slot}:${d.card.id}`).join('  ')}`);
+  engine.subscribe((snap) => {
+    if (snap.drawn.length > 0 && !dealShown) {
+      dealShown = true;
+      console.log(`\n  [deal] ${snap.spreadClass}: ${snap.drawn.map((d) => `${d.slot}:${d.card.id} (${d.position})`).join('  ')}`);
+    }
+  });
   console.log(`commands → append to ${inbox}`);
   console.log(`  say <text> | flip <1-4> | tick | end\n`);
 

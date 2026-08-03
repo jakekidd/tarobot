@@ -20,7 +20,7 @@
     "live": "node --import ./scripts/register-raw-loader.mjs --import tsx scripts/live-table.ts",
     "exp:audit": "node --import ./scripts/register-raw-loader.mjs --import tsx scripts/experiments/exp12-audit.ts",
     "exp:arms": "node --import ./scripts/register-raw-loader.mjs --import tsx scripts/experiments/exp01-arms.ts",
-    "exp:stall": "node --import ./scripts/register-raw-loader.mjs --import tsx scripts/experiments/exp04-stall.ts"
+    "check": "node --import ./scripts/register-raw-loader.mjs --import tsx scripts/check-session.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.95.1",

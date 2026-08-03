@@ -1,24 +1,26 @@
-// EnsembleEngine — the live loop per ENSEMBLE-PLAN.md §4.
+// EnsembleEngine — the live loop per docs/SESSION-V2.md.
 //
-// BEHAVIOR is exactly two blocking calls per beat: driver decides,
-// persona performs. COGNITION is the fan (six agents in parallel, one in
-// flight, one pending, coalesced) plus attention regenerating the frame
-// on its own triggers. The membrane holds by topology: the persona never
-// sees reads, thoughts, questions, facts, or predictions — only the
-// frame, the intent, and the joker's bit.
+// BEHAVIOR runs on the beat grammar: the engine computes the legal beat
+// MENU (structure binds), the driver selects from it, and the render
+// path depends on the beat's mode — V speaks authored text with zero
+// calls, T fills authored skeletons through a validated fast-tier call,
+// F rides the full persona path (reactive tissue only). COGNITION is
+// the interpreter+profiler fan, the conjector's hunt→classify→edit
+// cycle, and attention regenerating the frame.
 //
 // Node-portable: no DOM, no timers. The silence clock belongs to the
 // caller. Interrupt semantics are generation bumps: a newer event makes
 // in-flight results stale, and stale results are discarded, not spoken.
 
 import type { LLMAdapter } from '../llm/adapter';
-import { ORACLE_DECK, type OracleDeckCard } from '../oracle/deck';
+import { ORACLE_DECK } from '../oracle/deck';
 import {
   callAttention,
   callConjector,
   callDriver,
   callInterpreter,
   callPersona,
+  callPersonaFill,
   callProfiler,
   DEFAULT_TIERS,
   fmtRead,
@@ -26,13 +28,25 @@ import {
   renderTail,
   type AgentEnv,
 } from './agents';
-import { dilemmaCommitted, Profile, renderDilemma, renderFacetList, type DilemmaDoc } from './profile';
+import {
+  assemble,
+  BEATS,
+  capSentences,
+  fillableSlots,
+  parseSlots,
+  SPREADS,
+  validateFills,
+  type BeatType,
+  type DilemmaClass,
+  type QuestionFrame,
+  type SlotFills,
+  type SpreadClass,
+} from './beats';
 import { cap, carryFromScroll, fillFromLine, fillFromSilence, spend, talkRatio } from './economy';
 import { FrameStore, frameV1 } from './frame';
-import { renderGreeting } from './greeting';
 import { Piles } from './piles';
+import { dilemmaCommitted, Profile, renderDilemma, renderFacetList, type DilemmaDoc } from './profile';
 import { deriveStage, stageGoals } from './stages';
-import { pickStallKind, STALL_GUIDANCE } from './stall';
 import {
   countWords,
   ENSEMBLE_CONSTANTS,
@@ -40,6 +54,7 @@ import {
   type Anchor,
   type Beat,
   type BusyLayer,
+  type DrawnCard,
   type EnsembleConstants,
   type EnsembleEvent,
   type EnsembleInput,
@@ -50,12 +65,12 @@ import {
   type FrameTrigger,
   type Intent,
   type ScrollEntry,
-  type StallDebt,
+  type StageId,
 } from './types';
 
 type Listener = (snap: EnsembleSnapshot) => void;
 
-const CANNED_LINES = ['mm. go on.', 'say more about that.', 'hm. one moment.', 'i am listening.'];
+const CANNED_LINES = ['mm. go on.', 'say more about that.', 'i am listening.'];
 
 export class EnsembleEngine {
   private readonly adapter: LLMAdapter;
@@ -72,31 +87,40 @@ export class EnsembleEngine {
   // discovery state — the session starts blind and builds these
   private readonly profile = new Profile();
   private dilemma: DilemmaDoc = {};
+  private dilemmaClass: DilemmaClass | null = null;
+  private plantId: string | null = null;
   private pendingGuess: string | null = null;
+  private guessPlayed = false;
   private conjectorInFlight = false;
   private pendingConjector = false;
   private conjectorSeenBeats = 0;
-  readonly drawn: { slot: 1 | 2 | 3 | 4; card: OracleDeckCard }[];
+
+  // the table — empty until the deal (nothing pre-exists the visitor)
+  private drawn: DrawnCard[] = [];
+  private spreadClass: SpreadClass | null = null;
+  private flipped: number[] = [];
+
+  // arc state
+  private questionsAsked = 0;
+  private namingDelivered = false;
+  private namingReadySince: number | null = null; // oracle-beat count when ready
+  private dealReadySince: number | null = null;
+  private coherence: 0 | 1 | 2 | 3 = 3;
+  private lastOracleBeatType: BeatType | null = null;
+  private greetingVariant = 0;
+  private flipInviteVariant = 0;
+  private closeVariant = 0;
 
   private budget: number;
-  private flipped: number[] = [];
   private busy: BusyLayer = null;
   private lastIntent: Intent | null = null;
   private error: string | null = null;
   private cannedIdx = 0;
 
-  private stallDebt: StallDebt | null = null;
-  private stallConsecutive = 0;
-  /** scripted greeting beats don't count as performed turns */
-  private greetingBeatCount = 0;
-
   private gen = 0;
 
   // fan state
   private fanInFlight = false;
-  /** coalesced re-run request; carries force so a stall's fan (which
-   *  promises "cognition has weighed in") survives arriving while
-   *  another fan is mid-flight */
   private pendingFan: { force: boolean } | null = null;
   private newWordsSinceFan = 0;
   private turnsWithMaterialSinceFan = 0;
@@ -109,8 +133,7 @@ export class EnsembleEngine {
   private pendingAttention: FrameTrigger | null = null;
   private turnsSinceFrameRegen = 0;
 
-  /** accumulation: interpreter thoughts filed since the driver last
-   *  spent one as ammo — past BANKED_THOUGHTS the driver gets nudged */
+  /** interpreter thoughts filed since the driver last spent one as ammo */
   private thoughtsSinceAmmo = 0;
 
   private listeners = new Set<Listener>();
@@ -127,9 +150,6 @@ export class EnsembleEngine {
     this.mode = args.input.mode;
     this.c = { ...ENSEMBLE_CONSTANTS, ...args.constants };
     this.budget = this.c.START_BUDGET;
-    // the engine draws its own cards — no brief, no upstream pipeline
-    const shuffled = [...ORACLE_DECK].sort(() => Math.random() - 0.5);
-    this.drawn = ([1, 2, 3, 4] as const).map((slot, i) => ({ slot, card: shuffled[i] }));
     this.frames = new FrameStore(frameV1(args.input));
     this.env = {
       adapter: this.adapter,
@@ -150,15 +170,19 @@ export class EnsembleEngine {
       frame: this.frames.current(),
       frames: [...this.frames.history()],
       economy: { budget: this.budget, ratio: this.ratio(), carry: this.carry() },
-      flipped: this.flipped.slice(),
       drawn: this.drawn.slice(),
+      spreadClass: this.spreadClass,
+      flipped: this.flipped.slice(),
       profile: this.profile.filled(),
       elevated: this.profile.elevated.slice(),
       dilemma: { ...this.dilemma },
+      dilemmaClass: this.dilemmaClass,
       pendingGuess: this.pendingGuess,
+      namingDelivered: this.namingDelivered,
+      coherence: this.coherence,
+      questionsAsked: this.questionsAsked,
       busy: this.busy,
       lastIntent: this.lastIntent,
-      stallDebt: this.stallDebt,
       fanInFlight: this.fanInFlight,
       attentionInFlight: this.attentionInFlight,
       error: this.error,
@@ -196,25 +220,16 @@ export class EnsembleEngine {
 
   // -------------------------------------------------------------- events
 
+  /** boot: at most two authored beats — the greeting, then the rant bid.
+   *  zero model calls before the visitor has spoken (check 1). */
   start(): void {
     if (this.phase !== 'idle') return;
     this.phase = 'live';
     this.scroll.push({ kind: 'ev', ev: 'open', t: Date.now() });
-    const greeting = this.input.greeting
-      ? renderGreeting(this.input.greeting, {}) // blind start: no name yet
-      : [];
-    if (greeting.length > 0) {
-      // the greeting is screenwritten: spoken verbatim, free of the
-      // budget, no model in the loop. the opening is where an unfounded
-      // generated line costs the most.
-      for (const text of greeting) {
-        this.scroll.push({ kind: 'beat', speaker: 'oracle', text, t: Date.now() });
-      }
-      this.greetingBeatCount = greeting.length;
-      this.emit();
-      return;
-    }
-    void this.dispatch({ type: 'open' });
+    const g = BEATS.greeting.variants;
+    this.commitOracle(g[this.greetingVariant % g.length], 'greeting');
+    this.commitOracle(BEATS.rant_bid.primary, 'rant_bid');
+    this.emit();
   }
 
   visitorLine(text: string): void {
@@ -228,22 +243,17 @@ export class EnsembleEngine {
     void this.dispatch({ type: 'visitor_line' });
   }
 
-  flip(slot: 1 | 2 | 3 | 4): void {
+  flip(slot: number): void {
     if (this.phase !== 'live' || this.mode !== 'session') return;
-    const drawn = this.drawn.find((d) => d.slot === slot);
-    if (!drawn || this.flipped.includes(slot)) return;
+    const drawnCard = this.drawn.find((d) => d.slot === slot);
+    if (!drawnCard || this.flipped.includes(slot)) return;
     this.flipped.push(slot);
     this.budget = Math.min(this.budget + this.c.FLIP_FILL, this.c.WORD_MAX);
     this.scroll.push({ kind: 'ev', ev: 'flip', slot, t: Date.now() });
     this.lastEventWasFlip = true;
     this.triggerAttention('flip');
     this.maybeConjector(true);
-    void this.dispatch({
-      type: 'card_flip',
-      slot,
-      flip_number: this.flipped.length,
-      guide: drawn.card.charge,
-    });
+    void this.dispatch({ type: 'card_flip', slot, flip_number: this.flipped.length });
   }
 
   /** caller-owned clock. no-op while a beat is in flight so a slow model
@@ -255,8 +265,7 @@ export class EnsembleEngine {
     void this.dispatch({ type: 'silence' });
   }
 
-  /** the UI's interrupt: the typewriter was cut off mid-render. the beat
-   *  stays (it was spoken up to here), truncated and marked. */
+  /** the UI's interrupt: the typewriter was cut off mid-render. */
   truncateLastOracleBeat(visibleText: string): void {
     for (let i = this.scroll.length - 1; i >= 0; i--) {
       const e = this.scroll[i];
@@ -267,6 +276,123 @@ export class EnsembleEngine {
       }
     }
     this.emit();
+  }
+
+  // ------------------------------------------------------------ the menu
+
+  /** the legal beats for this moment — structure binds, the driver
+   *  selects. a mandate collapses the menu to one entry. */
+  private menu(event: EnsembleEvent): BeatType[] {
+    const stage = this.stage();
+    const anchorMode = this.coherence <= 1;
+
+    // a flip always earns its read first — mandated
+    if (event.type === 'card_flip') return ['read'];
+
+    // the naming, once ready, is mandated within NAMING_GRACE_BEATS
+    if (this.namingReady() && this.graceSpent(this.namingReadySince)) return ['naming'];
+
+    let beats: BeatType[];
+    if (this.mode === 'chat') {
+      beats = this.chatMenu(stage);
+    } else {
+      beats = this.sessionMenu(stage, event);
+    }
+
+    if (anchorMode) {
+      // the light show, not the surgery (§8)
+      beats = beats.filter((b) => b !== 'naming' && b !== 'guess' && b !== 'quest');
+    }
+    if (this.namingReady()) beats = [...new Set<BeatType>(['naming', ...beats])];
+
+    // law 3: no two consecutive oracle beats of the same type (tissue exempt)
+    if (this.lastOracleBeatType && this.lastOracleBeatType !== 'tissue') {
+      beats = beats.filter((b) => b !== this.lastOracleBeatType || b === 'read');
+    }
+    // law 4: questions never stack — also enforced by law 3, but questions
+    // additionally require a beat of tissue after the ANSWER lands is left
+    // to the driver; the hard rule is no back-to-back question beats.
+    return beats.length > 0 ? beats : ['tissue'];
+  }
+
+  private sessionMenu(stage: StageId, event: EnsembleEvent): BeatType[] {
+    switch (stage) {
+      case 'intro': {
+        const beats: BeatType[] = ['tissue', 'honor', 'hold'];
+        if (this.questionsAsked < this.c.QUESTION_BUDGET) beats.unshift('question');
+        // the rant path: fallback after a refusal, escape ends intake
+        beats.push('rant_bid');
+        // the deal opens once there is anything to deal on
+        if (this.visitorSpoke()) beats.push('deal');
+        // deal mandate: class landed or budget spent
+        if (this.dealReady() && this.graceSpent(this.dealReadySince)) return ['deal'];
+        return beats;
+      }
+      case 'deal': {
+        // cards on the table, none flipped
+        const beats: BeatType[] = ['tissue', 'hold', 'honor'];
+        if (event.type === 'silence') beats.unshift('flip_invite');
+        return beats;
+      }
+      case 'reading':
+      case 'naming': {
+        const beats: BeatType[] = ['tissue', 'honor', 'hold'];
+        if (this.pendingGuess && !this.guessPlayed) beats.unshift('guess');
+        if (this.questionsAsked < this.c.QUESTION_BUDGET + 2) beats.push('question');
+        if (event.type === 'silence' && this.flipped.length < this.drawn.length) {
+          beats.unshift('flip_invite');
+        }
+        // the ending opens once the midpoint is spoken or the table is
+        // fully read — the driver judges when landing has happened
+        if (this.namingDelivered || this.flipped.length >= this.drawn.length) {
+          beats.push('close');
+        }
+        return beats;
+      }
+      case 'closing': {
+        return ['close', 'honor', 'tissue', 'hold'];
+      }
+      default:
+        return ['tissue', 'hold'];
+    }
+  }
+
+  private chatMenu(stage: StageId): BeatType[] {
+    if (stage === 'intro') return ['question', 'tissue', 'honor', 'hold', 'rant_bid'];
+    if (stage === 'closing') return ['close', 'honor', 'tissue', 'hold'];
+    const beats: BeatType[] = ['question', 'tissue', 'honor', 'hold'];
+    if (this.pendingGuess && !this.guessPlayed) beats.unshift('guess');
+    return beats;
+  }
+
+  private namingReady(): boolean {
+    if (this.namingDelivered || !dilemmaCommitted(this.dilemma)) return false;
+    if (this.coherence < this.c.COHERENCE_GATE) return false;
+    if (this.mode === 'chat') return this.anchor().turn >= 4;
+    return this.flipped.length >= 2;
+  }
+
+  private dealReady(): boolean {
+    if (this.mode !== 'session' || this.drawn.length > 0) return false;
+    if (!this.visitorSpoke()) return false;
+    return this.dilemmaClass !== null || this.questionsAsked >= this.c.QUESTION_BUDGET;
+  }
+
+  /** grace: readiness is noted on first sight; the mandate lands after
+   *  NAMING_GRACE_BEATS further oracle beats. */
+  private graceSpent(since: number | null): boolean {
+    if (since === null) return false;
+    return this.oracleBeatCount() - since >= this.c.NAMING_GRACE_BEATS;
+  }
+
+  private trackReadiness(): void {
+    if (this.namingReady() && this.namingReadySince === null) {
+      this.namingReadySince = this.oracleBeatCount();
+    }
+    if (!this.namingReady()) this.namingReadySince = this.namingDelivered ? null : this.namingReadySince;
+    if (this.dealReady() && this.dealReadySince === null) {
+      this.dealReadySince = this.oracleBeatCount();
+    }
   }
 
   // ------------------------------------------------------------ behavior
@@ -280,63 +406,39 @@ export class EnsembleEngine {
       if (myGen !== this.gen) return;
     }
 
+    this.trackReadiness();
+    const menu = this.menu(event);
+
     this.busy = 'driver';
     this.emit();
     try {
-      const intent = await this.driverWithFallback(event);
+      let intent = await this.driverWithFallback(event, menu);
       if (myGen !== this.gen) return;
+
+      // structure binds: an off-menu selection clamps to the mandate
+      if (!menu.includes(intent.beat)) {
+        intent = { ...intent, beat: menu[0], note: `${intent.note} [clamped to menu]` };
+      }
+      // read beats carry their position job (check 8)
+      if (intent.beat === 'read') {
+        const slot = event.type === 'card_flip' ? event.slot : this.flipped[this.flipped.length - 1];
+        const pos = this.drawn.find((d) => d.slot === slot)?.position;
+        if (pos) intent = { ...intent, position: pos };
+      }
 
       this.lastIntent = intent;
       this.piles.intents.append('driver', this.anchor(), intent);
       if (intent.ammo) this.thoughtsSinceAmmo = 0;
 
-      let assignmentIntent = intent;
-      if (intent.move === 'stall' && event.type !== 'open') {
-        const kind = intent.stall_kind ?? pickStallKind(this.c.STALL_WEIGHTS);
-        this.stallConsecutive += 1;
-        this.stallDebt = {
-          accomplish: intent.accomplish,
-          kind,
-          consecutive: this.stallConsecutive,
-        };
-        assignmentIntent = { ...intent, stall_kind: kind };
-        this.maybeFan(true); // the whole point: cognition catches up under the stall
-      } else if (intent.move === 'stall') {
-        // stall on open is not a thing; degrade to respond
-        assignmentIntent = { ...intent, move: 'respond' };
-      }
-
-      if (intent.move === 'hold') {
+      if (intent.beat === 'hold') {
         this.busy = null;
         this.maybeFan();
         this.emit();
         return;
       }
 
-      this.busy = 'persona';
-      this.emit();
-      const line = await this.personaWithFallback(assignmentIntent);
+      await this.renderBeat(intent, event, myGen);
       if (myGen !== this.gen) return;
-
-      const clean = sanitizeLine(line);
-      if (clean) {
-        this.scroll.push({ kind: 'beat', speaker: 'oracle', text: clean, t: Date.now() });
-        this.budget = spend(this.budget, clean);
-        // turn boundary: an oracle speech commit closes the turn.
-        if (this.visitorWordsThisTurn > 0) this.turnsWithMaterialSinceFan += 1;
-        this.visitorWordsThisTurn = 0;
-        this.turnsSinceFrameRegen += 1;
-      }
-
-      if (assignmentIntent.move !== 'stall') {
-        this.stallConsecutive = 0;
-        this.stallDebt = null;
-      }
-
-      if (assignmentIntent.move === 'close') {
-        this.scroll.push({ kind: 'ev', ev: 'close', t: Date.now() });
-        this.phase = 'closed';
-      }
 
       this.maybeFan();
       if (this.turnsSinceFrameRegen >= this.c.FRAME_BACKSTOP_TURNS) {
@@ -355,8 +457,261 @@ export class EnsembleEngine {
     }
   }
 
-  private async driverWithFallback(event: EnsembleEvent): Promise<Intent> {
-    const payload = this.driverPayload(event);
+  // ------------------------------------------------------------ rendering
+
+  private async renderBeat(intent: Intent, event: EnsembleEvent, myGen: number): Promise<void> {
+    switch (intent.beat) {
+      case 'greeting':
+      case 'hold':
+        return;
+
+      case 'rant_bid': {
+        const variant = intent.variant ?? 'fallback';
+        this.commitOracle(BEATS.rant_bid[variant], 'rant_bid');
+        if (variant === 'escape') {
+          // cards first, talk after — straight to an UNKNOWN deal
+          await this.performDeal('UNKNOWN', intent, myGen);
+        }
+        return;
+      }
+
+      case 'flip_invite': {
+        const v = BEATS.flip_invite.variants;
+        this.commitOracle(v[this.flipInviteVariant++ % v.length], 'flip_invite');
+        return;
+      }
+
+      case 'close': {
+        await this.performClose(intent, myGen);
+        return;
+      }
+
+      case 'deal': {
+        await this.performDeal(this.dilemmaClass ?? 'UNKNOWN', intent, myGen);
+        return;
+      }
+
+      case 'naming': {
+        this.performNaming();
+        return;
+      }
+
+      case 'guess': {
+        if (this.pendingGuess) {
+          const text = assemble(BEATS.guess.text, {}, { guess: this.pendingGuess });
+          this.commitOracle(text, 'guess');
+          this.guessPlayed = true;
+        }
+        return;
+      }
+
+      case 'question': {
+        await this.performQuestion(intent, myGen);
+        return;
+      }
+
+      case 'quest':
+      case 'charm': {
+        // reachable only via performClose; a stray selection degrades
+        this.commitOracle(this.charmText() ?? BEATS.charm.fallback ?? '', 'charm');
+        return;
+      }
+
+      case 'tissue':
+      case 'read':
+      case 'honor': {
+        this.busy = 'persona';
+        this.emit();
+        const line = await this.personaWithFallback(intent, event);
+        if (myGen !== this.gen) return;
+        const clean = sanitizeLine(line);
+        if (clean) this.commitOracle(clean, intent.beat);
+        return;
+      }
+    }
+  }
+
+  /** T-mode: fill → validate → refill once → fallback (SESSION-V2 §3) */
+  private async fillSkeleton(
+    skeleton: string,
+    fallback: string | undefined,
+    materials: string,
+    beatType: BeatType,
+  ): Promise<{ text: string; fills: { key: string; text: string }[] } | null> {
+    const slots = parseSlots(skeleton);
+    const fillable = fillableSlots(slots);
+    const engineSubs = {
+      guess: this.pendingGuess ?? undefined,
+      passages: {
+        problem: this.dilemma.problem_md ?? '',
+        options: this.dilemma.options_md ?? '',
+        quest: capSentences(this.dilemma.quest_md ?? '', 2),
+      },
+    };
+    if (fillable.length === 0) {
+      return { text: assemble(skeleton, {}, engineSubs), fills: [] };
+    }
+    const visitorText = this.visitorText();
+    const slotDesc = fillable
+      .map((s) => `- ${s.key}: ${s.type}${s.arg ? ` (max ${s.arg} words)` : ''}${s.type === 'QUOTE' ? ' — their words VERBATIM, copied exactly' : ''}`)
+      .join('\n');
+    let fills: SlotFills | null = null;
+    for (let attempt = 0; attempt < 2 && !fills; attempt++) {
+      try {
+        const got = await callPersonaFill(this.env, {
+          conversation: this.renderBeats(this.c.BEATS_WINDOW_DRIVER),
+          frame: this.frames.current().md,
+          skeleton,
+          slots: slotDesc,
+          materials,
+        });
+        const failures = validateFills(slots, got, visitorText);
+        if (failures.length === 0) fills = got;
+      } catch {
+        /* refill or fall through */
+      }
+    }
+    if (fills) {
+      return {
+        text: assemble(skeleton, fills, engineSubs),
+        fills: fillable.map((s) => ({ key: s.key, text: fills![s.key] ?? '' })),
+      };
+    }
+    if (fallback !== undefined) {
+      return { text: assemble(fallback, {}, engineSubs), fills: [] };
+    }
+    // no fallback authored: the beat degrades to nothing; caller decides
+    void beatType;
+    return null;
+  }
+
+  private async performQuestion(intent: Intent, myGen: number): Promise<void> {
+    const frame: QuestionFrame = intent.frame ?? 'THREAD';
+    const entry = BEATS.question_frames[frame];
+    const materials = [
+      intent.target ? `aim: ${intent.target}` : '',
+      `accomplish: ${intent.accomplish}`,
+      this.profile.elevated.length > 0
+        ? `elevated facets:\n${this.profile.elevated.map((e) => `- ${e.facet}: ${e.angle}`).join('\n')}`
+        : '',
+    ]
+      .filter(Boolean)
+      .join('\n');
+    const result = await this.fillSkeleton(entry.text, entry.fallback, materials, 'question');
+    if (myGen !== this.gen) return;
+    if (result) {
+      this.commitOracle(result.text, 'question', result.fills);
+      this.questionsAsked += 1;
+    }
+  }
+
+  private async performDeal(cls: SpreadClass, intent: Intent, myGen: number): Promise<void> {
+    if (this.drawn.length > 0) return;
+    const spread = SPREADS[cls];
+    this.spreadClass = cls;
+    // the draw happens HERE — nothing on the table pre-exists the visitor
+    const deck = [...ORACLE_DECK].sort(() => Math.random() - 0.5);
+    const cards = deck.slice(0, spread.positions.length);
+    // the DIVINER's cheat: the conjector may have named a plant
+    if (this.plantId) {
+      const plant = ORACLE_DECK.find((c) => c.id === this.plantId);
+      if (plant && !cards.some((c) => c.id === plant.id)) {
+        cards[Math.min(1, cards.length - 1)] = plant;
+      }
+    }
+    this.drawn = cards.map((card, i) => ({
+      slot: i + 1,
+      card,
+      position: spread.positions[i].job,
+    }));
+    this.scroll.push({ kind: 'ev', ev: 'deal', t: Date.now() });
+
+    const entry = BEATS.deal[cls];
+    const materials = [
+      `spread: ${spread.name} — positions: ${spread.positions.map((p) => p.job).join(' / ')}`,
+      `dilemma so far:\n${renderDilemma(this.dilemma)}`,
+      `accomplish: ${intent.accomplish}`,
+    ].join('\n\n');
+    const result = await this.fillSkeleton(entry.text, entry.fallback, materials, 'deal');
+    if (myGen !== this.gen) return;
+    if (result) this.commitOracle(result.text, 'deal', result.fills);
+    this.triggerAttention('deal');
+  }
+
+  /** the naming — the mandated ritual midpoint (SESSION-V2 §5). one
+   *  scroll beat: incantation, problem, options, release. */
+  private performNaming(): void {
+    if (!this.dilemmaClass || !dilemmaCommitted(this.dilemma)) return;
+    const text = [
+      BEATS.naming.incantations[this.dilemmaClass],
+      this.dilemma.problem_md?.trim() ?? '',
+      this.dilemma.options_md?.trim() ?? '',
+      BEATS.naming.release,
+    ]
+      .filter(Boolean)
+      .join('\n\n');
+    this.commitOracle(text, 'naming');
+    this.namingDelivered = true;
+    this.namingReadySince = null;
+    this.maybeConjector(true); // unlock the quest passage
+  }
+
+  private charmText(): string | null {
+    return null; // charm renders through fillSkeleton in performClose
+  }
+
+  private async performClose(intent: Intent, myGen: number): Promise<void> {
+    const questReady =
+      this.dilemma.quest_md && this.namingDelivered && this.coherence >= this.c.COHERENCE_GATE;
+    if (questReady) {
+      const quest = capSentences(this.dilemma.quest_md!, 2);
+      this.commitOracle(`${BEATS.quest.lead} ${quest}`, 'quest');
+    } else {
+      const materials = [
+        `one small TRUE thing observed about this visitor tonight, from:`,
+        `profile:\n${this.profile.render()}`,
+        `reads:\n${renderTail(this.piles.reads.tail(2), fmtRead)}`,
+      ].join('\n');
+      const result = await this.fillSkeleton(
+        BEATS.charm.text,
+        BEATS.charm.fallback,
+        materials,
+        'charm',
+      );
+      if (myGen !== this.gen) return;
+      if (result) this.commitOracle(result.text, 'charm');
+    }
+    const v = BEATS.close.variants;
+    this.commitOracle(v[this.closeVariant++ % v.length], 'close');
+    this.scroll.push({ kind: 'ev', ev: 'close', t: Date.now() });
+    this.phase = 'closed';
+    void intent;
+  }
+
+  private commitOracle(
+    text: string,
+    beatType: BeatType,
+    fills?: { key: string; text: string }[],
+  ): void {
+    const trimmed = text.trim();
+    if (!trimmed) return;
+    this.scroll.push({
+      kind: 'beat',
+      speaker: 'oracle',
+      text: trimmed,
+      t: Date.now(),
+      beatType,
+      ...(fills && fills.length > 0 ? { fills } : {}),
+    });
+    this.budget = spend(this.budget, trimmed);
+    this.lastOracleBeatType = beatType;
+    if (this.visitorWordsThisTurn > 0) this.turnsWithMaterialSinceFan += 1;
+    this.visitorWordsThisTurn = 0;
+    this.turnsSinceFrameRegen += 1;
+  }
+
+  private async driverWithFallback(event: EnsembleEvent, menu: BeatType[]): Promise<Intent> {
+    const payload = this.driverPayload(event, menu);
     try {
       return await callDriver(this.env, payload);
     } catch {
@@ -364,10 +719,9 @@ export class EnsembleEngine {
         return await callDriver(this.env, payload);
       } catch {
         return {
-          move: 'respond',
-          thread: 'the room',
+          beat: menu.includes('tissue') ? 'tissue' : menu[0],
           accomplish: 'keep the room warm; one small line',
-          approx_words: 12,
+          approx_words: 8,
           note: 'canned: driver failed twice',
           canned: true,
         };
@@ -375,11 +729,11 @@ export class EnsembleEngine {
     }
   }
 
-  private async personaWithFallback(intent: Intent): Promise<string> {
+  private async personaWithFallback(intent: Intent, event: EnsembleEvent): Promise<string> {
     const payload = {
       conversation: this.renderBeats(Infinity),
       frame: this.frames.current().md,
-      assignment: this.assignment(intent),
+      assignment: this.assignment(intent, event),
     };
     // the goldilocks pass: three takes come back, only `spoken` is
     // performed — the drafts stay in the call record for the lab
@@ -443,6 +797,7 @@ export class EnsembleEngine {
     if (read.status === 'fulfilled') {
       this.piles.reads.append('interpreter', anchor, read.value);
       this.thoughtsSinceAmmo += read.value.thoughts.length;
+      this.coherence = read.value.coherence;
       if (read.value.frame_stale) frameStale = true;
     }
     if (filing.status === 'fulfilled') {
@@ -466,14 +821,13 @@ export class EnsembleEngine {
     }
   }
 
-  /** the conjector sleeps until there is enough to hunt with, then
-   *  cycles: guess -> grade off the room's reaction -> re-guess, and
-   *  once hot, writes and re-edits the dilemma document. */
+  /** the conjector: hunt → classify → edit (SESSION-V2 §5). wakes on the
+   *  rant — the first substantive visitor turn — not on a turn count. */
   private maybeConjector(force = false): void {
     if (this.phase !== 'live') return;
-    const awake =
-      this.profile.size() >= this.c.CONJECTOR_WAKE_FACETS ||
-      this.anchor().turn >= this.c.CONJECTOR_WAKE_TURNS;
+    const awake = this.scroll.some(
+      (e) => e.kind === 'beat' && e.speaker === 'visitor' && countWords(e.text) >= this.c.CONJECTOR_WAKE_WORDS,
+    ) || this.anchor().turn >= 3;
     if (!awake) return;
     const beats = this.scroll.filter((e) => e.kind === 'beat').length;
     if (!force && beats <= this.conjectorSeenBeats) return;
@@ -488,24 +842,34 @@ export class EnsembleEngine {
     this.conjectorInFlight = true;
     this.emit();
     const committed = dilemmaCommitted(this.dilemma);
-    const questWanted = committed && this.flipped.length >= 2;
+    const questWanted = committed && (this.namingDelivered || this.flipped.length >= Math.max(2, this.drawn.length - 1));
     const ask = committed
-      ? `document mode. re-read the passages against the newest material and rewrite the ONE that most needs it${questWanted ? ' — the quest passage is unlocked; draft or sharpen it when the others hold' : ''}. include only what you rewrite.`
-      : 'hunting mode. grade your previous guess off the reaction, then file the next guess — or commit problem_md + options_md if the fork is plain.';
+      ? `document mode. re-read the passages against the newest material and rewrite the ONE that most needs it${questWanted ? ' — the quest passage is unlocked; draft or sharpen it (2 sentences maximum, a small observable experiment)' : ''}. include ONLY what you rewrite; re-emitting an unchanged passage is a wasted cycle.`
+      : 'hunting mode. grade your previous guess off the reaction, then file the next guess — or CLASSIFY when the territory is plain: emit class (FORK|THRESHOLD|LOOP|WEIGHT) + problem_md + options_md, and optionally plant (one deck card id that serves this story).';
     this.conjectorSeenBeats = this.scroll.filter((e) => e.kind === 'beat').length;
     try {
       const out = await callConjector(this.env, {
         profile: this.profile.render(),
         conversation: this.renderBeats(this.c.BEATS_WINDOW_ATTN),
-        prevGuess: this.pendingGuess ?? '(none yet)',
+        prevGuess: this.pendingGuess
+          ? `"${this.pendingGuess}" ${this.guessPlayed ? '(played to the visitor)' : '(NOT yet played — grade unplayed unless the room answered it anyway)'}`
+          : '(none yet)',
         dilemma: renderDilemma(this.dilemma),
         ask,
       });
-      if (out.guess) this.pendingGuess = out.guess;
+      if (out.guess) {
+        this.pendingGuess = out.guess;
+        this.guessPlayed = false;
+      }
+      if (out.class) this.dilemmaClass = out.class;
+      if (out.plant) this.plantId = out.plant;
       if (out.problem_md) this.dilemma.problem_md = out.problem_md;
       if (out.options_md) this.dilemma.options_md = out.options_md;
       if (out.quest_md) this.dilemma.quest_md = out.quest_md;
-      if (out.problem_md || out.options_md) this.pendingGuess = null;
+      if (out.problem_md || out.options_md) {
+        this.pendingGuess = null;
+        this.guessPlayed = false;
+      }
     } catch {
       /* conjector throws: the hunt lags a cycle, session continues */
     }
@@ -532,32 +896,33 @@ export class EnsembleEngine {
       const md = await callAttention(this.env, {
         docs: renderDocs(this.input.docs),
         brief:
-          this.mode === 'session'
+          this.mode === 'session' && this.drawn.length > 0
             ? JSON.stringify(
                 {
+                  spread: this.spreadClass,
                   dilemma: this.dilemma,
-                  cards: this.drawn.map(({ slot, card }) => {
+                  cards: this.drawn.map(({ slot, card, position }) => {
                     const flipped = this.flipped.includes(slot);
                     return {
                       slot,
+                      position,
                       flipped,
-                      // flipped cards bring their full deck-bible entry so
-                      // the dressings section has real imagery to hand out
                       ...(flipped
                         ? { symbols: card.symbols, charge: card.charge, shadow: card.shadow }
-                        : { charge: card.charge }),
+                        : {}),
                     };
                   }),
                 },
                 null,
                 2,
               )
-            : '(chat mode: no cards — omit dressings)',
+            : '(no cards on the table yet — omit dressings)',
         taboos: this.taboos().join('; ') || '(none)',
         conversation: this.renderBeats(this.c.BEATS_WINDOW_ATTN),
         piles: [
           `reads:\n${renderTail(this.piles.reads.tail(this.c.TAIL_READS * 2), fmtRead)}`,
           `profile (whole):\n${this.profile.render()}`,
+          `dilemma document:\n${renderDilemma(this.dilemma)}`,
         ].join('\n\n'),
         frame: this.frames.current().md,
         trigger,
@@ -578,20 +943,36 @@ export class EnsembleEngine {
 
   // ------------------------------------------------------------- context
 
+  private oracleBeatCount(): number {
+    return this.scroll.filter((e): e is Beat => e.kind === 'beat' && e.speaker === 'oracle')
+      .length;
+  }
+
+  private visitorSpoke(): boolean {
+    return this.scroll.some((e) => e.kind === 'beat' && e.speaker === 'visitor');
+  }
+
+  private visitorText(): string {
+    return this.scroll
+      .filter((e): e is Beat => e.kind === 'beat' && e.speaker === 'visitor')
+      .map((b) => b.text)
+      .join('\n');
+  }
+
   private anchor(): Anchor {
-    const spoken = this.scroll.filter(
-      (e): e is Beat => e.kind === 'beat' && e.speaker === 'oracle',
-    ).length;
-    // turns are performed beats; the scripted greeting isn't one
-    const turn = Math.max(0, spoken - this.greetingBeatCount);
+    // turns are performed beats; the two scripted boot beats aren't
+    const turn = Math.max(0, this.oracleBeatCount() - 2);
     return { turn, beat: Math.max(0, this.scroll.length - 1) };
   }
 
-  private stage() {
+  private stage(): StageId {
     return deriveStage({
       mode: this.mode,
       scroll: this.scroll,
+      dealt: this.drawn.length > 0,
       flippedCount: this.flipped.length,
+      spreadSize: Math.max(1, this.drawn.length),
+      namingDelivered: this.namingDelivered,
       phase: this.phase,
     });
   }
@@ -633,32 +1014,6 @@ export class EnsembleEngine {
       .join('\n');
   }
 
-  private stallState(event: EnsembleEvent): string {
-    if (event.type === 'open') return 'unavailable (the opening)';
-    const parts: string[] = [];
-    if (this.stallConsecutive >= this.c.STALL_MAX_CONSECUTIVE) {
-      parts.push('unavailable: you have stalled enough. move.');
-    } else {
-      parts.push('available');
-      // the condition stall exists for must be VISIBLE to the driver
-      // (exp04: with silent staleness, the brake was never chosen once)
-      const lastVisitorIdx = this.scroll.reduce(
-        (idx, e, i) => (e.kind === 'beat' && e.speaker === 'visitor' ? i : idx),
-        -1,
-      );
-      const lastRead = this.piles.reads.last();
-      if (lastVisitorIdx >= 0 && (!lastRead || lastRead.anchor.beat < lastVisitorIdx)) {
-        parts.push('note: cognition has NOT digested the newest visitor material yet.');
-      }
-    }
-    if (this.stallDebt) {
-      parts.push(
-        `DEBT: you bought a beat to "${this.stallDebt.accomplish}" (played as ${this.stallDebt.kind}). cognition has now weighed in. deliver.`,
-      );
-    }
-    return parts.join(' | ');
-  }
-
   private describeEvent(event: EnsembleEvent): string {
     switch (event.type) {
       case 'open':
@@ -666,40 +1021,47 @@ export class EnsembleEngine {
       case 'visitor_line':
         return 'the visitor just spoke; their line is the last beat of the conversation.';
       case 'card_flip': {
-        // the deck bible rides the flip: symbols to dress the read in,
-        // the charge as the question the card puts to this person
-        const entry = this.drawn.find((d) => d.slot === event.slot)?.card;
-        const bible = entry
-          ? ` | the card's imagery: ${entry.symbols.join('; ')} | its charge: ${entry.charge}${entry.shadow ? ` | its shadow: ${entry.shadow}` : ''}`
-          : '';
-        return `card flip ${event.flip_number} of 4, slot ${event.slot}.${bible} | read it against the dilemma as it stands — and if a guess is pending, this is a natural place to weave it in, posed as a question.`;
+        const drawn = this.drawn.find((d) => d.slot === event.slot);
+        if (!drawn) return `card flip ${event.flip_number}.`;
+        const { card, position } = drawn;
+        return [
+          `card flip ${event.flip_number} of ${this.drawn.length}, slot ${event.slot}.`,
+          `its position's job: ${position}.`,
+          `the card's imagery: ${card.symbols.join('; ')}.`,
+          `its charge: ${card.charge}${card.shadow ? ` | its shadow: ${card.shadow}` : ''}.`,
+          `the read = position job × card charge × dilemma state. one image. end with a handle (tell me if that's not it, in her words).`,
+        ].join(' ');
       }
       case 'silence':
         return 'the visitor has let the silence run.';
     }
   }
 
-  private driverPayload(event: EnsembleEvent) {
+  private driverPayload(event: EnsembleEvent, menu: BeatType[]) {
     const capN = cap(this.budget, this.carry(), this.c);
-    // the quest is the close's payload — shown only when the ending is
-    // in reach, so it doesn't get spent early (the old mantra lesson)
-    const closeNear =
-      this.mode === 'session' ? this.flipped.length >= 4 : this.anchor().turn >= 6;
-    const questNote =
-      closeNear && this.dilemma.quest_md
-        ? ` | the quest, for the close (the last thing they hear): ${this.dilemma.quest_md}`
-        : '';
-    // accumulation trigger: banked material should get SPENT, not stored
+    const mandated = menu.length === 1 ? ` — MANDATED: ${menu[0]} (structure binds; anything else is clamped)` : '';
     const bankedNote =
       this.thoughtsSinceAmmo >= this.c.BANKED_THOUGHTS
-        ? ` | banked: ${this.thoughtsSinceAmmo} unspent guesses have piled up — if one is ripe for this moment, spend it as ammo`
+        ? ` | banked: ${this.thoughtsSinceAmmo} unspent inner-voice guesses — if one is ripe, spend it as ammo`
         : '';
+    const table =
+      this.drawn.length === 0
+        ? 'the table: empty — no cards dealt yet.'
+        : `the table: ${SPREADS[this.spreadClass ?? 'UNKNOWN'].name} (${this.spreadClass}). ` +
+          this.drawn
+            .map(
+              (d) =>
+                `slot ${d.slot} "${d.position}" ${this.flipped.includes(d.slot) ? `= ${d.card.name}` : '(face down)'}`,
+            )
+            .join(' · ');
     const cognition = [
-      `reads, newest last (their "thinking" lines are ammo candidates, the visitor's own inner voice):\n${renderTail(this.piles.reads.tail(this.c.TAIL_READS), fmtRead)}`,
-      `profile (what is known so far):\n${this.profile.render()}`,
-      `dilemma document:\n${renderDilemma(this.dilemma)}`,
-      this.pendingGuess
-        ? `PENDING GUESS from the conjector — play it when the moment allows, posed as a question or woven into a read, in the oracle's own words:\n"${this.pendingGuess}"`
+      `reads, newest last (their "thinking" lines are ammo candidates):\n${renderTail(this.piles.reads.tail(this.c.TAIL_READS), fmtRead)}`,
+      `coherence now: ${this.coherence}/3${this.coherence <= 1 ? ' — ANCHOR MODE: short, concrete, sensory; no excavation' : ''}`,
+      `profile (${this.profile.size()}/14):\n${this.profile.render()}`,
+      `question targets (profiler-elevated):\n${this.profile.elevated.map((e) => `- ${e.facet}: ${e.angle}`).join('\n') || '(none yet)'}`,
+      `dilemma document (class: ${this.dilemmaClass ?? 'not yet classified'}):\n${renderDilemma(this.dilemma)}`,
+      this.pendingGuess && !this.guessPlayed
+        ? `PENDING GUESS — playable via the guess beat, verbatim:\n"${this.pendingGuess}"`
         : 'pending guess: (none)',
     ].join('\n\n');
     return {
@@ -710,8 +1072,9 @@ export class EnsembleEngine {
       conversation: this.renderBeats(this.c.BEATS_WINDOW_DRIVER),
       cognition,
       goals: this.renderGoals(),
-      economy: `cap ${capN} words | visitor talk-share ${this.ratio().toFixed(2)} | carry ${this.carry()}${questNote}${bankedNote}`,
-      stallState: this.stallState(event),
+      table,
+      menu: `MENU: [${menu.join(' · ')}]${mandated} | questions asked ${this.questionsAsked}/${this.c.QUESTION_BUDGET}`,
+      economy: `F-beat cap ${capN} words | visitor talk-share ${this.ratio().toFixed(2)} | carry ${this.carry()}${bankedNote}`,
       event: this.describeEvent(event),
     };
   }
@@ -719,53 +1082,40 @@ export class EnsembleEngine {
   private renderGoals(): string {
     const stage = this.stage();
     const goals = [...stageGoals(this.mode, stage)];
-    // the naming: once the fork is written and two cards are down, the
-    // midpoint beat is delivering it — "the cards tell me you have a choice"
-    if (
-      dilemmaCommitted(this.dilemma) &&
-      this.flipped.length >= 2 &&
-      this.flipped.length < 4
-    ) {
-      goals.unshift(
-        'P0 the naming is ready: when the moment opens, tell them the cards say they have a choice — then say the problem plainly, then the options. this is the midpoint; give it room.',
-      );
-    }
-    // elevated facets steer the question-led intro
-    if ((stage === 'opening' || stage === 'table') && this.profile.elevated.length > 0) {
-      for (const e of this.profile.elevated) {
-        goals.push(`P1 worth asking toward: ${e.facet} — ${e.angle}`);
-      }
-    }
     if (goals.length === 0) return `stage: ${stage} | (no standing goals)`;
     return [`stage: ${stage} — P0 highest`, ...goals].join('\n');
   }
 
-  private assignment(intent: Intent): string {
+  /** F-beat assignment: reads and honor get earned room; tissue stays tiny */
+  private assignment(intent: Intent, event: EnsembleEvent): string {
     const capN = cap(this.budget, this.carry(), this.c);
-    // reads, the naming, and the close are the earned-length moments —
-    // the cap loosens there; everything else stays conversational
-    const roomy = intent.move === 'read' || intent.move === 'close' || intent.move === 'honor';
-    const words = roomy
-      ? Math.max(Math.min(intent.approx_words, this.c.CAP_MAX), 24)
-      : Math.min(intent.approx_words, capN);
     const lines: string[] = [];
-    if (intent.move === 'stall' && intent.stall_kind) {
-      lines.push(`move: stall — ${STALL_GUIDANCE[intent.stall_kind]}`);
-      lines.push(`aim: ${intent.accomplish}`);
-    } else {
-      lines.push(`move: ${intent.move}`);
-      lines.push(`accomplish: ${intent.accomplish}`);
+    lines.push(`beat: ${intent.beat}`);
+    lines.push(`accomplish: ${intent.accomplish}`);
+    if (intent.beat === 'read') {
+      const slot = event.type === 'card_flip' ? event.slot : this.flipped[this.flipped.length - 1];
+      const drawn = this.drawn.find((d) => d.slot === slot);
+      if (drawn) {
+        lines.push(`the position's job: ${drawn.position}`);
+        lines.push(`the card's imagery: ${drawn.card.symbols.join('; ')}`);
+        lines.push(`its charge: ${drawn.card.charge}`);
+        if (this.namingDelivered) {
+          lines.push('the naming is spoken: aim this card at the named fork.');
+        }
+      }
+      lines.push('one image, never a conceit stretched over three sentences. end with a handle: tell me if that is not it, in your words.');
     }
-    if (intent.ammo) lines.push(`ammo, verbatim if it fits your mouth: "${intent.ammo}"`);
-    if (intent.move === 'close' && this.dilemma.quest_md) {
-      lines.push(
-        `the quest — the last thing they hear, handed over like a small assignment, whole: ${this.dilemma.quest_md}`,
-      );
-    }
+    if (intent.ammo) lines.push(`ammo, their UNSAID inner voice — never present it as their words: "${intent.ammo}"`);
+    const words =
+      intent.beat === 'tissue'
+        ? Math.min(intent.approx_words, this.c.TISSUE_CAP)
+        : intent.beat === 'read' || intent.beat === 'honor'
+          ? Math.max(Math.min(intent.approx_words, this.c.CAP_MAX), 24)
+          : Math.min(intent.approx_words, capN);
     lines.push(
-      roomy
-        ? `up to ${words} words. take the room this needs, not a word more.`
-        : `cap ${words} words. an acknowledgment can be two.`,
+      intent.beat === 'tissue'
+        ? `cap ${words} words. two is a fine number.`
+        : `up to ${words} words. take the room this needs, not a word more.`,
     );
     return lines.join('\n');
   }

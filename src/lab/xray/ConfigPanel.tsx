@@ -1,12 +1,8 @@
-// Every constant a live control — numbers, toggles, and the stall
-// weights. Changes apply to the running engine without a restart.
+// Every constant a live control — numbers and toggles. Changes apply
+// to the running engine without a restart.
 
 import { Panel, Stack } from '../lib';
-import {
-  STALL_KINDS,
-  type EnsembleConstants,
-  type StallKind,
-} from '../../pipeline/ensemble';
+import type { EnsembleConstants } from '../../pipeline/ensemble';
 
 type Props = {
   constants: EnsembleConstants;
@@ -26,14 +22,17 @@ const NUMERIC_KEYS = [
   'RATIO_WINDOW',
   'CARRY_CAP_MIN',
   'AMMO_MAX_WORDS',
+  'BANKED_THOUGHTS',
+  'QUESTION_BUDGET',
+  'NAMING_GRACE_BEATS',
+  'COHERENCE_GATE',
+  'CONJECTOR_WAKE_WORDS',
+  'TISSUE_CAP',
   'FAN_MIN_NEW_WORDS',
   'FAN_BACKSTOP_TURNS',
   'FRAME_BACKSTOP_TURNS',
   'FRAME_MAX_WORDS',
-  'STALL_MAX_CONSECUTIVE',
   'TAIL_READS',
-  'BANKED_THOUGHTS',
-  'LEDGER_CAP',
   'BEATS_WINDOW_DRIVER',
   'BEATS_WINDOW_ATTN',
   'FAN_DELTA_OVERLAP',
@@ -66,28 +65,6 @@ export function ConfigPanel({ constants, onChange }: Props) {
               />
             </label>
           ))}
-        </div>
-        <div>
-          <div className="bench__section-title">stall weights</div>
-          <div className="xray__config-grid">
-            {STALL_KINDS.map((kind: StallKind) => (
-              <label key={kind} className="xray__config-row">
-                <span>{kind}</span>
-                <input
-                  type="number"
-                  min={0}
-                  value={constants.STALL_WEIGHTS[kind]}
-                  onChange={(e) => {
-                    const n = Number(e.target.value);
-                    if (Number.isNaN(n)) return;
-                    onChange({
-                      STALL_WEIGHTS: { ...constants.STALL_WEIGHTS, [kind]: n },
-                    });
-                  }}
-                />
-              </label>
-            ))}
-          </div>
         </div>
       </Stack>
     </Panel>

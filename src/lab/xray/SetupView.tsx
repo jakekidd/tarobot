@@ -4,8 +4,6 @@
 import { useState } from 'react';
 import { Button, Divider, Empty, Field, Panel, Pill, Row, Stack } from '../lib';
 import {
-  DEFAULT_GREETING_CHAT,
-  DEFAULT_GREETING_SESSION,
   DEFAULT_SCENARIO_CHAT,
   DEFAULT_SCENARIO_SESSION,
   type EnsembleMode,
@@ -22,8 +20,6 @@ type Props = {
   onModeChange: (mode: EnsembleMode) => void;
   scenario: string;
   onScenarioChange: (s: string) => void;
-  greeting: string;
-  onGreetingChange: (s: string) => void;
   onStart: () => void;
 };
 
@@ -42,9 +38,6 @@ export function SetupView(p: Props) {
     // follow the mode's defaults unless jake already customized them
     if (p.scenario === DEFAULT_SCENARIO_CHAT || p.scenario === DEFAULT_SCENARIO_SESSION) {
       p.onScenarioChange(mode === 'chat' ? DEFAULT_SCENARIO_CHAT : DEFAULT_SCENARIO_SESSION);
-    }
-    if (p.greeting === DEFAULT_GREETING_CHAT || p.greeting === DEFAULT_GREETING_SESSION) {
-      p.onGreetingChange(mode === 'chat' ? DEFAULT_GREETING_CHAT : DEFAULT_GREETING_SESSION);
     }
   }
 
@@ -128,22 +121,9 @@ export function SetupView(p: Props) {
           </Stack>
         </Panel>
 
-        <Panel title="greeting — the scripted opening" meta={<Pill variant={p.greeting.trim() ? 'good' : 'warn'}>{p.greeting.trim() ? 'scripted' : 'generated'}</Pill>}>
-          <Field
-            label="spoken verbatim, one beat per paragraph; no model call"
-            hint="{{name}} lines drop when no name is known; html comments are authoring notes. empty = generate the opening through the hot path (the old way; it invents things)."
-          >
-            <textarea
-              className="xray__doc-edit"
-              value={p.greeting}
-              onChange={(e) => p.onGreetingChange(e.target.value)}
-            />
-          </Field>
-        </Panel>
-
         <Panel title="scenario — turn 0 given circumstances">
           <Field
-            label="given circumstances for the room; drives the opening only when the greeting is empty"
+            label="given circumstances note fed to the driver (the opening itself is authored — materials/ensemble/beats.json)"
             hint="chat without structure is random; this is the structure."
           >
             <textarea

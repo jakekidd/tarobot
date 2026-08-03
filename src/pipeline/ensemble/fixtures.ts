@@ -1,19 +1,11 @@
-// Defaults for the xray lab: the starter input docs (the experimental
-// channel — portrait-profile-style intake documents about the visitor),
-// the turn-0 scenarios, and the session-mode brief (reused from the
-// oracle baseline so both arms run the same material).
+// Defaults for the xray lab and the headless harnesses. Real sessions
+// start BLIND — no docs, no brief; the beat grammar owns the opening
+// (materials/ensemble/beats.json) and the engine draws its own cards
+// at deal time. The docs channel survives only as a lab experiment.
 
-import GREETING_CHAT_RAW from '../../../materials/ensemble/greeting-chat.md?raw';
-import GREETING_SESSION_RAW from '../../../materials/ensemble/greeting-session.md?raw';
 import type { EnsembleInput, InputDoc } from './types';
 
-/** the screenwritten opening speeches (materials/ensemble/) — see
- *  greeting.ts for the slot rules */
-export const DEFAULT_GREETING_CHAT = GREETING_CHAT_RAW;
-export const DEFAULT_GREETING_SESSION = GREETING_SESSION_RAW;
-
-/** the default intake document — maya, matching FIXTURE_BRIEF so chat
- *  and session modes share one coherent visitor. */
+/** the default intake document — lab experiment channel only */
 export const DEFAULT_DOC_MD = `# intake — maya
 
 ## who sat down
@@ -69,32 +61,16 @@ export function defaultDocs(): InputDoc[] {
 }
 
 export const DEFAULT_SCENARIO_CHAT =
-  'the player has just sat down across from you. you have never met. ' +
-  'greet them and land them in the room; no question about why they came.';
+  'a festival booth, late. the visitor has just sat down across from you. you have never met.';
 
 export const DEFAULT_SCENARIO_SESSION =
-  'the player has just sat down across from you. four cards lie face ' +
-  'down between you in a diamond; they choose when to flip. greet them, ' +
-  'land them in the room, and let them know the cards wait on them.';
+  'a festival booth, late. the visitor has just sat down across from you. you have never met. cards are dealt only after you have heard them.';
 
-export function defaultChatInput(docs: InputDoc[]): EnsembleInput {
-  return {
-    mode: 'chat',
-    docs,
-    scenario: DEFAULT_SCENARIO_CHAT,
-    greeting: DEFAULT_GREETING_CHAT,
-    taboos: [],
-  };
+export function defaultChatInput(docs: InputDoc[] = []): EnsembleInput {
+  return { mode: 'chat', docs, scenario: DEFAULT_SCENARIO_CHAT, taboos: [] };
 }
 
-/** the default session is BLIND — no docs, no brief; the engine draws
- *  its own cards and the profiler builds the picture in-session */
+/** the default session is BLIND — the real thing */
 export function defaultSessionInput(docs: InputDoc[] = []): EnsembleInput {
-  return {
-    mode: 'session',
-    docs,
-    scenario: DEFAULT_SCENARIO_SESSION,
-    greeting: DEFAULT_GREETING_SESSION,
-    taboos: [],
-  };
+  return { mode: 'session', docs, scenario: DEFAULT_SCENARIO_SESSION, taboos: [] };
 }

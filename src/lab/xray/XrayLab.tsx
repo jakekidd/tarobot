@@ -12,7 +12,6 @@ import { createClaudeClient } from '../../pipeline/claude';
 import { recordUsage } from '../../debug/usageTally';
 import {
   buildSessionLog,
-  DEFAULT_GREETING_SESSION,
   DEFAULT_SCENARIO_SESSION,
   EnsembleEngine,
   serializeSession,
@@ -43,7 +42,6 @@ export function XrayLab({ apiKey, onExit }: Props) {
   // session is the product; chat-from-zero is kept only as a lab probe
   const [mode, setMode] = useState<EnsembleMode>('session');
   const [scenario, setScenario] = useState(DEFAULT_SCENARIO_SESSION);
-  const [greeting, setGreeting] = useState(DEFAULT_GREETING_SESSION);
 
   useEffect(() => {
     saveDocs(docs);
@@ -66,7 +64,6 @@ export function XrayLab({ apiKey, onExit }: Props) {
       mode,
       docs: docs.filter((d) => selected.includes(d.id)),
       scenario,
-      greeting: greeting.trim() ? greeting : undefined,
       taboos: [],
     };
     const store = new Map<string, CallRecord>();
@@ -185,8 +182,6 @@ export function XrayLab({ apiKey, onExit }: Props) {
             onModeChange={setMode}
             scenario={scenario}
             onScenarioChange={setScenario}
-            greeting={greeting}
-            onGreetingChange={setGreeting}
             onStart={start}
           />
         )}

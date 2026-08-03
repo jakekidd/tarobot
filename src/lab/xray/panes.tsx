@@ -194,7 +194,7 @@ export function TablePane({
   snap: EnsembleSnapshot;
   onSend: (text: string) => void;
   onSilence: () => void;
-  onFlip: (slot: 1 | 2 | 3 | 4) => void;
+  onFlip: (slot: number) => void;
   autoSilence: boolean;
   onAutoSilence: (on: boolean) => void;
 }) {
@@ -221,7 +221,7 @@ export function TablePane({
         {snap.busy && <Pill variant="warm">behavior: {snap.busy}…</Pill>}
         {snap.fanInFlight && <Pill variant="cold">cognition: fan running</Pill>}
         {snap.attentionInFlight && <Pill variant="cold">attention: reframing</Pill>}
-        {snap.stallDebt && <Pill variant="warn">stall debt: {snap.stallDebt.kind}</Pill>}
+        {snap.coherence <= 1 && <Pill variant="warn">anchor mode</Pill>}
         {snap.error && <Pill variant="hot">error</Pill>}
       </Row>
       <div className="xray__scrollview" ref={viewRef}>
@@ -243,16 +243,17 @@ export function TablePane({
         )}
       </div>
       <div className="xray__composer">
-        {snap.mode === 'session' && (
-          <Row gap={2}>
-            {([1, 2, 3, 4] as const).map((slot) => (
+        {snap.mode === 'session' && snap.drawn.length > 0 && (
+          <Row gap={2} wrap>
+            {snap.drawn.map((d) => (
               <Button
-                key={slot}
-                variant={snap.flipped.includes(slot) ? 'ghost' : 'default'}
-                disabled={snap.flipped.includes(slot) || snap.phase !== 'live'}
-                onClick={() => onFlip(slot)}
+                key={d.slot}
+                variant={snap.flipped.includes(d.slot) ? 'ghost' : 'default'}
+                disabled={snap.flipped.includes(d.slot) || snap.phase !== 'live'}
+                onClick={() => onFlip(d.slot)}
+                title={d.position}
               >
-                flip {slot}
+                {snap.flipped.includes(d.slot) ? d.card.name.toLowerCase() : `flip ${d.slot} — ${d.position}`}
               </Button>
             ))}
           </Row>
@@ -339,16 +340,17 @@ export function BehaviorColumn({
           <Kv
             rows={[
               {
-                key: 'move',
+                key: 'beat',
                 value: (
                   <>
-                    <Pill variant={intent.move === 'stall' ? 'warn' : 'accent'}>{intent.move}</Pill>
+                    <Pill variant="accent">{intent.beat}</Pill>
+                    {intent.frame && <Pill>{intent.frame}</Pill>}
                     {intent.canned && <Pill variant="hot">canned</Pill>}
-                    {intent.stall_kind && <Pill>{intent.stall_kind}</Pill>}
                   </>
                 ),
               },
-              { key: 'thread', value: intent.thread },
+              ...(intent.target ? [{ key: 'target', value: intent.target }] : []),
+              ...(intent.position ? [{ key: 'position', value: intent.position }] : []),
               { key: 'accomplish', value: intent.accomplish },
               ...(intent.ammo ? [{ key: 'ammo', value: `“${intent.ammo}”` }] : []),
               { key: 'size', value: `~${intent.approx_words} words` },
@@ -372,12 +374,9 @@ export function BehaviorColumn({
           rows={[
             { key: 'budget', value: `${snap.economy.budget} / ${snap.constants.WORD_MAX}` },
             { key: 'visitor share', value: snap.economy.ratio.toFixed(2) },
-            {
-              key: 'stall',
-              value: snap.stallDebt
-                ? `debt: ${snap.stallDebt.accomplish} (${snap.stallDebt.kind})`
-                : 'clear',
-            },
+            { key: 'coherence', value: `${snap.coherence}/3` },
+            { key: 'questions', value: `${snap.questionsAsked}/${snap.constants.QUESTION_BUDGET}` },
+            { key: 'naming', value: snap.namingDelivered ? 'delivered' : 'not yet' },
           ]}
         />
       </Panel>

@@ -18,6 +18,7 @@ import type {
 import {
   CONJECTOR_TOOL,
   DRIVER_TOOL,
+  FILL_TOOL,
   PERSONA_TOOL,
   PROFILE_TOOL,
   READ_TOOL,
@@ -29,6 +30,7 @@ import {
   PersonaLineSchema,
   ProfileFilingSchema,
   ReadSchema,
+  SlotFillsSchema,
 } from './schemas';
 
 export type ProfileFiling = z.infer<typeof ProfileFilingSchema>;
@@ -63,9 +65,10 @@ async function structured<T>(
   tool: ToolDef,
   schema: ZodType<T>,
   maxTokens: number,
+  tierOverride?: 'fast' | 'cognition' | 'deep',
 ): Promise<T> {
   const id = callId();
-  const tier = env.tiers[agent];
+  const tier = tierOverride ?? env.tiers[agent];
   const rec: CallRecord = {
     id,
     agent,
@@ -141,8 +144,9 @@ export type DriverPayload = {
   conversation: string;
   cognition: string;
   goals: string;
+  table: string;
+  menu: string;
   economy: string;
-  stallState: string;
   event: string;
   taboos: string;
 };
@@ -156,8 +160,9 @@ export function callDriver(env: AgentEnv, p: DriverPayload): Promise<Intent> {
     `CONVERSATION (recent):\n${p.conversation}`,
     `COGNITION:\n${p.cognition}`,
     `GOALS:\n${p.goals}`,
+    `TABLE: ${p.table}`,
+    `${p.menu}`,
     `ECONOMY: ${p.economy}`,
-    `STALL_STATE: ${p.stallState}`,
     `EVENT: ${p.event}`,
   ].join('\n\n');
   return structured(env, 'driver', SYSTEMS.driver, user, DRIVER_TOOL, IntentSchema, 700);
@@ -182,6 +187,24 @@ export function callPersona(env: AgentEnv, p: PersonaPayload): Promise<PersonaLi
     PersonaLineSchema,
     600,
   );
+}
+
+/** T-mode: fill an authored skeleton's slots in register. rides the
+ *  fast tier — this is a small call by design (SESSION-V2 §3). */
+export function callPersonaFill(
+  env: AgentEnv,
+  p: { conversation: string; frame: string; skeleton: string; slots: string; materials: string },
+): Promise<Record<string, string>> {
+  const user = [
+    `[the conversation so far]\n${p.conversation}`,
+    `[your orientation]\n${p.frame}`,
+    `[fill mode] the house hands you an authored line with blanks. fill ONLY the named slots, in her register, from what the room actually gave. a QUOTE slot must be their words verbatim — copy, never paraphrase.`,
+    `skeleton: ${p.skeleton}`,
+    `slots:\n${p.slots}`,
+    `[material]\n${p.materials}`,
+  ].join('\n\n');
+  return structured(env, 'persona', SYSTEMS.wildcard, user, FILL_TOOL, SlotFillsSchema, 300, 'fast')
+    .then((out) => out.fills);
 }
 
 // ------------------------------------------------------------ cognition

@@ -23,11 +23,7 @@ import { createClaudeClient } from '../src/pipeline/claude';
 import { AnthropicAdapter } from '../src/pipeline/llm/adapter-anthropic';
 import type { LLMAdapter } from '../src/pipeline/llm/adapter';
 import { EnsembleEngine } from '../src/pipeline/ensemble/engine';
-import {
-  defaultChatInput,
-  defaultDocs,
-  defaultSessionInput,
-} from '../src/pipeline/ensemble/fixtures';
+import { defaultChatInput, defaultSessionInput } from '../src/pipeline/ensemble/fixtures';
 import { buildSessionLog, serializeSession } from '../src/pipeline/ensemble/serialize';
 import type { CallRecord } from '../src/pipeline/ensemble/types';
 import { EnsembleStubAdapter } from './e2e/ensemble-stub';
@@ -72,7 +68,7 @@ function resolveKey(cli?: string): string | undefined {
 
 // scripted maya — enough charge to exercise press/stall/honor, with one
 // deflection so cassandra has something predictable to predict.
-const SCRIPT: { line?: string; flip?: 1 | 2 | 3 | 4; silence?: boolean }[] = [
+const SCRIPT: { line?: string; flip?: number; silence?: boolean }[] = [
   { line: 'hi. okay. i was not going to do this but my friend made me, so.' },
   {
     line:
@@ -132,10 +128,8 @@ async function main() {
     adapter = new AnthropicAdapter(createClaudeClient(key));
   }
 
-  // the maya doc only — the blank template is authoring scaffolding, not
-  // context the driver should read
-  const docs = defaultDocs().slice(0, 1);
-  const input = args.mode === 'session' ? defaultSessionInput(docs) : defaultChatInput(docs);
+  // blind start — the real thing
+  const input = args.mode === 'session' ? defaultSessionInput() : defaultChatInput();
 
   const calls = new Map<string, CallRecord>();
   const engine = new EnsembleEngine({
