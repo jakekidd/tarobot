@@ -1,7 +1,9 @@
 # the oracle ensemble — reading engine + xray lab
 
 Living truth for `src/pipeline/ensemble/` and `src/lab/xray/`. When this
-doc and the code disagree, the code wins; fix the doc. `ENSEMBLE-PLAN.md`
+doc and the code disagree, the code wins; fix the doc. **Session flow,
+delivery, and testing live in `docs/SESSION-V2.md` (the beat grammar) —
+that document supersedes this one's arc sections.** `ENSEMBLE-PLAN.md`
 (repo root) is the build plan that produced this system — mine it for
 rationale, treat it as historical.
 
@@ -70,9 +72,9 @@ these.
    decides what is true never faces the visitor, so it has nothing to
    soften for. It holds by topology, not by prompt.
 2. **Hindsight, not gating.** No model call sits between the visitor's
-   line and the driver. Cognition enriches the NEXT beat. The one
-   escape valve is the stall (§4): when the driver itself judges the
-   moment too heavy to act on thin cognition, it buys a beat.
+   line and the driver. Cognition enriches the NEXT beat. (The v1
+   stall — a brake beat while cognition caught up — died with the beat
+   grammar: it never fired live, and question/tissue beats do its job.)
 3. **Persistence by recurrence.** No decay timers anywhere. Consumers
    see pile tails; an agent keeps something alive by refiling it;
    durable insight survives by promotion into the frame. Memory tiers:
@@ -184,8 +186,10 @@ behavior. Accumulation now triggers spending: unspent interpreter
 thoughts past `BANKED_THOUGHTS` nudge the driver to play one as ammo.
 
 Prompts: one file per agent under `materials/prompts/ensemble/`,
-editable without a code change. The driver's moves: `hold · press ·
-bank · honor · reflect · read · respond · stall · close`.
+editable without a code change; the authored beat library lives in
+`materials/ensemble/beats.json`. The driver selects beats, not moves:
+`question · tissue · rant_bid · deal · flip_invite · read · guess ·
+naming · honor · close · hold` (menu-gated by the engine).
 
 **The goldilocks pass.** The persona's call is structured now: she
 files three takes — `too_safe` (the polite machine: agreeable,
@@ -198,14 +202,13 @@ intents + selection) was designed for, at one call instead of several
 — **the Hand is dead** (decision 2026-07-24: too many agents already;
 the goldilocks pass replaces it).
 
-**The stall** is the brake between the tracks: when the moment is heavy
-and the tails are thin, the driver outputs `stall` instead of guessing.
-The persona speaks a low-commitment line (kind picked by the driver or
-weighted-random from the catalog in `stall.ts`: reflect_back,
-question_direct, confirm_feeling, question_detail, observation,
-invite), the fan force-fires, and the next driver call carries the
-STALL DEBT: "you bought a beat on X; cognition has weighed in; deliver."
-Consecutive stalls cap at `STALL_MAX_CONSECUTIVE`.
+**Speech runs on the beat grammar** (SESSION-V2 §3): the engine
+computes the legal beat MENU per moment (structure binds; off-menu
+selections clamp), the driver selects, and the render mode does the
+rest — V beats are authored lines spoken as written (zero calls), T
+beats fill typed slots via a fast-tier call with mechanical validation
+(QUOTE = verified substring of the visitor's actual words), F beats
+(tissue / read / honor) ride the goldilocks persona path.
 
 ## 5. the loop
 
