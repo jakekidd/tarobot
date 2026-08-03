@@ -122,7 +122,7 @@ export function CognitionColumn({
         ))}
       </AgentPanel>
 
-      <AgentPanel agent="conjector" title="conjector — the hunt" calls={calls} onInspect={onInspect}>
+      <AgentPanel agent="conjector" title={`conjector — ${snap.dilemmaClass ?? 'hunting'}`} calls={calls} onInspect={onInspect}>
         {snap.pendingGuess && (
           <div className="xray__item">
             <Pill variant="warm">pending guess</Pill>

@@ -48,7 +48,7 @@ export function buildSessionLog(record: SessionRecord): string {
   out.push('## piles at close');
   out.push('');
   const p = snapshot.piles;
-  out.push(`- reads ${p.reads.length} · intents ${p.intents.length} · profile ${snapshot.profile.length}/14 · dilemma ${snapshot.dilemma.problem_md ? 'named' : 'unnamed'}${snapshot.dilemma.quest_md ? ' · quest drafted' : ''}`);
+  out.push(`- reads ${p.reads.length} · intents ${p.intents.length} · profile ${snapshot.profile.length}/14 · class ${snapshot.dilemmaClass ?? '—'} · spread ${snapshot.spreadClass ?? '—'} · naming ${snapshot.namingDelivered ? 'delivered' : 'no'}${snapshot.dilemma.quest_md ? ' · quest drafted' : ''}`);
   out.push(`- frame versions: ${snapshot.frames.map((f) => `v${f.v}(${f.trigger})`).join(' → ')}`);
   out.push('');
 
