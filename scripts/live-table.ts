@@ -26,7 +26,7 @@ import { AnthropicAdapter } from '../src/pipeline/llm/adapter-anthropic';
 import type { LLMAdapter } from '../src/pipeline/llm/adapter';
 import { EnsembleEngine } from '../src/pipeline/ensemble/engine';
 import { defaultSessionInput } from '../src/pipeline/ensemble/fixtures';
-import { buildSessionLog, serializeSession, type SessionRecord } from '../src/pipeline/ensemble/serialize';
+import { buildSessionLog, buildXrayTranscript, serializeSession, type SessionRecord } from '../src/pipeline/ensemble/serialize';
 import type {
   AgentName,
   CallRecord,
@@ -313,6 +313,7 @@ async function main() {
   writeFileSync(`${dir}/session.json`, JSON.stringify(record, null, 2));
   writeFileSync(`${dir}/transcript.md`, buildSessionLog(record));
   writeFileSync(`${dir}/audit.md`, buildAudit(record));
+  writeFileSync(`${dir}/xray.txt`, buildXrayTranscript(record));
   appendFileSync(inbox, '# session ended\n');
   console.log(`\nwrote ${dir}/{session.json, transcript.md, audit.md}`);
 }

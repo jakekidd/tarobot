@@ -20,6 +20,8 @@ type Props = {
   onModeChange: (mode: EnsembleMode) => void;
   scenario: string;
   onScenarioChange: (s: string) => void;
+  casting: string;
+  onCastingChange: (s: string) => void;
   onStart: () => void;
 };
 
@@ -119,6 +121,19 @@ export function SetupView(p: Props) {
               </Button>
             </Row>
           </Stack>
+        </Panel>
+
+        <Panel title="visitor casting — who the sim plays">
+          <Field
+            label="the dossier the cast visitor is predicted from (SESSION-V2 §9)"
+            hint="hidden dilemma never stated plainly; it leaks. the right-hand composer predicts this person's next line each oracle turn — edit it, send it, or send your own on the left."
+          >
+            <textarea
+              className="xray__doc-edit"
+              value={p.casting}
+              onChange={(e) => p.onCastingChange(e.target.value)}
+            />
+          </Field>
         </Panel>
 
         <Panel title="scenario — turn 0 given circumstances">

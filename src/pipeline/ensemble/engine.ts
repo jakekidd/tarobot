@@ -137,6 +137,11 @@ export class EnsembleEngine {
   /** interpreter thoughts filed since the driver last spent one as ammo */
   private thoughtsSinceAmmo = 0;
 
+  private opLog: { t: number; text: string }[] = [];
+  private note(text: string): void {
+    this.opLog.push({ t: Date.now(), text });
+  }
+
   private listeners = new Set<Listener>();
 
   constructor(args: {
@@ -167,6 +172,7 @@ export class EnsembleEngine {
       phase: this.phase,
       stage: this.stage(),
       scroll: this.scroll.slice(),
+      log: this.opLog.slice(),
       piles: this.piles.view(),
       frame: this.frames.current(),
       frames: [...this.frames.history()],
@@ -228,6 +234,7 @@ export class EnsembleEngine {
     this.phase = 'live';
     this.scroll.push({ kind: 'ev', ev: 'open', t: Date.now() });
     const g = BEATS.greeting.variants;
+    this.note('boot: greeting + rant bid, authored, zero model calls');
     this.commitOracle(g[this.greetingVariant % g.length], 'greeting');
     this.commitOracle(BEATS.rant_bid.primary, 'rant_bid');
     this.emit();
@@ -392,6 +399,9 @@ export class EnsembleEngine {
   private trackReadiness(): void {
     if (this.namingReady() && this.namingReadySince === null) {
       this.namingReadySince = this.oracleBeatCount();
+      this.note(
+        `naming READY (committed + ${this.flipped.length} flips + coherence ${this.coherence}) — grace ${this.c.NAMING_GRACE_BEATS} beats`,
+      );
     }
     if (!this.namingReady()) this.namingReadySince = this.namingDelivered ? null : this.namingReadySince;
     if (this.dealReady() && this.dealReadySince === null) {
@@ -412,6 +422,9 @@ export class EnsembleEngine {
 
     this.trackReadiness();
     const menu = this.menu(event);
+    this.note(
+      `menu [${menu.join(' · ')}]${menu.length === 1 ? ' — MANDATED' : ''} ← ${event.type}, stage ${this.stage()}, coherence ${this.coherence}`,
+    );
 
     this.busy = 'driver';
     this.emit();
@@ -421,6 +434,7 @@ export class EnsembleEngine {
 
       // structure binds: an off-menu selection clamps to the mandate
       if (!menu.includes(intent.beat)) {
+        this.note(`CLAMP: driver picked ${intent.beat} off-menu → ${menu[0]}`);
         intent = { ...intent, beat: menu[0], note: `${intent.note} [clamped to menu]` };
       }
       // read beats carry their position job (check 8)
@@ -582,6 +596,7 @@ export class EnsembleEngine {
       };
     }
     if (fallback !== undefined) {
+      this.note(`fill validation failed twice on ${beatType} — fell back to the slotless variant`);
       return { text: assemble(fallback, {}, engineSubs), fills: [] };
     }
     // no fallback authored: the beat degrades to nothing; caller decides
@@ -597,6 +612,7 @@ export class EnsembleEngine {
       const fresh = (Object.keys(BEATS.question_frames) as QuestionFrame[]).sort(
         (a, b) => (this.framesUsed.get(a) ?? 0) - (this.framesUsed.get(b) ?? 0),
       )[0];
+      this.note(`frame ${frame} worn out → swapped to ${fresh}`);
       frame = fresh;
     }
     this.framesUsed.set(frame, (this.framesUsed.get(frame) ?? 0) + 1);
@@ -637,6 +653,9 @@ export class EnsembleEngine {
       card,
       position: spread.positions[i].job,
     }));
+    this.note(
+      `DEAL: ${cls} → ${spread.name}, drew [${cards.map((c) => c.id).join(', ')}]${this.plantId ? ` (plant: ${this.plantId})` : ''}`,
+    );
     this.scroll.push({ kind: 'ev', ev: 'deal', t: Date.now() });
 
     const entry = BEATS.deal[cls];
@@ -663,6 +682,7 @@ export class EnsembleEngine {
     ]
       .filter(Boolean)
       .join('\n\n');
+    this.note('NAMING delivered — reads now APPLY; quest passage unlocked');
     this.commitOracle(text, 'naming');
     this.namingDelivered = true;
     this.namingReadySince = null;
@@ -870,11 +890,15 @@ export class EnsembleEngine {
         dilemma: renderDilemma(this.dilemma),
         ask,
       });
+      if (out.prev) this.note(`conjector graded previous guess: ${out.prev}`);
       if (out.guess) {
         this.pendingGuess = out.guess;
         this.guessPlayed = false;
       }
-      if (out.class) this.dilemmaClass = out.class;
+      if (out.class) {
+        this.note(`conjector CLASSIFIED: ${out.class}${out.plant ? ` (plant request: ${out.plant})` : ''}`);
+        this.dilemmaClass = out.class;
+      }
       if (out.plant) this.plantId = out.plant;
       if (out.problem_md) this.dilemma.problem_md = out.problem_md;
       if (out.options_md) this.dilemma.options_md = out.options_md;
@@ -1116,7 +1140,7 @@ export class EnsembleEngine {
           lines.push('the naming is spoken: aim this card at the named fork.');
         }
       }
-      lines.push('one image, never a conceit stretched over three sentences. end with a handle: tell me if that is not it, in your words.');
+      lines.push('plain beats poetic: say what the card sees in them straight; lean on the imagery only if it lands harder than the plain sentence. at most one image. end with a handle: tell me if that is not it, in your words.');
     }
     if (intent.ammo) lines.push(`ammo, their UNSAID inner voice — never present it as their words: "${intent.ammo}"`);
     const words =

@@ -181,11 +181,16 @@ export type BusyLayer = 'driver' | 'persona' | null;
 
 export type DrawnCard = { slot: number; card: OracleDeckCard; position: string };
 
+export type OpLogEntry = { t: number; text: string };
+
 export type EnsembleSnapshot = {
   mode: EnsembleMode;
   phase: EnsemblePhase;
   stage: StageId;
   scroll: readonly ScrollEntry[];
+  /** the engine's algorithmic decisions — menus, clamps, mandates,
+   *  draws, validations — for the xray transcript */
+  log: readonly OpLogEntry[];
   piles: PilesView;
   frame: Frame;
   frames: readonly Frame[];

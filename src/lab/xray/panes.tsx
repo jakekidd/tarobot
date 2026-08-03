@@ -190,6 +190,9 @@ export function TablePane({
   onFlip,
   autoSilence,
   onAutoSilence,
+  sim,
+  onSimChange,
+  simBusy,
 }: {
   snap: EnsembleSnapshot;
   onSend: (text: string) => void;
@@ -197,7 +200,12 @@ export function TablePane({
   onFlip: (slot: number) => void;
   autoSilence: boolean;
   onAutoSilence: (on: boolean) => void;
+  /** the generated visitor line — editable once generation completes */
+  sim: string;
+  onSimChange: (s: string) => void;
+  simBusy: boolean;
 }) {
+  // the manual box keeps whatever it was left as, until it is sent
   const [draft, setDraft] = useState('');
   const viewRef = useRef<HTMLDivElement>(null);
 
@@ -211,6 +219,12 @@ export function TablePane({
     if (!text) return;
     onSend(text);
     setDraft('');
+  }
+
+  function sendSim() {
+    const text = sim.trim();
+    if (!text || simBusy) return;
+    onSend(text);
   }
 
   return (
@@ -244,51 +258,91 @@ export function TablePane({
       </div>
       <div className="xray__composer">
         {snap.mode === 'session' && snap.drawn.length > 0 && (
-          <Row gap={2} wrap>
-            {snap.drawn.map((d) => (
-              <Button
-                key={d.slot}
-                variant={snap.flipped.includes(d.slot) ? 'ghost' : 'default'}
-                disabled={snap.flipped.includes(d.slot) || snap.phase !== 'live'}
-                onClick={() => onFlip(d.slot)}
-                title={d.position}
-              >
-                {snap.flipped.includes(d.slot) ? d.card.name.toLowerCase() : `flip ${d.slot} — ${d.position}`}
-              </Button>
-            ))}
-          </Row>
+          <div className="xray__cardstrip">
+            {snap.drawn.map((d) => {
+              const up = snap.flipped.includes(d.slot);
+              return (
+                <button
+                  key={d.slot}
+                  type="button"
+                  className={`xray__card ${up ? 'xray__card--up' : ''}`}
+                  disabled={up || snap.phase !== 'live'}
+                  onClick={() => onFlip(d.slot)}
+                >
+                  <span className="xray__card-pos">{d.position}</span>
+                  <span className="xray__card-face">{up ? d.card.name.toLowerCase() : `✦ ${d.slot}`}</span>
+                </button>
+              );
+            })}
+          </div>
         )}
-        <textarea
-          className="xray__input"
-          placeholder="speak as the visitor… (enter to send)"
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' && !e.shiftKey) {
-              e.preventDefault();
-              send();
-            }
-          }}
-          disabled={snap.phase !== 'live'}
-        />
-        <Row between>
-          <Row gap={2}>
-            <Button onClick={onSilence} disabled={snap.phase !== 'live' || snap.busy !== null}>
-              tick silence
-            </Button>
-            <label className="xray__config-row">
-              <input
-                type="checkbox"
-                checked={autoSilence}
-                onChange={(e) => onAutoSilence(e.target.checked)}
-              />
-              <span>auto</span>
-            </label>
-          </Row>
-          <Button variant="primary" onClick={send} disabled={snap.phase !== 'live'}>
-            send
-          </Button>
-        </Row>
+        <div className="xray__composers">
+          <div className="xray__composer-col">
+            <div className="xray__composer-label">you, as the visitor</div>
+            <textarea
+              className="xray__input"
+              placeholder="speak as the visitor… (enter sends this box)"
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault();
+                  send();
+                }
+              }}
+              disabled={snap.phase !== 'live'}
+            />
+            <Row between>
+              <Row gap={2}>
+                <Button onClick={onSilence} disabled={snap.phase !== 'live' || snap.busy !== null}>
+                  tick silence
+                </Button>
+                <label className="xray__config-row">
+                  <input
+                    type="checkbox"
+                    checked={autoSilence}
+                    onChange={(e) => onAutoSilence(e.target.checked)}
+                  />
+                  <span>auto</span>
+                </label>
+              </Row>
+              <Button variant="primary" onClick={send} disabled={snap.phase !== 'live'}>
+                send
+              </Button>
+            </Row>
+          </div>
+          <div className="xray__composer-col">
+            <div className="xray__composer-label">
+              the cast visitor {simBusy ? '· predicting…' : sim ? '· editable' : ''}
+            </div>
+            <textarea
+              className="xray__input"
+              placeholder={simBusy ? 'predicting their next line…' : 'their predicted line lands here after each oracle turn'}
+              value={sim}
+              onChange={(e) => onSimChange(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault();
+                  sendSim();
+                }
+              }}
+              disabled={snap.phase !== 'live' || simBusy || !sim}
+            />
+            <Row between>
+              <Button
+                variant="ghost"
+                onClick={() => setDraft(sim)}
+                disabled={!sim || simBusy}
+                title="copy the generated line into your box"
+              >
+                ← use as mine
+              </Button>
+              <Button variant="primary" onClick={sendSim} disabled={snap.phase !== 'live' || simBusy || !sim.trim()}>
+                send theirs
+              </Button>
+            </Row>
+          </div>
+        </div>
       </div>
     </div>
   );

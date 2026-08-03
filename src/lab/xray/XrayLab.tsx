@@ -5,13 +5,14 @@
 
 import '../bench.css';
 import './xray.css';
-import { useEffect, useReducer, useState } from 'react';
+import { useEffect, useReducer, useRef, useState } from 'react';
 import { Button, Pill } from '../lib';
 import { AnthropicAdapter } from '../../pipeline/antechamber';
 import { createClaudeClient } from '../../pipeline/claude';
 import { recordUsage } from '../../debug/usageTally';
 import {
   buildSessionLog,
+  buildXrayTranscript,
   DEFAULT_SCENARIO_SESSION,
   EnsembleEngine,
   serializeSession,
@@ -23,6 +24,7 @@ import {
 } from '../../pipeline/ensemble';
 import { ConfigPanel } from './ConfigPanel';
 import { loadDocs, saveDocs } from './docStore';
+import { loadCasting, saveCasting, simNextLine } from './visitorSim';
 import { Inspector } from './Inspector';
 import { BehaviorColumn, CognitionColumn, TablePane } from './panes';
 import { SetupView } from './SetupView';
@@ -42,10 +44,14 @@ export function XrayLab({ apiKey, onExit }: Props) {
   // session is the product; chat-from-zero is kept only as a lab probe
   const [mode, setMode] = useState<EnsembleMode>('session');
   const [scenario, setScenario] = useState(DEFAULT_SCENARIO_SESSION);
+  const [casting, setCasting] = useState(() => loadCasting());
 
   useEffect(() => {
     saveDocs(docs);
   }, [docs]);
+  useEffect(() => {
+    saveCasting(casting);
+  }, [casting]);
 
   // ---- live state
   const [engine, setEngine] = useState<EnsembleEngine | null>(null);
@@ -53,13 +59,65 @@ export function XrayLab({ apiKey, onExit }: Props) {
   const [autoSilence, setAutoSilence] = useState(false);
   const [inspectId, setInspectId] = useState<string | null>(null);
 
+  // ---- the cast visitor (the right-hand composer)
+  // sim: the generated line, editable once it lands. locked (empty)
+  // after any send; regenerates once per oracle response cycle — if the
+  // oracle keeps talking while a line sits here, it stays as-is.
+  const [sim, setSim] = useState('');
+  const [simBusy, setSimBusy] = useState(false);
+  const simState = useRef({ generatedFor: -1, inFlight: false });
+
   // telemetry — a stable mutable store (state-held so render reads are
   // legal), mutated by the telemetry callbacks, version-bumped for render
   const [callStore, setCallStore] = useState(() => new Map<string, CallRecord>());
   const [, bump] = useReducer((x: number) => x + 1, 0);
   const calls = [...callStore.values()];
 
+  // regenerate the cast visitor's line after each oracle response cycle
+  useEffect(() => {
+    if (!engine || !snap || snap.phase !== 'live' || snap.busy !== null) return;
+    const oracleBeats = snap.scroll.filter(
+      (e) => e.kind === 'beat' && e.speaker === 'oracle',
+    ).length;
+    const st = simState.current;
+    if (st.inFlight || oracleBeats <= st.generatedFor) return;
+    if (sim.trim()) return; // a line is already sitting there — leave it
+    st.inFlight = true;
+    st.generatedFor = oracleBeats;
+    queueMicrotask(() => setSimBusy(true));
+    const transcript = snap.scroll
+      .filter((e) => e.kind === 'beat')
+      .map((e) => (e.kind === 'beat' ? `${e.speaker}: ${e.text}` : ''))
+      .join('\n');
+    const adapter = new AnthropicAdapter(createClaudeClient(apiKey), recordUsage);
+    void simNextLine(adapter, casting, transcript)
+      .then((line) => setSim(line))
+      .catch(() => setSim(''))
+      .finally(() => {
+        st.inFlight = false;
+        setSimBusy(false);
+      });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [snap, engine]);
+
+  function sendVisitor(text: string) {
+    if (!engine) return;
+    setSim('');
+    simState.current.generatedFor = engine
+      .snapshot()
+      .scroll.filter((e) => e.kind === 'beat' && e.speaker === 'oracle').length;
+    engine.visitorLine(text);
+  }
+
+  function copyXray() {
+    if (!engine) return;
+    const record = serializeSession(engine.input, engine.snapshot(), [...callStore.values()]);
+    void navigator.clipboard.writeText(buildXrayTranscript(record));
+  }
+
   function start() {
+    setSim('');
+    simState.current = { generatedFor: -1, inFlight: false };
     const input: EnsembleInput = {
       mode,
       docs: docs.filter((d) => selected.includes(d.id)),
@@ -156,6 +214,9 @@ export function XrayLab({ apiKey, onExit }: Props) {
           <span className="xray__topbar-spacer" />
           {engine && (
             <>
+              <Button variant="ghost" onClick={copyXray}>
+                copy xray
+              </Button>
               <Button variant="ghost" onClick={exportSession}>
                 export json
               </Button>
@@ -182,6 +243,8 @@ export function XrayLab({ apiKey, onExit }: Props) {
             onModeChange={setMode}
             scenario={scenario}
             onScenarioChange={setScenario}
+            casting={casting}
+            onCastingChange={setCasting}
             onStart={start}
           />
         )}
@@ -194,11 +257,14 @@ export function XrayLab({ apiKey, onExit }: Props) {
             <div className="xray__col">
               <TablePane
                 snap={snap}
-                onSend={(text) => engine.visitorLine(text)}
+                onSend={sendVisitor}
                 onSilence={() => engine.silenceTick()}
                 onFlip={(slot) => engine.flip(slot)}
                 autoSilence={autoSilence}
                 onAutoSilence={setAutoSilence}
+                sim={sim}
+                onSimChange={setSim}
+                simBusy={simBusy}
               />
             </div>
             <div className="xray__col">

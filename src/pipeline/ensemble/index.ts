@@ -1,6 +1,6 @@
 export { EnsembleEngine } from './engine';
 export { DEFAULT_TIERS } from './agents';
-export { buildSessionLog, serializeSession, type SessionRecord } from './serialize';
+export { buildSessionLog, buildXrayTranscript, serializeSession, type SessionRecord } from './serialize';
 export { frameV1 } from './frame';
 export {
   BEAT_MODE,

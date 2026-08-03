@@ -352,3 +352,69 @@
 .xray__take:not(.xray__take--rejected) .xray__take-tag {
   color: var(--accent);
 }
+
+/* ---- the card strip (balatro row) ---- */
+
+.xray__cardstrip {
+  display: flex;
+  gap: var(--p2);
+  padding: var(--p2) 0;
+  flex-wrap: wrap;
+}
+
+.xray__card {
+  width: 96px;
+  height: 128px;
+  border: 1px dashed var(--fg-faint);
+  border-radius: 8px;
+  background: var(--bg-alt);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: var(--p2);
+  cursor: pointer;
+  text-align: left;
+  font-family: var(--font-mono);
+}
+.xray__card:hover:not(:disabled) { border-color: var(--accent); }
+.xray__card:disabled { cursor: default; }
+
+.xray__card--up {
+  border: 1px solid var(--accent);
+  background: var(--accent-faint);
+}
+
+.xray__card-pos {
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--fg-faint);
+}
+
+.xray__card-face {
+  font-size: 12px;
+  color: var(--fg);
+}
+
+/* ---- the two composers ---- */
+
+.xray__composers {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--p3);
+}
+
+.xray__composer-col {
+  display: flex;
+  flex-direction: column;
+  gap: var(--p2);
+  min-width: 0;
+}
+
+.xray__composer-label {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--fg-faint);
+}
