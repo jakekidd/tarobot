@@ -327,6 +327,7 @@ export class EnsembleEngine {
     switch (stage) {
       case 'intro': {
         const beats: BeatType[] = ['tissue', 'honor', 'hold'];
+        if (this.pendingGuess && !this.guessPlayed) beats.unshift('guess');
         if (this.questionsAsked < this.c.QUESTION_BUDGET) beats.unshift('question');
         // the rant path: fallback after a refusal, escape ends intake
         beats.push('rant_bid');
