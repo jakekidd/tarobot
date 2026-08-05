@@ -1,5 +1,10 @@
 # tarobot — agent onboarding
 
+> **START HERE (2026-08-05): `docs/LANDING-PROGRAM.md` is the current
+> program AND the onboarding for this build cycle** — first principles
+> (each law with its scar), verified defect ledger, staged plan
+> S0-S4 with gates. Read it whole before touching anything.
+
 This file is the durable orientation for any agent picking up this repo. It
 trades implementation detail for principle, because the implementation is
 churning faster than docs can keep up. When a section starts to feel brittle,
@@ -16,6 +21,7 @@ Documentation map (what to trust for what):
 | `CLAUDE.md` (this file) | Durable orientation — principles, architecture, conventions. |
 | `docs/PIPELINE.md` | Living truth for the antechamber pipeline (survey → condenser → conjector). |
 | `docs/ENSEMBLE.md` | Living truth for the oracle ensemble + xray lab + booth demo, web AND headless. |
+| `docs/LANDING-PROGRAM.md` | THE CURRENT PROGRAM + onboarding: first principles, defect ledger, stages S0-S4, gates. Start here. |
 | `docs/SESSION-V2.md` | The beat grammar — session flow, delivery, testing protocol. Supersedes older arc sections everywhere. |
 | `docs/experiments/EVAL-METRICS.md` | The obfuscated-profile eval — named metrics, defined before runs. |
 | `docs/experiments/PERSONA-SEARCH.md` | The persona investigation — research conclusions, tacky metrics, the vesper lineage. |
