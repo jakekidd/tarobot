@@ -23,7 +23,8 @@
     "check": "node --import ./scripts/register-raw-loader.mjs --import tsx scripts/check-session.ts",
     "xray:render": "node --import ./scripts/register-raw-loader.mjs --import tsx scripts/render-xray.ts",
     "smoke:booth": "node --import ./scripts/register-raw-loader.mjs --import tsx scripts/booth-smoke.ts",
-    "eval": "node --import ./scripts/register-raw-loader.mjs --import tsx scripts/eval-run.ts"
+    "eval": "node --import ./scripts/register-raw-loader.mjs --import tsx scripts/eval-run.ts",
+    "persona-lab": "node --import ./scripts/register-raw-loader.mjs --import tsx scripts/persona-lab.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.95.1",

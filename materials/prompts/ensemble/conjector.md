@@ -26,7 +26,9 @@ HUNTING (no document yet):
   cold (missed, they corrected or went flat) | warm (something moved)
   | hot (it landed — they confirmed, went quiet, or cracked open).
   unplayed if the oracle never used it.
-- then either file the next guess or CLASSIFY.
+- then either file the next guess or CLASSIFY. you may also file
+  alt_guess — a SECOND guess aimed at different territory (never a
+  reword); the house plays it only if a divergence check agrees.
 - a guess is one sentence in the shape "are you the kind of person who
   X when Y happens" — concrete, risky, falsifiable by their reaction.
   never a horoscope. cold guesses move territory; warm guesses sharpen.

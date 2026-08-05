@@ -107,6 +107,9 @@ export class EnsembleEngine {
   private namingReadySince: number | null = null; // oracle-beat count when ready
   private dealReadySince: number | null = null;
   private coherence: 0 | 1 | 2 | 3 = 3;
+  private questionsSinceGuess = 0;
+  private lastGuessGrade: 'cold' | 'warm' | 'hot' | 'unplayed' | null = null;
+  private altGuess: string | null = null;
   private lastOracleBeatType: BeatType | null = null;
   private greetingVariant = 0;
   private flipInviteVariant = 0;
@@ -327,7 +330,15 @@ export class EnsembleEngine {
     switch (stage) {
       case 'intro': {
         const beats: BeatType[] = ['tissue', 'honor', 'hold'];
-        if (this.pendingGuess && !this.guessPlayed) beats.unshift('guess');
+        const guessReady = this.pendingGuess !== null && !this.guessPlayed;
+        const coldGate = this.lastGuessGrade === 'cold' && this.questionsSinceGuess < 1;
+        if (guessReady && !coldGate) beats.unshift('guess');
+        // the interview cadence: three questions buy a mandated guess;
+        // warm skips the queue (guess again now)
+        if (guessReady && !coldGate && (this.questionsSinceGuess >= 3 || this.lastGuessGrade === 'warm')) {
+          this.note(`guess cadence: mandated (${this.questionsSinceGuess} questions since last, grade ${this.lastGuessGrade ?? 'none'})`);
+          return ['guess'];
+        }
         if (this.questionsAsked < this.c.QUESTION_BUDGET) beats.unshift('question');
         // the rant path: fallback after a refusal, escape ends intake
         beats.push('rant_bid');
@@ -520,6 +531,7 @@ export class EnsembleEngine {
           const text = assemble(BEATS.guess.text, {}, { guess: this.pendingGuess });
           this.commitOracle(text, 'guess');
           this.guessPlayed = true;
+          this.questionsSinceGuess = 0;
         }
         return;
       }
@@ -632,6 +644,7 @@ export class EnsembleEngine {
     if (result) {
       this.commitOracle(result.text, 'question', result.fills);
       this.questionsAsked += 1;
+      this.questionsSinceGuess += 1;
     }
   }
 
@@ -900,10 +913,39 @@ export class EnsembleEngine {
         dilemma: renderDilemma(this.dilemma),
         ask,
       });
-      if (out.prev) this.note(`conjector graded previous guess: ${out.prev}`);
+      if (out.prev) {
+        this.note(`conjector graded previous guess: ${out.prev}`);
+        this.lastGuessGrade = out.prev;
+      }
       if (out.guess) {
         this.pendingGuess = out.guess;
         this.guessPlayed = false;
+        this.altGuess = null;
+        if (out.alt_guess) {
+          // second guess plays only if it aims at a DIFFERENT target
+          try {
+            const verdict = await this.adapter.invokeFreeform({
+              system:
+                'two probing guesses about the same person. do they aim at DIFFERENT targets (different territory of their life or psyche), or is the second a reword of the first? answer exactly "different" or "reword".',
+              user: `guess 1: ${out.guess}
+guess 2: ${out.alt_guess}`,
+              model: 'fast',
+              max_tokens: 5,
+              label: 'ensemble_divergence',
+            });
+            if (verdict.trim().toLowerCase().startsWith('different')) {
+              this.altGuess = out.alt_guess;
+              this.note('alt guess accepted (divergence: different target)');
+            } else this.note('alt guess dropped (reword of the first)');
+          } catch {
+            /* divergence check failed: drop the alt */
+          }
+        }
+      } else if (this.guessPlayed && this.altGuess && this.lastGuessGrade === 'warm') {
+        this.pendingGuess = this.altGuess;
+        this.altGuess = null;
+        this.guessPlayed = false;
+        this.note('promoting the alt guess (warm on the first)');
       }
       if (out.class) {
         this.note(`conjector CLASSIFIED: ${out.class}${out.plant ? ` (plant request: ${out.plant})` : ''}`);
@@ -1134,10 +1176,30 @@ export class EnsembleEngine {
   }
 
   /** F-beat assignment: reads and honor get earned room; tissue stays tiny */
+  /** how well she knows them, 0-4 — grown from evidence, rendered as
+   *  personality: humble early by construction, earned certainty late */
+  private familiarity(): { level: number; text: string } {
+    const lvls = [
+      "you don't know this person at all yet — you have no right to a read, only to curiosity",
+      'an inkling — one thread worth pulling, nothing more',
+      'a shape of them is forming — you can lean on what they gave you, carefully',
+      'you know what this is about now — your read has earned some weight',
+      "you know this person fairly well by now — say what you see plainly; you've earned it",
+    ];
+    let n = 0;
+    if (this.profile.size() >= 2 || this.pendingGuess) n = 1;
+    if (this.profile.size() >= 5 || this.dilemmaClass) n = 2;
+    if (dilemmaCommitted(this.dilemma)) n = 3;
+    if (this.namingDelivered) n = 4;
+    return { level: n, text: lvls[n] };
+  }
+
   private assignment(intent: Intent, event: EnsembleEvent): string {
     const capN = cap(this.budget, this.carry(), this.c);
     const lines: string[] = [];
     lines.push(`beat: ${intent.beat}`);
+    const fam = this.familiarity();
+    lines.push(`familiarity: level ${fam.level}/4 — ${fam.text}`);
     lines.push(`accomplish: ${intent.accomplish}`);
     if (intent.beat === 'read') {
       const slot = event.type === 'card_flip' ? event.slot : this.flipped[this.flipped.length - 1];

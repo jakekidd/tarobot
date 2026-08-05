@@ -142,6 +142,7 @@ export const CONJECTOR_TOOL: ToolDef = {
     properties: {
       prev: { type: 'string', enum: ['cold', 'warm', 'hot', 'unplayed'] },
       guess: { type: 'string' },
+      alt_guess: { type: 'string' },
       class: { type: 'string', enum: [...DILEMMA_CLASSES] },
       plant: { type: 'string' },
       problem_md: { type: 'string' },
