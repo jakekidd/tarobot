@@ -65,6 +65,7 @@ export const AGENT_NAMES = [
   'profiler',
   'conjector',
   'attention',
+  'consent',
 ] as const;
 export type AgentName = (typeof AGENT_NAMES)[number];
 

@@ -17,6 +17,7 @@ import { ORACLE_DECK } from '../oracle/deck';
 import {
   callAttention,
   callConjector,
+  callConsent,
   callDriver,
   callInterpreter,
   callPersona,
@@ -114,6 +115,12 @@ export class EnsembleEngine {
   private altFocus: string | null = null;
   /** 0 unoffered · 1 main offered · 2 alt offered · 3 accepted · 4 exploration */
   private focusStage = 0;
+  /** the offer awaiting the visitor's answer (verbatim, for the judge) */
+  private pendingOffer: string | null = null;
+  private consentVerdict: 'yes' | 'no' | 'ambivalent' | null = null;
+  private consentNonYes = 0;
+  /** declined territories — fed to the conjector as cold grades */
+  private focusRejections: string[] = [];
   private guessCount = 0;
   private lastOracleBeatType: BeatType | null = null;
   private greetingVariant = 0;
@@ -414,13 +421,15 @@ export class EnsembleEngine {
           return ['guess'];
         }
         if (this.questionsAsked < this.c.QUESTION_BUDGET) beats.unshift('question');
-        // the consent gate: once the conjector lands a focus, offer it;
-        // after an offer the driver reads the room — deal = accepted,
-        // focus again = declined (alt, then exploration)
+        // the consent gate: once the conjector lands a focus, offer it.
+        // the DETECTOR owns acceptance — the driver cannot deal without
+        // a yes verdict; two non-yes answers route to exploration.
         if (this.focusPhrase && this.focusStage === 0) return ['focus'];
         if (this.focusStage === 1 || this.focusStage === 2) {
-          beats.unshift('deal');
-          beats.unshift('focus');
+          if (this.consentNonYes >= 2) return ['focus']; // → exploration branch
+          if (this.consentVerdict === 'yes') beats.unshift('deal');
+          if (this.consentVerdict === 'no') beats.unshift('focus');
+          // ambivalent: neither deal nor re-offer; clarify via tissue/question
         }
         // the rant path: fallback after a refusal, escape ends intake
         beats.push('rant_bid');
@@ -518,6 +527,37 @@ export class EnsembleEngine {
 
     if (this.c.FAN_BLOCKING && event.type === 'visitor_line') {
       await this.runFan();
+      if (myGen !== this.gen) return;
+    }
+
+    // the consent detector: an offer's answer gets a mechanical verdict
+    // BEFORE the menu is computed — deal legality depends on it
+    if (
+      event.type === 'visitor_line' &&
+      this.pendingOffer &&
+      (this.focusStage === 1 || this.focusStage === 2)
+    ) {
+      const reply = this.lastVisitorText();
+      try {
+        this.consentVerdict = await callConsent(this.env, this.pendingOffer, reply);
+      } catch {
+        this.consentVerdict = 'ambivalent';
+      }
+      this.note(
+        `CONSENT verdict: ${this.consentVerdict} — evidence: "${reply.slice(0, 120)}"`,
+      );
+      if (this.consentVerdict === 'yes') {
+        this.focusStage = 3;
+        this.pendingOffer = null;
+        this.note('focus accepted (detector, with evidence)');
+      } else if (this.consentVerdict === 'no') {
+        this.consentNonYes += 1;
+        if (this.focusPhrase) this.focusRejections.push(this.focusPhrase);
+        this.pendingOffer = null;
+        this.maybeConjector(true); // the rejection is a cold grade on that territory
+      } else {
+        this.consentNonYes += 1; // ambivalent: deal stays illegal; the room clarifies
+      }
       if (myGen !== this.gen) return;
     }
 
@@ -647,6 +687,8 @@ export class EnsembleEngine {
           if (myGen !== this.gen) return;
           this.commitOracle(text, 'focus');
           this.focusStage = 1;
+          this.pendingOffer = text;
+          this.consentVerdict = null;
           this.note(`focus offered: "${this.focusPhrase}"`);
         } else if (this.focusStage === 1 && this.altFocus) {
           const text = await this.promptedLine(
@@ -660,6 +702,8 @@ export class EnsembleEngine {
           this.focusPhrase = this.altFocus;
           this.altFocus = null;
           this.focusStage = 2;
+          this.pendingOffer = text;
+          this.consentVerdict = null;
           this.note('alternate focus offered');
         } else {
           // every focus declined — exploration tarot: no dilemma lens
@@ -672,10 +716,6 @@ export class EnsembleEngine {
       }
 
       case 'deal': {
-        if (this.focusStage === 1 || this.focusStage === 2) {
-          this.focusStage = 3;
-          this.note('focus accepted by the visitor');
-        }
         await this.performDeal(
           this.focusStage === 4 ? 'EXPLORATION' : (this.dilemmaClass ?? 'UNKNOWN'),
           intent,
@@ -1108,9 +1148,13 @@ export class EnsembleEngine {
                 )
                 .join('\n'),
         conversation: this.renderBeats(this.c.BEATS_WINDOW_ATTN),
-        prevGuess: this.pendingGuess
-          ? `"${this.pendingGuess}" ${this.guessPlayed ? '(played to the visitor)' : '(NOT yet played — grade unplayed unless the room answered it anyway)'}`
-          : '(none yet)',
+        prevGuess:
+          (this.pendingGuess
+            ? `"${this.pendingGuess}" ${this.guessPlayed ? '(played to the visitor)' : '(NOT yet played — grade unplayed unless the room answered it anyway)'}`
+            : '(none yet)') +
+          (this.focusRejections.length > 0
+            ? ` | DECLINED FOCUSES (grade these territories cold): ${this.focusRejections.map((f) => `"${f}"`).join('; ')}`
+            : ''),
         dilemma: renderDilemma(this.dilemma),
         ask,
       });
@@ -1248,6 +1292,14 @@ guess 2: ${out.alt_guess}`,
 
   private visitorSpoke(): boolean {
     return this.scroll.some((e) => e.kind === 'beat' && e.speaker === 'visitor');
+  }
+
+  private lastVisitorText(): string {
+    for (let i = this.scroll.length - 1; i >= 0; i--) {
+      const e = this.scroll[i];
+      if (e.kind === 'beat' && e.speaker === 'visitor') return e.text;
+    }
+    return '';
   }
 
   private visitorText(): string {

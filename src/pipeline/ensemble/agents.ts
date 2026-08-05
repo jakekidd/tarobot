@@ -43,6 +43,7 @@ export type AgentEnv = {
 };
 
 export const DEFAULT_TIERS: Record<AgentName, 'fast' | 'cognition' | 'deep'> = {
+  consent: 'fast',
   driver: 'cognition',
   persona: 'cognition',
   attention: 'cognition',
@@ -205,6 +206,24 @@ export function callPersonaFill(
   ].join('\n\n');
   return structured(env, 'persona', SYSTEMS.wildcard, user, FILL_TOOL, SlotFillsSchema, 300, 'fast')
     .then((out) => out.fills);
+}
+
+/** the consent judge — a mechanical verdict on the visitor's reply to
+ *  a focus offer. the gate's answer side is strict; evidence logged. */
+export async function callConsent(
+  env: AgentEnv,
+  offer: string,
+  reply: string,
+): Promise<'yes' | 'no' | 'ambivalent'> {
+  const out = await freeform(
+    env,
+    'consent',
+    'a reader asked a visitor for consent to focus on a topic. judge the visitor\'s reply. "yes" = clear assent in any words (agreement, topic-engagement that embraces the frame). "no" = decline, correction, or rejection of the frame — even polite. "ambivalent" = hedged, conditional, or unclear. answer with exactly one word: yes | no | ambivalent.',
+    `THE OFFER: ${offer}\nTHE REPLY: ${reply}`,
+    5,
+  );
+  const v = out.trim().toLowerCase();
+  return v.startsWith('yes') ? 'yes' : v.startsWith('no') ? 'no' : 'ambivalent';
 }
 
 // ------------------------------------------------------------ cognition
