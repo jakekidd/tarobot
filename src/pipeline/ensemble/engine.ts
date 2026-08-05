@@ -1200,6 +1200,9 @@ guess 2: ${out.alt_guess}`,
     lines.push(`beat: ${intent.beat}`);
     const fam = this.familiarity();
     lines.push(`familiarity: level ${fam.level}/4 — ${fam.text}`);
+    lines.push(
+      `license: ${fam.level <= 1 ? 'clarify — questions and small acknowledgments only; no reads' : fam.level === 2 ? 'guess — the offstage guess may play, plainly, as a question' : 'synthesize — a logline of THEIR material may be handed back'}`,
+    );
     lines.push(`accomplish: ${intent.accomplish}`);
     if (intent.beat === 'read') {
       const slot = event.type === 'card_flip' ? event.slot : this.flipped[this.flipped.length - 1];
