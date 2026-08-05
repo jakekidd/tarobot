@@ -12,6 +12,16 @@ checks 9/10 fail on most sessions (harness turn-cap artifact); the
 beat-prompt focus/charm changes should show no metric movement at
 this level (they alter register, which the scoreboard can't see).
 
+RESULT (runs/eval-2026-08-05T23-14-04-frozen): see scoreboard.json. summary:
+| dossier | class | mech | ground | checks failed |
+|---|---|---|---|---|
+| d1-deflector | FORK→WEIGHT | 0/5 | 0.39 | [9, 10] |
+| d1-tripper | FORK→WEIGHT | 0/5 | 0.3 | [3, 9, 10] |
+| d2-over-sharer | THRESHOLD→WEIGHT | 0/5 | 0.53 | [3, 9, 10] |
+| d3-crier | LOOP→WEIGHT | 0/5 | 0.3 | [9, 10] |
+| d4-tester | WEIGHT→THRESHOLD | 0/5 | 0.36 | [9, 10] |
+| d5-fine-one | FORK→WEIGHT | 0/5 | 0.51 | [9, 10] |
+
 ## S1 gate (frozen-six on the S1 build: clock + consent + seams + hygiene)
 
 Predicted (2026-08-05, before the run): arc completion / naming-or-charm
