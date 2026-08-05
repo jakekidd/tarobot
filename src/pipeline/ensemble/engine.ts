@@ -33,7 +33,7 @@ import {
 import {
   assemble,
   BEATS,
-  violatesNeverSay,
+  NEVER_SAY_LOWER,
   capSentences,
   fillableSlots,
   parseSlots,
@@ -215,6 +215,7 @@ export class EnsembleEngine {
       lastIntent: this.lastIntent,
       fanInFlight: this.fanInFlight,
       attentionInFlight: this.attentionInFlight,
+      conjectorInFlight: this.conjectorInFlight,
       error: this.error,
       constants: { ...this.c },
     };
@@ -299,14 +300,17 @@ export class EnsembleEngine {
   /** visitor-side termination (walk-away, harness cap): the landing is
    *  spoken anyway — naming-or-charm compressed, quest, close. a
    *  reading is never left on the table. */
+  private flushInFlight = false;
+
   async flushLanding(): Promise<void> {
-    if (this.phase !== 'live') return;
+    if (this.phase !== 'live' || this.flushInFlight) return;
+    this.flushInFlight = true;
     this.note('FLUSH: visitor-side termination — speaking the landing');
     const myGen = ++this.gen;
     this.busy = 'persona';
     this.emit();
     try {
-      if (this.namingConditions() && !this.namingDelivered && !this.conjectorInFlight) {
+      if (this.namingConditions() && !this.namingDelivered) {
         await this.performNaming(myGen);
       }
       await this.performClose(
@@ -328,10 +332,9 @@ export class EnsembleEngine {
         this.phase = 'closed';
       }
     } finally {
-      if (myGen === this.gen) {
-        this.busy = null;
-        this.emit();
-      }
+      this.flushInFlight = false;
+      this.busy = null; // unconditional: a stuck busy would freeze the room
+      this.emit();
     }
   }
 
@@ -370,11 +373,9 @@ export class EnsembleEngine {
     }
     if (T <= 4) {
       if (this.namingConditions() && !this.namingDelivered) {
-        if (this.conjectorInFlight) {
-          this.note(`landing ramp T-${T}: naming due, waiting out conjector edit`);
-          return ['tissue', 'honor', 'hold'];
-        }
-        this.note(`landing ramp T-${T}: naming mandated`);
+        // the ritual outranks passage freshness this late — speak the
+        // committed doc even if an edit is in flight (one cycle stale)
+        this.note(`landing ramp T-${T}: naming mandated${this.conjectorInFlight ? ' (conjector in flight; speaking committed doc)' : ''}`);
         return ['naming'];
       }
       this.note(`landing ramp T-${T}: descending — close available, no new territory`);
@@ -433,15 +434,15 @@ export class EnsembleEngine {
         // a yes verdict; two non-yes answers route to exploration.
         if (this.focusPhrase && this.focusStage === 0) return ['focus'];
         if (this.focusStage === 1 || this.focusStage === 2) {
-          if (this.consentNonYes >= 2) return ['focus']; // → exploration branch
-          if (this.consentVerdict === 'yes') beats.unshift('deal');
+          if (this.consentNonYes >= 2) return ['focus']; // renderBeat jumps to exploration
           if (this.consentVerdict === 'no') return ['focus']; // the alt is owed promptly
           // ambivalent: neither deal nor re-offer; clarify via tissue/question
         }
         // the rant path: fallback after a refusal, escape ends intake
         beats.push('rant_bid');
-        // the deal opens once there is anything to deal on
-        if (this.visitorSpoke() && (this.focusStage === 0 ? !this.focusPhrase : this.focusStage >= 1)) beats.push('deal');
+        // the deal opens once there is anything to deal on — and NEVER
+        // while consent is unresolved (the detector owns acceptance)
+        if (this.visitorSpoke() && (this.focusPhrase ? this.focusStage >= 3 : true)) beats.push('deal');
         // deal mandate: class landed or budget spent
         if (this.dealReady() && this.graceSpent(this.dealReadySince)) return ['deal'];
         return beats;
@@ -537,6 +538,13 @@ export class EnsembleEngine {
       if (myGen !== this.gen) return;
     }
 
+    // silence after an offer: no words is an answer — ambivalent
+    if (event.type === 'silence' && this.pendingOffer && (this.focusStage === 1 || this.focusStage === 2)) {
+      this.consentVerdict = 'ambivalent';
+      this.consentNonYes += 1;
+      this.note(`CONSENT verdict: ambivalent (silence after the offer; non-yes ${this.consentNonYes})`);
+    }
+
     // the consent detector: an offer's answer gets a mechanical verdict
     // BEFORE the menu is computed — deal legality depends on it
     if (
@@ -545,11 +553,16 @@ export class EnsembleEngine {
       (this.focusStage === 1 || this.focusStage === 2)
     ) {
       const reply = this.lastVisitorText();
+      const offerAtCall = this.pendingOffer;
+      let verdict: 'yes' | 'no' | 'ambivalent';
       try {
-        this.consentVerdict = await callConsent(this.env, this.pendingOffer, reply);
+        verdict = await callConsent(this.env, this.pendingOffer, reply);
       } catch {
-        this.consentVerdict = 'ambivalent';
+        verdict = 'ambivalent';
       }
+      // staleness: a newer event or a changed offer voids this verdict
+      if (myGen !== this.gen || this.pendingOffer !== offerAtCall) return;
+      this.consentVerdict = verdict;
       this.note(
         `CONSENT verdict: ${this.consentVerdict} — evidence: "${reply.slice(0, 120)}"`,
       );
@@ -812,7 +825,7 @@ export class EnsembleEngine {
         });
         if (myGen !== this.gen) return fallback;
         const line = out.spoken.trim();
-        const fossil = line ? violatesNeverSay(line) : null;
+        const fossil = line ? this.fossilOutsideQuotes(line) : null;
         if (fossil) {
           this.note(`beat-prompt line spoke a fossil ("${fossil}") — rejected`);
         } else if (line && (await valid(line))) return line;
@@ -826,13 +839,25 @@ export class EnsembleEngine {
     return fallback;
   }
 
+  private static normQuotes(t: string): string {
+    return t.replace(/[’‘]/g, "'").replace(/[“”]/g, '"').toLowerCase();
+  }
+
   /** any double-quoted span in an oracle line must be the visitor's
    *  actual words — the QUOTE guarantee, lifted to whole lines */
   private quotedSpansVerified(line: string): boolean {
-    const spans = [...line.matchAll(/"([^"]{8,})"/g), ...line.matchAll(/“([^”]{8,})”/g)];
+    const norm = EnsembleEngine.normQuotes(line);
+    const spans = [...norm.matchAll(/"([^"]{8,})"/g)];
     if (spans.length === 0) return true;
-    const haystack = this.visitorText().toLowerCase();
-    return spans.every((m) => haystack.includes(m[1].toLowerCase()));
+    const haystack = EnsembleEngine.normQuotes(this.visitorText());
+    return spans.every((m) => haystack.includes(m[1]));
+  }
+
+  /** fossil scan that ignores verified quoted spans (their words, not hers) */
+  private fossilOutsideQuotes(line: string): string | null {
+    const stripped = EnsembleEngine.normQuotes(line).replace(/"[^"]*"/g, ' ');
+    for (const phrase of NEVER_SAY_LOWER) if (stripped.includes(phrase)) return phrase;
+    return null;
   }
 
   /** question postcondition: askable, short, quotes verified */
@@ -1020,20 +1045,18 @@ export class EnsembleEngine {
     const options = this.dilemma.options_md!.trim();
     const voicedProblem = await this.promptedLine(
       'naming',
-      `the naming, part one — say THE PROBLEM to them, plainly, in your mouth, keeping every concrete in the memo. no softening, no advice.\nthe memo:\n${problem}`,
+      `the naming, part one — say THE PROBLEM to them, plainly, in your mouth, keeping every concrete in the memo. don't read it verbatim; don't soften it; no advice.\nthe memo:\n${problem}`,
       (l) => this.revoiceValid(l, problem),
       problem,
       myGen,
-      problem,
     );
     if (myGen !== this.gen) return;
     const voicedOptions = await this.promptedLine(
       'naming',
-      `the naming, part two — say THE OPTIONS to them: each real road with its cost, including the one they pretend isn't there. never a recommendation.\nthe memo:\n${options}`,
+      `the naming, part two — say THE OPTIONS to them: each real road with its cost, including the one they pretend isn't there. don't read the memo verbatim; never a recommendation.\nthe memo:\n${options}`,
       (l) => this.revoiceValid(l, options),
       options,
       myGen,
-      options,
     );
     if (myGen !== this.gen) return;
     const text = [
@@ -1054,6 +1077,7 @@ export class EnsembleEngine {
   }
 
   private async performClose(intent: Intent, myGen: number): Promise<void> {
+    if (this.phase !== 'live') return; // double-close guard
     const questReady =
       this.dilemma.quest_md && this.namingDelivered && this.coherence >= this.c.COHERENCE_GATE;
     if (questReady) {
@@ -1095,7 +1119,7 @@ export class EnsembleEngine {
         delivery.push(tag.toLowerCase());
         return '';
       })
-      .replace(/\s{2,}/g, ' ')
+      .replace(/[^\S\n]{2,}/g, ' ') // collapse spaces, PRESERVE the naming's line breaks
       .trim();
     if (!trimmed) return;
     this.scroll.push({
@@ -1141,19 +1165,22 @@ export class EnsembleEngine {
       assignment: this.assignment(intent, event),
     };
     // the goldilocks pass: three takes come back, only `spoken` is
-    // performed — the drafts stay in the call record for the lab
-    try {
-      return (await callPersona(this.env, payload)).spoken;
-    } catch {
+    // performed — the drafts stay in the call record for the lab.
+    // fossil law applies to free speech too: one retry, then canned.
+    for (let attempt = 0; attempt < 2; attempt++) {
       try {
-        return (await callPersona(this.env, payload)).spoken;
+        const line = (await callPersona(this.env, payload)).spoken;
+        const fossil = this.fossilOutsideQuotes(line);
+        if (!fossil) return line;
+        this.note(`free beat spoke a fossil ("${fossil}") — ${attempt === 0 ? 'retrying' : 'canned'}`);
       } catch {
-        const line = CANNED_LINES[this.cannedIdx % CANNED_LINES.length];
-        this.cannedIdx += 1;
-        this.lastIntent = this.lastIntent ? { ...this.lastIntent, canned: true } : null;
-        return line;
+        /* retry, then canned */
       }
     }
+    const line = CANNED_LINES[this.cannedIdx % CANNED_LINES.length];
+    this.cannedIdx += 1;
+    this.lastIntent = this.lastIntent ? { ...this.lastIntent, canned: true } : null;
+    return line;
   }
 
   // ----------------------------------------------------------- cognition

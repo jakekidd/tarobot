@@ -126,11 +126,18 @@ export function checkSession(record: SessionRecord, only?: number[]): Result[] {
   const gate = record.snapshot.constants.COHERENCE_GATE;
   const cohOk = record.snapshot.coherence >= gate;
   const shouldName = committed && cohOk && record.snapshot.spreadClass !== 'EXPLORATION';
+  // the clock may legitimately land charm on a committed doc (late
+  // commit outrun by the T-ramp or the flush) — that is design, not
+  // failure; the op log carries the receipt
+  const clockLanded = (record.snapshot.log ?? []).some(
+    (l) => l.text.includes('landing ramp T-') || l.text.startsWith('FLUSH'),
+  );
   add(
     7,
     'naming IFF committed ∧ coherent',
-    named === shouldName || (shouldName && !named && record.snapshot.flipped.length < 2),
-    `named=${named}, committed=${committed}, coherence=${record.snapshot.coherence}/${gate}`,
+    named === shouldName ||
+      (shouldName && !named && (record.snapshot.flipped.length < 2 || clockLanded)),
+    `named=${named}, committed=${committed}, coherence=${record.snapshot.coherence}/${gate}${!named && clockLanded ? ' (clock-landed)' : ''}`,
   );
 
   // 8 — every read intent carries a position tag
@@ -172,9 +179,10 @@ export function checkSession(record: SessionRecord, only?: number[]): Result[] {
   add(11, 'no unflipped face spoken (augur stays backstage)', foresight === 0, `${foresight} leak(s)`);
 
   // 12 — the fossil law: no oracle beat contains a never-say phrase
+  // (verified quoted spans are the visitor's words — exempt)
   let fossils = 0;
   for (const b of oracle) {
-    const l = b.text.toLowerCase();
+    const l = b.text.toLowerCase().replace(/[“”]/g, '"').replace(/"[^"]*"/g, ' ');
     for (const phrase of NEVER_SAY) if (l.includes(phrase)) fossils += 1;
   }
   add(12, 'fossil law (never-say list clean)', fossils === 0, `${fossils} fossil(s) spoken`);

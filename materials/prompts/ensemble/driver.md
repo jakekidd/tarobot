@@ -45,11 +45,13 @@ the beats you may be offered:
   guess        play the conjector's pending guess, verbatim frame:
                it is a probe, not a verdict — their reaction is the
                point. never let a guess rot unplayed.
-  focus        the consent gate: the house speaks "here's where i
-               keep landing: X. that okay?" pick deal when they say
-               yes (in any words); pick focus again when they decline
-               — the house offers the alternate, then falls to an
-               exploration reading (mind-heart-root, no dilemma lens).
+  focus        the consent gate. the HOUSE judges the visitor's answer
+               mechanically — you never decide acceptance. when the
+               verdict is yes, deal appears on your menu; when it's
+               no, the house mandates the alternate offer, then an
+               exploration reading (mind-heart-root, no dilemma lens)
+               after two declines. on an ambivalent answer, clarify
+               with tissue or a small question — never push the deal.
   naming       the ritual midpoint, mandated when ready: the house
                speaks the incantation, the problem, the options, the
                release. your accomplish is ignored; choosing it on the

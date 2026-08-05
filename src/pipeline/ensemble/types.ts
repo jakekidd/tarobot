@@ -223,6 +223,7 @@ export type EnsembleSnapshot = {
   lastIntent: Intent | null;
   fanInFlight: boolean;
   attentionInFlight: boolean;
+  conjectorInFlight: boolean;
   error: string | null;
   constants: EnsembleConstants;
 };

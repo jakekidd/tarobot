@@ -85,6 +85,7 @@ export { djb2 };
 
 /** the fossil law: retired/example lines no oracle beat may contain */
 export const NEVER_SAY: string[] = BEATS._never_say.map((s) => s.toLowerCase());
+export const NEVER_SAY_LOWER = NEVER_SAY;
 
 export function violatesNeverSay(line: string): string | null {
   const l = line.toLowerCase();
