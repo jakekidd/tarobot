@@ -64,6 +64,8 @@ export const ConjectorFilingSchema = z.object({
   prev: z.enum(['cold', 'warm', 'hot', 'unplayed']).optional(),
   guess: z.string().optional(),
   alt_guess: z.string().optional(),
+  focus: z.string().optional(),
+  alt_focus: z.string().optional(),
   /** classify: the dilemma class locks the spread request */
   class: z.enum(DILEMMA_CLASSES).optional(),
   /** the DIVINER's cheat — one deck-bible card id worth planting */

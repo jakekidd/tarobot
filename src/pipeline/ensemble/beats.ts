@@ -17,6 +17,7 @@ export const BEAT_TYPES = [
   'read',
   'guess',
   'naming',
+  'focus',
   'honor',
   'quest',
   'charm',
@@ -29,6 +30,7 @@ export type GenMode = 'V' | 'T' | 'F';
 
 /** structural beats are never FREE (law 1) */
 export const BEAT_MODE: Record<BeatType, GenMode> = {
+  focus: 'T',
   greeting: 'V',
   rant_bid: 'V', // authored variants; slot-free, so V at render time
   question: 'T',
@@ -51,7 +53,7 @@ export type QuestionFrame = (typeof QUESTION_FRAMES)[number];
 export const DILEMMA_CLASSES = ['FORK', 'THRESHOLD', 'LOOP', 'WEIGHT'] as const;
 export type DilemmaClass = (typeof DILEMMA_CLASSES)[number];
 /** UNKNOWN is the fallback spread key, never a committed class */
-export type SpreadClass = DilemmaClass | 'UNKNOWN';
+export type SpreadClass = DilemmaClass | 'UNKNOWN' | 'EXPLORATION';
 
 type FrameEntry = { text: string; fallback?: string };
 
@@ -62,6 +64,7 @@ type BeatsFile = {
   deal: Record<SpreadClass, FrameEntry>;
   flip_invite: { variants: string[] };
   guess: { text: string };
+  focus: { offer: string; alt: string };
   naming: { incantations: Record<DilemmaClass, string>; release: string };
   quest: { lead: string; text: string };
   charm: FrameEntry;
@@ -200,6 +203,11 @@ export const SPREADS: Record<SpreadClass, Spread> = {
       { job: 'what it costs' },
       { job: 'whose it really is' },
     ],
+  },
+  EXPLORATION: {
+    key: 'EXPLORATION',
+    name: 'mind-heart-root',
+    positions: [{ job: 'your mind' }, { job: 'your heart' }, { job: 'your root' }],
   },
   UNKNOWN: {
     key: 'UNKNOWN',

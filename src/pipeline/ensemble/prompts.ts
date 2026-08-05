@@ -143,6 +143,8 @@ export const CONJECTOR_TOOL: ToolDef = {
       prev: { type: 'string', enum: ['cold', 'warm', 'hot', 'unplayed'] },
       guess: { type: 'string' },
       alt_guess: { type: 'string' },
+      focus: { type: 'string' },
+      alt_focus: { type: 'string' },
       class: { type: 'string', enum: [...DILEMMA_CLASSES] },
       plant: { type: 'string' },
       problem_md: { type: 'string' },

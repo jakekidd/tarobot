@@ -110,6 +110,11 @@ export class EnsembleEngine {
   private questionsSinceGuess = 0;
   private lastGuessGrade: 'cold' | 'warm' | 'hot' | 'unplayed' | null = null;
   private altGuess: string | null = null;
+  private focusPhrase: string | null = null;
+  private altFocus: string | null = null;
+  /** 0 unoffered · 1 main offered · 2 alt offered · 3 accepted · 4 exploration */
+  private focusStage = 0;
+  private guessCount = 0;
   private lastOracleBeatType: BeatType | null = null;
   private greetingVariant = 0;
   private flipInviteVariant = 0;
@@ -340,10 +345,18 @@ export class EnsembleEngine {
           return ['guess'];
         }
         if (this.questionsAsked < this.c.QUESTION_BUDGET) beats.unshift('question');
+        // the consent gate: once the conjector lands a focus, offer it;
+        // after an offer the driver reads the room — deal = accepted,
+        // focus again = declined (alt, then exploration)
+        if (this.focusPhrase && this.focusStage === 0) return ['focus'];
+        if (this.focusStage === 1 || this.focusStage === 2) {
+          beats.unshift('deal');
+          beats.unshift('focus');
+        }
         // the rant path: fallback after a refusal, escape ends intake
         beats.push('rant_bid');
         // the deal opens once there is anything to deal on
-        if (this.visitorSpoke()) beats.push('deal');
+        if (this.visitorSpoke() && (this.focusStage === 0 ? !this.focusPhrase : this.focusStage >= 1)) beats.push('deal');
         // deal mandate: class landed or budget spent
         if (this.dealReady() && this.graceSpent(this.dealReadySince)) return ['deal'];
         return beats;
@@ -386,6 +399,7 @@ export class EnsembleEngine {
   }
 
   private namingReady(): boolean {
+    if (this.spreadClass === 'EXPLORATION') return false;
     if (this.namingDelivered || !dilemmaCommitted(this.dilemma)) return false;
     // never speak a document mid-edit — the passages must include the
     // newest material (live finding: the naming raced the disclosure)
@@ -398,6 +412,8 @@ export class EnsembleEngine {
   private dealReady(): boolean {
     if (this.mode !== 'session' || this.drawn.length > 0) return false;
     if (!this.visitorSpoke()) return false;
+    // the consent gate: a found focus must be offered and answered first
+    if (this.focusPhrase && this.focusStage < 3) return false;
     return this.dilemmaClass !== null || this.questionsAsked >= this.c.QUESTION_BUDGET;
   }
 
@@ -516,8 +532,39 @@ export class EnsembleEngine {
         return;
       }
 
+      case 'focus': {
+        if (this.focusStage === 0 && this.focusPhrase) {
+          const text = BEATS.focus.offer.replace('{PASSAGE:focus}', this.focusPhrase);
+          this.commitOracle(text, 'focus');
+          this.focusStage = 1;
+          this.note(`focus offered: "${this.focusPhrase}"`);
+        } else if (this.focusStage === 1 && this.altFocus) {
+          const text = BEATS.focus.alt.replace('{PASSAGE:focus}', this.altFocus);
+          this.commitOracle(text, 'focus');
+          this.focusPhrase = this.altFocus;
+          this.altFocus = null;
+          this.focusStage = 2;
+          this.note('alternate focus offered');
+        } else {
+          // every focus declined — exploration tarot: no dilemma lens
+          this.focusStage = 4;
+          this.dilemmaClass = null;
+          this.note('all focuses declined → EXPLORATION (mind-heart-root)');
+          await this.performDeal('EXPLORATION', intent, myGen);
+        }
+        return;
+      }
+
       case 'deal': {
-        await this.performDeal(this.dilemmaClass ?? 'UNKNOWN', intent, myGen);
+        if (this.focusStage === 1 || this.focusStage === 2) {
+          this.focusStage = 3;
+          this.note('focus accepted by the visitor');
+        }
+        await this.performDeal(
+          this.focusStage === 4 ? 'EXPLORATION' : (this.dilemmaClass ?? 'UNKNOWN'),
+          intent,
+          myGen,
+        );
         return;
       }
 
@@ -892,7 +939,7 @@ export class EnsembleEngine {
     const questWanted = committed && (this.namingDelivered || this.flipped.length >= Math.max(2, this.drawn.length - 1));
     const ask = committed
       ? `document mode. re-read the passages against the newest material and rewrite the ONE that most needs it${questWanted ? ' — the quest passage is unlocked; draft or sharpen it (2 sentences maximum, a small observable experiment)' : ''}. include ONLY what you rewrite; re-emitting an unchanged passage is a wasted cycle.`
-      : 'hunting mode. grade your previous guess off the reaction, then file the next guess — or CLASSIFY when the territory is plain: emit class (FORK|THRESHOLD|LOOP|WEIGHT) + problem_md + options_md, and optionally plant (one deck card id that serves this story).';
+      : `hunting mode (${this.guessCount} guesses so far; at 5, stop hunting — commit your best read or leave it unnamed). grade your previous guess off the reaction; two warms in one territory = commit. then file the next guess — or CLASSIFY: emit class (FORK|THRESHOLD|LOOP|WEIGHT) + problem_md + options_md + focus (the dilemma in ≤8 plain words, for her consent question) + optionally alt_focus (a second territory) and plant (one deck card id).`;
     this.conjectorSeenBeats = this.scroll.filter((e) => e.kind === 'beat').length;
     try {
       const out = await callConjector(this.env, {
@@ -951,6 +998,9 @@ guess 2: ${out.alt_guess}`,
         this.note(`conjector CLASSIFIED: ${out.class}${out.plant ? ` (plant request: ${out.plant})` : ''}`);
         this.dilemmaClass = out.class;
       }
+      if (out.focus) this.focusPhrase = out.focus;
+      if (out.alt_focus) this.altFocus = out.alt_focus;
+      if (out.guess) this.guessCount += 1;
       if (out.plant) this.plantId = out.plant;
       if (out.problem_md) this.dilemma.problem_md = out.problem_md;
       if (out.options_md) this.dilemma.options_md = out.options_md;

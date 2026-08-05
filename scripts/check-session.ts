@@ -124,7 +124,7 @@ export function checkSession(record: SessionRecord, only?: number[]): Result[] {
   const committed = Boolean(record.snapshot.dilemma.problem_md && record.snapshot.dilemma.options_md);
   const gate = record.snapshot.constants.COHERENCE_GATE;
   const cohOk = record.snapshot.coherence >= gate;
-  const shouldName = committed && cohOk;
+  const shouldName = committed && cohOk && record.snapshot.spreadClass !== 'EXPLORATION';
   add(
     7,
     'naming IFF committed ∧ coherent',

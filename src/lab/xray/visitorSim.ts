@@ -49,8 +49,12 @@ export function saveCasting(casting: string): void {
   }
 }
 
-const SIM_SYSTEM = `you predict the next line of a real person sitting at a
-festival tarot booth, from a dossier. real people answer sideways,
+const SIM_SYSTEM = `you predict the next line of a real person at a festival
+booth, from a dossier. they have NO idea how this booth works inside —
+they are not cooperating with a system, just talking. they may be a
+little altered; they interrupt themselves, misremember details and
+correct them a turn later, occasionally use a wrong name or pronoun
+and fix it or not. real people answer sideways,
 change subject, undercut their own disclosures, refuse bids, speak in
 fragments, and never announce their hidden dilemma in clean language —
 it leaks, it is not stated. stay strictly inside what the dossier's

@@ -1,19 +1,16 @@
 {
-  "_authoring": "the beat library — SESSION-V2 §3/§5/§6. V beats are spoken as written (variants rotate). T skeletons carry typed slots: {QUOTE} exact visitor substring (validated), {NOUN:n}/{CLAUSE:n} capped fills, {GUESS} and {PASSAGE:x} are engine-substituted. every line here is v0 register pending jade's pass. lowercase always.",
-
+  "_authoring": "the beat library \u2014 SESSION-V2 \u00a73/\u00a75/\u00a76. V beats are spoken as written (variants rotate). T skeletons carry typed slots: {QUOTE} exact visitor substring (validated), {NOUN:n}/{CLAUSE:n} capped fills, {GUESS} and {PASSAGE:x} are engine-substituted. every line here is v0 register pending jade's pass. lowercase always.",
   "greeting": {
     "variants": [
       "evening. you found the quiet table.",
-      "hello. sit however you like — the cards don't judge posture."
+      "hello. sit however you like \u2014 the cards don't judge posture."
     ]
   },
-
   "rant_bid": {
     "primary": "before any cards: what's been taking up room in your head lately? don't organize it. just talk. i'll catch what matters.",
     "fallback": "then smaller. tell me about your week. what happened in it. boring is allowed.",
     "escape": "fair. cards first, talk after. we'll do it the hard way."
   },
-
   "question_frames": {
     "THREAD": {
       "text": "you said \"{QUOTE}\". stay on that. what's under it?",
@@ -35,29 +32,30 @@
       "text": "who else is inside this? what would they say you're doing?"
     }
   },
-
   "deal": {
     "FORK": {
-      "text": "okay. i've heard enough to choose your spread. four cards: what you carry in. then your two roads — {CLAUSE:8}, and {CLAUSE:8}. last, what tips it. your hands, your pace, any order.",
+      "text": "okay. i've heard enough to choose your spread. four cards: what you carry in. then your two roads \u2014 {CLAUSE:8}, and {CLAUSE:8}. last, what tips it. your hands, your pace, any order.",
       "fallback": "okay. i've heard enough to choose your spread. four cards: what you carry in, your two roads, and what tips it. your hands, your pace, any order."
     },
     "THRESHOLD": {
-      "text": "okay. your spread is three cards: the thing you've already decided — {CLAUSE:8} — then what the waiting costs, then the first step. your hands, your pace.",
+      "text": "okay. your spread is three cards: the thing you've already decided \u2014 {CLAUSE:8} \u2014 then what the waiting costs, then the first step. your hands, your pace.",
       "fallback": "okay. three cards: the thing you've already decided, what the waiting costs, and the first step. your hands, your pace."
     },
     "LOOP": {
-      "text": "okay. four cards for you: the loop itself — {CLAUSE:8} — your move inside it, what it protects you from, and the way off. your hands, any order.",
+      "text": "okay. four cards for you: the loop itself \u2014 {CLAUSE:8} \u2014 your move inside it, what it protects you from, and the way off. your hands, any order.",
       "fallback": "okay. four cards: the loop itself, your move inside it, what it protects you from, and the way off. your hands, any order."
     },
     "WEIGHT": {
-      "text": "okay. four cards: the thing you carry — {CLAUSE:8} — what carrying it buys you, what it costs you, and whose it really is. your hands, your pace, any order.",
+      "text": "okay. four cards: the thing you carry \u2014 {CLAUSE:8} \u2014 what carrying it buys you, what it costs you, and whose it really is. your hands, your pace, any order.",
       "fallback": "okay. four cards: the thing you carry, what carrying it buys, what it costs, and whose it really is. your hands, your pace, any order."
     },
     "UNKNOWN": {
       "text": "cards first, then. three of them: where you are, what's moving, what's still. turn one whenever you're ready."
+    },
+    "EXPLORATION": {
+      "text": "then no microscope tonight. three cards, straight down: your mind, your heart, your root. turn them in any order."
     }
   },
-
   "flip_invite": {
     "variants": [
       "when you're ready, turn one.",
@@ -65,11 +63,9 @@
       "another, whenever it suits you."
     ]
   },
-
   "guess": {
     "text": "{GUESS}"
   },
-
   "naming": {
     "incantations": {
       "FORK": "the cards tell me you have a choice.",
@@ -79,21 +75,23 @@
     },
     "release": "which way is yours. i don't pick. that's not what i'm for."
   },
-
   "quest": {
     "lead": "one more thing before you go.",
     "text": "{PASSAGE:quest}"
   },
-
   "charm": {
     "text": "you came in light. that's rare, and it's not nothing. keep this instead: {CLAUSE:14}. i just noticed it first.",
-    "fallback": "you came in light. that's rare, and it's not nothing. whatever you're doing — it's holding. keep doing it."
+    "fallback": "you came in light. that's rare, and it's not nothing. whatever you're doing \u2014 it's holding. keep doing it."
   },
-
   "close": {
     "variants": [
       "that's the reading. go gentle with it.",
       "that's what the table had tonight. thank you for sitting."
     ]
+  },
+  "focus": {
+    "offer": "here's where i keep landing: {PASSAGE:focus}. that okay to sit with?",
+    "alt": "fair. what about {PASSAGE:focus} \u2014 closer?",
+    "_note": "the consent gate; PASSAGE:focus is the conjector's short focus phrase"
   }
 }
