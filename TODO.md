@@ -66,15 +66,6 @@ lives beside the scene layer, not in the pipeline.
 The v1 greeting died with SESSION-V2; the beat grammar's typed slots
 (materials/ensemble/beats.json) ARE the mad-libs system now.
 
-### old title kept for history: mad-libs greeting
-The greeting is screenwritten now (`materials/ensemble/greeting-*.md`,
-rendered by `pipeline/ensemble/greeting.ts` — verbatim, no model call).
-Next step when authoring wants it: `[[blank: description]]` slots the
-persona fills in-character from the docs — personalization stays
-slot-shaped, invention stays impossible. Also: the disclaimers slot in
-the templates is an empty html comment on purpose; when the festival
-needs one (recording, age, etc.), it becomes a paragraph in her voice.
-
 ### rank the exp01 blind bundle (jake, human-in-the-loop)
 The arms protocol ran (2× naive / baseline / ensemble over the scripted
 maya track). Six beats-only transcripts sit shuffled in
