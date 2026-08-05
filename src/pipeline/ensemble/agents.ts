@@ -226,6 +226,19 @@ export async function callConsent(
   return v.startsWith('yes') ? 'yes' : v.startsWith('no') ? 'no' : 'ambivalent';
 }
 
+/** the refusability judge — the focus offer's question-side
+ *  postcondition: could a stranger comfortably say no to this? */
+export async function callRefusable(env: AgentEnv, line: string): Promise<boolean> {
+  const out = await freeform(
+    env,
+    'consent',
+    'you judge a single spoken sentence. could a stranger at a table comfortably answer "no" to it — is it a genuine, refusable question rather than a statement, a command, or a foregone conclusion? answer exactly one word: yes | no.',
+    line,
+    5,
+  );
+  return out.trim().toLowerCase().startsWith('yes');
+}
+
 // ------------------------------------------------------------ cognition
 
 type FanPayload = {

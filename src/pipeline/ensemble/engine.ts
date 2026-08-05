@@ -18,6 +18,7 @@ import {
   callAttention,
   callConjector,
   callConsent,
+  callRefusable,
   callDriver,
   callInterpreter,
   callPersona,
@@ -300,7 +301,7 @@ export class EnsembleEngine {
     this.emit();
     try {
       if (this.namingConditions() && !this.namingDelivered && !this.conjectorInFlight) {
-        this.performNaming();
+        await this.performNaming(myGen);
       }
       await this.performClose(
         {
@@ -683,6 +684,7 @@ export class EnsembleEngine {
             (line) => this.focusLineValid(line, this.focusPhrase!),
             BEATS.focus.offer.replace('{PASSAGE:focus}', this.focusPhrase),
             myGen,
+            `here's where i keep landing: ${this.focusPhrase}. that okay to sit with?`,
           );
           if (myGen !== this.gen) return;
           this.commitOracle(text, 'focus');
@@ -696,6 +698,7 @@ export class EnsembleEngine {
             (line) => this.focusLineValid(line, this.altFocus!),
             BEATS.focus.alt.replace('{PASSAGE:focus}', this.altFocus),
             myGen,
+            `fair. what about ${this.altFocus} — closer?`,
           );
           if (myGen !== this.gen) return;
           this.commitOracle(text, 'focus');
@@ -725,7 +728,7 @@ export class EnsembleEngine {
       }
 
       case 'naming': {
-        this.performNaming();
+        await this.performNaming(myGen);
         return;
       }
 
@@ -771,37 +774,65 @@ export class EnsembleEngine {
    *  validator, not in fixed text (jake, 2026-08-05). */
   private async promptedLine(
     beatPrompt: string,
-    valid: (line: string) => boolean,
+    valid: (line: string) => boolean | Promise<boolean>,
     fallback: string,
     myGen: number,
+    corpse?: string,
   ): Promise<string> {
+    const corpseLine = corpse
+      ? `\nthe retired house line — file it as too_safe, never speak it: "${corpse}"`
+      : '';
     for (let attempt = 0; attempt < 2; attempt++) {
       try {
         const out = await callPersona(this.env, {
           conversation: this.renderBeats(Infinity),
           frame: this.frames.current().md,
-          assignment: `beat prompt: ${beatPrompt}\nfamiliarity: level ${this.familiarity().level}/4 — ${this.familiarity().text}`,
+          assignment: `beat prompt: ${beatPrompt}${corpseLine}\nfamiliarity: level ${this.familiarity().level}/4 — ${this.familiarity().text}`,
         });
         if (myGen !== this.gen) return fallback;
         const line = out.spoken.trim();
-        if (line && valid(line)) return line;
+        if (line && (await valid(line))) return line;
         this.note(`beat-prompt line failed its postcondition (attempt ${attempt + 1})`);
       } catch {
         /* retry, then fallback */
       }
     }
-    this.note('beat prompt fell back to the authored line');
+    this.note(`FALLBACK spoken (authored line entered the transcript)`);
     return fallback;
   }
 
+  /** any double-quoted span in an oracle line must be the visitor's
+   *  actual words — the QUOTE guarantee, lifted to whole lines */
+  private quotedSpansVerified(line: string): boolean {
+    const spans = [...line.matchAll(/"([^"]{8,})"/g), ...line.matchAll(/“([^”]{8,})”/g)];
+    if (spans.length === 0) return true;
+    const haystack = this.visitorText().toLowerCase();
+    return spans.every((m) => haystack.includes(m[1].toLowerCase()));
+  }
+
+  /** question postcondition: askable, short, quotes verified */
+  private questionValid(line: string): boolean {
+    const askable =
+      line.includes('?') ||
+      /^(who|what|when|where|why|how|is|are|do|does|did|was|were|say|tell|walk|give)\b/i.test(line);
+    return askable && countWords(line) <= 26 && this.quotedSpansVerified(line);
+  }
+
   /** the consent gate's postcondition: carries the focus content and is
-   *  a genuine askable question */
-  private focusLineValid(line: string, focus: string): boolean {
-    if (!line.includes('?') || countWords(line) > 26) return false;
+   *  REFUSABLE — could a stranger comfortably say no (function, not
+   *  punctuation; judged fast-tier) */
+  private async focusLineValid(line: string, focus: string): Promise<boolean> {
+    if (countWords(line) > 26) return false;
     const fw = focus.toLowerCase().split(/\s+/).filter((w) => w.length >= 4);
-    if (fw.length === 0) return true;
-    const hits = fw.filter((w) => line.toLowerCase().includes(w)).length;
-    return hits / fw.length >= 0.5;
+    if (fw.length > 0) {
+      const hits = fw.filter((w) => line.toLowerCase().includes(w)).length;
+      if (hits / fw.length < 0.5) return false;
+    }
+    try {
+      return await callRefusable(this.env, line);
+    } catch {
+      return line.includes('?');
+    }
   }
 
   /** T-mode: fill → validate → refill once → fallback (SESSION-V2 §3) */
@@ -859,9 +890,11 @@ export class EnsembleEngine {
     return null;
   }
 
+  /** questions are BEAT PROMPTS now (the register seams): the persona
+   *  asks the frame's FUNCTION her way; the old skeleton is the named
+   *  corpse; the slotless authored variant is the fallback. kills the
+   *  conjugation bug class by construction. */
   private async performQuestion(intent: Intent, myGen: number): Promise<void> {
-    // a frame wears out: the second verbatim use reads as a machine.
-    // an over-used pick swaps to the least-used frame instead.
     let frame: QuestionFrame = intent.frame ?? 'THREAD';
     if ((this.framesUsed.get(frame) ?? 0) >= 1) {
       const fresh = (Object.keys(BEATS.question_frames) as QuestionFrame[]).sort(
@@ -872,22 +905,25 @@ export class EnsembleEngine {
     }
     this.framesUsed.set(frame, (this.framesUsed.get(frame) ?? 0) + 1);
     const entry = BEATS.question_frames[frame];
-    const materials = [
-      intent.target ? `aim: ${intent.target}` : '',
-      `accomplish: ${intent.accomplish}`,
-      this.profile.elevated.length > 0
-        ? `elevated facets:\n${this.profile.elevated.map((e) => `- ${e.facet}: ${e.angle}`).join('\n')}`
-        : '',
-    ]
-      .filter(Boolean)
-      .join('\n');
-    const result = await this.fillSkeleton(entry.text, entry.fallback, materials, 'question');
+    const aim = intent.target ?? intent.accomplish;
+    const FUNCTIONS: Record<QuestionFrame, string> = {
+      THREAD: `take a phrase they ACTUALLY used about ${aim}, hand it back (verbatim if quoted), and ask what's under it. one question.`,
+      KIND: `ask one are-you-the-kind-of-person question aimed at ${aim} — concrete, refusable, one breath.`,
+      CONCRETE: `pin ${aim} to a real lived moment: ask when it last actually happened — the day, the scene. one question.`,
+      STAKES: `a year passes and nothing about ${aim} changes: ask what breaks first. one question.`,
+      MIRROR: `ask who else is inside ${aim}, and what that person would say they're doing. one question.`,
+    };
+    const line = await this.promptedLine(
+      FUNCTIONS[frame],
+      (l) => this.questionValid(l),
+      entry.fallback ?? entry.text,
+      myGen,
+      entry.text,
+    );
     if (myGen !== this.gen) return;
-    if (result) {
-      this.commitOracle(result.text, 'question', result.fills);
-      this.questionsAsked += 1;
-      this.questionsSinceGuess += 1;
-    }
+    this.commitOracle(line, 'question');
+    this.questionsAsked += 1;
+    this.questionsSinceGuess += 1;
   }
 
   private async performDeal(cls: SpreadClass, intent: Intent, myGen: number): Promise<void> {
@@ -928,16 +964,50 @@ export class EnsembleEngine {
 
   /** the naming — the mandated ritual midpoint (SESSION-V2 §5). one
    *  scroll beat: incantation, problem, options, release. */
-  private performNaming(): void {
+  /** re-voicing validator: stays second person, keeps the memo's
+   *  content (word overlap), adds no advice, doesn't balloon */
+  private revoiceValid(line: string, source: string): boolean {
+    if (!/\byou\b|\byour\b/i.test(line)) return false;
+    if (/you (should|will|need to|have to|must)\b/i.test(line)) return false;
+    const sw = new Set(source.toLowerCase().split(/\s+/).filter((w) => w.length >= 5));
+    if (sw.size > 0) {
+      const lw = line.toLowerCase();
+      const hits = [...sw].filter((w) => lw.includes(w)).length;
+      if (hits / sw.size < 0.4) return false;
+    }
+    const ratio = countWords(line) / Math.max(1, countWords(source));
+    return ratio >= 0.5 && ratio <= 1.5;
+  }
+
+  private async performNaming(myGen: number): Promise<void> {
     if (!this.dilemmaClass || !dilemmaCommitted(this.dilemma)) return;
+    // she re-speaks the conjector's memo in her own mouth — the memo is
+    // the fallback AND the named corpse ("reading someone else's memo
+    // aloud" is exactly the register to not have)
+    const problem = this.dilemma.problem_md!.trim();
+    const options = this.dilemma.options_md!.trim();
+    const voicedProblem = await this.promptedLine(
+      `the naming, part one — say THE PROBLEM to them, plainly, in your mouth, keeping every concrete in the memo. no softening, no advice.\nthe memo:\n${problem}`,
+      (l) => this.revoiceValid(l, problem),
+      problem,
+      myGen,
+      problem,
+    );
+    if (myGen !== this.gen) return;
+    const voicedOptions = await this.promptedLine(
+      `the naming, part two — say THE OPTIONS to them: each real road with its cost, including the one they pretend isn't there. never a recommendation.\nthe memo:\n${options}`,
+      (l) => this.revoiceValid(l, options),
+      options,
+      myGen,
+      options,
+    );
+    if (myGen !== this.gen) return;
     const text = [
       BEATS.naming.incantations[this.dilemmaClass],
-      this.dilemma.problem_md?.trim() ?? '',
-      this.dilemma.options_md?.trim() ?? '',
+      voicedProblem,
+      voicedOptions,
       BEATS.naming.release,
-    ]
-      .filter(Boolean)
-      .join('\n\n');
+    ].join('\n\n');
     this.note('NAMING delivered — reads now APPLY; quest passage unlocked');
     this.commitOracle(text, 'naming');
     this.namingDelivered = true;
