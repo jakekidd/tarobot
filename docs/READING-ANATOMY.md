@@ -1,3 +1,7 @@
+> **STATUS (2026-08-05): the legacy seer (director/actor) engine — the code it describes is DEAD
+> CODE** (no route reaches it since the three-door menu). The living
+> docs are `docs/SESSION-V2.md` + `docs/ENSEMBLE.md`. Historical.
+
 # the reading — an anatomy
 
 A deep-dive on the reading subsystem (`src/pipeline/seer/`, `src/ui/Reading.tsx`,

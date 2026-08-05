@@ -37,11 +37,14 @@ file. Fix the loser.
 
 ## What this is
 
-A tarot-themed web app. The visible product is: a user lands in a dark
-purple game-feel CRT scene, a turtle (the antechamber mascot) interviews them via
-a sequence of multiple-choice questions, then the Seer reads four cards
-in a diamond spread for them. The reading is the thing the rest exists
-to serve.
+A tarot-themed web app. The visible product is the oracle session:
+key entry → a three-door menu (demo / xray lab / settings). The DEMO
+is the booth in 3d — floating eyes over a red table, subtitles, a
+rant-first interview, a spread dealt to the visitor's dilemma (they
+deal it by tapping the deck, flip at their pace), the naming ritual,
+a quest at the close. The XRAY LAB is the same engine with the skull
+open. The old turtle/antechamber/seer flow is dead code. The reading
+is the thing the rest exists to serve.
 
 Deploy is Vercel static. The browser holds the user's Anthropic API key and
 calls the model directly — there is no backend, no database, no auth layer.

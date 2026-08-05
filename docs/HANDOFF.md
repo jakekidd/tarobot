@@ -1,3 +1,7 @@
+> **STATUS (2026-08-05): point-in-time onboarding for the turtle-era build — the code it describes is DEAD
+> CODE** (no route reaches it since the three-door menu). The living
+> docs are `docs/SESSION-V2.md` + `docs/ENSEMBLE.md`. Historical.
+
 # Handoff — tarobot, the tuning-pipeline rebuild
 
 **Point-in-time snapshot (2026-06-11).** A handoff for a fresh agent picking up

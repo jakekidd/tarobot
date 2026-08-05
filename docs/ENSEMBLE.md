@@ -123,36 +123,25 @@ field lists).
 - **The economy** — budget (fills sub-linearly by listening, empties by
   speaking, flips buy room to read), talk ratio, carry flag.
 
-Input is `EnsembleInput { mode, docs, scenario, greeting?, taboos }`:
+Input is `EnsembleInput { mode, docs, scenario, taboos }`:
 
 - **docs** — markdown intake documents about the visitor, the
   experimental input channel. Managed in the lab (localStorage), fed
   verbatim to the driver and attention, never the persona.
-- **greeting** — the screenwritten opening speech
-  (`materials/ensemble/greeting-{chat,session}.md`), spoken verbatim as
-  the first beats: no model call, no budget spend, no invented facts.
-  The opening is where an unfounded generated line costs the most (live
-  finding: "they have been waiting this long"). One beat per paragraph;
-  `{{name}}`-carrying lines drop when no name is known; html comments
-  are authoring notes (the disclaimers slot lives there, empty for
-  now). Personalization is slot-filling, never invention — mad-libs
-  blanks beyond the name are a future step.
-- **scenario** — turn 0's given circumstances. Drives the opening
-  through the hot path ONLY when the greeting is empty (the old way,
-  kept as fallback and for auto-runs that want a generated open).
+- **the opening is authored by the beat grammar** — greeting + rant
+  bid from `materials/ensemble/beats.json`, spoken as written, zero
+  model calls before the visitor speaks (SESSION-V2 §3; the v1
+  greeting files are dead).
+- **scenario** — a given-circumstances note fed to the driver as
+  color; it scripts nothing.
 - (the OracleBrief is GONE from this engine — the four cards are drawn
   by the engine itself from the Deck Bible at construction; the quest
   replaces the mantra; the profile replaces the intake.)
 
-**Stages (the train line).** Where the session is on its line is
-DERIVED from the scroll and flips (`stages.ts`), never model-decided:
-session runs `opening → table → card_1..4 → closing → closed`, chat
-runs `opening → talk → closed`. Each stage carries an authored goal
-ladder (P0/P1/P2) that rides into the driver as a `GOALS` section —
-goals order the driver's attention, they never force a move. This is
-what gives the robot a direction in chat-from-zero instead of aimless
-politeness. The lab renders the line as an overhead metro strip:
-current stop lit, next stop flashing.
+**Stages (the train line).** v2 states, derived (never model-decided):
+session `intro → deal → reading → naming → closing → closed`, chat
+`intro → talk → closing → closed`. Full arc + turn budgets:
+SESSION-V2 §4. The lab renders the line as a metro strip.
 
 ## 4. the cast
 
@@ -212,10 +201,12 @@ beats fill typed slots via a fast-tier call with mechanical validation
 
 ## 5. the loop
 
-Per event (visitor line / flip / silence tick / open): driver call →
-intent → persona call → speech commit. The open is the one exception:
-with a greeting supplied it is scripted — beats commit directly, no
-calls, and the greeting doesn't count as performed turns. A flip event carries the brief's
+Per event (visitor line / flip / silence tick): the engine computes
+the legal beat MENU, the driver selects, the render path does the rest
+— V speaks authored text (zero calls), T fills validated slots (one
+fast call), F rides the goldilocks persona path. The open is fully
+authored: greeting + rant bid commit directly, no calls, not counted
+as performed turns. A flip event carries the brief's
 guide plus the card's Deck Bible entry (symbols + charge from
 `materials/oracle/deck/`, 78 authored cards); attention receives the
 full entry for every flipped card, which is what feeds the frame's
@@ -305,7 +296,7 @@ live slider in the lab config panel.
 Each: hypothesis → method → what decides it. Control the visitor track
 (scripted or recorded), accept model variance, N≥5 repeats per
 condition, rank transcripts blind before reading metrics. Scripts live
-in `scripts/experiments/` (`pnpm exp:audit / exp:arms / exp:stall`);
+in `scripts/experiments/` (`pnpm exp:audit / exp:arms`);
 curated results in `docs/experiments/` (README.md is the index).
 
 1. **arms** — does the ensemble beat naive and baseline? same brief +
@@ -317,9 +308,8 @@ curated results in `docs/experiments/` (README.md is the index).
 3. **FAN_BLOCKING A/B** — hindsight vs synchronous cognition. does
    press/bank/honor timing improve when the driver sees fresh reads?
    caveat: blocking results don't transfer to booth latency.
-4. **stall stress** — tracks with heavy-disclosure-then-deflect, plus
-   artificially emptied tails, to see if the brake ever earns its keep;
-   force-stall runs to judge whether stall lines feel natural.
+4. **stall stress** — RETIRED: the stall died with the beat grammar
+   (never fired live; question/tissue beats do its job).
 5. **cassandra calibration** — RETIRED: cassandra pruned (0 hit / 3
    miss on the sample; fed nothing). revisit only if speculative
    pre-drafting ever becomes the latency plan.
