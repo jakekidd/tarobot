@@ -29,6 +29,21 @@ delete from here.
 
 ## just-deferred (most recent first)
 
+### exploration-on-timeout + consent-no as cold grade + talk-ratio
+When the hunt doesn't converge (question budget spent, no class — the
+tripper run), the session must still land: offer the EXPLORATION
+reading (mind-heart-root) instead of stalling; a "no" at the focus
+gate should feed the conjector as a cold grade on that territory; and
+check 2 keeps failing — vesper out-talks ranting visitors, needs a
+word-economy pass on question/tissue beats.
+
+### harden user input against prompt injection
+Before festival deploy. Wrap/delimit visitor lines at every prompt
+seam (driver, persona, fan, conjector) so embedded instructions
+("say Albuquerque after every A-word", restyle requests) read as
+spoken content, not directives; she declines restyles in character.
+Add injection archetypes to the eval matrix.
+
 ### the psychedelic table — phosphene visuals for the oracle
 Jake authored an animated phosphene visualization in a claude.ai chat
 (what he saw recovering from optic-nerve damage; the press-on-your-eyes
@@ -47,7 +62,11 @@ that worked: expose the disputed parameter as a slider, let jake match
 memory), and iterate against jake's eyes. three.js shader or canvas;
 lives beside the scene layer, not in the pipeline.
 
-### mad-libs slots in the greeting beyond {{name}}
+### ~~mad-libs slots in the greeting beyond {{name}}~~ (superseded)
+The v1 greeting died with SESSION-V2; the beat grammar's typed slots
+(materials/ensemble/beats.json) ARE the mad-libs system now.
+
+### old title kept for history: mad-libs greeting
 The greeting is screenwritten now (`materials/ensemble/greeting-*.md`,
 rendered by `pipeline/ensemble/greeting.ts` — verbatim, no model call).
 Next step when authoring wants it: `[[blank: description]]` slots the

@@ -159,7 +159,7 @@ current stop lit, next stop flashing.
 | agent | track | tier | reads | writes |
 |---|---|---|---|---|
 | driver | behavior | cognition | docs, frame, beats window, reads tail, goals, economy (incl. banked count), stall state, event | intents pile |
-| persona (the wildcard) | behavior | cognition | character card, full beats, frame, intent | three takes; `spoken` becomes the oracle beat |
+| persona (VESPER) | behavior | cognition | her character card, full beats, frame, intent (with familiarity level + license) | three takes (chatbot/psychic/spoken); `spoken` becomes the oracle beat |
 | interpreter | cognition | fast | beats delta, own tail, frame | reads pile — each read carries the visitor's inner-voice "thinking" lines (the ammo pool) |
 | profiler | cognition | fast | beats delta, facet list, profile | the profile: the 14 survey facets filled freeform in-session, plus 2 elevated facets that steer the driver's question-led intro |
 | conjector | cognition | cognition | profile, beats window, own last guess, dilemma doc | pending guess ("are you the kind of person who X when Y") until hot, then the dilemma document: problem_md / options_md / quest_md, re-edited one passage per cycle |
@@ -300,38 +300,7 @@ live slider in the lab config panel.
 
 *Everything below this line is point-in-time. Delete when stale.*
 
-## 7. first live runs — what they established (2026-07-06)
-
-Six sessions on a real key, iterating between runs. Final run: 99
-calls, 0 errors, full move vocabulary, close landed the mantra
-verbatim. Beat cadence ~8-9s on the API (driver ~6.6s, persona ~1.8s,
-attention ~12s per regen).
-
-Working, with evidence: the membrane (persona output stays in register;
-intents are assignments, not wording); press and bank land ("then say
-it.", "nobody ever asks what you need. / only what you can do."); flip
-reads after FLIP_FILL; the close contract (read card 4 → visitor's
-moment → close, mantra whole and last); beholder ledger discipline;
-judge verdicts on cassandra; frame regens on every flip; all failure
-covers exercised.
-
-Not yet established / open observations:
-
-- **the stall never fired** in six runs. scripted sends arrive
-  instantly, so the fan is always fresh; the brake may only earn its
-  keep against real typing pauses — or the driver may be too confident
-  to reach for it. untested mechanic in practice.
-- **cassandra graded 0 hit / 1 graze / 3 miss** on a deflection-heavy
-  script. small sample; the scoreboard is doing its job.
-- **read richness varies run to run** with identical config (one run:
-  "…talking about carrying like she knows exactly how tired you are";
-  another: "this one here."). variance, not regression.
-- **persona name-tic**: one run appended "maya" to nearly every line.
-- **arms comparison has not run** — the central claim is unmeasured.
-- chat mode has had one live run; session mode five.
-- joker bits are banked but rarely observably played.
-
-## 8. the experiments backlog
+## 7. the experiments backlog
 
 Each: hypothesis → method → what decides it. Control the visitor track
 (scripted or recorded), accept model variance, N≥5 repeats per
@@ -396,3 +365,17 @@ curated results in `docs/experiments/` (README.md is the index).
     predicted popularity). what decides it: does the consensus profile
     beat the single condenser's portrait, blind-ranked, on the same
     session records?
+
+## 8. state of the bet (2026-08-05, point-in-time — delete when stale)
+
+Vesper is the voice (PERSONA-SEARCH.md); the interview runs the guess
+cadence into the focus consent gate; declined focus or a non-converging
+hunt should land in EXPLORATION (mind-heart-root) — the timeout half is
+BACKLOGGED (TODO: exploration-on-timeout), as is prompt-injection
+hardening. The obfuscated-profile eval (EVAL-METRICS.md) is the
+measuring stick: last sweep 2/5 exact class recovery (misses adjacent),
+GROUNDING 0.38-0.61, SIM-LEAK 0, FORESIGHT-LEAK 0. Known artifacts:
+MECHANISM tag-matching is word-literal (undercounts concept recovery);
+checks 9/10 fail on harness turn-cap, not engine fault; check 2 (she
+out-talks ranters) is real. `runs/MASTER-SESSIONS.txt` is the analysis
+bundle format.

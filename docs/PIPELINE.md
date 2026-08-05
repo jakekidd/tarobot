@@ -1,3 +1,9 @@
+> **STATUS (2026-08-05): the turtle antechamber this doc describes is
+> DEAD CODE** — no route reaches it since the three-door menu landed.
+> The product is the ensemble session engine: `docs/SESSION-V2.md` +
+> `docs/ENSEMBLE.md`. This doc is kept for the survey/conjector
+> rationale that was rescued into the ensemble.
+
 # Tarobot Antechamber Pipeline — current shape
 
 Living doc. The source of truth for "what's actually running" between a new

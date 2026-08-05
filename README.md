@@ -77,7 +77,7 @@ materials/
   prompts/conjector/              the dilemma hunt (move / reroot / summary)
   prompts/ensemble/               one system prompt per ensemble agent
   prompts/seer/                   legacy seer voice bible + per-call prompts
-  ensemble/greeting-*.md          the oracle's screenwritten opening
+  ensemble/beats.json             the beat library (authored lines + typed-slot skeletons)
   prompts/augur-{outline,fill}.md outcome naming + document fills (reading)
   names/{masc,fem}.txt            relationship_pick name banks
   mascot/return-lines.md          returning-user mascot lines

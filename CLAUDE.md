@@ -15,7 +15,11 @@ Documentation map (what to trust for what):
 |---|---|
 | `CLAUDE.md` (this file) | Durable orientation — principles, architecture, conventions. |
 | `docs/PIPELINE.md` | Living truth for the antechamber pipeline (survey → condenser → conjector). |
-| `docs/ENSEMBLE.md` | Living truth for the oracle ensemble (the chat-first reading engine) + xray lab, web AND headless. |
+| `docs/ENSEMBLE.md` | Living truth for the oracle ensemble + xray lab + booth demo, web AND headless. |
+| `docs/SESSION-V2.md` | The beat grammar — session flow, delivery, testing protocol. Supersedes older arc sections everywhere. |
+| `docs/experiments/EVAL-METRICS.md` | The obfuscated-profile eval — named metrics, defined before runs. |
+| `docs/experiments/PERSONA-SEARCH.md` | The persona investigation — research conclusions, tacky metrics, the vesper lineage. |
+| `docs/experiments/NORTH-STAR.md` | The UX yardstick + tacky taxonomy (T1-T6), written before the audit loop. |
 | `ENSEMBLE-PLAN.md` | The build plan that produced the ensemble. Rationale mine; historical. |
 | `docs/HANDOFF.md` | Point-in-time onboarding: current build state, lessons, brainstorm context. |
 | `docs/ANTECHAMBER-STATE.md` | Point-in-time close-out audit of the antechamber (checklist, gaps, deferred). |
@@ -91,12 +95,15 @@ materials/
     ensemble/
       driver.md · wildcard.md · interpreter.md · profiler.md ·
       conjector.md · attention.md   one system prompt per ensemble
-                                agent (see ENSEMBLE.md §4)
+                                agent; wildcard.md is VESPER — the
+                                predict-a-human persona (see
+                                PERSONA-SEARCH.md)
   ensemble/
-    greeting-chat.md              the screenwritten opening speech (the
-    greeting-session.md           "greeting") — spoken verbatim, no model
-                                  call; {{name}} lines drop when unknown;
-                                  disclaimers slot lives in the comments
+    beats.json                    the beat library (SESSION-V2 §3): V
+                                  variants + T skeletons with typed slots
+                                  (greeting, rant bids, question frames,
+                                  per-class deals, focus gate, naming
+                                  incantations, quest lead, charm, closes)
   oracle/
     deck/                         the Deck Bible — full 78-card RWS, one json
                                   per suit + majors; symbols/themes/shadow/
@@ -463,6 +470,18 @@ the doc.
   full-fidelity `transcript.md` + `session.json` per run — the same
   `SessionRecord` the xray lab's export button produces. See
   `docs/ENSEMBLE.md` §6.
+- `pnpm live` — the sit-across-from-it harness (inbox commands: say /
+  flip / tick / end); writes session.json + xray.txt per run.
+- `pnpm smoke:booth` — headless full-arc drive of the 3d demo's
+  presentation state (deal/flip gating, subtitles). No key.
+- `pnpm check -- <session.json>` — the 11 mechanical checks
+  (SESSION-V2 §9 + FORESIGHT-LEAK).
+- `pnpm eval [-- --n=N --arch=X]` — the obfuscated-profile eval:
+  generates two-layer dossiers, runs blind sessions with an unaware
+  noisy sim, scores against held-back truth (EVAL-METRICS.md).
+- `pnpm persona-lab` — same moments, candidate personas, goldilocks
+  calls only; the breadth harness for voice work.
+- `pnpm xray:render` — regenerate xray.txt transcripts for past runs.
 - **Deploy = push to GitHub `main`.** Vercel auto-deploys it. The project is
   owned by the **personal scope `jakekidds-projects`** — NOT the
   `ubitel-projects` work team. (It used to be wrongly linked under Ubitel. If a
@@ -516,11 +535,19 @@ the doc.
   in-session, the conjector hunts guesses then writes the dilemma
   document, and the close hands over a quest. Scripted greeting; stage
   goals (P0/P1/P2) feed
-  the driver; the persona runs a goldilocks pass (too_safe / too_far /
-  spoken — the Hand is dead). Must beat naive AND the
-  `src/pipeline/oracle/` baseline blind before it earns permanence.
-  `docs/ENSEMBLE.md` is the living truth and holds the experiments
-  backlog.
+  the driver; the persona runs a goldilocks pass (too_safe = the named
+  chatbot take / too_far = the stage psychic / spoken — the Hand is
+  dead). Speech runs on the SESSION-V2 beat grammar; the persona is
+  VESPER (predict-a-human framing, license ladder clarify→guess→
+  synthesize fed by the familiarity meter 0-4); intake runs the guess
+  cadence (3 questions → mandated guess; cold gates a question; warm
+  re-guesses; divergence-checked alt guess) into the focus consent
+  gate ("that okay to sit with?") with the mind-heart-root EXPLORATION
+  spread as the declined/fallback path; the conjector gets the augur
+  feed (all drawn faces at deal time; FORESIGHT-LEAK check guards
+  speech). Measured by the obfuscated-profile eval (EVAL-METRICS.md).
+  Must beat naive AND the `src/pipeline/oracle/` baseline blind before
+  it earns permanence. `docs/ENSEMBLE.md` is the living truth.
 - **Card faces.** Currently unicode-glyph + roman-numeral placeholders.
   Real art replaces this later; the contract (each card has a glyph + label)
   stays the same.

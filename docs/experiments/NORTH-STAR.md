@@ -58,6 +58,12 @@ Named so the audit can point at instances:
 - **T6 metronome sizing.** All beats the same length; no acks, no
   breath.
 
+## see also
+
+The voice half of this yardstick matured into
+`docs/experiments/PERSONA-SEARCH.md` (vesper, the license ladder, the
+named tacky metrics); the machine half into `EVAL-METRICS.md`.
+
 ## the audit question
 
 For every model call in a session: did its output CHANGE what the

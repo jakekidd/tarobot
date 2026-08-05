@@ -177,7 +177,7 @@ async function main() {
   const args = process.argv.slice(2).filter((a) => a !== '--');
   const n = Number(args.find((a) => a.startsWith('--n='))?.slice(4) ?? 2);
   const archArg = args.find((a) => a.startsWith('--arch='))?.slice(7);
-  const arches = archArg ? [archArg] : ['deflector', 'over-sharer', 'fine-one'];
+  const arches = archArg ? [archArg] : ['deflector', 'over-sharer', 'crier', 'tester', 'fine-one'];
   const adapter = new AnthropicAdapter(createClaudeClient(key()));
   const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
   const root = `runs/eval-${stamp}`;

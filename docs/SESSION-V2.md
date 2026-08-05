@@ -428,3 +428,23 @@ Judgment calls where the doc is silent, applied in the build:
   rant → questions → naming → quest/charm → close.
 - **The naming renders as consecutive scroll beats** (incantation ·
   problem · options · release), no visitor turn between — room, as asked.
+
+### Post-spec deltas (implemented, 2026-08-05)
+
+- **The focus consent gate** (jake): after classify, a mandated T beat —
+  "here's where i keep landing: X. that okay to sit with?" — gates the
+  deal; declined → alternate focus → EXPLORATION spread
+  (mind-heart-root, 3 cards in a column, no dilemma lens, no naming,
+  charm close). Misclassification becomes recoverable before the
+  spread locks.
+- **The persona is VESPER**: predict-a-human framing replaces
+  instruct-an-assistant; too_safe is defined as THE CHATBOT TAKE (the
+  named enemy); validation openers banned as grammar; license ladder
+  (clarify 0-1 / guess 2 / synthesize 3-4) fed by the familiarity
+  meter. See PERSONA-SEARCH.md.
+- **The guess cadence**: 3 questions mandate a guess; cold gates a
+  question; warm re-guesses; divergence-checked alt_guess; 5-guess cap.
+- **The augur feed**: the conjector sees all drawn faces at deal time;
+  check 11 (FORESIGHT-LEAK) keeps them out of speech.
+- **The eval** (§9's protocol, built): two-layer obfuscated dossiers,
+  unaware noisy sim, scored against held-back truth — EVAL-METRICS.md.
