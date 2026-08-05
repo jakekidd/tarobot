@@ -35,3 +35,15 @@ hunt's breadth; that's S3); GROUNDING flat; tokens/session UP ~15-25%
 (consent + refusability + naming re-voice calls) — accepted cost;
 contagion index recorded as baseline for the S2 prediction (expect
 drop after sim v3).
+
+**S0 FINDING (prediction missed — recovery 0/6 vs predicted 2-3):**
+the conjector recovered WEIGHT in 5/6 sessions regardless of truth
+class. that is an ATTRACTOR, not variance: "a load carried without
+acknowledgment" is broad enough to swallow forks and thresholds
+(everything anyone brings to a table can be narrated as carrying).
+also the run-to-run sim variance is visible (same dossiers, fresh sim
+improvisation each run — recovery swung 2/5→0/6 across builds with no
+hunt changes). both feed S3: contrastive class definitions + the
+disconfirmation sentence should attack the attractor; sim v3's voice
+cards reduce the variance. checks 9/10 still fail everywhere =
+no-clock baseline, as predicted.
