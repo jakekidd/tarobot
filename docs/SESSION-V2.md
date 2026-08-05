@@ -453,3 +453,18 @@ Judgment calls where the doc is silent, applied in the build:
   strongest voice surface in the system and MUST be written in the
   persona's register; persona + library version together. beats.json
   rewritten in vesper's mouth accordingly.
+- **Beat prompts with postconditions** (jake, 2026-08-05): the
+  guarantee never lived in fixed text — it lives in the validator.
+  Voice-critical beats (focus offer/alt, charm) are now PROMPTED: the
+  persona speaks the beat's function in her own words, a mechanical
+  postcondition verifies it (focus: carries the focus content + a real
+  question + short; charm: no advice verbs, bounded), and the authored
+  library line is only the fallback. Fixed text survives where
+  repetition is the design (incantations, release) or before any
+  transcript exists (greeting, rant bid).
+- **The mandate short-circuit** (first slice of algorithmic intent):
+  when the menu collapses to one legal beat (naming/focus/guess/deal),
+  the driver call is SKIPPED — the intent is synthesized by rule. The
+  Intent Engine as a dedicated agent stays a TODO in the engine;
+  the direction is to keep converting recurring driver judgments into
+  rules until little judgment remains.

@@ -454,6 +454,37 @@ export class EnsembleEngine {
       `menu [${menu.join(' · ')}]${menu.length === 1 ? ' — MANDATED' : ''} ← ${event.type}, stage ${this.stage()}, coherence ${this.coherence}`,
     );
 
+    // TODO(jake): the Intent Engine — a rigid offstage agent that owns
+    // "what happens next" wholesale. today intent emerges algorithmically
+    // piece by piece instead: menus, mandates, cadence counters, the
+    // license ladder — and the short-circuit below. keep shrinking the
+    // driver's degrees of freedom as evidence accumulates; add the
+    // dedicated agent only if judgment calls remain that rules can't hold.
+    if (menu.length === 1 && ['naming', 'focus', 'guess', 'deal'].includes(menu[0])) {
+      this.note(`intent emerged algorithmically: ${menu[0]} (mandate short-circuit — driver skipped)`);
+      const intent: Intent = {
+        beat: menu[0],
+        accomplish: `mandated ${menu[0]}`,
+        approx_words: 0,
+        note: 'engine mandate; no driver call',
+      };
+      this.lastIntent = intent;
+      this.piles.intents.append('driver', this.anchor(), intent);
+      try {
+        await this.renderBeat(intent, event, myGen);
+        if (myGen === this.gen) this.maybeFan();
+      } catch (e) {
+        if (myGen === this.gen) this.error = e instanceof Error ? e.message : String(e);
+      } finally {
+        if (myGen === this.gen) {
+          this.busy = null;
+          this.lastEventWasFlip = false;
+          this.emit();
+        }
+      }
+      return;
+    }
+
     this.busy = 'driver';
     this.emit();
     try {
@@ -534,12 +565,24 @@ export class EnsembleEngine {
 
       case 'focus': {
         if (this.focusStage === 0 && this.focusPhrase) {
-          const text = BEATS.focus.offer.replace('{PASSAGE:focus}', this.focusPhrase);
+          const text = await this.promptedLine(
+            `ask them, plainly and in your own words, whether "${this.focusPhrase}" is the real thing to look at tonight. it must be a genuine yes-or-no question they can refuse. one sentence.`,
+            (line) => this.focusLineValid(line, this.focusPhrase!),
+            BEATS.focus.offer.replace('{PASSAGE:focus}', this.focusPhrase),
+            myGen,
+          );
+          if (myGen !== this.gen) return;
           this.commitOracle(text, 'focus');
           this.focusStage = 1;
           this.note(`focus offered: "${this.focusPhrase}"`);
         } else if (this.focusStage === 1 && this.altFocus) {
-          const text = BEATS.focus.alt.replace('{PASSAGE:focus}', this.altFocus);
+          const text = await this.promptedLine(
+            `they said no. offer the other thing you saw — "${this.altFocus}" — as a yes-or-no question, taking the miss in stride. one short sentence.`,
+            (line) => this.focusLineValid(line, this.altFocus!),
+            BEATS.focus.alt.replace('{PASSAGE:focus}', this.altFocus),
+            myGen,
+          );
+          if (myGen !== this.gen) return;
           this.commitOracle(text, 'focus');
           this.focusPhrase = this.altFocus;
           this.altFocus = null;
@@ -607,6 +650,45 @@ export class EnsembleEngine {
         return;
       }
     }
+  }
+
+  /** a beat prompt with a postcondition: the persona speaks the beat in
+   *  her own words; the machine verifies the FUNCTION; the authored
+   *  library line is only the fallback. the guarantee lives in the
+   *  validator, not in fixed text (jake, 2026-08-05). */
+  private async promptedLine(
+    beatPrompt: string,
+    valid: (line: string) => boolean,
+    fallback: string,
+    myGen: number,
+  ): Promise<string> {
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        const out = await callPersona(this.env, {
+          conversation: this.renderBeats(Infinity),
+          frame: this.frames.current().md,
+          assignment: `beat prompt: ${beatPrompt}\nfamiliarity: level ${this.familiarity().level}/4 — ${this.familiarity().text}`,
+        });
+        if (myGen !== this.gen) return fallback;
+        const line = out.spoken.trim();
+        if (line && valid(line)) return line;
+        this.note(`beat-prompt line failed its postcondition (attempt ${attempt + 1})`);
+      } catch {
+        /* retry, then fallback */
+      }
+    }
+    this.note('beat prompt fell back to the authored line');
+    return fallback;
+  }
+
+  /** the consent gate's postcondition: carries the focus content and is
+   *  a genuine askable question */
+  private focusLineValid(line: string, focus: string): boolean {
+    if (!line.includes('?') || countWords(line) > 26) return false;
+    const fw = focus.toLowerCase().split(/\s+/).filter((w) => w.length >= 4);
+    if (fw.length === 0) return true;
+    const hits = fw.filter((w) => line.toLowerCase().includes(w)).length;
+    return hits / fw.length >= 0.5;
   }
 
   /** T-mode: fill → validate → refill once → fallback (SESSION-V2 §3) */
@@ -761,19 +843,18 @@ export class EnsembleEngine {
       const quest = capSentences(this.dilemma.quest_md!, 2);
       this.commitOracle(`${BEATS.quest.lead} ${quest}`, 'quest');
     } else {
-      const materials = [
-        `one small TRUE thing observed about this visitor tonight, from:`,
+      const observed = [
         `profile:\n${this.profile.render()}`,
         `reads:\n${renderTail(this.piles.reads.tail(2), fmtRead)}`,
       ].join('\n');
-      const result = await this.fillSkeleton(
-        BEATS.charm.text,
-        BEATS.charm.fallback,
-        materials,
-        'charm',
+      const text = await this.promptedLine(
+        `no dilemma got named tonight and that is fine — they came in light. hand them ONE small true thing you actually noticed about them as a parting gift. no advice, no fortune, nothing invented. two sentences at most.\nwhat you noticed:\n${observed}`,
+        (line) => countWords(line) <= 45 && !/you (should|will|need to)/i.test(line),
+        BEATS.charm.fallback ?? BEATS.charm.text,
+        myGen,
       );
       if (myGen !== this.gen) return;
-      if (result) this.commitOracle(result.text, 'charm');
+      this.commitOracle(text, 'charm');
     }
     const v = BEATS.close.variants;
     this.commitOracle(v[this.closeVariant++ % v.length], 'close');
