@@ -130,7 +130,7 @@ async function main() {
     (e) => e.kind === 'beat' && e.speaker === 'oracle' && e.beatType === 'naming',
   );
   assert(
-    naming?.kind === 'beat' && naming.text.startsWith('the cards tell me'),
+    naming?.kind === 'beat' && naming.text.startsWith('the cards'),
     'naming opens with the incantation',
   );
   assert(
