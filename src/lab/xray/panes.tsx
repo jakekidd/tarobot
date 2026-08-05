@@ -236,6 +236,9 @@ export function TablePane({
         {snap.fanInFlight && <Pill variant="cold">cognition: fan running</Pill>}
         {snap.attentionInFlight && <Pill variant="cold">attention: reframing</Pill>}
         {snap.coherence <= 1 && <Pill variant="warn">anchor mode</Pill>}
+        {snap.beatsRemaining <= 6 && snap.phase === 'live' && (
+          <Pill variant={snap.beatsRemaining <= 2 ? 'hot' : 'warm'}>landing T-{snap.beatsRemaining}</Pill>
+        )}
         {snap.error && <Pill variant="hot">error</Pill>}
       </Row>
       <div className="xray__scrollview" ref={viewRef}>
@@ -429,6 +432,7 @@ export function BehaviorColumn({
             { key: 'budget', value: `${snap.economy.budget} / ${snap.constants.WORD_MAX}` },
             { key: 'visitor share', value: snap.economy.ratio.toFixed(2) },
             { key: 'coherence', value: `${snap.coherence}/3` },
+            { key: 'clock', value: `T-${snap.beatsRemaining}` },
             { key: 'questions', value: `${snap.questionsAsked}/${snap.constants.QUESTION_BUDGET}` },
             { key: 'naming', value: snap.namingDelivered ? 'delivered' : 'not yet' },
           ]}
