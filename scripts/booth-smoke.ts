@@ -53,7 +53,7 @@ async function main() {
   await settle(engine);
   let v = stage.view();
   assert(
-    v.subtitle !== null && v.subtitle.includes('evening') && v.subtitle.includes('before any cards'),
+    v.subtitle !== null && v.subtitle.includes('quiet table') && v.subtitle.includes('before any cards'),
     'boot subtitle carries greeting AND rant bid together',
   );
   assert(!v.deckVisible && v.cards.length === 0, 'no deck, no cards before the deal');
@@ -93,7 +93,7 @@ async function main() {
   v = stage.view();
   assert(v.phase === 'closed' && v.awaiting === 'done', 'session closes; booth shows done');
   assert(
-    v.subtitle !== null && v.subtitle.includes('one more thing') && v.subtitle.includes('reading'),
+    v.subtitle !== null && v.subtitle.includes('homework') && v.subtitle.includes('reading'),
     'closing subtitle carries quest AND close together',
   );
 

@@ -448,3 +448,8 @@ Judgment calls where the doc is silent, applied in the build:
   check 11 (FORESIGHT-LEAK) keeps them out of speech.
 - **The eval** (§9's protocol, built): two-layer obfuscated dossiers,
   unaware noisy sim, scored against held-back truth — EVAL-METRICS.md.
+- **The library anchor** (jake, 2026-08-05): authored beats are
+  in-context style examples the persona imitates — the library is the
+  strongest voice surface in the system and MUST be written in the
+  persona's register; persona + library version together. beats.json
+  rewritten in vesper's mouth accordingly.

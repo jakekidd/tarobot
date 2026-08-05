@@ -75,3 +75,15 @@ earned before the next guess. warm → guess again immediately; if the
 conjector offers a second guess AND a fast divergence check says it
 aims at a different target (not a reword), both may play. hot →
 classify. The interview-era rhythm, structural.
+
+## the library anchor (2026-08-05 — the missing piece)
+
+Authored beats enter the transcript as the persona's OWN prior lines,
+and she predicts her next line from that prefix — so the beat library
+is in-context few-shot for the voice, stronger than the system prompt.
+Middle-manager filler in the bones ("here's where i keep landing",
+"that okay to sit with") grows middle-manager flesh. LAW: the library
+is written in the persona's register or not at all; persona and
+library are a matched set and version together. jake's diagnosis;
+recurs from v1 ("take the chair like it is yours") — authored is not
+enough, authored-in-character is the bar.

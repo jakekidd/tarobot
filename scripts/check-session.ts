@@ -140,7 +140,7 @@ export function checkSession(record: SessionRecord, only?: number[]): Result[] {
   // 9 — quest <= 2 sentences; the close is V (last oracle beat is close type)
   const questBeat = oracle.find((b) => b.beatType === 'quest');
   const questSentences = questBeat
-    ? (questBeat.text.replace(/^one more thing before you go\.\s*/, '').match(/[.!?]+/g) ?? []).length
+    ? (questBeat.text.replace(/^last thing\. call it homework\.\s*/, '').match(/[.!?]+/g) ?? []).length
     : 0;
   const lastOracle = oracle[oracle.length - 1];
   const closeIsV = !lastOracle || lastOracle.beatType === 'close';
