@@ -884,6 +884,15 @@ export class EnsembleEngine {
     try {
       const out = await callConjector(this.env, {
         profile: this.profile.render(),
+        table:
+          this.drawn.length === 0
+            ? '(no cards dealt yet)'
+            : this.drawn
+                .map(
+                  (d) =>
+                    `slot ${d.slot} "${d.position}": ${d.card.name} — ${d.card.charge}${this.flipped.includes(d.slot) ? ' [FLIPPED]' : ' [face down — plan with it, never speak it]'}`,
+                )
+                .join('\n'),
         conversation: this.renderBeats(this.c.BEATS_WINDOW_ATTN),
         prevGuess: this.pendingGuess
           ? `"${this.pendingGuess}" ${this.guessPlayed ? '(played to the visitor)' : '(NOT yet played — grade unplayed unless the room answered it anyway)'}`

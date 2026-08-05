@@ -151,6 +151,25 @@ export function checkSession(record: SessionRecord, only?: number[]): Result[] {
     `quest sentences=${questBeat ? questSentences : 'n/a'}, last beat=${lastOracle?.beatType}`,
   );
 
+  // 11 — FORESIGHT-LEAK: no oracle beat names an unflipped card's face
+  let foresight = 0;
+  const flipAt = new Map<number, number>();
+  scroll.forEach((e, i) => {
+    if (e.kind === 'ev' && e.ev === 'flip' && e.slot !== undefined) flipAt.set(e.slot, i);
+  });
+  for (const d of record.snapshot.drawn ?? []) {
+    const nameWords = d.card.name.toLowerCase().split(' ').filter((w) => w.length >= 4);
+    const full = d.card.name.toLowerCase();
+    const flipIdx = flipAt.get(d.slot) ?? Number.MAX_SAFE_INTEGER;
+    scroll.forEach((e, i) => {
+      if (i >= flipIdx || e.kind !== 'beat' || e.speaker !== 'oracle') return;
+      const t = e.text.toLowerCase();
+      const hits = nameWords.filter((w) => t.includes(w)).length;
+      if (t.includes(full) || hits >= 2) foresight += 1;
+    });
+  }
+  add(11, 'no unflipped face spoken (augur stays backstage)', foresight === 0, `${foresight} leak(s)`);
+
   // 10 — the arc completed: deal + >=1 flip + close
   const complete =
     record.input.mode === 'chat' ||

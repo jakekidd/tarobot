@@ -246,6 +246,7 @@ export type ConjectorPayload = {
   conversation: string;
   prevGuess: string;
   dilemma: string;
+  table: string;
   ask: string;
 };
 
@@ -255,6 +256,7 @@ export function callConjector(env: AgentEnv, p: ConjectorPayload): Promise<Conje
     `CONVERSATION (recent):\n${p.conversation}`,
     `YOUR PREVIOUS GUESS: ${p.prevGuess}`,
     `DILEMMA DOCUMENT:\n${p.dilemma}`,
+    `THE TABLE (the augur feed — the machine knows every face; the visitor does NOT. never surface an unflipped face in any passage):\n${p.table}`,
     `THIS CYCLE: ${p.ask}`,
   ].join('\n\n');
   return structured(env, 'conjector', SYSTEMS.conjector, user, CONJECTOR_TOOL, ConjectorFilingSchema, 900);
