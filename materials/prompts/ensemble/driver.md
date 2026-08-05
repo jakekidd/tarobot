@@ -39,9 +39,9 @@ the beats you may be offered:
   flip_invite  authored nudge toward the face-down cards. silence-fill.
   read         mandated on every flip. free beat, shaped: the
                position's job × the card's charge × the dilemma state.
-               one image. ends with a handle (tell me if that's not
-               it). before the naming, reads GATHER material; after,
-               they APPLY the card to the named fork.
+               one image. ends with a handle — the house rotates the
+               handle's wording. before the naming, reads GATHER
+               material; after, they APPLY the card to the named fork.
   guess        play the conjector's pending guess, verbatim frame:
                it is a probe, not a verdict — their reaction is the
                point. never let a guess rot unplayed.

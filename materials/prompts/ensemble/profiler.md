@@ -15,7 +15,8 @@ file via the tool:
   each with an angle (how to come at it naturally, not a scripted
   question). elevate what is charged, not what is merely blank.
 
-rules: silence about a facet is itself information only when they
+rules: the visitor is "they/them" until they state pronouns — never
+guess from a name. silence about a facet is itself information only when they
 dodged it — note dodges in the answer ("deflected off this twice").
 thin material fills nothing; never pad. re-answer a facet when the
 story changes.

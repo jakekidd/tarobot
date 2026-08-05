@@ -7,6 +7,7 @@
 
 import { readFileSync } from 'node:fs';
 import type { SessionRecord } from '../src/pipeline/ensemble/serialize';
+import { NEVER_SAY } from '../src/pipeline/ensemble/beats';
 import type { Beat, Ev, Intent, ScrollEntry } from '../src/pipeline/ensemble/types';
 
 type Result = { id: number; name: string; pass: boolean; detail: string };
@@ -169,6 +170,22 @@ export function checkSession(record: SessionRecord, only?: number[]): Result[] {
     });
   }
   add(11, 'no unflipped face spoken (augur stays backstage)', foresight === 0, `${foresight} leak(s)`);
+
+  // 12 — the fossil law: no oracle beat contains a never-say phrase
+  let fossils = 0;
+  for (const b of oracle) {
+    const l = b.text.toLowerCase();
+    for (const phrase of NEVER_SAY) if (l.includes(phrase)) fossils += 1;
+  }
+  add(12, 'fossil law (never-say list clean)', fossils === 0, `${fossils} fossil(s) spoken`);
+
+  // 13 — handle rotation: no two reads share a trailing 4-gram
+  const readTails = oracle
+    .filter((b) => b.beatType === 'read')
+    .map((b) => b.text.toLowerCase().replace(/[^a-z\s]/g, '').split(/\s+/).filter(Boolean).slice(-4).join(' '))
+    .filter((t) => t.length > 0);
+  const dupTail = readTails.length !== new Set(readTails).size;
+  add(13, 'handle rotation (no repeated read tails)', !dupTail, dupTail ? 'repeated trailing 4-gram' : 'clean');
 
   // 10 — the arc completed: deal + >=1 flip + close
   const complete =

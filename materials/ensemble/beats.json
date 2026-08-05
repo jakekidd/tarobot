@@ -93,5 +93,28 @@
     "offer": "i think the real thing is {PASSAGE:focus}. want to go there?",
     "alt": "no? then maybe {PASSAGE:focus}. closer?",
     "_note": "the consent gate; PASSAGE:focus is the conjector's short focus phrase"
-  }
+  },
+  "handles": [
+    "that land?",
+    "am i close?",
+    "tell me where that's wrong.",
+    "does that track?",
+    "or am i off?",
+    "push back if that's not it.",
+    "check me on that.",
+    "how far off am i?"
+  ],
+  "_never_say": [
+    "tell me if that's not it",
+    "tell me if that is not it",
+    "here's where i keep landing",
+    "that okay to sit with",
+    "one more thing before you go",
+    "go gentle with it",
+    "that's not nothing",
+    "take the chair like it is yours",
+    "i'll catch what matters",
+    "that makes sense",
+    "that's really insightful"
+  ]
 }

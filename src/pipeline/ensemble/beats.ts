@@ -65,6 +65,8 @@ type BeatsFile = {
   flip_invite: { variants: string[] };
   guess: { text: string };
   focus: { offer: string; alt: string };
+  handles: string[];
+  _never_say: string[];
   naming: { incantations: Record<DilemmaClass, string>; release: string };
   quest: { lead: string; text: string };
   charm: FrameEntry;
@@ -72,6 +74,15 @@ type BeatsFile = {
 };
 
 export const BEATS: BeatsFile = JSON.parse(BEATS_RAW) as BeatsFile;
+
+/** the fossil law: retired/example lines no oracle beat may contain */
+export const NEVER_SAY: string[] = BEATS._never_say.map((s) => s.toLowerCase());
+
+export function violatesNeverSay(line: string): string | null {
+  const l = line.toLowerCase();
+  for (const phrase of NEVER_SAY) if (l.includes(phrase)) return phrase;
+  return null;
+}
 
 // ---------------------------------------------------------------- slots
 

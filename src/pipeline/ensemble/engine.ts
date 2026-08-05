@@ -33,6 +33,7 @@ import {
 import {
   assemble,
   BEATS,
+  violatesNeverSay,
   capSentences,
   fillableSlots,
   parseSlots,
@@ -96,6 +97,7 @@ export class EnsembleEngine {
   private conjectorInFlight = false;
   private pendingConjector = false;
   private conjectorSeenBeats = 0;
+  private duplicatePassages = 0;
 
   // the table — empty until the deal (nothing pre-exists the visitor)
   private drawn: DrawnCard[] = [];
@@ -125,6 +127,8 @@ export class EnsembleEngine {
   private guessCount = 0;
   private lastOracleBeatType: BeatType | null = null;
   private greetingVariant = 0;
+  private handleOrder: number[] = [];
+  private handleIdx = 0;
   private flipInviteVariant = 0;
   private closeVariant = 0;
 
@@ -791,8 +795,11 @@ export class EnsembleEngine {
         });
         if (myGen !== this.gen) return fallback;
         const line = out.spoken.trim();
-        if (line && (await valid(line))) return line;
-        this.note(`beat-prompt line failed its postcondition (attempt ${attempt + 1})`);
+        const fossil = line ? violatesNeverSay(line) : null;
+        if (fossil) {
+          this.note(`beat-prompt line spoke a fossil ("${fossil}") — rejected`);
+        } else if (line && (await valid(line))) return line;
+        else this.note(`beat-prompt line failed its postcondition (attempt ${attempt + 1})`);
       } catch {
         /* retry, then fallback */
       }
@@ -935,9 +942,15 @@ export class EnsembleEngine {
     const cards = deck.slice(0, spread.positions.length);
     // the DIVINER's cheat: the conjector may have named a plant
     if (this.plantId) {
-      const plant = ORACLE_DECK.find((c) => c.id === this.plantId);
+      const wanted = this.plantId.toLowerCase().trim().replace(/[\s_]+/g, '-').replace(/[^a-z-]/g, '');
+      const plant = ORACLE_DECK.find((c) => c.id === wanted);
       if (plant && !cards.some((c) => c.id === plant.id)) {
         cards[Math.min(1, cards.length - 1)] = plant;
+        this.note(`plant DELIVERED: ${plant.id}`);
+      } else if (plant) {
+        this.note(`plant already in the draw: ${plant.id}`);
+      } else {
+        this.note(`plant FAILED: "${this.plantId}" matches no deck id`);
       }
     }
     this.drawn = cards.map((card, i) => ({
@@ -1189,6 +1202,8 @@ export class EnsembleEngine {
     if (!awake) return;
     const beats = this.scroll.filter((e) => e.kind === 'beat').length;
     if (!force && beats <= this.conjectorSeenBeats) return;
+    // post-commit economy: document cycles run every 2nd beat unless forced
+    if (!force && dilemmaCommitted(this.dilemma) && beats - this.conjectorSeenBeats < 2) return;
     if (this.conjectorInFlight) {
       this.pendingConjector = true;
       return;
@@ -1232,6 +1247,23 @@ export class EnsembleEngine {
         this.note(`conjector graded previous guess: ${out.prev}`);
         this.lastGuessGrade = out.prev;
       }
+      if (out.guess && countWords(out.guess) > 22) {
+        this.note(`guess ran ${countWords(out.guess)} words — refiling shorter`);
+        try {
+          const retry = await callConjector(this.env, {
+            profile: this.profile.render(),
+            table: '(unchanged)',
+            conversation: '(unchanged — you just filed a guess that ran long)',
+            prevGuess: `your overlong draft: "${out.guess}"`,
+            dilemma: renderDilemma(this.dilemma),
+            ask: 'refile that guess in 22 words or fewer — one breath, same target, same risk. emit ONLY guess.',
+          });
+          if (retry.guess && countWords(retry.guess) <= 26) out.guess = retry.guess;
+          else out.guess = undefined;
+        } catch {
+          out.guess = undefined;
+        }
+      }
       if (out.guess) {
         this.pendingGuess = out.guess;
         this.guessPlayed = false;
@@ -1265,6 +1297,28 @@ guess 2: ${out.alt_guess}`,
       if (out.class) {
         this.note(`conjector CLASSIFIED: ${out.class}${out.plant ? ` (plant request: ${out.plant})` : ''}`);
         this.dilemmaClass = out.class;
+      }
+      const dup = (a?: string, b?: string) => {
+        if (!a || !b) return false;
+        const norm = (t: string) => new Set(t.toLowerCase().replace(/[^a-z\s]/g, '').split(/\s+/).filter(Boolean));
+        const A = norm(a);
+        const B = norm(b);
+        const inter = [...A].filter((w) => B.has(w)).length;
+        return inter / Math.max(1, Math.max(A.size, B.size)) >= 0.9;
+      };
+      if (out.problem_md && dup(out.problem_md, this.dilemma.problem_md)) {
+        this.duplicatePassages += 1;
+        this.note(`duplicate problem_md dropped (${this.duplicatePassages} total) — edited means edited`);
+        out.problem_md = undefined;
+      }
+      if (out.options_md && dup(out.options_md, this.dilemma.options_md)) {
+        this.duplicatePassages += 1;
+        this.note(`duplicate options_md dropped (${this.duplicatePassages} total) — edited means edited`);
+        out.options_md = undefined;
+      }
+      if (out.quest_md && dup(out.quest_md, this.dilemma.quest_md)) {
+        this.duplicatePassages += 1;
+        out.quest_md = undefined;
       }
       if (out.focus) this.focusPhrase = out.focus;
       if (out.alt_focus) this.altFocus = out.alt_focus;
@@ -1449,7 +1503,7 @@ guess 2: ${out.alt_guess}`,
           `its position's job: ${position}.`,
           `the card's imagery: ${card.symbols.join('; ')}.`,
           `its charge: ${card.charge}${card.shadow ? ` | its shadow: ${card.shadow}` : ''}.`,
-          `the read = position job × card charge × dilemma state. one image. end with a handle (tell me if that's not it, in her words).`,
+          `the read = position job × card charge × dilemma state. one image. it ends with a rotating handle the house supplies to the persona.`,
         ].join(' ');
       }
       case 'silence':
@@ -1512,6 +1566,15 @@ guess 2: ${out.alt_guess}`,
     return [`stage: ${stage} — P0 highest`, ...goals].join('\n');
   }
 
+  private nextHandle(): string {
+    if (this.handleOrder.length === 0) {
+      this.handleOrder = BEATS.handles.map((_, i) => i).sort(() => Math.random() - 0.5);
+    }
+    const h = BEATS.handles[this.handleOrder[this.handleIdx % this.handleOrder.length]];
+    this.handleIdx += 1;
+    return h;
+  }
+
   /** F-beat assignment: reads and honor get earned room; tissue stays tiny */
   /** how well she knows them, 0-4 — grown from evidence, rendered as
    *  personality: humble early by construction, earned certainty late */
@@ -1552,7 +1615,7 @@ guess 2: ${out.alt_guess}`,
           lines.push('the naming is spoken: aim this card at the named fork.');
         }
       }
-      lines.push('plain beats poetic: say what the card sees in them straight; lean on the imagery only if it lands harder than the plain sentence. at most one image. end with a handle: tell me if that is not it, in your words.');
+      lines.push(`plain beats poetic: say what the card sees in them straight; lean on the imagery only if it lands harder than the plain sentence. at most one image. end with a handle, in your own words — this round's: "${this.nextHandle()}"`);
     }
     if (intent.ammo) lines.push(`ammo, their UNSAID inner voice — never present it as their words: "${intent.ammo}"`);
     const words =

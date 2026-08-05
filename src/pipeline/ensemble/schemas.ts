@@ -38,7 +38,18 @@ export const ReadSchema = z.object({
   // small models occasionally emit the array as one string blob; a lone
   // string degrades to a single thought instead of failing the read
   thoughts: z.preprocess(
-    (v) => (typeof v === 'string' ? [v] : v),
+    (v) => {
+      if (typeof v !== 'string') return v;
+      if (v.trim().startsWith('[')) {
+        try {
+          const parsed = JSON.parse(v) as unknown;
+          if (Array.isArray(parsed)) return parsed.map(String).slice(0, 3);
+        } catch {
+          /* fall through: treat as one thought */
+        }
+      }
+      return [v];
+    },
     z.array(z.string()).max(3),
   ),
   feelings: z.array(FeelingSchema).max(3),
