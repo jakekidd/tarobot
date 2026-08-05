@@ -87,3 +87,5 @@
 }
 .booth__input:focus { border-color: #6543c7; }
 .booth__input:disabled { opacity: 0.5; }
+
+.booth__exit--copy { left: 84px; }

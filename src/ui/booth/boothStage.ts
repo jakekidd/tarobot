@@ -35,6 +35,7 @@ export class BoothStage {
   private dealtCount = 0;
   private lastOracleBeats = 0;
   private seq = 0;
+  private subtitleText: string | null = null;
   private readonly engine: EnsembleEngine;
 
   constructor(engine: EnsembleEngine) {
@@ -63,11 +64,16 @@ export class BoothStage {
       (e) => e.kind === 'beat' && e.speaker === 'oracle',
     );
     if (oracleBeats.length > this.lastOracleBeats) {
+      // beats that land together (the boot pair, quest+close) show together
+      const fresh = oracleBeats.slice(this.lastOracleBeats);
+      this.subtitleText = fresh
+        .map((b) => (b.kind === 'beat' ? b.text : ''))
+        .filter(Boolean)
+        .join('\n\n');
       this.lastOracleBeats = oracleBeats.length;
       this.seq += 1;
     }
-    const last = oracleBeats[oracleBeats.length - 1];
-    const subtitle = last && last.kind === 'beat' ? last.text : null;
+    const subtitle = this.subtitleText;
 
     const cards: BoothCard[] = s.drawn.map((d, i) => ({
       slot: d.slot,

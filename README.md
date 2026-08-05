@@ -3,8 +3,10 @@
 A tarot-themed web app. The reading is the thing the rest exists to
 serve; the reader character is **the oracle**.
 
-**Current focus:** the app boots into the **xray lab** — the debug
-surface for the ensemble reading engine (`src/pipeline/ensemble/`, see
+**Current focus:** the app boots to a three-door menu — **demo** (the
+booth: the full session in 3d — eyes, red table, deal-by-tapping deck,
+subtitles), **xray lab** (the debug surface), **settings**. Both demo
+and lab drive the same ensemble reading engine (`src/pipeline/ensemble/`, see
 [`docs/ENSEMBLE.md`](docs/ENSEMBLE.md)) — blind four-card sessions,
 scripted greeting, driver/persona behavior track, profiler + conjector
 cognition (the dilemma named mid-session, a quest at the close). The

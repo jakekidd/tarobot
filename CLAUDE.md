@@ -505,8 +505,8 @@ the doc.
   authored Marisol fixture — useful for iterating on the reading without
   burning antechamber time.
 - **Ensemble reading engine (the go-forward bet).** `src/pipeline/ensemble/`
-  + the xray lab, which is now the app's FRONT DOOR (key entry → xray;
-  the turtle world is parked behind the lab's ← menu button). The
+  + the xray lab and the booth demo, both behind the three-door menu
+  (the turtle world is dead code). The
   character is **the oracle** (renamed from "the seer"; the legacy
   `pipeline/seer/` engine keeps its name until retired). Session mode
   is the product (chat-from-zero is a lab probe only). Cast of six:
@@ -601,10 +601,10 @@ the doc.
 
 ## How a typical session flows (end to end)
 
-**Current boot posture (2026-07-24): the app lands in the xray lab** —
-key entry if no key, then straight to the ensemble's debug surface. The
-turtle flow below still exists behind the lab's ← menu button, but it
-is parked while the ensemble is the bet.
+**Current boot posture (2026-08-05): key entry → the three-door menu**
+(`src/ui/MainMenu.tsx`): **demo** (the booth — full e2e session in 3d),
+**xray lab**, **settings**. The turtle flow below is DEAD CODE — no
+route reaches it; git history is the archive.
 
 Two paths behind the menu: a NEW visitor runs the rebuilt survey→tuning
 pipeline; a LOADED / returning visitor still runs the legacy

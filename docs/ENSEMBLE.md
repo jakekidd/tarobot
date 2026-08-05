@@ -233,8 +233,10 @@ stale results are discarded, not spoken.
 
 ## 6. operating it
 
-**Web:** the app boots INTO the xray lab (key entry first if no key) —
-the turtle world is parked and reachable via ← menu. Setup: the
+**Web:** key entry → the three-door menu: demo (the booth), xray lab,
+settings — both surfaces drive the SAME EnsembleEngine + telemetry and
+emit the same SessionRecord/xray transcript (booth has its own copy
+xray button). Setup: the
 visitor casting (the dossier the sim plays — SESSION-V2 §9), optional
 lab docs, the scenario note, chat or session, begin. Live: the card
 strip (balatro row — face-down cards carry their position labels,

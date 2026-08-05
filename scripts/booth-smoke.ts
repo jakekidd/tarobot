@@ -52,7 +52,10 @@ async function main() {
   engine.start();
   await settle(engine);
   let v = stage.view();
-  assert(v.subtitle !== null && v.subtitle.includes('cards'), 'subtitle shows the rant bid');
+  assert(
+    v.subtitle !== null && v.subtitle.includes('evening') && v.subtitle.includes('before any cards'),
+    'boot subtitle carries greeting AND rant bid together',
+  );
   assert(!v.deckVisible && v.cards.length === 0, 'no deck, no cards before the deal');
   assert(v.awaiting === 'visitor', 'awaiting the visitor');
 
@@ -89,6 +92,10 @@ async function main() {
   await settle(engine);
   v = stage.view();
   assert(v.phase === 'closed' && v.awaiting === 'done', 'session closes; booth shows done');
+  assert(
+    v.subtitle !== null && v.subtitle.includes('one more thing') && v.subtitle.includes('reading'),
+    'closing subtitle carries quest AND close together',
+  );
 
   console.log('\nbooth smoke passed.');
 }

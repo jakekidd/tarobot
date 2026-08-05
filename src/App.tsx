@@ -8,7 +8,7 @@ import {
   type Session,
 } from './storage';
 import { KeyEntry } from './ui/KeyEntry';
-import { Menu } from './ui/Menu';
+import { MainMenu } from './ui/MainMenu';
 import { ResumeMenu } from './ui/ResumeMenu';
 import { Settings } from './ui/Settings';
 import { Antechamber as AntechamberScreen } from './ui/Antechamber';
@@ -36,7 +36,6 @@ import { compile } from './pipeline/compiler';
 import type { LLMAdapter } from './pipeline/llm/adapter';
 import type { RailDriver } from './pipeline/rails/types';
 import { TarobotScene } from './ui/scene/TarobotScene';
-import { buildMarisolDemoSeer } from './pipeline/seer';
 import { AnthropicAdapter } from './pipeline/antechamber';
 import { createClaudeClient } from './pipeline/claude';
 import './ui/pipeline.css';
@@ -73,11 +72,10 @@ type Phase =
 
 export function App() {
   const [apiKey, setApiKey] = useState<string | null>(() => loadApiKey());
-  // the xray lab is the front door for now: the ensemble is the
-  // go-forward bet and the turtle app is parked. the menu (and the whole
-  // turtle world) stays reachable via the lab's ← menu button.
+  // boot lands on the three-door menu: demo / xray / settings. the
+  // turtle world is dead code behind it; git history is the archive.
   const [phase, setPhase] = useState<Phase>(() =>
-    loadApiKey() ? { kind: 'xray' } : { kind: 'key' },
+    loadApiKey() ? { kind: 'menu' } : { kind: 'key' },
   );
 
   // Debug overlay toggle — persists between sessions.
@@ -107,13 +105,6 @@ export function App() {
   function startLoadedReading(person: Person) {
     const s = newSession();
     setPhase({ kind: 'antechamber', session: s, loadedPerson: person });
-  }
-
-  function startNewReading() {
-    // New visit → the IntroductionSurvey (deterministic, no AI). It drives
-    // the UI rails and, on completion, hands up a RawPortrait that feeds the
-    // TuningEngine (the Conjector hunts dilemmas off it).
-    setPhase({ kind: 'survey', survey: new IntroductionSurvey(loadSurvey()) });
   }
 
   async function enterTuning(raw: RawPortrait) {
@@ -196,33 +187,6 @@ export function App() {
     }
   }
 
-  // Brief "we're leaving the menu" flag — set when READ DEMO fires so
-  // the menu fades out its buttons + dialogue while the turtle
-  // disintegrates. Cleared when Reading mounts (or on cancellation).
-  const [menuTransitioning, setMenuTransitioning] = useState(false);
-
-  /** Skip the antechamber: synthesize a session and route straight into the
-   *  reading with a hand-authored brief and intro. Triggers the same
-   *  mascot disintegration as the antechamber path so the turtle is gone
-   *  by the time the reading fly-in starts. No goodbye dialogue — the
-   *  read demo is dev/showcase only, not a full booth experience. */
-  function startReadDemo() {
-    if (!apiKey) return;
-    setMenuTransitioning(true);
-    const unsub = subscribeMascotDisintegrateComplete(() => {
-      unsub();
-      const s: Session = { ...newSession(), phase: 'tent' };
-      const adapter = new AnthropicAdapter(createClaudeClient(apiKey), recordUsage);
-      setPhase({
-        kind: 'reading',
-        session: s,
-        seer: buildMarisolDemoSeer(adapter),
-      });
-      setMenuTransitioning(false);
-    });
-    triggerMascotDisintegrate();
-  }
-
   function onAntechamberComplete(session: Session, seer: Seer) {
     // Antechamber close: clear the active session and route to the reading.
     // The Person record was upserted during the antechamber (at save threshold
@@ -234,7 +198,11 @@ export function App() {
   // Bench and the xray lab are their own worlds — no CRT filter, no
   // Three.js scene, no main-app topbar. The lab/ subtree owns its
   // entire visual surface.
-  const inLab = phase.kind === 'bench' || phase.kind === 'xray' || phase.kind === 'booth';
+  const inLab =
+    phase.kind === 'bench' ||
+    phase.kind === 'xray' ||
+    phase.kind === 'booth' ||
+    phase.kind === 'menu';
 
   return (
     <div className="app">
@@ -268,7 +236,7 @@ export function App() {
             </div>
             <div className="app__topbar-actions">
               <AudioWakeBadge />
-              {phase.kind !== 'menu' && phase.kind !== 'key' && phase.kind !== 'pipeline' && (
+              {phase.kind !== 'key' && phase.kind !== 'pipeline' && (
                 <button className="btn btn--quiet" onClick={goMenu}>
                   exit
                 </button>
@@ -288,18 +256,14 @@ export function App() {
 
       <main className={`app__main ${phase.kind === 'reading' ? 'app__main--full' : ''}`}>
           {phase.kind === 'key' && (
-            <KeyEntry onValidated={(k) => { setApiKey(k); setPhase({ kind: 'xray' }); }} />
+            <KeyEntry onValidated={(k) => { setApiKey(k); setPhase({ kind: 'menu' }); }} />
           )}
 
           {phase.kind === 'menu' && (
-            <Menu
-              onBegin={startNewReading}
-              onReadDemo={startReadDemo}
-              onOpenResume={() => setPhase({ kind: 'resume' })}
-              onSettings={() => setPhase({ kind: 'settings' })}
-              onBench={() => setPhase({ kind: 'bench' })}
+            <MainMenu
+              onDemo={() => setPhase({ kind: 'booth' })}
               onXray={() => setPhase({ kind: 'xray' })}
-              transitioning={menuTransitioning}
+              onSettings={() => setPhase({ kind: 'settings' })}
             />
           )}
 
@@ -337,7 +301,7 @@ export function App() {
           )}
 
           {phase.kind === 'booth' && apiKey && (
-            <BoothDemo apiKey={apiKey} onExit={() => setPhase({ kind: 'xray' })} />
+            <BoothDemo apiKey={apiKey} onExit={goMenu} />
           )}
 
           {phase.kind === 'survey' && (
