@@ -9,6 +9,7 @@ import PROFILER_RAW from '../../../materials/prompts/ensemble/profiler.md?raw';
 import CONJECTOR_RAW from '../../../materials/prompts/ensemble/conjector.md?raw';
 import ATTENTION_RAW from '../../../materials/prompts/ensemble/attention.md?raw';
 import type { ToolDef } from '../llm/adapter';
+import { djb2 } from './beats';
 import { BEAT_TYPES, DILEMMA_CLASSES, QUESTION_FRAMES } from './beats';
 
 export const SYSTEMS = {
@@ -19,6 +20,9 @@ export const SYSTEMS = {
   conjector: CONJECTOR_RAW,
   attention: ATTENTION_RAW,
 } as const;
+
+/** the prompt-set fingerprint — stamps every SessionRecord */
+export const PROMPTS_HASH = djb2(Object.values(SYSTEMS).join('\u0000'));
 
 export const DRIVER_TOOL: ToolDef = {
   name: 'select_beat',

@@ -8,6 +8,7 @@
 //   pnpm eval -- --n=1 --arch=deflector
 //   pnpm eval -- --dossiers=scripts/eval/dossiers/frozen-six   # frozen fixtures
 
+import { execSync } from 'node:child_process';
 import { mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { createClaudeClient } from '../src/pipeline/claude';
 import { AnthropicAdapter } from '../src/pipeline/llm/adapter-anthropic';
@@ -15,6 +16,9 @@ import type { LLMAdapter } from '../src/pipeline/llm/adapter';
 import { EnsembleEngine } from '../src/pipeline/ensemble/engine';
 import { defaultSessionInput } from '../src/pipeline/ensemble/fixtures';
 import { buildXrayTranscript, serializeSession } from '../src/pipeline/ensemble/serialize';
+import { BEATS_HASH } from '../src/pipeline/ensemble/beats';
+import { PROMPTS_HASH } from '../src/pipeline/ensemble/prompts';
+import { renderCheckResults } from './check-session';
 import type { CallRecord } from '../src/pipeline/ensemble/types';
 import { simNextLine } from '../src/lab/xray/visitorSim';
 import { checkSession } from './check-session';
@@ -69,7 +73,22 @@ async function settle(engine: EnsembleEngine): Promise<void> {
   });
 }
 
-async function runSession(adapter: LLMAdapter, dossier: Dossier, dir: string) {
+function buildStamp(): string {
+  let rev = 'unknown';
+  try {
+    rev = execSync('git rev-parse --short HEAD').toString().trim();
+  } catch {
+    /* fine */
+  }
+  return `${rev}+p${PROMPTS_HASH}+b${BEATS_HASH}`;
+}
+
+async function runSession(
+  adapter: LLMAdapter,
+  dossier: Dossier,
+  dir: string,
+  tokens: { input: number; output: number },
+) {
   const calls = new Map<string, CallRecord>();
   const input = defaultSessionInput();
   const engine = new EnsembleEngine({
@@ -127,9 +146,12 @@ async function runSession(adapter: LLMAdapter, dossier: Dossier, dir: string) {
     console.log('  <flush landing>');
     await engine.flushLanding();
   }
-  const record = serializeSession(input, engine.snapshot(), [...calls.values()]);
+  const record = serializeSession(input, engine.snapshot(), [...calls.values()], {
+    build: buildStamp(),
+    tokens: { ...tokens },
+  });
   writeFileSync(`${dir}/session.json`, JSON.stringify(record, null, 2));
-  writeFileSync(`${dir}/xray.txt`, buildXrayTranscript(record));
+  writeFileSync(`${dir}/xray.txt`, buildXrayTranscript(record) + renderCheckResults(record));
   writeFileSync(`${dir}/dossier.json`, JSON.stringify(dossier, null, 2));
   return record;
 }
@@ -193,7 +215,11 @@ async function main() {
   const n = frozen.length > 0 ? frozen.length : Number(args.find((a) => a.startsWith('--n='))?.slice(4) ?? 2);
   const archArg = args.find((a) => a.startsWith('--arch='))?.slice(7);
   const arches = archArg ? [archArg] : ['deflector', 'over-sharer', 'crier', 'tester', 'fine-one'];
-  const adapter = new AnthropicAdapter(createClaudeClient(key()));
+  const tokens = { input: 0, output: 0 };
+  const adapter = new AnthropicAdapter(createClaudeClient(key()), (_m, u) => {
+    tokens.input += u.input_tokens;
+    tokens.output += u.output_tokens;
+  });
   const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
   const root = `runs/eval-${stamp}${dossierDir ? '-frozen' : ''}`;
   const results: Record<string, unknown>[] = [];
@@ -206,9 +232,10 @@ async function main() {
     const dossier = frozen[i] ? frozen[i].dossier : await gen(adapter, arch, classes[i % classes.length], i + 1);
     console.log(`  truth: ${dossier.truth.class} — ${dossier.truth.name}`);
     console.log(`=== running session ===`);
-    const record = await runSession(adapter, dossier, dir);
+    const t0 = { ...tokens };
+    const record = await runSession(adapter, dossier, dir, tokens);
     const s = score(record, dossier);
-    results.push({ arch, ...s });
+    results.push({ arch, ...s, tokens: { input: tokens.input - t0.input, output: tokens.output - t0.output } });
     console.log(`  scored:`, JSON.stringify(s));
   }
   writeFileSync(`${root}/scoreboard.json`, JSON.stringify(results, null, 2));

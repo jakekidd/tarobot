@@ -98,6 +98,7 @@ export class EnsembleEngine {
   private pendingConjector = false;
   private conjectorSeenBeats = 0;
   private duplicatePassages = 0;
+  private promptedStats: Record<string, { attempts: number; fallbacks: number }> = {};
 
   // the table — empty until the deal (nothing pre-exists the visitor)
   private drawn: DrawnCard[] = [];
@@ -209,6 +210,7 @@ export class EnsembleEngine {
       beatsRemaining: this.beatsRemaining(),
       coherence: this.coherence,
       questionsAsked: this.questionsAsked,
+      promptedStats: JSON.parse(JSON.stringify(this.promptedStats)) as Record<string, { attempts: number; fallbacks: number }>,
       busy: this.busy,
       lastIntent: this.lastIntent,
       fanInFlight: this.fanInFlight,
@@ -569,7 +571,7 @@ export class EnsembleEngine {
     this.trackReadiness();
     const menu = this.menu(event);
     this.note(
-      `menu [${menu.join(' · ')}]${menu.length === 1 ? ' — MANDATED' : ''} ← ${event.type}, stage ${this.stage()}, coherence ${this.coherence}`,
+      `menu [${menu.join(' · ')}]${menu.length === 1 ? ' — MANDATED' : ''} ← ${event.type}, stage ${this.stage()}, coherence ${this.coherence}, T-${this.beatsRemaining()}`,
     );
 
     // TODO(jake): the Intent Engine — a rigid offstage agent that owns
@@ -684,6 +686,7 @@ export class EnsembleEngine {
       case 'focus': {
         if (this.focusStage === 0 && this.focusPhrase) {
           const text = await this.promptedLine(
+            'focus',
             `ask them, plainly and in your own words, whether "${this.focusPhrase}" is the real thing to look at tonight. it must be a genuine yes-or-no question they can refuse. one sentence.`,
             (line) => this.focusLineValid(line, this.focusPhrase!),
             BEATS.focus.offer.replace('{PASSAGE:focus}', this.focusPhrase),
@@ -698,6 +701,7 @@ export class EnsembleEngine {
           this.note(`focus offered: "${this.focusPhrase}"`);
         } else if (this.focusStage === 1 && this.altFocus) {
           const text = await this.promptedLine(
+            'focus',
             `they said no. offer the other thing you saw — "${this.altFocus}" — as a yes-or-no question, taking the miss in stride. one short sentence.`,
             (line) => this.focusLineValid(line, this.altFocus!),
             BEATS.focus.alt.replace('{PASSAGE:focus}', this.altFocus),
@@ -777,12 +781,15 @@ export class EnsembleEngine {
    *  library line is only the fallback. the guarantee lives in the
    *  validator, not in fixed text (jake, 2026-08-05). */
   private async promptedLine(
+    beatType: string,
     beatPrompt: string,
     valid: (line: string) => boolean | Promise<boolean>,
     fallback: string,
     myGen: number,
     corpse?: string,
   ): Promise<string> {
+    const stat = (this.promptedStats[beatType] ??= { attempts: 0, fallbacks: 0 });
+    stat.attempts += 1;
     const corpseLine = corpse
       ? `\nthe retired house line — file it as too_safe, never speak it: "${corpse}"`
       : '';
@@ -804,7 +811,8 @@ export class EnsembleEngine {
         /* retry, then fallback */
       }
     }
-    this.note(`FALLBACK spoken (authored line entered the transcript)`);
+    stat.fallbacks += 1;
+    this.note(`FALLBACK spoken on ${beatType} (authored line entered the transcript; rate ${stat.fallbacks}/${stat.attempts})`);
     return fallback;
   }
 
@@ -921,6 +929,7 @@ export class EnsembleEngine {
       MIRROR: `ask who else is inside ${aim}, and what that person would say they're doing. one question.`,
     };
     const line = await this.promptedLine(
+      'question',
       FUNCTIONS[frame],
       (l) => this.questionValid(l),
       entry.fallback ?? entry.text,
@@ -1000,6 +1009,7 @@ export class EnsembleEngine {
     const problem = this.dilemma.problem_md!.trim();
     const options = this.dilemma.options_md!.trim();
     const voicedProblem = await this.promptedLine(
+      'naming',
       `the naming, part one — say THE PROBLEM to them, plainly, in your mouth, keeping every concrete in the memo. no softening, no advice.\nthe memo:\n${problem}`,
       (l) => this.revoiceValid(l, problem),
       problem,
@@ -1008,6 +1018,7 @@ export class EnsembleEngine {
     );
     if (myGen !== this.gen) return;
     const voicedOptions = await this.promptedLine(
+      'naming',
       `the naming, part two — say THE OPTIONS to them: each real road with its cost, including the one they pretend isn't there. never a recommendation.\nthe memo:\n${options}`,
       (l) => this.revoiceValid(l, options),
       options,
@@ -1044,6 +1055,7 @@ export class EnsembleEngine {
         `reads:\n${renderTail(this.piles.reads.tail(2), fmtRead)}`,
       ].join('\n');
       const text = await this.promptedLine(
+        'charm',
         `no dilemma got named tonight and that is fine — they came in light. hand them ONE small true thing you actually noticed about them as a parting gift. no advice, no fortune, nothing invented. two sentences at most.\nwhat you noticed:\n${observed}`,
         (line) => countWords(line) <= 45 && !/you (should|will|need to)/i.test(line),
         BEATS.charm.fallback ?? BEATS.charm.text,
@@ -1064,7 +1076,17 @@ export class EnsembleEngine {
     beatType: BeatType,
     fills?: { key: string; text: string }[],
   ): void {
-    const trimmed = text.trim();
+    let trimmed = text.trim();
+    if (!trimmed) return;
+    // delivery annotations: stripped from speech, kept for the voice era
+    const delivery: string[] = [];
+    trimmed = trimmed
+      .replace(/\[(dry|soft|warm|slow|quiet|pause-before|pause-after)\]/gi, (_, tag: string) => {
+        delivery.push(tag.toLowerCase());
+        return '';
+      })
+      .replace(/\s{2,}/g, ' ')
+      .trim();
     if (!trimmed) return;
     this.scroll.push({
       kind: 'beat',
@@ -1072,6 +1094,8 @@ export class EnsembleEngine {
       text: trimmed,
       t: Date.now(),
       beatType,
+      fam: this.familiarity().level,
+      ...(delivery.length > 0 ? { delivery } : {}),
       ...(fills && fills.length > 0 ? { fills } : {}),
     });
     this.budget = spend(this.budget, trimmed);

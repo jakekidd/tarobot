@@ -26,7 +26,11 @@ import { AnthropicAdapter } from '../src/pipeline/llm/adapter-anthropic';
 import type { LLMAdapter } from '../src/pipeline/llm/adapter';
 import { EnsembleEngine } from '../src/pipeline/ensemble/engine';
 import { defaultSessionInput } from '../src/pipeline/ensemble/fixtures';
+import { execSync } from 'node:child_process';
 import { buildSessionLog, buildXrayTranscript, serializeSession, type SessionRecord } from '../src/pipeline/ensemble/serialize';
+import { BEATS_HASH } from '../src/pipeline/ensemble/beats';
+import { PROMPTS_HASH } from '../src/pipeline/ensemble/prompts';
+import { renderCheckResults } from './check-session';
 import type {
   AgentName,
   CallRecord,
@@ -310,11 +314,17 @@ async function main() {
   }
 
   if (engine.snapshot().phase !== 'closed') await engine.flushLanding();
-  const record = serializeSession(input, engine.snapshot(), [...calls.values()]);
+  let rev = 'unknown';
+  try {
+    rev = execSync('git rev-parse --short HEAD').toString().trim();
+  } catch { /* fine */ }
+  const record = serializeSession(input, engine.snapshot(), [...calls.values()], {
+    build: `${rev}+p${PROMPTS_HASH}+b${BEATS_HASH}`,
+  });
   writeFileSync(`${dir}/session.json`, JSON.stringify(record, null, 2));
   writeFileSync(`${dir}/transcript.md`, buildSessionLog(record));
   writeFileSync(`${dir}/audit.md`, buildAudit(record));
-  writeFileSync(`${dir}/xray.txt`, buildXrayTranscript(record));
+  writeFileSync(`${dir}/xray.txt`, buildXrayTranscript(record) + renderCheckResults(record));
   appendFileSync(inbox, '# session ended\n');
   console.log(`\nwrote ${dir}/{session.json, transcript.md, audit.md}`);
 }

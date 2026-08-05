@@ -5,19 +5,72 @@
 
 import type { Beat, CallRecord, EnsembleInput, EnsembleSnapshot } from './types';
 
+export type SessionMeta = {
+  /** git rev + prompt-set + beat-library fingerprints */
+  build?: string;
+  tokens?: { input: number; output: number };
+};
+
 export type SessionRecord = {
   exportedAt: string;
   input: EnsembleInput;
   snapshot: EnsembleSnapshot;
   calls: CallRecord[];
+  meta?: SessionMeta;
 };
 
 export function serializeSession(
   input: EnsembleInput,
   snapshot: EnsembleSnapshot,
   calls: CallRecord[],
+  meta?: SessionMeta,
 ): SessionRecord {
-  return { exportedAt: new Date().toISOString(), input, snapshot, calls };
+  return { exportedAt: new Date().toISOString(), input, snapshot, calls, ...(meta ? { meta } : {}) };
+}
+
+/** the contagion index — does the visitor's register leak into the
+ *  oracle's free speech? shared distinctive 3-grams / oracle 3-grams,
+ *  plus em-dash habit rates on both sides. */
+export function contagionIndex(snapshot: EnsembleSnapshot): {
+  ngramOverlap: number;
+  oracleEmdashRate: number;
+  visitorEmdashRate: number;
+} {
+  const grams = (text: string): Set<string> => {
+    const w = text.toLowerCase().replace(/[^a-z\s']/g, ' ').split(/\s+/).filter((x) => x.length > 0);
+    const out = new Set<string>();
+    for (let i = 0; i + 2 < w.length; i++) {
+      const g = `${w[i]} ${w[i + 1]} ${w[i + 2]}`;
+      if (g.length >= 12) out.add(g);
+    }
+    return out;
+  };
+  let oracleText = '';
+  let visitorText = '';
+  let oBeats = 0;
+  let vBeats = 0;
+  let oDash = 0;
+  let vDash = 0;
+  for (const e of snapshot.scroll) {
+    if (e.kind !== 'beat') continue;
+    if (e.speaker === 'oracle') {
+      oracleText += `\n${e.text}`;
+      oBeats += 1;
+      if (e.text.includes('—')) oDash += 1;
+    } else {
+      visitorText += `\n${e.text}`;
+      vBeats += 1;
+      if (e.text.includes('—')) vDash += 1;
+    }
+  }
+  const og = grams(oracleText);
+  const vg = grams(visitorText);
+  const shared = [...og].filter((g) => vg.has(g)).length;
+  return {
+    ngramOverlap: og.size === 0 ? 0 : Math.round((shared / og.size) * 1000) / 1000,
+    oracleEmdashRate: oBeats === 0 ? 0 : Math.round((oDash / oBeats) * 100) / 100,
+    visitorEmdashRate: vBeats === 0 ? 0 : Math.round((vDash / vBeats) * 100) / 100,
+  };
 }
 
 /** the human render: full-fidelity markdown — the scroll, then every
@@ -180,9 +233,16 @@ export function buildXrayTranscript(record: SessionRecord): string {
   }
 
   lines.sort((a, b) => a.t - b.t);
+  const ci = contagionIndex(record.snapshot);
+  const ps = record.snapshot.promptedStats ?? {};
+  const psLine = Object.entries(ps)
+    .map(([k, v]) => `${k} ${v.fallbacks}/${v.attempts}`)
+    .join(' · ');
   const head = [
     `# xray transcript · ${record.input.mode} · ${record.exportedAt}`,
     `${T}class ${record.snapshot.dilemmaClass ?? '—'} · spread ${record.snapshot.spreadClass ?? '—'} · naming ${record.snapshot.namingDelivered ? 'delivered' : 'no'} · ${record.calls.length} calls`,
+    `${T}build ${record.meta?.build ?? '(unstamped)'} · tokens ${record.meta?.tokens ? `${record.meta.tokens.input}in/${record.meta.tokens.output}out` : '—'}`,
+    `${T}fallbacks: ${psLine || '(none prompted)'} · contagion ${ci.ngramOverlap} (em-dash o${ci.oracleEmdashRate}/v${ci.visitorEmdashRate})`,
     '',
   ];
   return [...head, ...lines.map((l) => l.text)].join('\n');

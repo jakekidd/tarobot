@@ -196,6 +196,15 @@ export function checkSession(record: SessionRecord, only?: number[]): Result[] {
   return results;
 }
 
+export function renderCheckResults(record: SessionRecord): string {
+  const results = checkSession(record);
+  return [
+    '',
+    '--- mechanical checks ---',
+    ...results.map((r) => `${r.pass ? 'PASS' : 'FAIL'} ${String(r.id).padStart(2)} ${r.name} — ${r.detail}`),
+  ].join('\n');
+}
+
 function main() {
   const args = process.argv.slice(2).filter((a) => a !== '--');
   const path = args.find((a) => !a.startsWith('--'));

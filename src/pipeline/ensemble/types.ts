@@ -26,6 +26,11 @@ export type Beat = {
   beatType?: BeatType;
   /** validated template fills, recorded for the mechanical checker */
   fills?: { key: string; text: string }[];
+  /** familiarity level 0-4 at the moment this oracle beat was spoken */
+  fam?: number;
+  /** delivery annotations ([dry] [pause-before]…) — stripped from the
+   *  rendered text, kept here for the voice era */
+  delivery?: string[];
   truncated?: boolean;
 };
 
@@ -211,6 +216,9 @@ export type EnsembleSnapshot = {
   /** latest interpreter coherence read; 3 until evidence says otherwise */
   coherence: 0 | 1 | 2 | 3;
   questionsAsked: number;
+  /** beat-prompt health: attempts vs fallbacks per beat type — a
+   *  fallback is authored text entering the transcript (target <10%) */
+  promptedStats: Record<string, { attempts: number; fallbacks: number }>;
   busy: BusyLayer;
   lastIntent: Intent | null;
   fanInFlight: boolean;

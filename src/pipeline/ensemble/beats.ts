@@ -75,6 +75,14 @@ type BeatsFile = {
 
 export const BEATS: BeatsFile = JSON.parse(BEATS_RAW) as BeatsFile;
 
+function djb2(str: string): string {
+  let h = 5381;
+  for (let i = 0; i < str.length; i++) h = ((h << 5) + h + str.charCodeAt(i)) >>> 0;
+  return h.toString(36);
+}
+export const BEATS_HASH = djb2(BEATS_RAW);
+export { djb2 };
+
 /** the fossil law: retired/example lines no oracle beat may contain */
 export const NEVER_SAY: string[] = BEATS._never_say.map((s) => s.toLowerCase());
 
