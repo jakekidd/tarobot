@@ -435,7 +435,7 @@ export class EnsembleEngine {
         if (this.focusStage === 1 || this.focusStage === 2) {
           if (this.consentNonYes >= 2) return ['focus']; // → exploration branch
           if (this.consentVerdict === 'yes') beats.unshift('deal');
-          if (this.consentVerdict === 'no') beats.unshift('focus');
+          if (this.consentVerdict === 'no') return ['focus']; // the alt is owed promptly
           // ambivalent: neither deal nor re-offer; clarify via tissue/question
         }
         // the rant path: fallback after a refusal, escape ends intake
@@ -590,6 +590,8 @@ export class EnsembleEngine {
       };
       this.lastIntent = intent;
       this.piles.intents.append('driver', this.anchor(), intent);
+      this.busy = 'persona'; // occupy the hot path — settle() must wait
+      this.emit();
       try {
         await this.renderBeat(intent, event, myGen);
         if (myGen === this.gen) this.maybeFan();
@@ -684,6 +686,14 @@ export class EnsembleEngine {
       }
 
       case 'focus': {
+        if (this.consentNonYes >= 2 && this.focusStage >= 1) {
+          // two non-yes answers: exploration is owed, no third offer
+          this.focusStage = 4;
+          this.dilemmaClass = null;
+          this.note('two non-yes consent verdicts → EXPLORATION (mind-heart-root)');
+          await this.performDeal('EXPLORATION', intent, myGen);
+          return;
+        }
         if (this.focusStage === 0 && this.focusPhrase) {
           const text = await this.promptedLine(
             'focus',
