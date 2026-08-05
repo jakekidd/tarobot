@@ -194,6 +194,7 @@ export class EnsembleEngine {
       dilemmaClass: this.dilemmaClass,
       pendingGuess: this.pendingGuess,
       namingDelivered: this.namingDelivered,
+      beatsRemaining: this.beatsRemaining(),
       coherence: this.coherence,
       questionsAsked: this.questionsAsked,
       busy: this.busy,
@@ -281,6 +282,45 @@ export class EnsembleEngine {
     void this.dispatch({ type: 'silence' });
   }
 
+  /** visitor-side termination (walk-away, harness cap): the landing is
+   *  spoken anyway — naming-or-charm compressed, quest, close. a
+   *  reading is never left on the table. */
+  async flushLanding(): Promise<void> {
+    if (this.phase !== 'live') return;
+    this.note('FLUSH: visitor-side termination — speaking the landing');
+    const myGen = ++this.gen;
+    this.busy = 'persona';
+    this.emit();
+    try {
+      if (this.namingConditions() && !this.namingDelivered && !this.conjectorInFlight) {
+        this.performNaming();
+      }
+      await this.performClose(
+        {
+          beat: 'close',
+          accomplish: 'the landing flush',
+          approx_words: 0,
+          note: 'engine flush; no driver call',
+        },
+        myGen,
+      );
+    } catch (e) {
+      this.error = e instanceof Error ? e.message : String(e);
+      // even a failed close closes: the scroll gets the authored close
+      if (this.phase === 'live') {
+        const v = BEATS.close.variants;
+        this.commitOracle(v[this.closeVariant++ % v.length], 'close');
+        this.scroll.push({ kind: 'ev', ev: 'close', t: Date.now() });
+        this.phase = 'closed';
+      }
+    } finally {
+      if (myGen === this.gen) {
+        this.busy = null;
+        this.emit();
+      }
+    }
+  }
+
   /** the UI's interrupt: the typewriter was cut off mid-render. */
   truncateLastOracleBeat(visibleText: string): void {
     for (let i = this.scroll.length - 1; i >= 0; i--) {
@@ -305,8 +345,37 @@ export class EnsembleEngine {
     // a flip always earns its read first — mandated
     if (event.type === 'card_flip') return ['read'];
 
-    // the naming, once ready, is mandated within NAMING_GRACE_BEATS
-    if (this.namingReady() && this.graceSpent(this.namingReadySince)) return ['naming'];
+    // ---- the landing ramp (the clock): a session that doesn't land
+    // didn't happen. T-4 narrows to the landing beats; T-2 mandates
+    // the close (which hands over quest-or-charm). the charm is the
+    // floor — never an invented fork.
+    const T = this.beatsRemaining();
+    if (T <= 2) {
+      this.note(`landing ramp T-${T}: close mandated`);
+      return ['close'];
+    }
+    if (T <= 4) {
+      if (this.namingConditions() && !this.namingDelivered) {
+        if (this.conjectorInFlight) {
+          this.note(`landing ramp T-${T}: naming due, waiting out conjector edit`);
+          return ['tissue', 'honor', 'hold'];
+        }
+        this.note(`landing ramp T-${T}: naming mandated`);
+        return ['naming'];
+      }
+      this.note(`landing ramp T-${T}: descending — close available, no new territory`);
+      return ['close', 'tissue', 'honor', 'hold'];
+    }
+
+    // the naming, once ready, is mandated within NAMING_GRACE_BEATS;
+    // grace expiry CONVERTS to mandate (waits out an in-flight edit)
+    if (this.namingConditions() && this.graceSpent(this.namingReadySince)) {
+      if (this.conjectorInFlight) {
+        this.note('naming mandate: waiting out in-flight conjector edit');
+        return ['tissue', 'honor', 'hold'];
+      }
+      return ['naming'];
+    }
 
     let beats: BeatType[];
     if (this.mode === 'chat') {
@@ -398,15 +467,19 @@ export class EnsembleEngine {
     return beats;
   }
 
-  private namingReady(): boolean {
+  /** the conditions, independent of edit-in-flight (readiness marking
+   *  and the mandate track these; SPEAKING additionally waits out an
+   *  in-flight conjector edit so passages stay fresh) */
+  private namingConditions(): boolean {
     if (this.spreadClass === 'EXPLORATION') return false;
     if (this.namingDelivered || !dilemmaCommitted(this.dilemma)) return false;
-    // never speak a document mid-edit — the passages must include the
-    // newest material (live finding: the naming raced the disclosure)
-    if (this.conjectorInFlight) return false;
     if (this.coherence < this.c.COHERENCE_GATE) return false;
     if (this.mode === 'chat') return this.anchor().turn >= 4;
     return this.flipped.length >= 2;
+  }
+
+  private namingReady(): boolean {
+    return this.namingConditions() && !this.conjectorInFlight;
   }
 
   private dealReady(): boolean {
@@ -425,13 +498,13 @@ export class EnsembleEngine {
   }
 
   private trackReadiness(): void {
-    if (this.namingReady() && this.namingReadySince === null) {
+    if (this.namingConditions() && this.namingReadySince === null) {
       this.namingReadySince = this.oracleBeatCount();
       this.note(
         `naming READY (committed + ${this.flipped.length} flips + coherence ${this.coherence}) — grace ${this.c.NAMING_GRACE_BEATS} beats`,
       );
     }
-    if (!this.namingReady()) this.namingReadySince = this.namingDelivered ? null : this.namingReadySince;
+    if (!this.namingConditions()) this.namingReadySince = this.namingDelivered ? null : this.namingReadySince;
     if (this.dealReady() && this.dealReadySince === null) {
       this.dealReadySince = this.oracleBeatCount();
     }
@@ -1163,6 +1236,11 @@ guess 2: ${out.alt_guess}`,
 
   // ------------------------------------------------------------- context
 
+  /** the clock — a reading is never left on the table */
+  private beatsRemaining(): number {
+    return Math.max(0, this.c.BEATS_BUDGET - Math.max(0, this.oracleBeatCount() - 2));
+  }
+
   private oracleBeatCount(): number {
     return this.scroll.filter((e): e is Beat => e.kind === 'beat' && e.speaker === 'oracle')
       .length;
@@ -1293,7 +1371,7 @@ guess 2: ${out.alt_guess}`,
       cognition,
       goals: this.renderGoals(),
       table,
-      menu: `MENU: [${menu.join(' · ')}]${mandated} | questions asked ${this.questionsAsked}/${this.c.QUESTION_BUDGET}`,
+      menu: `MENU: [${menu.join(' · ')}]${mandated} | questions asked ${this.questionsAsked}/${this.c.QUESTION_BUDGET} | beats remaining ${this.beatsRemaining()}`,
       economy: `F-beat cap ${capN} words | visitor talk-share ${this.ratio().toFixed(2)} | carry ${this.carry()}${bankedNote}`,
       event: this.describeEvent(event),
     };
@@ -1302,6 +1380,12 @@ guess 2: ${out.alt_guess}`,
   private renderGoals(): string {
     const stage = this.stage();
     const goals = [...stageGoals(this.mode, stage)];
+    const T = this.beatsRemaining();
+    if (T <= 6 && this.phase === 'live') {
+      goals.unshift(
+        `P0 LANDING: ${T} beats remain. begin descent — spend banked material, no new territory, aim at the naming (or the charm) and the close.`,
+      );
+    }
     if (goals.length === 0) return `stage: ${stage} | (no standing goals)`;
     return [`stage: ${stage} — P0 highest`, ...goals].join('\n');
   }

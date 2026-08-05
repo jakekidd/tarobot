@@ -4,10 +4,11 @@
 // the sim visitor receives ONLY the surface (it cannot spill what it
 // never had). The ensemble plays blind; the scorer holds the truth.
 //
-//   pnpm eval            # 2 dossiers, full sessions, scoreboard
+//   pnpm eval                                # generate + run
 //   pnpm eval -- --n=1 --arch=deflector
+//   pnpm eval -- --dossiers=scripts/eval/dossiers/frozen-six   # frozen fixtures
 
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { createClaudeClient } from '../src/pipeline/claude';
 import { AnthropicAdapter } from '../src/pipeline/llm/adapter-anthropic';
 import type { LLMAdapter } from '../src/pipeline/llm/adapter';
@@ -122,6 +123,10 @@ async function runSession(adapter: LLMAdapter, dossier: Dossier, dir: string) {
     }
   }
 
+  if (engine.snapshot().phase !== 'closed') {
+    console.log('  <flush landing>');
+    await engine.flushLanding();
+  }
   const record = serializeSession(input, engine.snapshot(), [...calls.values()]);
   writeFileSync(`${dir}/session.json`, JSON.stringify(record, null, 2));
   writeFileSync(`${dir}/xray.txt`, buildXrayTranscript(record));
@@ -175,20 +180,30 @@ function score(record: ReturnType<typeof serializeSession>, dossier: Dossier) {
 
 async function main() {
   const args = process.argv.slice(2).filter((a) => a !== '--');
-  const n = Number(args.find((a) => a.startsWith('--n='))?.slice(4) ?? 2);
+  const dossierDir = args.find((a) => a.startsWith('--dossiers='))?.slice(11);
+  const frozen: { name: string; dossier: Dossier }[] = dossierDir
+    ? readdirSync(dossierDir)
+        .filter((f) => f.endsWith('.json'))
+        .sort()
+        .map((f) => ({
+          name: f.replace(/\.json$/, ''),
+          dossier: JSON.parse(readFileSync(`${dossierDir}/${f}`, 'utf8')) as Dossier,
+        }))
+    : [];
+  const n = frozen.length > 0 ? frozen.length : Number(args.find((a) => a.startsWith('--n='))?.slice(4) ?? 2);
   const archArg = args.find((a) => a.startsWith('--arch='))?.slice(7);
   const arches = archArg ? [archArg] : ['deflector', 'over-sharer', 'crier', 'tester', 'fine-one'];
   const adapter = new AnthropicAdapter(createClaudeClient(key()));
   const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
-  const root = `runs/eval-${stamp}`;
+  const root = `runs/eval-${stamp}${dossierDir ? '-frozen' : ''}`;
   const results: Record<string, unknown>[] = [];
   const classes = ['FORK', 'THRESHOLD', 'LOOP', 'WEIGHT'];
   for (let i = 0; i < n; i++) {
-    const arch = arches[i % arches.length];
-    const dir = `${root}/d${i + 1}-${arch}`;
+    const arch = frozen[i]?.name ?? arches[i % arches.length];
+    const dir = `${root}/${frozen[i] ? frozen[i].name : `d${i + 1}-${arch}`}`;
     mkdirSync(dir, { recursive: true });
-    console.log(`\n=== dossier ${i + 1} (${arch}) — generating ===`);
-    const dossier = await gen(adapter, arch, classes[i % classes.length], i + 1);
+    console.log(`\n=== dossier ${i + 1} (${arch}) — ${frozen[i] ? 'FROZEN fixture' : 'generating'} ===`);
+    const dossier = frozen[i] ? frozen[i].dossier : await gen(adapter, arch, classes[i % classes.length], i + 1);
     console.log(`  truth: ${dossier.truth.class} — ${dossier.truth.name}`);
     console.log(`=== running session ===`);
     const record = await runSession(adapter, dossier, dir);

@@ -309,6 +309,7 @@ async function main() {
     }
   }
 
+  if (engine.snapshot().phase !== 'closed') await engine.flushLanding();
   const record = serializeSession(input, engine.snapshot(), [...calls.values()]);
   writeFileSync(`${dir}/session.json`, JSON.stringify(record, null, 2));
   writeFileSync(`${dir}/transcript.md`, buildSessionLog(record));

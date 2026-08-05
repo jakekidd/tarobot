@@ -205,6 +205,8 @@ export type EnsembleSnapshot = {
   dilemmaClass: DilemmaClass | null;
   pendingGuess: string | null;
   namingDelivered: boolean;
+  /** the clock: oracle beats left before forced landing */
+  beatsRemaining: number;
   /** latest interpreter coherence read; 3 until evidence says otherwise */
   coherence: 0 | 1 | 2 | 3;
   questionsAsked: number;
@@ -260,6 +262,9 @@ export type EnsembleConstants = {
   AMMO_MAX_WORDS: number;
   /** unspent interpreter thoughts past this count nudge the driver */
   BANKED_THOUGHTS: number;
+  /** the session clock: oracle beats (post-greeting) before the
+   *  landing ramp forces naming-or-charm → quest → close */
+  BEATS_BUDGET: number;
   /** intro template questions before the deal is mandated */
   QUESTION_BUDGET: number;
   /** beats of grace after naming conditions turn true before it is forced */
@@ -295,6 +300,7 @@ export const ENSEMBLE_CONSTANTS: EnsembleConstants = {
   CARRY_CAP_MIN: 20,
   AMMO_MAX_WORDS: 12,
   BANKED_THOUGHTS: 3,
+  BEATS_BUDGET: 22,
   QUESTION_BUDGET: 4,
   NAMING_GRACE_BEATS: 2,
   COHERENCE_GATE: 2,
