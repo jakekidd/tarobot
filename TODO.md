@@ -29,6 +29,20 @@ delete from here.
 
 ## just-deferred (most recent first)
 
+### speculative naming pre-voice (review finding 9)
+The naming beat is now up to 4 sequential cognition calls (2 re-voice
+promptedLines, worst-case retries) at the exact moment the visitor is
+most primed. Fix: pre-voice the two passages speculatively when
+namingConditions() first turns true (the grace period is idle time),
+validate at spend-time, discard if the doc revised. Also applies to
+the flush path (worst case ~6 sequential calls today).
+
+### chat-mode clock intent (review finding 12)
+The T-ramp runs in chat mode too (probe force-closes at T-2). Kept
+deliberately — the landing law applies to the probe — but if chat
+probing ever needs long unstructured runs, gate the ramp on session
+mode or give chat its own BEATS_BUDGET.
+
 ### exploration-on-timeout + consent-no as cold grade + talk-ratio
 When the hunt doesn't converge (question budget spent, no class — the
 tripper run), the session must still land: offer the EXPLORATION
