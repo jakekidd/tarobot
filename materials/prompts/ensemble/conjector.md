@@ -67,6 +67,11 @@ harder when the card turns. but an unflipped face never surfaces in
 any passage: no card names, no card imagery the visitor hasn't seen.
 the foreknowledge is scaffolding, never speech.
 
+the dilemma lives in their LIFE, not in this room: how they behave
+toward you (deflecting, explaining, performing for the reader) is
+EVIDENCE, never the dilemma itself. a problem passage about how they
+answer questions at this table is a miss — name the thing out there.
+
 rules: the document must survive being read aloud to the visitor's
 face — it IS read aloud, in her voice, TO them: second person ("you"),
 never third ("she/they" about the visitor is being discussed at your

@@ -32,10 +32,13 @@ function key(cli?: string): string {
   void cli;
 }
 
-async function gen(adapter: LLMAdapter, arch: string): Promise<Dossier> {
+const CLASS_DEFS =
+  'FORK: a live choice between two roads, treated as a straight road. THRESHOLD: a change ALREADY DECIDED but not enacted or told. LOOP: a repeating pattern narrated as fate, no decision made. WEIGHT: a load carried without consent or acknowledgment.';
+
+async function gen(adapter: LLMAdapter, arch: string, forcedClass: string, i: number): Promise<Dossier> {
   const truthRaw = await adapter.invokeFreeform({
     system: 'you author test personas for a conversation-ai eval. output STRICT JSON only, no markdown fences.',
-    user: `invent one festival-tarot-booth visitor, archetype "${arch}". avoid: sisters carrying families after a father's death, quitting a checked-out job, secret nursing school, sunday phone calls to mother, food trucks. JSON: {"name": str, "class": "FORK"|"THRESHOLD"|"LOOP"|"WEIGHT", "mechanism": one-paragraph ground truth of their hidden dilemma, "tags": [5 short keyphrases the ideal reading would recover, each 2-4 words]}`,
+    user: `invent one festival-tarot-booth visitor, archetype "${arch}", persona seed #${i} (make name, age, gender vibe, occupation all fresh — never a Brendan, never a scientist). the hidden dilemma MUST be class ${forcedClass} per these definitions, strictly: ${CLASS_DEFS}. avoid: sisters carrying families after a father's death, quitting a checked-out job, secret nursing school, sunday phone calls to mother, food trucks. tags must be CONCRETE words that would plausibly appear in a plain-speech naming of this dilemma (objects, people, actions — not abstractions like "performed urgency"). JSON: {"name": str, "class": "${forcedClass}", "mechanism": one-paragraph ground truth, "tags": [5 keyphrases, each 2-4 concrete words]}`,
     model: 'cognition',
     max_tokens: 600,
     label: 'eval_truth',
@@ -179,12 +182,13 @@ async function main() {
   const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
   const root = `runs/eval-${stamp}`;
   const results: Record<string, unknown>[] = [];
+  const classes = ['FORK', 'THRESHOLD', 'LOOP', 'WEIGHT'];
   for (let i = 0; i < n; i++) {
     const arch = arches[i % arches.length];
     const dir = `${root}/d${i + 1}-${arch}`;
     mkdirSync(dir, { recursive: true });
     console.log(`\n=== dossier ${i + 1} (${arch}) — generating ===`);
-    const dossier = await gen(adapter, arch);
+    const dossier = await gen(adapter, arch, classes[i % classes.length], i + 1);
     console.log(`  truth: ${dossier.truth.class} — ${dossier.truth.name}`);
     console.log(`=== running session ===`);
     const record = await runSession(adapter, dossier, dir);
