@@ -32,9 +32,10 @@ import { SetupView } from './SetupView';
 type Props = {
   apiKey: string;
   onExit: () => void;
+  onBooth?: () => void;
 };
 
-export function XrayLab({ apiKey, onExit }: Props) {
+export function XrayLab({ apiKey, onExit, onBooth }: Props) {
   // ---- setup state
   const [docs, setDocs] = useState<InputDoc[]>(() => loadDocs());
   const [selected, setSelected] = useState<string[]>(() => {
@@ -227,6 +228,11 @@ export function XrayLab({ apiKey, onExit }: Props) {
                 end session
               </Button>
             </>
+          )}
+          {onBooth && !engine && (
+            <Button variant="ghost" onClick={onBooth}>
+              booth demo
+            </Button>
           )}
           <Button variant="ghost" onClick={onExit}>
             ← menu

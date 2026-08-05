@@ -396,6 +396,7 @@ tarot birth card). Treat these as ground truth; do not duplicate inline.
 | Ensemble reading engine — the oracle (behavior/cognition, piles, frame, stall, stages) | `src/pipeline/ensemble/` (see `docs/ENSEMBLE.md`) |
 | Oracle baseline (single-voice comparison arm — do not modify) | `src/pipeline/oracle/` |
 | Xray lab (ensemble debug surface, docs manager, inspector) | `src/lab/xray/` |
+| Booth demo — e2e session in 3d (eyes, table, deck, cards, subtitles) | `src/ui/booth/` |
 | Card draw mechanics | `src/pipeline/cards.ts` |
 | Spread definitions | `src/pipeline/spreads.ts` |
 | three.js scene (turtle + eyes + perspective table/cards + scene stores) | `src/ui/scene/`, `src/ui/scene/TarobotScene.tsx` |

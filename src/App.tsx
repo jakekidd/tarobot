@@ -16,6 +16,7 @@ import { Reading } from './ui/Reading';
 import { Pipeline } from './ui/Pipeline';
 import { Bench } from './lab/Bench';
 import { XrayLab } from './lab/xray/XrayLab';
+import { BoothDemo } from './ui/booth/BoothDemo';
 import { IntroductionSurveyScreen } from './ui/survey/IntroductionSurveyScreen';
 import { SurveyDone } from './ui/survey/SurveyDone';
 import { TuningScreen } from './ui/tuning/TuningScreen';
@@ -62,6 +63,7 @@ type Phase =
   | { kind: 'pipeline' }
   | { kind: 'bench' }
   | { kind: 'xray' }
+  | { kind: 'booth' }
   | { kind: 'survey'; survey: IntroductionSurvey }
   | { kind: 'survey_done'; raw: RawPortrait }
   | { kind: 'tuning_loading' }
@@ -232,7 +234,7 @@ export function App() {
   // Bench and the xray lab are their own worlds — no CRT filter, no
   // Three.js scene, no main-app topbar. The lab/ subtree owns its
   // entire visual surface.
-  const inLab = phase.kind === 'bench' || phase.kind === 'xray';
+  const inLab = phase.kind === 'bench' || phase.kind === 'xray' || phase.kind === 'booth';
 
   return (
     <div className="app">
@@ -331,7 +333,11 @@ export function App() {
           )}
 
           {phase.kind === 'xray' && apiKey && (
-            <XrayLab apiKey={apiKey} onExit={goMenu} />
+            <XrayLab apiKey={apiKey} onExit={goMenu} onBooth={() => setPhase({ kind: 'booth' })} />
+          )}
+
+          {phase.kind === 'booth' && apiKey && (
+            <BoothDemo apiKey={apiKey} onExit={() => setPhase({ kind: 'xray' })} />
           )}
 
           {phase.kind === 'survey' && (

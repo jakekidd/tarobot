@@ -247,7 +247,16 @@ copies it into your box. "copy xray" in the topbar puts the full
 transcript on the clipboard — speech unindented, everything offstage
 (engine decisions, every agent's thinking, the rejected persona takes)
 tab-indented, in time order. Same format headlessly: every `pnpm
-live` run writes `xray.txt`; `pnpm xray:render` regenerates them. Live: cognition column (one panel per agent,
+live` run writes `xray.txt`; `pnpm xray:render` regenerates them.
+
+**The booth demo** (`src/ui/booth/`, "booth demo" in the lab topbar):
+the full e2e session in 3d — two floating eyes in the starry void, the
+red-cloth table, subtitles, a typed visitor line. The deal is theater
+on top of engine truth: when the engine deals, the deck appears; the
+visitor pulls each card off it by tapping (same cards, their pace),
+and taps a face-down card to flip once the spread is fully out.
+`BoothStage` (pure, node-portable) maps snapshots+clicks to the scene;
+`pnpm smoke:booth` drives it headlessly through the whole arc. Live: cognition column (one panel per agent,
 streams while in flight, filed items with anchors), the table (type as
 the visitor, tick silence — manual-first, auto toggle default off, flip
 buttons in session mode), behavior column (driver intent, persona
