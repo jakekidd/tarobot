@@ -55,9 +55,9 @@ mescaline and found four recurring geometries: lattices/honeycombs,
 cobwebs, tunnels/funnels, spirals. he called them form constants and
 could not explain them. ermentrout & cowan did, in 1979.
 
-V1 sees the visual field through a complex logarithm. a point at
-radius r, angle θ in the eye lands at (log r, θ) on the flat cortical
-sheet. when cortical excitation destabilizes — which is what a 5-HT2A
+V1 sees the visual field through a complex logarithm (with a foveal
+shoulder — see below). a point at radius r, angle θ in the eye lands
+near (log r, θ) on the flat cortical sheet. when excitation destabilizes — which is what a 5-HT2A
 agonist does to the excitation/inhibition balance — the sheet does
 what every reaction-diffusion system does: it forms stripes. plain,
 straight, boring cortical stripes.
@@ -145,7 +145,7 @@ the rig never blinks on its own (`blink removed` was deliberate);
 four suites over the pure TS mirrors in `math.ts` — `leyebrary-math`
 (fields), `leyebrary-trip` (mandala/feedback/grade), `leyebrary-
 anatomy` (gaze split + cords), `leyebrary-vision` (the form-constant
-derivation) — 79 assertions total. the earlier suites cover: palette gamut and
+derivation) — 91 assertions total. the earlier suites cover: palette gamut and
 periodicity, noise continuity and fbm bounds, spiral scale-invariance
 (scaling radius = rotating arms), kaleido dihedral symmetry, tunnel
 zoom-period exactness, phyllotaxis seed placement, rose petal
