@@ -1,0 +1,18 @@
+[
+  { "line": "my brother's wedding is next month." },
+  { "pause": true },
+  { "line": "i'm the best man. supposedly." },
+  { "line": "we don't talk much anymore. since the business thing." },
+  { "pause": true },
+  { "line": "he took a loan from my dad. i said it was a bad idea. it was." },
+  { "line": "nobody's said sorry. we just... schedule things." },
+  { "when": "focus", "line": "yeah. that's it." },
+  { "flip": 1 },
+  { "line": "hm." },
+  { "flip": 2 },
+  { "pause": true },
+  { "flip": 3 },
+  { "line": "ok. yeah." },
+  { "flip": 4 },
+  { "line": "thanks. really." }
+]

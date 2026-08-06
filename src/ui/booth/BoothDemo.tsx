@@ -112,6 +112,21 @@ export function BoothDemo({ apiKey, onExit }: Props) {
 
   const thinking = view?.awaiting === 'oracle';
 
+  // the pregnant pause: if the visitor's side stays quiet, the oracle
+  // keeps the show going — banked additions during intake (zero
+  // latency), the silence machinery once cards are on the table. a
+  // SEND cancels via the state change; typing alone does not.
+  useEffect(() => {
+    if (!view || view.awaiting !== 'visitor') return;
+    const t = setTimeout(() => {
+      const eng = engineRef.current;
+      if (!eng) return;
+      if (eng.snapshot().drawn.length === 0) eng.speakPauseAddition();
+      else eng.silenceTick();
+    }, 7000);
+    return () => clearTimeout(t);
+  }, [view]);
+
   function copyXray() {
     const engine = engineRef.current;
     if (!engine) return;

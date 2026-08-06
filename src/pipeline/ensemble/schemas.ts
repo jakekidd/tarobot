@@ -43,6 +43,15 @@ export const InvestigatorSchema = z.object({
 });
 export type InvestigatorTurn = z.infer<typeof InvestigatorSchema>;
 
+/** speculative pregnant-pause additions — what she'd add if the
+ *  visitor stayed quiet, three escalations, banked at beat commit */
+export const PauseAdditionsSchema = z.object({
+  first: z.string(),
+  second: z.string(),
+  third: z.string(),
+});
+export type PauseAdditions = z.infer<typeof PauseAdditionsSchema>;
+
 export const ReadSchema = z.object({
   expressing: z.string(),
   // small models occasionally emit the array as one string blob — or as

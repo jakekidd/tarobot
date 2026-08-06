@@ -20,6 +20,7 @@ import {
   DRIVER_TOOL,
   FILL_TOOL,
   INVESTIGATOR_TOOL,
+  PAUSE_TOOL,
   PERSONA_TOOL,
   PROFILE_TOOL,
   READ_TOOL,
@@ -30,6 +31,8 @@ import {
   IntentSchema,
   InvestigatorSchema,
   type InvestigatorTurn,
+  PauseAdditionsSchema,
+  type PauseAdditions,
   PersonaLineSchema,
   ProfileFilingSchema,
   ReadSchema,
@@ -256,6 +259,25 @@ export function callInvestigator(
     InvestigatorSchema,
     700,
   );
+}
+
+/** speculative pregnant-pause additions: written the moment her line
+ *  lands, spoken by the UI at zero latency if the visitor stays quiet.
+ *  no seconds in the prompt — pauses are named, not counted. */
+export function callPauseAdditions(
+  env: AgentEnv,
+  p: { transcript: string },
+): Promise<PauseAdditions> {
+  const user = [
+    `[the conversation — the whole record]\n${p.transcript}`,
+    `[the moment] she just spoke her last line above, and the visitor has not answered.`,
+    `[the ask] write the three things she would ADD, in order, if the visitor stayed quiet:`,
+    `- first: after a pregnant pause — a small breath more. she finishes her own thought, or makes the ask smaller. never a repeat of what she just said.`,
+    `- second: the pause has grown long — she re-angles: a different door into the same room, or an easier one. still unbothered.`,
+    `- third: the silence has fully arrived — she names it plainly and moves the show: the smallest possible ask, or she offers to bring the cards out. dry, never needy.`,
+    `each one stands alone (by the time it is spoken, the earlier additions were spoken too). lowercase. one or two sentences each.`,
+  ].join('\n\n');
+  return structured(env, 'investigator', SYSTEMS.investigator, user, PAUSE_TOOL, PauseAdditionsSchema, 400);
 }
 
 /** the consent judge — a mechanical verdict on the visitor's reply to

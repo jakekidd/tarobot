@@ -161,6 +161,29 @@ export const CONJECTOR_TOOL: ToolDef = {
   },
 };
 
+export const PAUSE_TOOL: ToolDef = {
+  name: 'additions',
+  description: "what she'd add if the visitor stayed quiet — three escalations, each standing alone",
+  input_schema: {
+    type: 'object',
+    properties: {
+      first: {
+        type: 'string',
+        description: 'after a pregnant pause — a small breath more, never a repeat',
+      },
+      second: {
+        type: 'string',
+        description: 'the pause has grown long — a different door into the same room, or an easier one',
+      },
+      third: {
+        type: 'string',
+        description: 'the silence has fully arrived — name it plainly and move the show',
+      },
+    },
+    required: ['first', 'second', 'third'],
+  },
+};
+
 export const INVESTIGATOR_TOOL: ToolDef = {
   name: 'turn',
   description: "the investigator's turn: private read, both corpses, the spoken line",

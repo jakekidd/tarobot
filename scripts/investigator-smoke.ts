@@ -90,6 +90,15 @@ async function main() {
   assert(s.pendingGuess !== null, 'the conjector filed a guess off the rant');
   assert(!beatTypes().includes('question'), 'no driver question beats in intake');
 
+  console.log('the pregnant pause — a banked addition speaks at zero latency:');
+  await new Promise((r) => setTimeout(r, 60));
+  const talksBefore = beatTypes().filter((t) => t === 'talk').length;
+  engine.speakPauseAddition();
+  assert(
+    beatTypes().filter((t) => t === 'talk').length === talksBefore + 1,
+    'pause addition spoken from the bank',
+  );
+
   console.log('two more turns — the probe hands over, the candidate lands:');
   engine.visitorLine("under it? i don't know. someone has to hold it. i handle things quietly.");
   await settle(engine);

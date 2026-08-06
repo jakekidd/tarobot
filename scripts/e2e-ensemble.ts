@@ -79,7 +79,15 @@ function resolveKey(cli?: string): string | undefined {
 // 'naming', …): the runner waits for it before playing the step —
 // up to 3 silence ticks, then proceeds anyway (logged) so a scenario
 // can react to the machine's move without ever hanging on it.
-type ScriptStep = { line?: string; flip?: number; silence?: boolean; when?: string };
+type ScriptStep = {
+  line?: string;
+  flip?: number;
+  silence?: boolean;
+  /** a pregnant pause: speak the next banked addition (waits briefly
+   *  for the bank if the speculative call is still in flight) */
+  pause?: boolean;
+  when?: string;
+};
 
 // scripted maya — enough charge to exercise press/stall/honor, with one
 // deflection so cassandra has something predictable to predict.
@@ -229,6 +237,12 @@ async function main() {
       }
       say('⟨flip⟩', String(step.flip));
       engine.flip(step.flip);
+    } else if (step.pause) {
+      for (let w = 0; w < 20 && engine.snapshot().pauseBank === 0; w++) {
+        await new Promise((r) => setTimeout(r, 250));
+      }
+      say('⟨pregnant pause⟩', engine.snapshot().pauseBank > 0 ? '' : '(bank empty — skipped)');
+      engine.speakPauseAddition();
     } else if (step.silence) {
       say('⟨silence⟩', '');
       engine.silenceTick();

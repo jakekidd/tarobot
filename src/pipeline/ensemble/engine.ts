@@ -22,6 +22,7 @@ import {
   callDriver,
   callInterpreter,
   callInvestigator,
+  callPauseAdditions,
   callPersona,
   callPersonaFill,
   callProfiler,
@@ -103,6 +104,10 @@ export class EnsembleEngine {
    *  drought (carry() true, no candidate) — two of them and the cards
    *  take the lead themselves */
   private droughtTalks = 0;
+  /** the pregnant-pause bank: speculative additions written the moment
+   *  her line lands, spoken at zero latency if the visitor stays quiet */
+  private pauseAdds: { lines: string[]; next: number; atBeatCount: number } | null = null;
+  private pauseGenInFlight = false;
   private conjectorInFlight = false;
   private pendingConjector = false;
   private conjectorSeenBeats = 0;
@@ -216,6 +221,10 @@ export class EnsembleEngine {
       dilemmaClass: this.dilemmaClass,
       pendingGuess: this.pendingGuess,
       namingDelivered: this.namingDelivered,
+      pauseBank:
+        this.pauseAdds && this.pauseAdds.atBeatCount === this.oracleBeatCount()
+          ? this.pauseAdds.lines.length - this.pauseAdds.next
+          : 0,
       beatsRemaining: this.beatsRemaining(),
       coherence: this.coherence,
       questionsAsked: this.questionsAsked,
@@ -270,6 +279,7 @@ export class EnsembleEngine {
     this.note('boot: greeting + rant bid, authored, zero model calls');
     this.commitOracle(g[this.greetingVariant % g.length], 'greeting');
     this.commitOracle(BEATS.rant_bid.primary, 'rant_bid');
+    this.maybePauseAdditions();
     this.emit();
   }
 
@@ -551,6 +561,57 @@ export class EnsembleEngine {
     );
   }
 
+  /** bank three pause additions for the just-committed beat. fired
+   *  after every intake commit; speculative and off the hot path. */
+  private maybePauseAdditions(): void {
+    if (!this.investigatorIntake() || this.pauseGenInFlight) return;
+    const at = this.oracleBeatCount();
+    if (this.pauseAdds && this.pauseAdds.atBeatCount === at && this.pauseAdds.next < this.pauseAdds.lines.length) {
+      return; // bank still fresh
+    }
+    this.pauseGenInFlight = true;
+    const myGen = this.gen;
+    void (async () => {
+      try {
+        const out = await callPauseAdditions(this.env, { transcript: this.renderBeats(Infinity) });
+        if (myGen !== this.gen || this.oracleBeatCount() !== at || !this.investigatorIntake()) return;
+        const lines = [out.first, out.second, out.third]
+          .map((l) => sanitizeLine(l))
+          .filter((l) => l.length > 0 && !this.fossilOutsideQuotes(l) && this.quotedSpansVerified(l));
+        if (lines.length > 0) {
+          this.pauseAdds = { lines, next: 0, atBeatCount: at };
+          this.note(`pause additions banked (${lines.length})`);
+          this.emit();
+        }
+      } catch {
+        /* speculative — nothing lost */
+      } finally {
+        this.pauseGenInFlight = false;
+      }
+    })();
+  }
+
+  /** the UI's pregnant-pause hook: speak the next banked addition at
+   *  zero latency. the bank rerolls once it empties. a send always
+   *  outranks this (entries are gated on busy; a stale bank no-ops). */
+  speakPauseAddition(): void {
+    if (this.phase !== 'live' || this.busy !== null || !this.investigatorIntake()) return;
+    const p = this.pauseAdds;
+    if (!p || p.atBeatCount !== this.oracleBeatCount() || p.next >= p.lines.length) {
+      this.maybePauseAdditions();
+      return;
+    }
+    const line = p.lines[p.next++];
+    this.scroll.push({ kind: 'ev', ev: 'silence', t: Date.now() });
+    this.note(`pregnant pause — addition ${p.next}/${p.lines.length} spoken`);
+    this.commitOracle(line, 'talk');
+    // the bank stays valid across its own additions (each was written
+    // to stand after the previous); reroll once it drains
+    p.atBeatCount = this.oracleBeatCount();
+    if (p.next >= p.lines.length) this.maybePauseAdditions();
+    this.emit();
+  }
+
   private async investigatorTurn(event: EnsembleEvent, myGen: number): Promise<void> {
     // yes already judged → the commit: reflect over the record, deal
     if (this.focusStage === 3) {
@@ -606,6 +667,7 @@ export class EnsembleEngine {
         if (myGen === this.gen) this.busy = null;
         this.emit();
       }
+      this.maybePauseAdditions();
       return;
     }
     // the host's funnel: a visitor who volunteers nothing still gets a
@@ -650,7 +712,9 @@ export class EnsembleEngine {
         probe: probe ?? undefined,
         declined: this.focusRejections,
         clock: `beats remaining ${this.beatsRemaining()} of ${this.c.BEATS_BUDGET}${this.beatsRemaining() <= 6 ? ' — begin landing: no new territory' : ''}`,
-        size: `roughly ${Math.ceil(cap(this.budget, this.carry(), this.c) / 5) * 5} words, give or take a breath — a ballpark, not a count. the interview stays visitor-led: they should out-talk you.`,
+        size: drought
+          ? `they are thin — the room is yours to host: up to roughly ${Math.ceil(cap(this.budget, this.carry(), this.c) / 5) * 5 + 10} words if the move needs them. spend them drawing THEM out, never filling the air.`
+          : `roughly ${Math.ceil(cap(this.budget, this.carry(), this.c) / 5) * 5} words, give or take a breath — a ballpark, not a count. the interview stays visitor-led: they should out-talk you.`,
         host: drought
           ? 'they are underfeeding — thin turns in a row. you drive now: name the quiet plainly if it helps, make the smallest concrete ask, or offer to let the cards start it. the show moves toward the table either way.'
           : undefined,
@@ -685,6 +749,7 @@ export class EnsembleEngine {
       if (myGen === this.gen) this.busy = null;
       this.emit();
     }
+    this.maybePauseAdditions();
   }
 
   /** the commit event: the visitor said yes to the offered dilemma.

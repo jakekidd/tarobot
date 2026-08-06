@@ -220,6 +220,8 @@ export type EnsembleSnapshot = {
   dilemmaClass: DilemmaClass | null;
   pendingGuess: string | null;
   namingDelivered: boolean;
+  /** banked pregnant-pause additions not yet spoken (offer-loop intake) */
+  pauseBank: number;
   /** the clock: oracle beats left before forced landing */
   beatsRemaining: number;
   /** latest interpreter coherence read; 3 until evidence says otherwise */

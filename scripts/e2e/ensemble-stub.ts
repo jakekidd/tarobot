@@ -79,6 +79,12 @@ export class EnsembleStubAdapter implements LLMAdapter {
         return this.investigatorQueue[
           Math.min(this.investigatorCalls++, this.investigatorQueue.length - 1)
         ];
+      case 'additions':
+        return {
+          first: 'or start smaller. one thing from this week.',
+          second: 'different door then. who saw you last, and what did they see?',
+          third: 'alright. we can let the cards open it instead. say the word.',
+        };
       case 'speak':
         return {
           too_safe: 'that sounds really hard. you are doing your best.',
