@@ -112,6 +112,7 @@ export class EnsembleEngine {
    *  drought (carry() true, no candidate) — two of them and the cards
    *  take the lead themselves */
   private droughtTalks = 0;
+  private holderFlip = false;
   /** the pregnant-pause bank: speculative additions written the moment
    *  her line lands, spoken at zero latency if the visitor stays quiet */
   private pauseAdds: { lines: string[]; next: number; atBeatCount: number } | null = null;
@@ -788,13 +789,19 @@ export class EnsembleEngine {
           `investigator line rejected (${!line ? 'empty' : fossil ? `fossil "${fossil}"` : 'unverified quote'}) — authored holder spoken`,
         );
         // a heavy disclosure deserves a receipt-shaped holder, not a
-        // demand-lite ("mm. keep going." landed cold on the crier)
-        this.commitOracle(lastVisitorWords >= 15 ? 'mm.' : 'mm. keep going.', 'talk');
+        // demand-lite; light holders rotate so the room never hears
+        // the same holder twice (skeptic re-run: verbatim repeat tell)
+        this.holderFlip = !this.holderFlip;
+        this.commitOracle(
+          lastVisitorWords >= 15 ? 'mm.' : this.holderFlip ? 'mm. keep going.' : 'go on.',
+          'talk',
+        );
         this.talksSinceProbe += 1;
       } else {
         this.commitOracle(line, 'talk');
         if (probe) {
           this.guessPlayed = true;
+          this.lastPlayedGuess = probe;
           this.talksSinceProbe = 0;
           this.note(`probe handed to the investigator: "${probe}"`);
         } else {
@@ -1124,6 +1131,7 @@ export class EnsembleEngine {
           const text = assemble(BEATS.guess.text, {}, { guess: this.pendingGuess });
           this.commitOracle(text, 'guess');
           this.guessPlayed = true;
+          this.lastPlayedGuess = this.pendingGuess;
           this.questionsSinceGuess = 0;
         }
         return;
@@ -1232,7 +1240,12 @@ export class EnsembleEngine {
   private async focusLineValid(line: string, focus: string): Promise<boolean> {
     // 36 fits a receipt clause + the ask (PULSE P5); still a runaway guard
     if (countWords(line) > 36) return false;
-    const fw = focus.toLowerCase().split(/\s+/).filter((w) => w.length >= 4);
+    // strip punctuation from tokens — "alone," could never match "alone"
+    const fw = focus
+      .toLowerCase()
+      .replace(/[^a-z\s']/g, ' ')
+      .split(/\s+/)
+      .filter((w) => w.length >= 4);
     if (fw.length > 0) {
       const hits = fw.filter((w) => line.toLowerCase().includes(w)).length;
       if (hits / fw.length < 0.5) return false;
@@ -1479,7 +1492,11 @@ export class EnsembleEngine {
       ].join('\n');
       const text = await this.promptedLine(
         'charm',
-        `no dilemma got named tonight and that is fine — they came in light. hand them ONE small true thing you actually noticed about them as a parting gift. no advice, no fortune, nothing invented. two sentences at most.\nwhat you noticed:\n${observed}`,
+        `${
+          dilemmaCommitted(this.dilemma)
+            ? `the dilemma DID get named tonight${this.focusPhrase ? ` — "${this.focusPhrase}"` : ''} — the cards just never got their full say. send them home holding the named thing, left in THEIR hands, plus ONE small true thing you actually noticed about them.`
+            : `no dilemma got named tonight and that is fine — they came in light. hand them ONE small true thing you actually noticed about them as a parting gift.`
+        } no advice, no fortune, nothing invented. two sentences at most.\nwhat you noticed:\n${observed}`,
         (line) => countWords(line) <= 45 && !/you (should|will|need to)/i.test(line),
         BEATS.charm.fallback ?? BEATS.charm.text,
         myGen,

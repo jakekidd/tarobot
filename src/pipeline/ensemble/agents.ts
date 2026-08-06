@@ -314,7 +314,7 @@ export async function callRefusable(env: AgentEnv, line: string): Promise<boolea
   const out = await freeform(
     env,
     'consent',
-    'you judge a single spoken sentence. could a stranger at a table comfortably answer "no" to it — is it a genuine, refusable question rather than a statement, a command, or a foregone conclusion? answer exactly one word: yes | no.',
+    'you judge a spoken line that ends in a question. a short receipt or naming clause may come BEFORE the ask ("a decision made alone — that\'s the real thing. you want to look at that?") — judge ONLY whether the final question could be comfortably declined by a stranger. an assertive lead-in does not make the ask unrefusable; only a command, a foregone conclusion, or a question with no room for "no" fails. answer exactly one word: yes | no.',
     line,
     5,
   );
