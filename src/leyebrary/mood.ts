@@ -31,6 +31,8 @@ export const BEAT_INTENT: Record<string, SpeechIntent> = {
   guess: 'probe',
   rant_bid: 'probe',
   focus: 'probe',
+  // the investigator's conversation turn (offer-loop intake): fishing
+  talk: 'probe',
   // the turn — something is being put in front of you
   deal: 'reveal',
   flip_invite: 'reveal',

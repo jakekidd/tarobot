@@ -180,7 +180,12 @@ export function BoothDemo({ apiKey, onExit }: Props) {
             className="booth__input"
             placeholder={placeholder}
             value={draft}
-            onChange={(e) => setDraft(e.target.value)}
+            onChange={(e) => {
+              const next = e.target.value;
+              // typing arouses the pupils — growth only, backspace is free
+              if (next.length > draft.length) sceneRef.current?.arouse();
+              setDraft(next);
+            }}
             onKeyDown={(e) => {
               if (e.key === 'Enter') send();
             }}

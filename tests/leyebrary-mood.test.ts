@@ -72,7 +72,7 @@ describe('beat → intent', () => {
     const beats = [
       'greeting', 'question', 'guess', 'rant_bid', 'focus', 'deal',
       'flip_invite', 'read', 'naming', 'honor', 'charm', 'quest',
-      'close', 'hold', 'tissue',
+      'close', 'hold', 'tissue', 'talk',
     ];
     for (const b of beats) {
       expect(BEAT_INTENT[b], `beat ${b} unmapped`).toBeDefined();
