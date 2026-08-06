@@ -3,6 +3,20 @@
    palette: black void, violet glyphs, white chrome, sparing purple-fill
    ===================================================================== */
 
+/* Self-hosted display faces (public/fonts, both OFL): VT323 is the
+   oracle's voice — tall CRT terminal, reads great big under scanlines.
+   Departure Mono is the chrome — buttons, inputs, labels. */
+@font-face {
+  font-family: 'VT323';
+  src: url('/fonts/vt323.woff2') format('woff2');
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Departure Mono';
+  src: url('/fonts/departure-mono.woff2') format('woff2');
+  font-display: swap;
+}
+
 :root {
   /* ─── THE PALETTE ────────────────────────────────────
      Five canonical colors. Every visual color in the app derives from
@@ -20,6 +34,10 @@
   --violet-line:        rgba(124, 58, 237, 0.32);
   --violet-line-strong: rgba(124, 58, 237, 0.62);
   --white-soft:         rgba(244, 236, 255, 0.55);
+
+  /* ─── Display fonts (see @font-face above) ─────────── */
+  --font-speech: 'VT323', monospace;
+  --font-ui: 'Departure Mono', monospace;
 
   /* ─── Semantic aliases (use these in component CSS) ── */
   --bg:           var(--color-black);

@@ -56,7 +56,7 @@ async function main() {
     v.subtitle !== null && v.subtitle.includes('quiet table') && v.subtitle.includes('before any cards'),
     'boot subtitle carries greeting AND rant bid together',
   );
-  assert(!v.deckVisible && v.cards.length === 0, 'no deck, no cards before the deal');
+  assert(v.cards.length === 0, 'no cards before the deal (the deck itself always rests on the table)');
   assert(v.awaiting === 'visitor', 'awaiting the visitor');
 
   engine.visitorLine('okay so honestly i have been holding the whole family since dad died and nobody asks');
@@ -64,14 +64,14 @@ async function main() {
   engine.visitorLine('yeah. someone has to. show me the cards.');
   await settle(engine);
   v = stage.view();
-  assert(v.deckVisible, 'deck appears after the engine deals');
+  assert(v.awaiting === 'deal', 'deck becomes dealable after the engine deals');
   assert(v.cards.length === 4 && v.cards.every((c) => !c.dealt), '4 cards drawn, none visually dealt');
 
   stage.clickCard(1);
   assert(engine.snapshot().flipped.length === 0, 'flip refused before dealing finishes');
   for (let i = 0; i < 4; i++) stage.clickDeck();
   v = stage.view();
-  assert(v.cards.every((c) => c.dealt) && !v.deckVisible, 'four deck clicks deal all cards; deck retires');
+  assert(v.cards.every((c) => c.dealt) && v.awaiting !== 'deal', 'four deck clicks deal all cards');
 
   stage.clickCard(2);
   await settle(engine);

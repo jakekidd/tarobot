@@ -1,7 +1,9 @@
 // The booth demo — the full-scale e2e session in 3d: eyes in the void,
-// the red table, the deck, the cards, subtitles, and a typed visitor
-// line (speech input comes with the real booth build). Runs the real
-// EnsembleEngine blind-session pipeline end to end.
+// the red table, the deck, the cards, and the speech console under the
+// eyes (a typed visitor line; speech input comes with the real booth
+// build). Runs the real EnsembleEngine blind-session pipeline end to
+// end. The blue splitline marks the future monitor/tablet seam: top
+// half eyes, bottom half table.
 
 import './booth.css';
 import { useEffect, useRef, useState } from 'react';
@@ -23,11 +25,13 @@ type Props = { apiKey: string; onExit: () => void };
 
 export function BoothDemo({ apiKey, onExit }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
   const engineRef = useRef<EnsembleEngine | null>(null);
   const stageRef = useRef<BoothStage | null>(null);
   const sceneRef = useRef<BoothScene | null>(null);
   const [view, setView] = useState<BoothView | null>(null);
   const [draft, setDraft] = useState('');
+  const [echo, setEcho] = useState<string | null>(null);
   const callsRef = useRef(new Map<string, CallRecord>());
 
   useEffect(() => {
@@ -77,6 +81,12 @@ export function BoothDemo({ apiKey, onExit }: Props) {
       const v = stage.view(snap);
       setView(v);
       scene.update(v);
+      // the oracle finished thinking: release the held visitor echo and
+      // hand the keyboard back
+      if (v.awaiting !== 'oracle') {
+        setEcho(null);
+        inputRef.current?.focus();
+      }
     });
     engine.start();
 
@@ -86,6 +96,8 @@ export function BoothDemo({ apiKey, onExit }: Props) {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const thinking = view?.awaiting === 'oracle';
 
   function copyXray() {
     const engine = engineRef.current;
@@ -99,20 +111,21 @@ export function BoothDemo({ apiKey, onExit }: Props) {
   function send() {
     const text = draft.trim();
     if (!text || !engineRef.current) return;
+    setEcho(text);
     engineRef.current.visitorLine(text);
     setDraft('');
   }
 
-  const hint =
+  const tableHint =
     view?.awaiting === 'deal'
-      ? `tap the deck — ${view.cardsRemaining} to deal`
-      : view?.awaiting === 'oracle'
-        ? '…'
-        : view?.awaiting === 'done'
-          ? 'the reading is complete'
-          : view?.cards.some((c) => c.dealt && !c.flipped)
-            ? 'speak, or turn a card'
-            : 'speak';
+      ? `tap the deck · ${view.cardsRemaining} to deal`
+      : view?.awaiting === 'done'
+        ? 'the reading is complete'
+        : null;
+
+  const placeholder = view?.cards.some((c) => c.dealt && !c.flipped)
+    ? 'speak... or turn a card'
+    : 'say something...';
 
   return (
     <div className="booth">
@@ -123,28 +136,45 @@ export function BoothDemo({ apiKey, onExit }: Props) {
       <button type="button" className="booth__exit booth__exit--copy" onClick={copyXray}>
         copy xray
       </button>
-      <div className="booth__hint">{hint}</div>
-      {view?.subtitle && (
-        <div className="booth__subtitle" key={view.subtitleSeq}>
-          {view.subtitle.split('\n\n').map((p, i) => (
-            <p key={i}>{p}</p>
-          ))}
+      <div className="booth__splitline" aria-hidden />
+      {(thinking || view?.subtitle) && (
+        <div className="booth__console">
+          <div className="booth__speech" key={thinking ? -1 : view?.subtitleSeq}>
+            {thinking ? (
+              <>
+                {echo && <p className="booth__speech-echo">{echo}</p>}
+                <div className="booth__dots">
+                  <span />
+                  <span />
+                  <span />
+                </div>
+              </>
+            ) : (
+              view?.subtitle?.split('\n\n').map((p, i) => <p key={i}>{p}</p>)
+            )}
+          </div>
+          {view?.phase !== 'closed' && (
+            <input
+              ref={inputRef}
+              className="booth__input"
+              placeholder={placeholder}
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') send();
+              }}
+              disabled={thinking}
+            />
+          )}
         </div>
       )}
-      {view?.phase !== 'closed' && (
-        <div className="booth__composer">
-          <input
-            className="booth__input"
-            placeholder="say something…"
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') send();
-            }}
-            disabled={view?.awaiting === 'oracle'}
-          />
-        </div>
-      )}
+      {tableHint && <div className="booth__tablehint">{tableHint}</div>}
+      <div className="crt-overlay" aria-hidden>
+        <div className="crt__scanlines" />
+        <div className="crt__vignette" />
+        <div className="crt__aberration" />
+        <div className="crt__flicker" />
+      </div>
     </div>
   );
 }

@@ -1,13 +1,20 @@
 // The booth's three.js scene — two floating eyes in a starry void, a
-// red-cloth table, the deck, the dealt cards. Lean and functional; the
-// art pass comes later (the phosphene eyes live in TODO.md). Imperative
-// class owned by BoothDemo; consumes BoothView, emits table clicks.
+// red-cloth table, the deck, the dealt cards. Imperative class owned
+// by BoothDemo; consumes BoothView, emits table clicks. The trippy
+// pass: rainbow twinkle stars, a breathing iris + additive halo, gaze
+// that meets the viewer (and drifts up while thinking), and a slow
+// dolly down to the table on entry.
 
 import * as THREE from 'three';
 import type { BoothView } from './boothStage';
+import { createStarField, type StarField } from './starfield';
 
 const CARD_W = 0.42;
 const CARD_H = 0.62;
+const EYE_Y = 0.72;
+const CAM_END = new THREE.Vector3(0, 0.28, 2.6);
+const CAM_START = new THREE.Vector3(0, 2.3, 7.2);
+const ENTRY_SECONDS = 2.4;
 
 function cardBackTexture(): THREE.CanvasTexture {
   const c = document.createElement('canvas');
@@ -68,6 +75,14 @@ type CardMesh = {
   flipping: boolean;
 };
 
+type EyeRig = {
+  group: THREE.Group;
+  irisMat: THREE.MeshBasicMaterial;
+  ringMat: THREE.MeshBasicMaterial;
+  pupil: THREE.Mesh;
+  phase: number;
+};
+
 export class BoothScene {
   private renderer: THREE.WebGLRenderer;
   private scene = new THREE.Scene();
@@ -75,8 +90,8 @@ export class BoothScene {
   private raycaster = new THREE.Raycaster();
   private pointer = new THREE.Vector2();
 
-  private eyeL!: THREE.Group;
-  private eyeR!: THREE.Group;
+  private eyes: EyeRig[] = [];
+  private stars!: StarField;
   private deck!: THREE.Group;
   private cards = new Map<number, CardMesh>();
   private deckPos = new THREE.Vector3(1.15, -0.42, 0.45);
@@ -84,8 +99,8 @@ export class BoothScene {
 
   private mood: BoothView['eyes'] = 'idle';
   private pulse = 0;
-  private blink = 0;
-  private nextBlink = 2;
+  private gaze = CAM_END.clone();
+  private entryT = 0;
   private raf = 0;
   private last = 0;
 
@@ -98,8 +113,8 @@ export class BoothScene {
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     this.camera = new THREE.PerspectiveCamera(46, 1, 0.1, 60);
-    this.camera.position.set(0, 0.28, 2.6);
-    this.camera.lookAt(0, -0.05, 0);
+    this.camera.position.copy(CAM_START);
+    this.camera.lookAt(0, -0.6, 0);
     this.build();
     this.canvas.addEventListener('pointerdown', this.onPointer);
     this.resize();
@@ -118,22 +133,8 @@ export class BoothScene {
     violet.position.set(-2, 0.6, 1);
     this.scene.add(violet);
 
-    // stars
-    const n = 900;
-    const pos = new Float32Array(n * 3);
-    for (let i = 0; i < n; i++) {
-      const r = 18 + Math.random() * 20;
-      const th = Math.random() * Math.PI * 2;
-      const ph = Math.acos(2 * Math.random() - 1);
-      pos[i * 3] = r * Math.sin(ph) * Math.cos(th);
-      pos[i * 3 + 1] = r * Math.cos(ph);
-      pos[i * 3 + 2] = r * Math.sin(ph) * Math.sin(th) - 6;
-    }
-    const starGeo = new THREE.BufferGeometry();
-    starGeo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-    this.scene.add(
-      new THREE.Points(starGeo, new THREE.PointsMaterial({ color: 0xbfb3e6, size: 0.045 })),
-    );
+    this.stars = createStarField(this.renderer.getPixelRatio());
+    this.scene.add(this.stars.points);
 
     // the table — red cloth
     const table = new THREE.Mesh(
@@ -150,13 +151,14 @@ export class BoothScene {
     this.scene.add(drape);
 
     // the eyes
-    this.eyeL = this.makeEye();
-    this.eyeR = this.makeEye();
-    this.eyeL.position.set(-0.3, 0.62, -0.2);
-    this.eyeR.position.set(0.3, 0.62, -0.2);
-    this.scene.add(this.eyeL, this.eyeR);
+    const l = this.makeEye(0);
+    const r = this.makeEye(Math.PI / 2);
+    l.group.position.set(-0.3, EYE_Y, -0.2);
+    r.group.position.set(0.3, EYE_Y, -0.2);
+    this.eyes = [l, r];
+    this.scene.add(l.group, r.group);
 
-    // the deck
+    // the deck — on the table from the very start (inert until the deal)
     this.deck = new THREE.Group();
     for (let i = 0; i < 16; i++) {
       const m = new THREE.Mesh(
@@ -169,28 +171,34 @@ export class BoothScene {
     }
     this.deck.position.copy(this.deckPos);
     this.deck.rotation.y = -0.35;
-    this.deck.visible = false;
     this.scene.add(this.deck);
   }
 
-  private makeEye(): THREE.Group {
+  private makeEye(phase: number): EyeRig {
     const g = new THREE.Group();
     const ball = new THREE.Mesh(
       new THREE.SphereGeometry(0.17, 32, 32),
       new THREE.MeshStandardMaterial({ color: 0xf2ecff, roughness: 0.35 }),
     );
-    const iris = new THREE.Mesh(
-      new THREE.CircleGeometry(0.075, 32),
-      new THREE.MeshBasicMaterial({ color: 0x6543c7 }),
-    );
+    const ringMat = new THREE.MeshBasicMaterial({
+      color: 0x9d6cff,
+      transparent: true,
+      opacity: 0.3,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+    });
+    const ring = new THREE.Mesh(new THREE.RingGeometry(0.08, 0.117, 48), ringMat);
+    ring.position.z = 0.157;
+    const irisMat = new THREE.MeshBasicMaterial({ color: 0x6543c7 });
+    const iris = new THREE.Mesh(new THREE.CircleGeometry(0.075, 32), irisMat);
     iris.position.z = 0.162;
     const pupil = new THREE.Mesh(
       new THREE.CircleGeometry(0.034, 32),
       new THREE.MeshBasicMaterial({ color: 0x05030c }),
     );
     pupil.position.z = 0.168;
-    g.add(ball, iris, pupil);
-    return g;
+    g.add(ball, ring, iris, pupil);
+    return { group: g, irisMat, ringMat, pupil, phase };
   }
 
   /** slot layout: spread.n cards in a shallow arc across the table */
@@ -203,7 +211,6 @@ export class BoothScene {
 
   update(view: BoothView): void {
     this.mood = view.eyes;
-    this.deck.visible = view.deckVisible;
 
     view.cards.forEach((card, i) => {
       if (!card.dealt) return;
@@ -288,34 +295,53 @@ export class BoothScene {
     const dt = Math.min(0.05, (t - this.last) / 1000);
     this.last = t;
     const time = t / 1000;
+    const thinking = this.mood === 'thinking';
 
-    // eyes: idle wander, thinking looks up, speaking pulses
-    const wander = this.mood === 'thinking' ? 0.22 : Math.sin(time * 0.6) * 0.1;
-    const lift = this.mood === 'thinking' ? 0.1 : Math.sin(time * 0.83) * 0.03;
-    for (const eye of [this.eyeL, this.eyeR]) {
-      eye.rotation.y = wander;
-      eye.rotation.x = -lift;
-      eye.position.y = 0.62 + Math.sin(time * 0.9) * 0.02;
+    // the entry: dolly down out of the void to the seat at the table
+    if (this.entryT < 1) {
+      this.entryT = Math.min(1, this.entryT + dt / ENTRY_SECONDS);
+      const u = this.entryT;
+      const e = u < 0.5 ? 4 * u * u * u : 1 - Math.pow(-2 * u + 2, 3) / 2;
+      this.camera.position.lerpVectors(CAM_START, CAM_END, e);
+      this.camera.lookAt(0, THREE.MathUtils.lerp(-0.6, -0.05, e), 0);
     }
-    // blink
-    this.nextBlink -= dt;
-    if (this.nextBlink <= 0) {
-      this.blink = 0.18;
-      this.nextBlink = 2.4 + Math.random() * 3.2;
-    }
-    if (this.blink > 0) this.blink -= dt;
-    const lid = this.blink > 0 ? 0.12 : 1;
-    this.eyeL.scale.y = lid;
-    this.eyeR.scale.y = lid;
-    // speaking pulse
-    if (this.pulse > 0) {
-      this.pulse -= dt * 1.4;
-      const s = 1 + Math.max(0, this.pulse) * 0.12 * Math.sin(time * 22);
-      this.eyeL.scale.x = s;
-      this.eyeR.scale.x = s;
-    } else {
-      this.eyeL.scale.x = 1;
-      this.eyeR.scale.x = 1;
+
+    this.stars.update(time);
+
+    // gaze: meet the viewer's eyes; thinking drifts up and away
+    const desired = thinking
+      ? new THREE.Vector3(
+          Math.sin(time * 0.9) * 1.6,
+          2.0 + Math.sin(time * 1.31) * 0.5,
+          1.4,
+        )
+      : new THREE.Vector3(
+          this.camera.position.x + Math.sin(time * 0.5) * 0.14,
+          this.camera.position.y - 0.08 + Math.sin(time * 0.83) * 0.05,
+          this.camera.position.z,
+        );
+    this.gaze.lerp(desired, Math.min(1, dt * (thinking ? 1.7 : 2.6)));
+
+    if (this.pulse > 0) this.pulse -= dt * 1.4;
+    const shimmer = 1 + Math.max(0, this.pulse) * 0.1 * Math.sin(time * 22);
+
+    for (const eye of this.eyes) {
+      eye.group.position.y = EYE_Y + Math.sin(time * 0.9 + eye.phase) * 0.02;
+      eye.group.lookAt(this.gaze);
+      eye.group.scale.setScalar(shimmer);
+      // the breathing iris — hue drifts around violet, the halo waves;
+      // thinking runs hotter and faster, pupils dilate
+      const h = (0.72 + Math.sin(time * 0.23 + eye.phase) * 0.06 + 1) % 1;
+      const l =
+        0.42 + (thinking ? 0.16 : 0.08) * Math.sin(time * (thinking ? 3.4 : 0.8) + eye.phase);
+      eye.irisMat.color.setHSL(h, 0.75, Math.max(0.3, l));
+      eye.ringMat.color.setHSL((h + 0.07) % 1, 0.85, 0.62);
+      eye.ringMat.opacity = thinking
+        ? 0.42 + 0.3 * Math.sin(time * 4.2 + eye.phase)
+        : 0.2 + 0.15 * Math.sin(time * 1.3 + eye.phase);
+      const dilate = thinking ? 1.3 : 1;
+      const ps = eye.pupil.scale.x + (dilate - eye.pupil.scale.x) * Math.min(1, dt * 4);
+      eye.pupil.scale.set(ps, ps, 1);
     }
 
     // cards: slide from deck to slot, then flip in place
@@ -339,6 +365,7 @@ export class BoothScene {
     cancelAnimationFrame(this.raf);
     window.removeEventListener('resize', this.resize);
     this.canvas.removeEventListener('pointerdown', this.onPointer);
+    this.stars.dispose();
     this.renderer.dispose();
   }
 }

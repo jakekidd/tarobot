@@ -24,7 +24,6 @@ export type BoothView = {
   subtitle: string | null;
   /** bumps every time a new oracle beat lands — the scene pulses on it */
   subtitleSeq: number;
-  deckVisible: boolean;
   cardsRemaining: number;
   cards: BoothCard[];
   eyes: EyesMood;
@@ -94,7 +93,6 @@ export class BoothStage {
       phase: s.phase === 'closed' ? 'closed' : 'live',
       subtitle,
       subtitleSeq: this.seq,
-      deckVisible: dealing,
       cardsRemaining: Math.max(0, s.drawn.length - this.dealtCount),
       cards,
       eyes,
