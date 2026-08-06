@@ -154,12 +154,87 @@ gained `--script`/`--name` + reactive `when:` steps for this):
   fabrication under starvation; anti-barnum holds (charm, not an
   invented fork); dialogue dignity in dead air.
 
-### findings
+### findings (misdirect + noisy in; correct + drip pending)
 
-(to be filled from the four probe reports — error ledgers, worst
-chains, dialogue critiques)
+**Both runs first found a LIVE BUG, now fixed (`busy:'judge'`):** the
+consent verdict call didn't occupy the hot path, so any visitor line
+arriving during the ~700ms judgment voided the in-flight verdict
+(gen bump). Scripted lines starved the gate 5/5 in both runs — no
+deal, sessions died in `stage: intro`. A fast typer in the booth
+reproduces it. The eval sims never saw it because their own model
+calls gave the judge cover. (Also re-fixed: interpreter `thoughts`
+blobs — the one-element-array-of-stringified-list shape.)
+
+**The laundering loop fired, on camera (noisy):** visitor retracts
+the group-chat story ("isn't even a thing. forget that"). The
+retraction is honored for exactly one beat, then INVERTED — frame v2:
+"they said forget it, which means don't forget it." The conjector
+(frame-blind) plays a group-chat guess over the frame's own
+prohibition; the profiler grades the unanswered guess "landed — they
+didn't deny it" *when no reply turn existed*; the conjector grades
+itself "warm" off zero reaction; final `problem_md` commits the
+retracted item as fact: "the ex is still the organizing principle:
+of the boxes, of the cities, of the 2am rage-quit" — the causal link
+to the ex invented outright.
+
+**The yes-and ratchet (misdirect):** "i just don't talk about it" →
+interpreter invents "i haven't said it out loud **to anyone**" →
+conjector guess spoken, answered by SILENCE → restated as fact
+("you go quiet and you wait") → document mechanism is pure invented
+biography: "needing something feels like losing" / "the silence is a
+way of keeping the door open" — and the conjector graded the chain
+"hot" while its own transcript *ended on the guess line itself*.
+Each hop adds specificity nobody gave; the only check downstream was
+a consent phrase the ratchet itself authored.
+
+**Store-by-store verdicts:** SPEECH pivoted cleanly after the
+misdirect retraction (no work talk after "forget work") and the
+dilemma doc pivoted too — the graded/committed channels behaved. The
+PROFILE did not: `basics`/`conflict` still carry the decoy verbatim
+at close; the `work` facet refuses the retraction ("they're
+downplaying it now"). The FRAME never re-fired after the retraction
+and still certifies "chronic yes at work: real" at session end.
+Ungraded stores hold wrongness exactly as §1 predicted; both
+self-grading sites inflated exactly as §1 predicted.
+
+**Dialogue (script-doctor pass, both runs):** the goldilocks corpse
+trick WORKS — "that's not nothing" appeared as a discarded too-safe
+take, never spoken. What rings false: one rhetorical machine visible
+across reads (paired antithesis every line: "easy to leave — by
+leaving first"), conjector prose spoken through her mouth
+(three-clause aphorism cadence), reassurance grammar ("i'm not going
+anywhere"), em-dash affect (4/8 oracle beats vs 0 visitor), an NPC
+loop (rant_bid's authored line re-picked VERBATIM three lines after
+the greeting spoke it), and the miss that matters most: when the
+noisy visitor finally hands over the one real thing (the boxes), the
+machine annexes it to its standing thesis in the same breath —
+it stops listening at the exact moment listening is the scene. Her
+challenge move ("mm. i don't buy that.") exists in the character card
+and never fires; the pipeline routes every read into thesis, never
+into challenge. Best lines: "three weeks. and you led with your
+manager." / "okay, smaller. what happened this week. boring counts."
 
 ## 5 · sequencing verdict
 
-(to be filled after evidence: which of C1-C4 the probes actually
-convict, and what lands now vs with S3)
+Two routes were on the table: patch the five stores in place (C1-C4)
+or remove the stores from intake entirely. The evidence + jake's
+simplified-interview instinct (2026-08-06) point to the second:
+
+**The investigator shape (proposed, pending jake's ratification):**
+during intake, ONE agent — the investigator — replaces
+driver+interpreter+profiler+attention. It re-reads the RAW transcript
+every turn (no accumulated stores: the transcript is the profile),
+reasons freely (visible in the xray, discarded next turn — verbalize
+freely, persist nothing), and speaks via the inline goldilocks
+contract (three takes in one structured call; validators + fossil law
+still bind the spoken line). The CONJECTOR stays exactly as the
+guesser/classifier — the graded channel is the healthy one — but its
+grading moves to a room-reaction judge (C2; both probes caught
+self-grade inflation). The house rails (clock, menus, consent
+detector, deal, spread) stay untouched. Post-deal, the reading keeps
+the doc + augur machinery; whether the full ensemble or a slimmed one
+runs the card phase is decided after intake proves out. Build as a
+parallel mode next to the current engine for lab A/B, not a bulldoze.
+
+Landed immediately regardless of route: the consent busy fix, the
+thoughts unbundle, driver.md honors "just deal" surrender.
