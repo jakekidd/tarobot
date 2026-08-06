@@ -96,7 +96,7 @@ async function runBaseline(adapter: LLMAdapter): Promise<SimpleBeat[]> {
 async function runEnsemble(adapter: LLMAdapter): Promise<SimpleBeat[]> {
   const engine = new EnsembleEngine({
     adapter,
-    input: defaultSessionInput(defaultDocs().slice(0, 1)),
+    input: defaultSessionInput('ensemble', defaultDocs().slice(0, 1)),
   });
   const settled = () => {
     const s = engine.snapshot();

@@ -52,6 +52,13 @@ export type InputDoc = {
   updatedAt: number;
 };
 
+/** which machine runs the pre-deal interview (COMPOUNDING.md §5):
+ *  'ensemble' — the driver/fan cast and the beat menus;
+ *  'investigator' — the offer loop: one agent over the raw transcript,
+ *  the conjector hunting beside it, the visitor grading the one bet.
+ *  post-deal both converge on the ensemble card phase. */
+export type IntakeMode = 'ensemble' | 'investigator';
+
 export type EnsembleInput = {
   mode: EnsembleMode;
   /** optional lab experiment channel; real sessions start BLIND */
@@ -59,6 +66,7 @@ export type EnsembleInput = {
   /** given circumstances note for the driver (color, not script) */
   scenario: string;
   taboos?: string[];
+  intake?: IntakeMode;
 };
 
 // ---------------------------------------------------------------- agents
@@ -71,6 +79,7 @@ export const AGENT_NAMES = [
   'conjector',
   'attention',
   'consent',
+  'investigator',
 ] as const;
 export type AgentName = (typeof AGENT_NAMES)[number];
 

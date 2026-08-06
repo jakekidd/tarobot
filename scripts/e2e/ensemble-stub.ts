@@ -16,6 +16,19 @@ export class EnsembleStubAdapter implements LLMAdapter {
   private driverCalls = 0;
   private conjectorQueue: unknown[];
   private conjectorCalls = 0;
+  /** investigator-intake turns (tool 'turn'); repeats the last entry */
+  investigatorQueue: unknown[] = [
+    {
+      read: 'stub read — the newest material is the rant.',
+      too_safe: 'that sounds really hard.',
+      too_far: 'you will move to the coast by spring.',
+      spoken: 'mm. say more about the heavy part.',
+    },
+  ];
+  private investigatorCalls = 0;
+  /** consent verdicts, consumed in order; repeats the last entry */
+  consentQueue: string[] = ['yes'];
+  private consentCalls = 0;
 
   constructor(driverQueue?: unknown[], conjectorQueue?: unknown[]) {
     this.driverQueue = driverQueue ?? [
@@ -62,6 +75,10 @@ export class EnsembleStubAdapter implements LLMAdapter {
     switch (name) {
       case 'select_beat':
         return this.driverQueue[Math.min(this.driverCalls++, this.driverQueue.length - 1)];
+      case 'turn':
+        return this.investigatorQueue[
+          Math.min(this.investigatorCalls++, this.investigatorQueue.length - 1)
+        ];
       case 'speak':
         return {
           too_safe: 'that sounds really hard. you are doing your best.',
@@ -116,6 +133,8 @@ export class EnsembleStubAdapter implements LLMAdapter {
   private freeformFor(label?: string): string {
     if (label === 'ensemble_attention') return '# frame v2\n## focus\n- the sister thread, alive';
     if (label === 'e2e_visitor') return 'i mean, it is fine. it is always fine, right?';
+    if (label === 'ensemble_consent')
+      return this.consentQueue[Math.min(this.consentCalls++, this.consentQueue.length - 1)];
     return 'mm.';
   }
 }

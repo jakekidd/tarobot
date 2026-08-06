@@ -23,6 +23,7 @@ export const BEAT_TYPES = [
   'charm',
   'close',
   'hold',
+  'talk',
 ] as const;
 export type BeatType = (typeof BEAT_TYPES)[number];
 
@@ -35,6 +36,7 @@ export const BEAT_MODE: Record<BeatType, GenMode> = {
   rant_bid: 'V', // authored variants; slot-free, so V at render time
   question: 'T',
   tissue: 'F',
+  talk: 'F', // the investigator's conversation turn (offer-loop intake)
   deal: 'T',
   flip_invite: 'V',
   read: 'F',

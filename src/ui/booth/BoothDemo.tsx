@@ -50,7 +50,9 @@ export function BoothDemo({ apiKey, onExit }: Props) {
     const calls = callsRef.current;
     const engine = new EnsembleEngine({
       adapter,
-      input: defaultSessionInput(),
+      // the booth runs the offer-loop intake (COMPOUNDING.md §5); the
+      // lab keeps the ensemble intake for A/B
+      input: defaultSessionInput('investigator'),
       // the booth is the same evidence pipeline as the lab: every call
       // captured, the same SessionRecord/xray transcript on copy
       telemetry: {

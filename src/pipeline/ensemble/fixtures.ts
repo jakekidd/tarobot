@@ -71,6 +71,9 @@ export function defaultChatInput(docs: InputDoc[] = []): EnsembleInput {
 }
 
 /** the default session is BLIND — the real thing */
-export function defaultSessionInput(docs: InputDoc[] = []): EnsembleInput {
-  return { mode: 'session', docs, scenario: DEFAULT_SCENARIO_SESSION, taboos: [] };
+export function defaultSessionInput(
+  intake: 'ensemble' | 'investigator' = 'ensemble',
+  docs: InputDoc[] = [],
+): EnsembleInput {
+  return { mode: 'session', docs, scenario: DEFAULT_SCENARIO_SESSION, taboos: [], intake };
 }

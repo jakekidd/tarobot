@@ -33,6 +33,16 @@ const FeelingSchema = z.object({
   because: z.string(),
 });
 
+/** the investigator's turn (offer-loop intake): a private read that is
+ *  thrown away after the turn, both goldilocks corpses, the line */
+export const InvestigatorSchema = z.object({
+  read: z.string(),
+  too_safe: z.string(),
+  too_far: z.string(),
+  spoken: z.string(),
+});
+export type InvestigatorTurn = z.infer<typeof InvestigatorSchema>;
+
 export const ReadSchema = z.object({
   expressing: z.string(),
   // small models occasionally emit the array as one string blob — or as

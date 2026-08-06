@@ -8,6 +8,7 @@ import INTERPRETER_RAW from '../../../materials/prompts/ensemble/interpreter.md?
 import PROFILER_RAW from '../../../materials/prompts/ensemble/profiler.md?raw';
 import CONJECTOR_RAW from '../../../materials/prompts/ensemble/conjector.md?raw';
 import ATTENTION_RAW from '../../../materials/prompts/ensemble/attention.md?raw';
+import INVESTIGATOR_RAW from '../../../materials/prompts/ensemble/investigator.md?raw';
 import type { ToolDef } from '../llm/adapter';
 import { djb2 } from './beats';
 import { BEAT_TYPES, DILEMMA_CLASSES, QUESTION_FRAMES } from './beats';
@@ -19,6 +20,7 @@ export const SYSTEMS = {
   profiler: PROFILER_RAW,
   conjector: CONJECTOR_RAW,
   attention: ATTENTION_RAW,
+  investigator: INVESTIGATOR_RAW,
 } as const;
 
 /** the prompt-set fingerprint — stamps every SessionRecord */
@@ -156,5 +158,23 @@ export const CONJECTOR_TOOL: ToolDef = {
       quest_md: { type: 'string' },
     },
     required: [],
+  },
+};
+
+export const INVESTIGATOR_TOOL: ToolDef = {
+  name: 'turn',
+  description: "the investigator's turn: private read, both corpses, the spoken line",
+  input_schema: {
+    type: 'object',
+    properties: {
+      read: {
+        type: 'string',
+        description: 'private — 2-3 sentences on this moment; the house throws it away after the turn',
+      },
+      too_safe: { type: 'string', description: 'the chatbot corpse — written to never be spoken' },
+      too_far: { type: 'string', description: 'the stage-psychic corpse — written to never be spoken' },
+      spoken: { type: 'string', description: 'her actual line, lowercase' },
+    },
+    required: ['read', 'too_safe', 'too_far', 'spoken'],
   },
 };

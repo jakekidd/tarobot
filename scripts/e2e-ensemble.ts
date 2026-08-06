@@ -40,6 +40,8 @@ type Args = {
   script?: string;
   /** run-dir slug so scenario runs don't all collide on the mode name */
   name?: string;
+  /** which intake machine runs pre-deal (session mode only) */
+  intake?: 'ensemble' | 'investigator';
 };
 
 function parseArgs(argv: string[]): Args {
@@ -52,6 +54,7 @@ function parseArgs(argv: string[]): Args {
     else if (a.startsWith('--turns=')) out.turns = Number(a.slice('--turns='.length));
     else if (a.startsWith('--script=')) out.script = a.slice('--script='.length);
     else if (a.startsWith('--name=')) out.name = a.slice('--name='.length);
+    else if (a.startsWith('--intake=')) out.intake = a.slice('--intake='.length) as Args['intake'];
     else if (a === '--auto') out.auto = true;
     else if (a === '--stub') out.stub = true;
   }
@@ -141,7 +144,8 @@ async function main() {
   }
 
   // blind start — the real thing
-  const input = args.mode === 'session' ? defaultSessionInput() : defaultChatInput();
+  const input =
+    args.mode === 'session' ? defaultSessionInput(args.intake ?? 'ensemble') : defaultChatInput();
 
   const calls = new Map<string, CallRecord>();
   const engine = new EnsembleEngine({

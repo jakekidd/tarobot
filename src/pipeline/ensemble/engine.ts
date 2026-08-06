@@ -21,6 +21,7 @@ import {
   callRefusable,
   callDriver,
   callInterpreter,
+  callInvestigator,
   callPersona,
   callPersonaFill,
   callProfiler,
@@ -94,6 +95,14 @@ export class EnsembleEngine {
   private plantId: string | null = null;
   private pendingGuess: string | null = null;
   private guessPlayed = false;
+  /** offer-loop intake: a warm/hot grade arms the shortcut */
+  private warmGuessSeen = false;
+  /** offer-loop intake: talk turns since a probe was handed over */
+  private talksSinceProbe = 99;
+  /** offer-loop intake: consecutive hosted turns spent in a visitor
+   *  drought (carry() true, no candidate) — two of them and the cards
+   *  take the lead themselves */
+  private droughtTalks = 0;
   private conjectorInFlight = false;
   private pendingConjector = false;
   private conjectorSeenBeats = 0;
@@ -527,6 +536,201 @@ export class EnsembleEngine {
     }
   }
 
+  // ------------------------------------------------- the offer loop
+  // (COMPOUNDING.md §5) pre-deal, intake:'investigator' replaces the
+  // driver/fan cast with one interviewer over the raw transcript. the
+  // conjector hunts beside it; the house owns offer timing; the
+  // visitor grades the one bet. post-deal converges on the ensemble.
+
+  private investigatorIntake(): boolean {
+    return (
+      this.input.intake === 'investigator' &&
+      this.mode === 'session' &&
+      this.drawn.length === 0 &&
+      this.phase === 'live'
+    );
+  }
+
+  private async investigatorTurn(event: EnsembleEvent, myGen: number): Promise<void> {
+    // yes already judged → the commit: reflect over the record, deal
+    if (this.focusStage === 3) {
+      await this.reflectAndDeal(myGen);
+      return;
+    }
+    // two nos → exploration owed, no third offer
+    if (this.consentNonYes >= 2) {
+      this.busy = 'persona';
+      this.emit();
+      try {
+        this.focusStage = 4;
+        this.dilemmaClass = null;
+        this.note('two non-yes verdicts → EXPLORATION (mind-heart-root)');
+        await this.performDeal(
+          'EXPLORATION',
+          {
+            beat: 'deal',
+            accomplish: 'exploration — the offers were declined',
+            approx_words: 0,
+            note: 'investigator: consent declined twice',
+          },
+          myGen,
+        );
+      } finally {
+        if (myGen === this.gen) this.busy = null;
+        this.emit();
+      }
+      return;
+    }
+    // the shortcut: a candidate landed with a warm guess behind it (or
+    // the clock is closing) → make the offer instead of another turn
+    if (
+      this.focusPhrase !== null &&
+      this.focusStage === 0 &&
+      (this.warmGuessSeen || this.beatsRemaining() <= 6) &&
+      event.type === 'visitor_line'
+    ) {
+      this.busy = 'persona';
+      this.emit();
+      try {
+        await this.renderBeat(
+          {
+            beat: 'focus',
+            accomplish: 'the offer — is this the thing',
+            approx_words: 0,
+            note: 'investigator: candidate strong, shortcut taken',
+          },
+          event,
+          myGen,
+        );
+      } finally {
+        if (myGen === this.gen) this.busy = null;
+        this.emit();
+      }
+      return;
+    }
+    // the host's funnel: a visitor who volunteers nothing still gets a
+    // reading. carry() = thin turns in a row; after two hosted attempts
+    // the cards take the lead themselves (UNKNOWN imposes no lens, so
+    // no consent is owed — same law as the rant escape).
+    const drought = this.carry() && this.focusPhrase === null && this.visitorSpoke();
+    if (drought && this.droughtTalks >= 2) {
+      this.busy = 'persona';
+      this.emit();
+      try {
+        this.note('drought funnel: they gave the room nothing twice hosted — the cards start the show');
+        await this.performDeal(
+          'UNKNOWN',
+          {
+            beat: 'deal',
+            accomplish: 'cards first, talk after — the flips do the eliciting',
+            approx_words: 0,
+            note: 'investigator: drought funnel',
+          },
+          myGen,
+        );
+      } finally {
+        if (myGen === this.gen) this.busy = null;
+        this.emit();
+      }
+      return;
+    }
+    // otherwise: talk. the conjector hunts in parallel off the same page.
+    this.maybeConjector();
+    const probe =
+      this.pendingGuess !== null && !this.guessPlayed && this.talksSinceProbe >= 2
+        ? this.pendingGuess
+        : null;
+    this.busy = 'persona';
+    this.emit();
+    try {
+      const out = await callInvestigator(this.env, {
+        transcript: this.renderBeats(Infinity),
+        docs: renderDocs(this.input.docs),
+        taboos: this.taboos().join('; ') || '(none)',
+        probe: probe ?? undefined,
+        declined: this.focusRejections,
+        clock: `beats remaining ${this.beatsRemaining()} of ${this.c.BEATS_BUDGET}${this.beatsRemaining() <= 6 ? ' — begin landing: no new territory' : ''}`,
+        host: drought
+          ? 'they are underfeeding — thin turns in a row. you drive now: name the quiet plainly if it helps, make the smallest concrete ask, or offer to let the cards start it. the show moves toward the table either way.'
+          : undefined,
+        event:
+          event.type === 'silence' ? 'the visitor has let the silence run.' : 'the visitor just spoke.',
+      });
+      if (myGen !== this.gen) return;
+      const line = sanitizeLine(out.spoken);
+      const fossil = line ? this.fossilOutsideQuotes(line) : null;
+      const rejected = !line || fossil !== null || !this.quotedSpansVerified(line);
+      if (rejected) {
+        this.note(
+          `investigator line rejected (${!line ? 'empty' : fossil ? `fossil "${fossil}"` : 'unverified quote'}) — authored holder spoken`,
+        );
+        this.commitOracle('mm. keep going.', 'talk');
+        this.talksSinceProbe += 1;
+      } else {
+        this.commitOracle(line, 'talk');
+        if (probe) {
+          this.guessPlayed = true;
+          this.talksSinceProbe = 0;
+          this.note(`probe handed to the investigator: "${probe}"`);
+        } else {
+          this.talksSinceProbe += 1;
+        }
+      }
+      this.droughtTalks = drought ? this.droughtTalks + 1 : 0;
+    } catch (e) {
+      this.error = e instanceof Error ? e.message : String(e);
+      this.commitOracle('mm. keep going.', 'talk');
+    } finally {
+      if (myGen === this.gen) this.busy = null;
+      this.emit();
+    }
+  }
+
+  /** the commit event: the visitor said yes to the offered dilemma.
+   *  ONE reflection pass over the whole record rewrites the document
+   *  with the confirmed dilemma as its lens; then the cards. */
+  private async reflectAndDeal(myGen: number): Promise<void> {
+    this.busy = 'persona';
+    this.emit();
+    try {
+      if (this.conjectorInFlight) {
+        this.note('reflection skipped (conjector edit in flight) — the standing document deals');
+      } else {
+        this.note('OFFER accepted — one reflection pass over the whole record');
+        try {
+          const out = await callConjector(this.env, {
+            profile: '(investigator intake: the transcript below is the profile)',
+            table: '(no cards yet)',
+            conversation: this.renderBeats(Infinity),
+            prevGuess: `the visitor CONFIRMED to the oracle's face that tonight is about: "${this.focusPhrase ?? '(the offered thing)'}"`,
+            dilemma: renderDilemma(this.dilemma),
+            ask: 'REFLECTION: they said yes. re-read the ENTIRE conversation cold and write the document over from the record — class (FORK|THRESHOLD|LOOP|WEIGHT) + problem_md + options_md, their words where possible; optionally plant (one deck card id). anything the full record shows supersedes the standing draft.',
+          });
+          if (myGen !== this.gen) return;
+          if (out.class) this.dilemmaClass = out.class;
+          if (out.problem_md) this.dilemma.problem_md = out.problem_md;
+          if (out.options_md) this.dilemma.options_md = out.options_md;
+          if (out.plant) this.plantId = out.plant;
+        } catch {
+          this.note('reflection failed — the classify-time draft stands');
+        }
+      }
+      await this.performDeal(
+        this.dilemmaClass ?? 'UNKNOWN',
+        {
+          beat: 'deal',
+          accomplish: 'the confirmed dilemma comes to the table',
+          approx_words: 0,
+          note: 'investigator: offer accepted',
+        },
+        myGen,
+      );
+    } finally {
+      if (myGen === this.gen) this.busy = null;
+      this.emit();
+    }
+  }
+
   // ------------------------------------------------------------ behavior
 
   private async dispatch(event: EnsembleEvent): Promise<void> {
@@ -583,11 +787,28 @@ export class EnsembleEngine {
         this.consentNonYes += 1;
         if (this.focusPhrase) this.focusRejections.push(this.focusPhrase);
         this.pendingOffer = null;
+        if (this.investigatorIntake()) {
+          // offer loop: a no sends her back to the conversation — the
+          // candidate is burned, the hunt re-roots, the next offer must
+          // come from fresh ground (two nos still owe exploration)
+          this.focusStage = 0;
+          this.focusPhrase = null;
+          this.altFocus = null;
+          this.dilemmaClass = null;
+          this.note('offer declined — candidate burned, back to the conversation');
+        }
         this.maybeConjector(true); // the rejection is a cold grade on that territory
       } else {
         this.consentNonYes += 1; // ambivalent: deal stays illegal; the room clarifies
       }
       if (myGen !== this.gen) return;
+    }
+
+    // the offer loop owns intake when selected — no menu, no driver,
+    // no fan; the conjector hunts from inside investigatorTurn
+    if (this.investigatorIntake()) {
+      await this.investigatorTurn(event, myGen);
+      return;
     }
 
     this.trackReadiness();
@@ -1211,6 +1432,10 @@ export class EnsembleEngine {
   // ----------------------------------------------------------- cognition
 
   private maybeFan(force = false): void {
+    // the deletion: no interpreter/profiler during investigator intake —
+    // the transcript is the profile. post-deal the fan resumes and its
+    // first delta catches the whole record up.
+    if (this.investigatorIntake()) return;
     if (this.fanInFlight) {
       this.pendingFan = { force: force || (this.pendingFan?.force ?? false) };
       return;
@@ -1332,6 +1557,7 @@ export class EnsembleEngine {
       if (out.prev) {
         this.note(`conjector graded previous guess: ${out.prev}`);
         this.lastGuessGrade = out.prev;
+        if (out.prev === 'warm' || out.prev === 'hot') this.warmGuessSeen = true;
       }
       // length is a ballpark, never enforced (jake, 2026-08-05): the old
       // refile loop burned two calls, returned the same words, and could
@@ -1722,6 +1948,14 @@ function sanitizeLine(raw: string): string {
   s = s.replace(/^(oracle|seer|wildcard):\s*/i, '');
   if ((s.startsWith('"') && s.endsWith('"')) || (s.startsWith('“') && s.endsWith('”'))) {
     s = s.slice(1, -1).trim();
+  }
+  // unbalanced transport quote at a boundary ('hey. pull up a chair."')
+  // — legit quoted spans come in pairs, so an odd count ending or
+  // starting the line is the model's wrapper, not content
+  const dq = (s.match(/["”“]/g) ?? []).length;
+  if (dq % 2 === 1) {
+    if (/["”]$/.test(s)) s = s.slice(0, -1).trim();
+    else if (/^["“]/.test(s)) s = s.slice(1).trim();
   }
   return s;
 }

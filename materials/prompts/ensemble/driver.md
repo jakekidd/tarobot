@@ -97,6 +97,10 @@ rules:
 - on silence: early silence earns hold or tissue; a dead silence in
   the reading earns flip_invite; only a long dead silence earns fresh
   territory.
+- a visitor who volunteers nothing still gets a reading. after thin
+  turns in a row, host harder: name the quiet, make a smaller concrete
+  ask, or take them to the cards (rant_bid escape, then the deal).
+  awkward is fine; stalling is not.
 
 output via the tool, exactly:
 { beat, frame?, target?, variant?, accomplish, ammo?, approx_words, note }

@@ -19,6 +19,7 @@ import {
   CONJECTOR_TOOL,
   DRIVER_TOOL,
   FILL_TOOL,
+  INVESTIGATOR_TOOL,
   PERSONA_TOOL,
   PROFILE_TOOL,
   READ_TOOL,
@@ -27,6 +28,8 @@ import {
 import {
   ConjectorFilingSchema,
   IntentSchema,
+  InvestigatorSchema,
+  type InvestigatorTurn,
   PersonaLineSchema,
   ProfileFilingSchema,
   ReadSchema,
@@ -51,6 +54,8 @@ export const DEFAULT_TIERS: Record<AgentName, 'fast' | 'cognition' | 'deep'> = {
   conjector: 'cognition',
   interpreter: 'fast',
   profiler: 'fast',
+  // the offer-loop interviewer: reasoning + goldilocks in one call
+  investigator: 'cognition',
 };
 
 let nextCallId = 1;
@@ -206,6 +211,49 @@ export function callPersonaFill(
   ].join('\n\n');
   return structured(env, 'persona', SYSTEMS.wildcard, user, FILL_TOOL, SlotFillsSchema, 300, 'fast')
     .then((out) => out.fills);
+}
+
+/** the offer-loop interviewer (COMPOUNDING.md §5): one call per turn
+ *  over the raw transcript — no accumulated stores. the private read
+ *  is logged for the xray and thrown away; only the line persists. */
+export function callInvestigator(
+  env: AgentEnv,
+  p: {
+    transcript: string;
+    docs: string;
+    taboos: string;
+    probe?: string;
+    declined: string[];
+    clock: string;
+    host?: string;
+    event: string;
+  },
+): Promise<InvestigatorTurn> {
+  const user = [
+    `[the conversation — the whole record, read cold]\n${p.transcript}`,
+    `[docs]\n${p.docs}`,
+    `[taboos] ${p.taboos}`,
+    p.probe
+      ? `[PROBE from the guesser — work it in this turn, verbatim or reshaped in her mouth]\n"${p.probe}"`
+      : null,
+    p.declined.length > 0
+      ? `[dead ground — already declined; do not re-walk]\n${p.declined.map((d) => `- ${d}`).join('\n')}`
+      : null,
+    `[the clock] ${p.clock}`,
+    p.host ? `[HOST] ${p.host}` : null,
+    `[this moment] ${p.event}`,
+  ]
+    .filter(Boolean)
+    .join('\n\n');
+  return structured(
+    env,
+    'investigator',
+    SYSTEMS.investigator,
+    user,
+    INVESTIGATOR_TOOL,
+    InvestigatorSchema,
+    700,
+  );
 }
 
 /** the consent judge — a mechanical verdict on the visitor's reply to
