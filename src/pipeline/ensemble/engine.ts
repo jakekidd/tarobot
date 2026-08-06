@@ -865,7 +865,9 @@ export class EnsembleEngine {
     const askable =
       line.includes('?') ||
       /^(who|what|when|where|why|how|is|are|do|does|did|was|were|say|tell|walk|give)\b/i.test(line);
-    return askable && countWords(line) <= 26 && this.quotedSpansVerified(line);
+    // 40 is a runaway guard, not the shaping — the ballpark in the
+    // beat prompt does the shaping (economy is soft, structure binds)
+    return askable && countWords(line) <= 40 && this.quotedSpansVerified(line);
   }
 
   /** the consent gate's postcondition: carries the focus content and is
@@ -963,9 +965,23 @@ export class EnsembleEngine {
       STAKES: `a year passes and nothing about ${aim} changes: ask what breaks first. one question.`,
       MIRROR: `ask who else is inside ${aim}, and what that person would say they're doing. one question.`,
     };
+    // a big disclosure earns receipt + move in ONE turn — a bare question
+    // after a paragraph of real feeling reads as the machine not hearing it
+    let lastVisitorWords = 0;
+    for (let i = this.scroll.length - 1; i >= 0; i--) {
+      const e = this.scroll[i];
+      if (e.kind === 'beat' && e.speaker === 'visitor') {
+        lastVisitorWords = countWords(e.text);
+        break;
+      }
+    }
+    const receipt =
+      lastVisitorWords >= 25
+        ? ' their last line carried real weight: open with one short receipt of it in your own words — a half-line that lands what they said, not a summary — then the question.'
+        : '';
     const line = await this.promptedLine(
       'question',
-      FUNCTIONS[frame],
+      FUNCTIONS[frame] + receipt,
       (l) => this.questionValid(l),
       entry.fallback ?? entry.text,
       myGen,
@@ -1308,22 +1324,11 @@ export class EnsembleEngine {
         this.note(`conjector graded previous guess: ${out.prev}`);
         this.lastGuessGrade = out.prev;
       }
-      if (out.guess && countWords(out.guess) > 22) {
-        this.note(`guess ran ${countWords(out.guess)} words — refiling shorter`);
-        try {
-          const retry = await callConjector(this.env, {
-            profile: this.profile.render(),
-            table: '(unchanged)',
-            conversation: '(unchanged — you just filed a guess that ran long)',
-            prevGuess: `your overlong draft: "${out.guess}"`,
-            dilemma: renderDilemma(this.dilemma),
-            ask: 'refile that guess in 22 words or fewer — one breath, same target, same risk. emit ONLY guess.',
-          });
-          if (retry.guess && countWords(retry.guess) <= 26) out.guess = retry.guess;
-          else out.guess = undefined;
-        } catch {
-          out.guess = undefined;
-        }
+      // length is a ballpark, never enforced (jake, 2026-08-05): the old
+      // refile loop burned two calls, returned the same words, and could
+      // drop a live guess entirely. log the overrun; play it anyway.
+      if (out.guess && countWords(out.guess) > 28) {
+        this.note(`guess ran ${countWords(out.guess)} words (ballpark ~25) — playing it anyway`);
       }
       if (out.guess) {
         this.pendingGuess = out.guess;
@@ -1609,7 +1614,7 @@ guess 2: ${out.alt_guess}`,
       goals: this.renderGoals(),
       table,
       menu: `MENU: [${menu.join(' · ')}]${mandated} | questions asked ${this.questionsAsked}/${this.c.QUESTION_BUDGET} | beats remaining ${this.beatsRemaining()}`,
-      economy: `F-beat cap ${capN} words | visitor talk-share ${this.ratio().toFixed(2)} | carry ${this.carry()}${bankedNote}`,
+      economy: `free beats get roughly ${capN} words this turn (ballpark) | visitor talk-share ${this.ratio().toFixed(2)} | carry ${this.carry()}${bankedNote}`,
       event: this.describeEvent(event),
     };
   }
@@ -1679,16 +1684,23 @@ guess 2: ${out.alt_guess}`,
       lines.push(`plain beats poetic: say what the card sees in them straight; lean on the imagery only if it lands harder than the plain sentence. at most one image. end with a handle, in your own words — this round's: "${this.nextHandle()}"`);
     }
     if (intent.ammo) lines.push(`ammo, their UNSAID inner voice — never present it as their words: "${intent.ammo}"`);
+    // ballpark, never a count (jake, 2026-08-05): round UP to the
+    // nearest 5 and phrase it soft — the number shapes, it doesn't gate
     const words =
-      intent.beat === 'tissue'
-        ? Math.min(intent.approx_words, this.c.TISSUE_CAP)
-        : intent.beat === 'read' || intent.beat === 'honor'
-          ? Math.max(Math.min(intent.approx_words, this.c.CAP_MAX), 24)
-          : Math.min(intent.approx_words, capN);
+      Math.ceil(
+        Math.max(
+          5,
+          intent.beat === 'tissue'
+            ? Math.min(intent.approx_words, this.c.TISSUE_CAP)
+            : intent.beat === 'read' || intent.beat === 'honor'
+              ? Math.max(Math.min(intent.approx_words, this.c.CAP_MAX), 24)
+              : Math.min(intent.approx_words, capN),
+        ) / 5,
+      ) * 5;
     lines.push(
       intent.beat === 'tissue'
-        ? `cap ${words} words. two is a fine number.`
-        : `up to ${words} words. take the room this needs, not a word more.`,
+        ? `size: roughly under ${words} words — a ballpark, not a count. two words can still be enough when the moment is full.`
+        : `size: roughly ${words} words, give or take a breath — a ballpark, not a count. take the room the moment needs.`,
     );
     return lines.join('\n');
   }

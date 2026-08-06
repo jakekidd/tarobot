@@ -31,7 +31,9 @@ HUNTING (no document yet):
   reword); the house plays it only if a divergence check agrees.
 - a guess is one sentence in the shape "are you the kind of person who
   X when Y happens" — concrete, risky, falsifiable by their reaction.
-  never a horoscope. cold guesses move territory; warm guesses sharpen.
+  never a horoscope. one breath, roughly under 25 words — a guess that
+  needs more is two guesses. cold guesses move territory; warm guesses
+  sharpen.
 - CLASSIFY when charge concentrates (guesses running warm or hot in one
   territory, the visitor returning to it unprompted) or when the house
   says the question budget is spent: emit class + problem_md +

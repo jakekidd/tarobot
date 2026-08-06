@@ -7,7 +7,7 @@
     ]
   },
   "rant_bid": {
-    "primary": "before any cards \u2014 what's been eating at you lately? don't organize it. just talk.",
+    "primary": "before any cards... what's been eating at you lately? i've got time.",
     "fallback": "okay, smaller. what happened this week. boring counts.",
     "escape": "fine. cards first, talk after. the hard way."
   },
@@ -34,19 +34,19 @@
   },
   "deal": {
     "FORK": {
-      "text": "alright. four cards. what you walk in with, your two roads \u2014 {CLAUSE:8}, {CLAUSE:8} \u2014 and what tips it. your hands, any order.",
+      "text": "alright. four cards. what you walk in with... your two roads, {CLAUSE:8} or {CLAUSE:8}... and what tips it. your hands, any order.",
       "fallback": "alright. four cards. what you walk in with, your two roads, and what tips it. your hands, any order."
     },
     "THRESHOLD": {
-      "text": "three cards. the thing you already decided \u2014 {CLAUSE:8} \u2014 what the waiting costs, and the first step. your hands.",
+      "text": "three cards. the thing you already decided... {CLAUSE:8}... what the waiting costs, and the first step. your hands.",
       "fallback": "three cards. the thing you already decided, what the waiting costs, and the first step. your hands."
     },
     "LOOP": {
-      "text": "four cards. the loop \u2014 {CLAUSE:8} \u2014 your move inside it, what it protects you from, and the way off. any order.",
+      "text": "four cards. the loop... {CLAUSE:8}... your move inside it, what it protects you from, and the way off. any order.",
       "fallback": "four cards. the loop, your move inside it, what it protects you from, and the way off. any order."
     },
     "WEIGHT": {
-      "text": "four cards. the thing you carry \u2014 {CLAUSE:8} \u2014 what carrying buys you, what it costs, and whose it really is. any order.",
+      "text": "four cards. the thing you carry... {CLAUSE:8}... what carrying buys you, what it costs, and whose it really is. any order.",
       "fallback": "four cards. the thing you carry, what carrying buys, what it costs, and whose it really is. any order."
     },
     "UNKNOWN": {
@@ -73,7 +73,7 @@
       "LOOP": "the cards say you know this dance.",
       "WEIGHT": "the cards say the thing you're carrying has a name."
     },
-    "release": "which way \u2014 that's yours. i don't pick."
+    "release": "which way... that's yours. i don't pick."
   },
   "quest": {
     "lead": "last thing. call it homework.",
@@ -105,6 +105,7 @@
     "how far off am i?"
   ],
   "_never_say": [
+    "don't organize it",
     "tell me if that's not it",
     "tell me if that is not it",
     "here's where i keep landing",
