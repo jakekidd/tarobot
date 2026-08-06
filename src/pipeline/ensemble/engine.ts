@@ -650,6 +650,7 @@ export class EnsembleEngine {
         probe: probe ?? undefined,
         declined: this.focusRejections,
         clock: `beats remaining ${this.beatsRemaining()} of ${this.c.BEATS_BUDGET}${this.beatsRemaining() <= 6 ? ' — begin landing: no new territory' : ''}`,
+        size: `roughly ${Math.ceil(cap(this.budget, this.carry(), this.c) / 5) * 5} words, give or take a breath — a ballpark, not a count. the interview stays visitor-led: they should out-talk you.`,
         host: drought
           ? 'they are underfeeding — thin turns in a row. you drive now: name the quiet plainly if it helps, make the smallest concrete ask, or offer to let the cards start it. the show moves toward the table either way.'
           : undefined,

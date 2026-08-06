@@ -240,6 +240,13 @@ async function main() {
     logOracle(engine, say);
   }
 
+  // the script drained but the session didn't land: speak the landing
+  // anyway (a reading is never left on the table — matches the eval)
+  if (engine.snapshot().phase === 'live') {
+    console.log('\n⟨script drained — flushing the landing⟩');
+    await engine.flushLanding();
+  }
+
   // serialize — the SAME SessionRecord the lab's export button writes
   const record = serializeSession(input, engine.snapshot(), [...calls.values()]);
   const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);

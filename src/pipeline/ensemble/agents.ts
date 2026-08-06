@@ -225,6 +225,7 @@ export function callInvestigator(
     probe?: string;
     declined: string[];
     clock: string;
+    size: string;
     host?: string;
     event: string;
   },
@@ -240,6 +241,7 @@ export function callInvestigator(
       ? `[dead ground — already declined; do not re-walk]\n${p.declined.map((d) => `- ${d}`).join('\n')}`
       : null,
     `[the clock] ${p.clock}`,
+    `[size] ${p.size}`,
     p.host ? `[HOST] ${p.host}` : null,
     `[this moment] ${p.event}`,
   ]
@@ -266,7 +268,7 @@ export async function callConsent(
   const out = await freeform(
     env,
     'consent',
-    'a reader asked a visitor for consent to focus on a topic. judge the visitor\'s reply. "yes" = clear assent in any words (agreement, topic-engagement that embraces the frame). "no" = decline, correction, or rejection of the frame — even polite. "ambivalent" = hedged, conditional, or unclear. answer with exactly one word: yes | no | ambivalent.',
+    'a reader asked a visitor for consent to focus on a topic. judge the visitor\'s reply. "yes" = assent in any words — including understated or reluctant assent ("yeah, i guess", "okay. yeah, it\'s like that", "sure") and topic-engagement that embraces the frame. "no" = decline, correction, or rejection of the frame — even polite. "ambivalent" = ONLY genuinely unclear, conditional, or subject-changing replies. answer with exactly one word: yes | no | ambivalent.',
     `THE OFFER: ${offer}\nTHE REPLY: ${reply}`,
     5,
   );

@@ -68,9 +68,14 @@ export function checkSession(record: SessionRecord, only?: number[]): Result[] {
     `rant_bid=${rantBid}, intro words visitor ${vIntroW} vs oracle ${oIntroW}`,
   );
 
-  // 3 — intro template questions >= 2 (unless escape)
+  // 3 — intro questions >= 2 (unless escape). the investigator intake
+  // asks inside 'talk' beats, so a talk line carrying a ? counts.
   const introQuestions = scroll.filter(
-    (e, i) => e.kind === 'beat' && e.speaker === 'oracle' && e.beatType === 'question' && intro(i),
+    (e, i) =>
+      e.kind === 'beat' &&
+      e.speaker === 'oracle' &&
+      (e.beatType === 'question' || (e.beatType === 'talk' && e.text.includes('?'))) &&
+      intro(i),
   ).length;
   add(
     3,
@@ -95,13 +100,14 @@ export function checkSession(record: SessionRecord, only?: number[]): Result[] {
   }
   add(4, 'QUOTE slots verified', quoteFails === 0, `${quoteTotal} quotes, ${quoteFails} unverified`);
 
-  // 5 — no two consecutive oracle beats of the same type (tissue exempt)
+  // 5 — no two consecutive oracle beats of the same type (tissue exempt;
+  // talk exempt — the investigator intake speaks only talk beats)
   let law3 = true;
   let law3Detail = 'clean';
   for (let i = 1; i < oracle.length; i++) {
     const a = oracle[i - 1].beatType;
     const b = oracle[i].beatType;
-    if (a && b && a === b && a !== 'tissue') {
+    if (a && b && a === b && a !== 'tissue' && a !== 'talk') {
       law3 = false;
       law3Detail = `consecutive ${a}`;
       break;
