@@ -1247,7 +1247,7 @@ export class EnsembleEngine {
           for (const s of fillable) {
             const t = (got[s.key] ?? '').trim().toLowerCase();
             if (t.length > 8 && skelNorm.includes(t)) {
-              failures.push(`${s.key} echoes the skeleton text`);
+              failures.push({ key: s.key, reason: 'echoes the skeleton text' });
               break;
             }
           }
