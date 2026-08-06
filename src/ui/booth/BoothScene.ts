@@ -1,11 +1,13 @@
-// The booth's three.js scene — two floating eyes in a starry void, a
-// red-cloth table, the deck, the dealt cards. Imperative class owned
-// by BoothDemo; consumes BoothView, emits table clicks. The trippy
-// pass: rainbow twinkle stars, a breathing iris + additive halo, gaze
-// that meets the viewer (and drifts up while thinking), and a slow
-// dolly down to the table on entry.
+// The booth's three.js scene — the oracle's attached eye rig in a
+// starry void, a red-cloth table, the deck, the dealt cards.
+// Imperative class owned by BoothDemo; consumes BoothView, emits
+// table clicks. The eyes are leyebrary shader quads: a seeded rose
+// mandala at rest, interference ripples while speaking, the log-
+// spiral hypnosis field while thinking — one rig, one gaze, vergence
+// on the viewer.
 
 import * as THREE from 'three';
+import { EyeRig } from '../../leyebrary';
 import type { BoothView } from './boothStage';
 import { createStarField, type StarField } from './starfield';
 
@@ -75,14 +77,6 @@ type CardMesh = {
   flipping: boolean;
 };
 
-type EyeRig = {
-  group: THREE.Group;
-  irisMat: THREE.MeshBasicMaterial;
-  ringMat: THREE.MeshBasicMaterial;
-  pupil: THREE.Mesh;
-  phase: number;
-};
-
 export class BoothScene {
   private renderer: THREE.WebGLRenderer;
   private scene = new THREE.Scene();
@@ -90,7 +84,7 @@ export class BoothScene {
   private raycaster = new THREE.Raycaster();
   private pointer = new THREE.Vector2();
 
-  private eyes: EyeRig[] = [];
+  private rig!: EyeRig;
   private stars!: StarField;
   private deck!: THREE.Group;
   private cards = new Map<number, CardMesh>();
@@ -98,7 +92,6 @@ export class BoothScene {
   private backTex = cardBackTexture();
 
   private mood: BoothView['eyes'] = 'idle';
-  private pulse = 0;
   private gaze = CAM_END.clone();
   private entryT = 0;
   private raf = 0;
@@ -150,13 +143,17 @@ export class BoothScene {
     drape.position.set(0, -1.0, 0.08);
     this.scene.add(drape);
 
-    // the eyes
-    const l = this.makeEye(0);
-    const r = this.makeEye(Math.PI / 2);
-    l.group.position.set(-0.3, EYE_Y, -0.2);
-    r.group.position.set(0.3, EYE_Y, -0.2);
-    this.eyes = [l, r];
-    this.scene.add(l.group, r.group);
+    // the eyes — one creature, seeded fresh each session so every
+    // sitting grows its own mandala
+    this.rig = new EyeRig({
+      seed: Math.floor(Math.random() * 0x7fffffff),
+      pairing: 'match',
+      separation: 0.74,
+      eyeWidth: 0.64,
+    });
+    this.rig.group.position.set(0, EYE_Y, -0.2);
+    this.rig.setLook('mandala', 0);
+    this.scene.add(this.rig.group);
 
     // the deck — on the table from the very start (inert until the deal)
     this.deck = new THREE.Group();
@@ -174,33 +171,6 @@ export class BoothScene {
     this.scene.add(this.deck);
   }
 
-  private makeEye(phase: number): EyeRig {
-    const g = new THREE.Group();
-    const ball = new THREE.Mesh(
-      new THREE.SphereGeometry(0.17, 32, 32),
-      new THREE.MeshStandardMaterial({ color: 0xf2ecff, roughness: 0.35 }),
-    );
-    const ringMat = new THREE.MeshBasicMaterial({
-      color: 0x9d6cff,
-      transparent: true,
-      opacity: 0.3,
-      blending: THREE.AdditiveBlending,
-      depthWrite: false,
-    });
-    const ring = new THREE.Mesh(new THREE.RingGeometry(0.08, 0.117, 48), ringMat);
-    ring.position.z = 0.157;
-    const irisMat = new THREE.MeshBasicMaterial({ color: 0x6543c7 });
-    const iris = new THREE.Mesh(new THREE.CircleGeometry(0.075, 32), irisMat);
-    iris.position.z = 0.162;
-    const pupil = new THREE.Mesh(
-      new THREE.CircleGeometry(0.034, 32),
-      new THREE.MeshBasicMaterial({ color: 0x05030c }),
-    );
-    pupil.position.z = 0.168;
-    g.add(ball, ring, iris, pupil);
-    return { group: g, irisMat, ringMat, pupil, phase };
-  }
-
   /** slot layout: spread.n cards in a shallow arc across the table */
   private slotPos(index: number, total: number): THREE.Vector3 {
     const spanX = Math.min(2.6, total * 0.62);
@@ -210,7 +180,15 @@ export class BoothScene {
   }
 
   update(view: BoothView): void {
-    this.mood = view.eyes;
+    if (view.eyes !== this.mood) {
+      this.mood = view.eyes;
+      // the mood → look map: rest is the session's mandala, speech is
+      // the ripple, thought is the OG hypno-spiral
+      this.rig.setLook(
+        view.eyes === 'thinking' ? 'hypnosis' : view.eyes === 'speaking' ? 'ripple' : 'mandala',
+        view.eyes === 'thinking' ? 0.8 : 1.6,
+      );
+    }
 
     view.cards.forEach((card, i) => {
       if (!card.dealt) return;
@@ -256,7 +234,7 @@ export class BoothScene {
 
     if (view.subtitleSeq !== this.lastSeq) {
       this.lastSeq = view.subtitleSeq;
-      this.pulse = 1;
+      this.rig.pulse();
     }
   }
   private lastSeq = 0;
@@ -319,30 +297,10 @@ export class BoothScene {
         );
     this.gaze.lerp(desired, Math.min(1, dt * (thinking ? 5 : 2.6)));
 
-    if (this.pulse > 0) this.pulse -= dt * 1.4;
-    const shimmer = 1 + Math.max(0, this.pulse) * 0.1 * Math.sin(time * 22);
-
-    for (const eye of this.eyes) {
-      // thinking holds perfectly still — the stillness IS the pierce
-      eye.group.position.y = thinking
-        ? EYE_Y
-        : EYE_Y + Math.sin(time * 0.9 + eye.phase) * 0.02;
-      eye.group.lookAt(this.gaze);
-      eye.group.scale.setScalar(shimmer);
-      // the breathing iris — hue drifts around violet, the halo waves;
-      // thinking burns brighter and tighter
-      const h = (0.72 + Math.sin(time * 0.23 + eye.phase) * 0.06 + 1) % 1;
-      const l =
-        0.42 + (thinking ? 0.18 : 0.08) * Math.sin(time * (thinking ? 2.6 : 0.8) + eye.phase);
-      eye.irisMat.color.setHSL(h, thinking ? 0.9 : 0.75, Math.max(0.3, l));
-      eye.ringMat.color.setHSL((h + 0.07) % 1, 0.85, 0.62);
-      eye.ringMat.opacity = thinking
-        ? 0.5 + 0.28 * Math.sin(time * 3.6 + eye.phase)
-        : 0.2 + 0.15 * Math.sin(time * 1.3 + eye.phase);
-      const dilate = thinking ? 0.82 : 1;
-      const ps = eye.pupil.scale.x + (dilate - eye.pupil.scale.x) * Math.min(1, dt * 4);
-      eye.pupil.scale.set(ps, ps, 1);
-    }
+    // thinking holds perfectly still — the stillness IS the pierce
+    this.rig.group.position.y = thinking ? EYE_Y : EYE_Y + Math.sin(time * 0.9) * 0.02;
+    this.rig.setGazeTarget(this.gaze);
+    this.rig.update(time, dt, this.renderer, this.camera);
 
     // cards: slide from deck to slot, then flip in place
     for (const cm of this.cards.values()) {
@@ -365,6 +323,7 @@ export class BoothScene {
     cancelAnimationFrame(this.raf);
     window.removeEventListener('resize', this.resize);
     this.canvas.removeEventListener('pointerdown', this.onPointer);
+    this.rig.dispose();
     this.stars.dispose();
     this.renderer.dispose();
   }

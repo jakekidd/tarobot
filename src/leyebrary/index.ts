@@ -1,0 +1,21 @@
+export { EyeRig, type EyeRigOptions } from './EyeRig';
+export { FeedbackLoop } from './feedback';
+export {
+  FIELD_MODES,
+  LOOKS,
+  LOOK_NAMES,
+  sessionGenome,
+  type EyePairing,
+  type Look,
+  type LookName,
+  type SessionGenome,
+} from './looks';
+export {
+  PALETTES,
+  generateRose,
+  mulberry32,
+  palette,
+  shiftPalette,
+  type Palette,
+  type RoseParams,
+} from './math';

@@ -1,0 +1,453 @@
+// The leyebrary's formula core — every field the eye shaders draw,
+// mirrored in pure TypeScript so vitest can interrogate the math the
+// GPU runs. glsl.ts interpolates the SAME constants into the shader
+// source; change a number here and both sides move together.
+//
+// Lineage: the hypno-spiral resurrects the canvas eyes of 3cdef31
+// (spiral-when-thinking, may 2026); the interference field resurrects
+// the violet→turquoise ripple of 0e815d5. The rest is the classic
+// psychedelic toolkit — cosine palettes + domain warping (Quilez),
+// per-pixel polar remapping (MilkDrop/AVS), Vogel phyllotaxis.
+
+export type Vec2 = { x: number; y: number };
+export type Vec3 = { x: number; y: number; z: number };
+
+export const TAU = Math.PI * 2;
+
+// Vogel's golden angle, radians — π(3 − √5).
+export const GOLDEN_ANGLE = Math.PI * (3 - Math.sqrt(5));
+
+// ─── cosine palettes ─────────────────────────────────────────────
+// pal(t) = a + b·cos(2π(c·t + d)) — Quilez gradient form. Each row
+// vec3 (r,g,b). `spectrum` is the full rainbow; `vesper` stays in the
+// brand violet↔turquoise lane so idle eyes don't go clown-mode.
+
+export type Palette = { a: Vec3; b: Vec3; c: Vec3; d: Vec3 };
+
+export const PALETTES: Record<string, Palette> = {
+  spectrum: {
+    a: { x: 0.5, y: 0.5, z: 0.5 },
+    b: { x: 0.5, y: 0.5, z: 0.5 },
+    c: { x: 1.0, y: 1.0, z: 1.0 },
+    d: { x: 0.0, y: 0.333, z: 0.667 },
+  },
+  vesper: {
+    a: { x: 0.55, y: 0.35, z: 0.75 },
+    b: { x: 0.35, y: 0.35, z: 0.25 },
+    c: { x: 1.0, y: 1.0, z: 1.0 },
+    d: { x: 0.6, y: 0.85, z: 0.55 },
+  },
+  ember: {
+    a: { x: 0.6, y: 0.3, z: 0.35 },
+    b: { x: 0.4, y: 0.3, z: 0.3 },
+    c: { x: 1.0, y: 1.0, z: 0.7 },
+    d: { x: 0.0, y: 0.15, z: 0.35 },
+  },
+};
+
+export function palette(p: Palette, t: number): Vec3 {
+  return {
+    x: p.a.x + p.b.x * Math.cos(TAU * (p.c.x * t + p.d.x)),
+    y: p.a.y + p.b.y * Math.cos(TAU * (p.c.y * t + p.d.y)),
+    z: p.a.z + p.b.z * Math.cos(TAU * (p.c.z * t + p.d.z)),
+  };
+}
+
+// ─── hash / noise / fbm ──────────────────────────────────────────
+// The classic sin-dot hash — same expression the GLSL side uses, so
+// the two fields agree in structure (float precision differs; the
+// tests assert invariants, not bit-equality).
+
+export const HASH_K = { x: 127.1, y: 311.7, scale: 43758.5453123 };
+
+export function hash2(x: number, y: number): number {
+  const s = Math.sin(x * HASH_K.x + y * HASH_K.y) * HASH_K.scale;
+  return s - Math.floor(s);
+}
+
+function smooth(t: number): number {
+  return t * t * (3 - 2 * t);
+}
+
+export function valueNoise(x: number, y: number): number {
+  const ix = Math.floor(x);
+  const iy = Math.floor(y);
+  const fx = x - ix;
+  const fy = y - iy;
+  const a = hash2(ix, iy);
+  const b = hash2(ix + 1, iy);
+  const c = hash2(ix, iy + 1);
+  const d = hash2(ix + 1, iy + 1);
+  const ux = smooth(fx);
+  const uy = smooth(fy);
+  return a + (b - a) * ux + (c - a) * uy + (a - b - c + d) * ux * uy;
+}
+
+export const FBM = { octaves: 4, lacunarity: 2.0, gain: 0.5 };
+
+export function fbm(x: number, y: number): number {
+  let amp = 0.5;
+  let freq = 1.0;
+  let sum = 0;
+  for (let i = 0; i < FBM.octaves; i++) {
+    sum += amp * valueNoise(x * freq, y * freq);
+    amp *= FBM.gain;
+    freq *= FBM.lacunarity;
+  }
+  return sum;
+}
+
+// Domain warp — fbm fed through itself twice (Quilez, "warp" article).
+// WARP_A/WARP_B are the fold strengths; time slides the inner field.
+export const WARP = { a: 1.7, b: 1.9, drift: 0.13 };
+
+export function domainWarp(x: number, y: number, t: number): number {
+  const qx = fbm(x + WARP.drift * t, y);
+  const qy = fbm(x + 5.2, y + 1.3 - WARP.drift * t * 0.7);
+  const rx = fbm(x + WARP.a * qx + 1.7, y + WARP.a * qy + 9.2);
+  const ry = fbm(x + WARP.b * qx + 8.3, y + WARP.b * qy + 2.8);
+  return fbm(x + 4.0 * rx, y + 4.0 * ry);
+}
+
+// ─── the hypno-spiral ────────────────────────────────────────────
+// sin(arms·θ + twist·log(r) − speed·t). The log(r) term makes the
+// stripes scale-invariant — the spiral falls inward forever without
+// ever arriving. arms=2..3, twist 4..7 is the OG register.
+
+export const SPIRAL = { arms: 3, twist: 5.5, speed: 1.6 };
+
+export function spiralField(x: number, y: number, t: number): number {
+  const r = Math.max(1e-6, Math.hypot(x, y));
+  const theta = Math.atan2(y, x);
+  return Math.sin(SPIRAL.arms * theta + SPIRAL.twist * Math.log(r) - SPIRAL.speed * t);
+}
+
+// ─── interference (the ripple, resurrected) ──────────────────────
+// Waves radiating from drifting centers, summed. Two centers orbiting
+// slowly out of phase gives the moiré bloom the old canvas rings only
+// hinted at. Normalized to [-1, 1] by the center count.
+
+export const INTERFERENCE = { centers: 3, freq: 18.0, speed: 2.2, orbit: 0.35 };
+
+export function interferenceField(x: number, y: number, t: number): number {
+  let sum = 0;
+  for (let i = 0; i < INTERFERENCE.centers; i++) {
+    const a = (i / INTERFERENCE.centers) * TAU + t * (0.11 + 0.05 * i);
+    const cx = Math.cos(a) * INTERFERENCE.orbit;
+    const cy = Math.sin(a * 1.3) * INTERFERENCE.orbit;
+    sum += Math.sin(Math.hypot(x - cx, y - cy) * INTERFERENCE.freq - t * INTERFERENCE.speed);
+  }
+  return sum / INTERFERENCE.centers;
+}
+
+// ─── kaleidoscope fold ───────────────────────────────────────────
+// Angle folded into one mirrored wedge of 2π/segments. Any field
+// sampled through the fold inherits N-fold dihedral symmetry.
+
+export const KALEIDO = { segments: 6 };
+
+export function kaleidoFold(x: number, y: number, segments = KALEIDO.segments): Vec2 {
+  const r = Math.hypot(x, y);
+  let theta = Math.atan2(y, x);
+  const wedge = TAU / segments;
+  theta = ((theta % wedge) + wedge) % wedge;
+  theta = Math.abs(theta - wedge / 2);
+  return { x: Math.cos(theta) * r, y: Math.sin(theta) * r };
+}
+
+// ─── log-polar tunnel ────────────────────────────────────────────
+// (log r, θ) with log r scrolling — the infinite approach. Banding
+// via sin on both axes gives the checker-tunnel every demo ever shipped.
+
+export const TUNNEL = { bands: 5.0, spokes: 8, speed: 1.1 };
+
+export function tunnelField(x: number, y: number, t: number): number {
+  const r = Math.max(1e-6, Math.hypot(x, y));
+  const theta = Math.atan2(y, x);
+  const u = Math.log(r) * TUNNEL.bands - t * TUNNEL.speed;
+  const v = theta * TUNNEL.spokes;
+  return Math.sin(u) * Math.cos(v);
+}
+
+// ─── phyllotaxis ─────────────────────────────────────────────────
+// Vogel spiral: seed n sits at θ = n·GOLDEN_ANGLE, r = spacing·√n.
+// The field form inverts r → n and checks a neighborhood of candidate
+// seeds, so the GPU never loops over the whole lattice.
+
+export const PHYLLO = { spacing: 0.055, dotRadius: 0.42, spin: 0.07 };
+
+export function phylloSeed(n: number, spacing = PHYLLO.spacing): Vec2 {
+  const theta = n * GOLDEN_ANGLE;
+  const r = spacing * Math.sqrt(n);
+  return { x: Math.cos(theta) * r, y: Math.sin(theta) * r };
+}
+
+export function phylloField(x: number, y: number, t: number): number {
+  const rot = t * PHYLLO.spin;
+  const c = Math.cos(rot);
+  const s = Math.sin(rot);
+  const px = x * c + y * s;
+  const py = -x * s + y * c;
+  const r = Math.hypot(px, py);
+  const guess = Math.round((r / PHYLLO.spacing) ** 2);
+  let best = Infinity;
+  for (let dn = -3; dn <= 3; dn++) {
+    const n = guess + dn;
+    if (n < 1) continue;
+    const seed = phylloSeed(n);
+    const d = Math.hypot(px - seed.x, py - seed.y);
+    if (d < best) best = d;
+  }
+  const cell = PHYLLO.spacing * PHYLLO.dotRadius;
+  return Math.max(0, 1 - best / cell);
+}
+
+// ─── rose curves (the mandala) ───────────────────────────────────
+// Rhodonea r = amp·|cos(k·θ)| — the spirograph/guilloché flower.
+// Three layers with distinct petal counts, spins, and palette phases,
+// rendered as neon lines (sharp gaussian) over a soft glow skirt.
+// Parameters are seeded per session; both eyes share the seed.
+
+export const ROSE = {
+  layers: 3,
+  amps: [0.52, 0.38, 0.24] as const,
+  lineSharp: 900,
+  glowFall: 14,
+  glowGain: 0.25,
+  breathe: 0.06,
+  breatheFreq: 0.9,
+};
+
+export const ROSE_K_CHOICES = [3, 4, 5, 6, 7, 8, 9, 12] as const;
+
+export type RoseParams = {
+  k: [number, number, number];
+  spin: [number, number, number];
+  phase: [number, number, number];
+};
+
+// mulberry32 — tiny deterministic PRNG so a session seed always grows
+// the same flower on both eyes.
+export function mulberry32(seed: number): () => number {
+  let a = seed >>> 0;
+  return () => {
+    a = (a + 0x6d2b79f5) >>> 0;
+    let t = a;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+export function generateRose(seed: number): RoseParams {
+  const rnd = mulberry32(seed);
+  const pool = [...ROSE_K_CHOICES];
+  const pick = (): number => pool.splice(Math.floor(rnd() * pool.length), 1)[0];
+  const spin = (base: number): number => (rnd() < 0.5 ? -1 : 1) * (base + rnd() * 0.1);
+  return {
+    k: [pick(), pick(), pick()],
+    spin: [spin(0.05), spin(0.09), spin(0.14)],
+    phase: [rnd(), rnd(), rnd()],
+  };
+}
+
+export function roseLayerIntensity(
+  r: number,
+  theta: number,
+  t: number,
+  k: number,
+  spin: number,
+  amp: number,
+): number {
+  const breathing = amp * (1 + ROSE.breathe * Math.sin(t * ROSE.breatheFreq));
+  const target = breathing * Math.abs(Math.cos(k * (theta + spin * t)));
+  const d = Math.abs(r - target);
+  const line = Math.exp(-d * d * ROSE.lineSharp);
+  const glow = Math.exp(-d * ROSE.glowFall) * ROSE.glowGain;
+  return line + glow;
+}
+
+// Complementary pairing: slide a palette half a cycle along its own
+// loop. For the spectrum palette that is exactly the opposite hue;
+// for the branded lanes it is the far end of the lane.
+export function shiftPalette(p: Palette, shift: number): Palette {
+  return {
+    a: p.a,
+    b: p.b,
+    c: p.c,
+    d: { x: p.d.x + shift, y: p.d.y + shift, z: p.d.z + shift },
+  };
+}
+
+// ─── feedback remap (the MilkDrop/AVS loop) ──────────────────────
+// The engine of every classic visualizer: each frame samples the
+// PREVIOUS frame through a polar remap, decayed, with new ink stamped
+// on top. The remap below is AVS "Swirl To Center" with its published
+// coefficients; the discipline (radial gain ∈ [0.94, 1.06], angular
+// step ≤ 0.1) is what keeps feedback tasteful instead of tearing.
+
+export const FEEDBACK = {
+  decay: 0.965,
+  hueStep: 0.008,
+  ditherAmp: 0.006,
+  swirlGain: 0.04,
+  swirlBase: 1.01,
+  swirlLobes: 4,
+  twistAmp: 0.03,
+};
+
+export function feedbackRemap(x: number, y: number): Vec2 {
+  const d = Math.hypot(x, y);
+  const r = Math.atan2(y, x);
+  const d2 = d * (FEEDBACK.swirlBase + Math.cos((r - Math.PI / 2) * FEEDBACK.swirlLobes) * FEEDBACK.swirlGain);
+  const r2 = r + FEEDBACK.twistAmp * Math.sin(d * Math.PI * 4);
+  return { x: Math.cos(r2) * d2, y: Math.sin(r2) * d2 };
+}
+
+// ─── the grade (Inscryption posterize) ───────────────────────────
+// Luma-thresholded posterize: darks snap to a coarse color grid,
+// highlights pass through untouched — hard shadows, readable light.
+
+export const GRADE = { levels: 5, lumaCutoff: 0.62, lumaSoft: 0.1 };
+
+export function luma(r: number, g: number, b: number): number {
+  return 0.299 * r + 0.587 * g + 0.114 * b;
+}
+
+export function posterize(r: number, g: number, b: number): Vec3 {
+  const l = luma(r, g, b);
+  const q = (v: number): number => Math.round(v * GRADE.levels) / GRADE.levels;
+  const t = clamp01((l - (GRADE.lumaCutoff - GRADE.lumaSoft)) / (2 * GRADE.lumaSoft));
+  const m = t * t * (3 - 2 * t);
+  return {
+    x: q(r) + (r - q(r)) * m,
+    y: q(g) + (g - q(g)) * m,
+    z: q(b) + (b - q(b)) * m,
+  };
+}
+
+// ─── eye anatomy masks ───────────────────────────────────────────
+// Everything is drawn in "eye space": p in [-1,1]², the eye an
+// ellipse with radii (1, EYE_ASPECT). ellipseDist < 1 inside.
+
+export const EYE_ASPECT = 0.72;
+
+export function ellipseDist(x: number, y: number, aspect = EYE_ASPECT): number {
+  return Math.hypot(x, y / aspect);
+}
+
+// Lid closure: the lids are a horizontal slit clamping |y| to the
+// open aperture. lid=0 rests the slit at the eye rim; lid=1 seals it
+// — including the center, which a pure y-squash never covers.
+export function lidMask(x: number, y: number, lid: number, edge = 0.08): number {
+  const rim = clamp01((1 + edge - ellipseDist(x, y)) / edge);
+  const aperture = (1 - lid) * EYE_ASPECT;
+  return rim * clamp01((aperture - Math.abs(y)) / edge);
+}
+
+// Blink envelope — raised-cosine dip, 0 open → 1 shut → 0 open.
+export function blinkEnvelope(u: number): number {
+  if (u <= 0 || u >= 1) return 0;
+  return 0.5 - 0.5 * Math.cos(TAU * u);
+}
+
+// ─── the gaze rig ────────────────────────────────────────────────
+// Two eyes separated by `sep` converging on a target `dist` away:
+// each eye toes in by atan(sep/2 / dist). Near targets cross the
+// eyes — that convergence is what reads as *attached* attention.
+
+export function vergenceAngle(sep: number, dist: number): number {
+  return Math.atan2(sep / 2, Math.max(1e-4, dist));
+}
+
+// Pupil offset inside the flat eye for a gaze direction (dx, dy, dz):
+// project onto the eye plane, clamp to keep the pupil inside the iris.
+export function pupilOffset(dx: number, dy: number, dz: number, max = 0.35): Vec2 {
+  const d = Math.max(1e-4, Math.hypot(dx, dy, dz));
+  const ox = (dx / d) * max;
+  const oy = (dy / d) * max;
+  const m = Math.hypot(ox, oy);
+  if (m <= max) return { x: ox, y: oy };
+  return { x: (ox / m) * max, y: (oy / m) * max };
+}
+
+// Micro-saccade: both eyes share one low-frequency noise walk with a
+// per-eye phase nudge — coupled wander, never independent drift.
+export const SACCADE = { freq: 0.31, amp: 0.045, couple: 0.92 };
+
+export function saccade(t: number, eyeIndex: number): Vec2 {
+  const base: Vec2 = {
+    x: valueNoise(t * SACCADE.freq, 3.7) - 0.5,
+    y: valueNoise(9.1, t * SACCADE.freq) - 0.5,
+  };
+  const solo: Vec2 = {
+    x: valueNoise(t * SACCADE.freq * 1.7, 13.1 + eyeIndex * 7.7) - 0.5,
+    y: valueNoise(21.3 + eyeIndex * 5.1, t * SACCADE.freq * 1.7) - 0.5,
+  };
+  const c = SACCADE.couple;
+  return {
+    x: (base.x * c + solo.x * (1 - c)) * 2 * SACCADE.amp,
+    y: (base.y * c + solo.y * (1 - c)) * 2 * SACCADE.amp,
+  };
+}
+
+export function clamp01(v: number): number {
+  return v < 0 ? 0 : v > 1 ? 1 : v;
+}
+
+// GLSL-visible constants, serialized once so glsl.ts and the tests
+// read the identical numbers.
+export function glslConst(name: keyof typeof GLSL_CONSTS): string {
+  return GLSL_CONSTS[name];
+}
+
+const f = (n: number): string => {
+  const s = String(n);
+  return s.includes('.') || s.includes('e') ? s : `${s}.0`;
+};
+
+export const GLSL_CONSTS = {
+  GOLDEN_ANGLE: f(GOLDEN_ANGLE),
+  EYE_ASPECT: f(EYE_ASPECT),
+  HASH_KX: f(HASH_K.x),
+  HASH_KY: f(HASH_K.y),
+  HASH_SCALE: f(HASH_K.scale),
+  FBM_OCTAVES: String(FBM.octaves),
+  FBM_LACUNARITY: f(FBM.lacunarity),
+  FBM_GAIN: f(FBM.gain),
+  WARP_A: f(WARP.a),
+  WARP_B: f(WARP.b),
+  WARP_DRIFT: f(WARP.drift),
+  SPIRAL_ARMS: f(SPIRAL.arms),
+  SPIRAL_TWIST: f(SPIRAL.twist),
+  SPIRAL_SPEED: f(SPIRAL.speed),
+  INTERF_CENTERS: String(INTERFERENCE.centers),
+  INTERF_FREQ: f(INTERFERENCE.freq),
+  INTERF_SPEED: f(INTERFERENCE.speed),
+  INTERF_ORBIT: f(INTERFERENCE.orbit),
+  KALEIDO_SEGMENTS: f(KALEIDO.segments),
+  TUNNEL_BANDS: f(TUNNEL.bands),
+  TUNNEL_SPOKES: f(TUNNEL.spokes),
+  TUNNEL_SPEED: f(TUNNEL.speed),
+  PHYLLO_SPACING: f(PHYLLO.spacing),
+  PHYLLO_DOT: f(PHYLLO.dotRadius),
+  PHYLLO_SPIN: f(PHYLLO.spin),
+  ROSE_AMP0: f(ROSE.amps[0]),
+  ROSE_AMP1: f(ROSE.amps[1]),
+  ROSE_AMP2: f(ROSE.amps[2]),
+  ROSE_LINE_SHARP: f(ROSE.lineSharp),
+  ROSE_GLOW_FALL: f(ROSE.glowFall),
+  ROSE_GLOW_GAIN: f(ROSE.glowGain),
+  ROSE_BREATHE: f(ROSE.breathe),
+  ROSE_BREATHE_FREQ: f(ROSE.breatheFreq),
+  FB_DECAY: f(FEEDBACK.decay),
+  FB_HUE_STEP: f(FEEDBACK.hueStep),
+  FB_DITHER: f(FEEDBACK.ditherAmp),
+  FB_SWIRL_GAIN: f(FEEDBACK.swirlGain),
+  FB_SWIRL_BASE: f(FEEDBACK.swirlBase),
+  FB_SWIRL_LOBES: f(FEEDBACK.swirlLobes),
+  FB_TWIST_AMP: f(FEEDBACK.twistAmp),
+  GRADE_LEVELS: f(GRADE.levels),
+  GRADE_CUTOFF: f(GRADE.lumaCutoff),
+  GRADE_SOFT: f(GRADE.lumaSoft),
+} as const;

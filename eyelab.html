@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>the leyebrary</title>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      body { background: #05030c; color: #cdbfff; font-family: monospace; overflow: hidden; }
+      #stage { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+      #hud {
+        position: fixed; left: 12px; top: 12px; display: flex; flex-direction: column;
+        gap: 6px; z-index: 2; user-select: none;
+      }
+      #hud button {
+        background: #12092b; color: #cdbfff; border: 1px solid #453080;
+        font-family: monospace; font-size: 12px; padding: 5px 10px; cursor: pointer;
+        text-align: left; text-transform: uppercase; letter-spacing: 0.08em;
+      }
+      #hud button.active { background: #453080; color: #fff; }
+      #hud label { font-size: 11px; opacity: 0.8; margin-top: 6px; display: block; }
+      #hud input[type='range'] { width: 140px; accent-color: #9d6cff; }
+      #foot {
+        position: fixed; left: 12px; bottom: 10px; font-size: 11px; opacity: 0.65; z-index: 2;
+      }
+    </style>
+  </head>
+  <body>
+    <canvas id="stage"></canvas>
+    <div id="hud"></div>
+    <div id="foot"></div>
+    <script type="module" src="/src/leyebrary/lab/main.ts"></script>
+  </body>
+</html>

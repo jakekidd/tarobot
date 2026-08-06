@@ -19,4 +19,12 @@ export default defineConfig({
     port: 5173,
     host: true,
   },
+  build: {
+    rollupOptions: {
+      input: {
+        main: new URL('./index.html', import.meta.url).pathname,
+        eyelab: new URL('./eyelab.html', import.meta.url).pathname,
+      },
+    },
+  },
 });
