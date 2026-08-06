@@ -8,6 +8,8 @@ import { describe, expect, it } from 'vitest';
 import {
   BREATH,
   FORM,
+  FOVEA,
+  PINNA,
   FORM_CONSTANTS,
   TAU,
   breathe,
@@ -16,6 +18,10 @@ import {
   corticalRetino,
   corticalRoll,
   driftStaircase,
+  formPeriod,
+  pinnaField,
+  pinnaLoom,
+  pinnaRingTilt,
   retinoCortical,
   spiralPitch,
 } from '../src/leyebrary/math';
@@ -26,8 +32,11 @@ const polar = (r: number, th: number): [number, number] => [
 ];
 
 describe('the retino-cortical map', () => {
-  it('is a complex logarithm: radius → cortical x, angle → cortical y', () => {
-    const c = retinoCortical(...polar(Math.E, 0.7));
+  it('is a log with a foveal shoulder — finite at the centre, not singular', () => {
+    const c0 = retinoCortical(0, 0);
+    expect(c0.x).toBe(0);
+    expect(Number.isFinite(c0.x)).toBe(true);
+    const c = retinoCortical(...polar(FOVEA.r0 * (Math.E - 1), 0.7));
     expect(c.x).toBeCloseTo(1, 10);
     expect(c.y).toBeCloseTo(0.7, 10);
   });
@@ -44,11 +53,23 @@ describe('the retino-cortical map', () => {
     }
   });
 
-  it('turns scaling into translation — why the tunnel never arrives', () => {
+  it('turns scaling into translation once past the fovea', () => {
+    // exact statement: the SHIFTED radius scales, which is the same
+    // thing far from the centre and better-behaved near it
     const a = retinoCortical(...polar(0.4, 1.2));
-    const b = retinoCortical(...polar(0.4 * Math.E, 1.2));
+    const shifted = FOVEA.r0 * ((1 + 0.4 / FOVEA.r0) * Math.E - 1);
+    const b = retinoCortical(...polar(shifted, 1.2));
     expect(b.x - a.x).toBeCloseTo(1, 10);
     expect(b.y).toBeCloseTo(a.y, 10);
+  });
+
+  it('pattern period grows LINEARLY with eccentricity (the measured law)', () => {
+    // Lambda(r) proportional to (r + r0) — features about 13-15% of
+    // eccentricity, matching migraine spectra and phosphene sizes
+    const ratio = (r: number): number => formPeriod(r) / (r + FOVEA.r0);
+    const ref = ratio(0);
+    for (const r of [0.1, 0.4, 1.0, 3.0]) expect(ratio(r)).toBeCloseTo(ref, 12);
+    expect(formPeriod(1)).toBeGreaterThan(formPeriod(0));
   });
 });
 
@@ -94,11 +115,12 @@ describe('form constants: one angle sweeps the taxonomy', () => {
     expect(pitch).toBeCloseTo(1, 10); // tan(45°)
     // walking along r = A·exp(-pitch·θ) must hold the phase constant
     const th0 = 0.3;
-    const r0 = 0.5;
-    const ref = corticalRoll(...polar(r0, th0), alpha, 0);
+    const rStart = 0.5;
+    const ref = corticalRoll(...polar(rStart, th0), alpha, 0);
     for (const dth of [0.4, 1.1, -0.9]) {
       const th = th0 + dth;
-      const r = r0 * Math.exp(-pitch * dth);
+      // the spiral lives in the SHIFTED radius: (r + r0) = A*exp(-pitch*theta)
+      const r = FOVEA.r0 * ((1 + rStart / FOVEA.r0) * Math.exp(-pitch * dth) - 1);
       expect(corticalRoll(...polar(r, th), alpha, 0)).toBeCloseTo(ref, 8);
     }
   });
@@ -139,7 +161,8 @@ describe('form constants: one angle sweeps the taxonomy', () => {
     const r = 0.5;
     const th = 1.1;
     const a = corticalRoll(...polar(r, th), 0, 0);
-    const b = corticalRoll(...polar(r * scale, th), 0, dt);
+    const grown = FOVEA.r0 * ((1 + r / FOVEA.r0) * scale - 1);
+    const b = corticalRoll(...polar(grown, th), 0, dt);
     expect(a).toBeCloseTo(b, 8);
   });
 });
@@ -209,6 +232,67 @@ describe('breathing', () => {
   });
 });
 
+describe('Pinna–Brelstaff counter-rotation', () => {
+  it('the loom only breathes — it never rotates anything', () => {
+    for (let t = 0; t < 20; t += 0.13) {
+      const s = pinnaLoom(t);
+      expect(s).toBeGreaterThanOrEqual(1 - PINNA.loomAmp - 1e-12);
+      expect(s).toBeLessThanOrEqual(1 + PINNA.loomAmp + 1e-12);
+    }
+    const period = TAU / PINNA.loomOmega;
+    expect(pinnaLoom(1.1)).toBeCloseTo(pinnaLoom(1.1 + period), 8);
+  });
+
+  it('neighbouring rings take opposite tilt — 90° apart, the measured optimum', () => {
+    for (let k = 0; k < 5; k++) {
+      expect(Math.abs(pinnaRingTilt(k))).toBeCloseTo(PINNA.tilt, 12);
+      expect(pinnaRingTilt(k)).toBeCloseTo(-pinnaRingTilt(k + 1), 12);
+    }
+    // inter-ring orientation difference, which Gurnsey & Pagé peak at ~70–95°
+    const delta = Math.abs(pinnaRingTilt(0) - pinnaRingTilt(1));
+    expect((delta * 180) / Math.PI).toBeCloseTo(90, 6);
+  });
+
+  it('the field is SIGNED — clamping it is one of two documented ways to kill the illusion', () => {
+    let sawPositive = false;
+    let sawNegative = false;
+    for (let x = -0.6; x <= 0.6; x += 0.011) {
+      for (let y = -0.6; y <= 0.6; y += 0.011) {
+        const v = pinnaField(x, y, 0.4);
+        if (v > 0.05) sawPositive = true;
+        if (v < -0.05) sawNegative = true;
+      }
+    }
+    expect(sawPositive).toBe(true);
+    expect(sawNegative).toBe(true);
+  });
+
+  it('stays inside the contrast bound and dies outside the ring band', () => {
+    for (let x = -1; x <= 1; x += 0.017) {
+      for (let y = -1; y <= 1; y += 0.017) {
+        expect(Math.abs(pinnaField(x, y, 1.7))).toBeLessThanOrEqual(PINNA.contrast + 1e-9);
+      }
+    }
+    expect(pinnaField(0, 0, 0)).toBe(0);
+    expect(pinnaField(2.5, 0, 0)).toBe(0);
+  });
+
+  it('elements are oriented to the RADIUS, not the screen', () => {
+    // rotating the sample point by one whole element cell must land on
+    // the identical element — that invariance is what "relative to the
+    // centre" means, and it is the whole basis of the illusion
+    const rk = PINNA.innerRadius * PINNA.ringRatio;
+    const n = Math.max(6, Math.round((TAU * rk) / PINNA.arcPitch));
+    const cell = TAU / n;
+    const probeR = rk + 0.012;
+    for (const th of [0.05, 0.9, -1.4]) {
+      const a = pinnaField(...polar(probeR, th), 0);
+      const b = pinnaField(...polar(probeR, th + cell), 0);
+      expect(a).toBeCloseTo(b, 6);
+    }
+  });
+});
+
 describe('peripheral-drift staircase', () => {
   it('is periodic and bounded', () => {
     for (let u = -2; u < 3; u += 0.013) {
@@ -231,8 +315,8 @@ describe('peripheral-drift staircase', () => {
 
   it('walks black → dark → white → light within one cycle', () => {
     expect(driftStaircase(0)).toBeCloseTo(0, 6);
-    expect(driftStaircase(0.25)).toBeCloseTo(0.32, 6);
+    expect(driftStaircase(0.25)).toBeCloseTo(30 / 70, 6);
     expect(driftStaircase(0.5)).toBeCloseTo(1, 6);
-    expect(driftStaircase(0.75)).toBeCloseTo(0.68, 6);
+    expect(driftStaircase(0.75)).toBeCloseTo(40 / 70, 6);
   });
 });

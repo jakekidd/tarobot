@@ -305,18 +305,44 @@ export function shiftPalette(p: Palette, shift: number): Palette {
 // the eyes aren't showing psychedelic patterns, they are showing what
 // a destabilized visual cortex geometrically must produce.
 
-export const FORM = { k: 7.0, omega: 0.55, contrast: 1.0, minRadius: 1e-4 };
+export const FORM = { k: 7.0, omega: 0.55, contrast: 1.0 };
+
+// The foveal plateau. The true map is Schwartz's x = (a/ε)·ln(1 + ε·r/w₀)
+// with Drasdo-derived w₀ = 0.087, ε = 0.051 (Bressloff, Cowan,
+// Golubitsky, Thomas & Wiener 2001) — a plain log(r) is only its
+// large-r idealization and blows up at the fovea. The +r₀ term is
+// what gives cortical magnification its measured foveal shoulder, at
+// w₀/ε = 1.7° of visual angle. FOVEA.r0 is that 1.7° expressed in
+// eye-space units, taking the iris to span roughly 15°.
+//
+// The consequence is the thing worth having: pattern period grows
+// LINEARLY with eccentricity, Λ(r) ≈ (λ/k)·(r + 1.7°) — the
+// hallucinated feature size is about 13–15% of eccentricity. That
+// matches migraine fortification spectra (features enlarge toward the
+// periphery while each serration covers a constant ~1 mm of cortex)
+// and electrode phosphenes (punctate centrally, degrees wide
+// peripherally). Integrating 1/Λ over the field gives ~27 rings,
+// against Bressloff & Cowan's independently derived 30–36 stripes.
+export const FOVEA = { r0: 0.11 };
 
 /** the retino-cortical map: visual field (r,θ) → cortical (x,y) */
 export function retinoCortical(x: number, y: number): Vec2 {
-  const r = Math.max(FORM.minRadius, Math.hypot(x, y));
-  return { x: Math.log(r), y: Math.atan2(y, x) };
+  const r = Math.hypot(x, y);
+  return { x: Math.log(1 + r / FOVEA.r0), y: Math.atan2(y, x) };
 }
 
 /** and back — cortical (x,y) → visual field */
 export function corticalRetino(cx: number, cy: number): Vec2 {
-  const r = Math.exp(cx);
+  const r = FOVEA.r0 * (Math.exp(cx) - 1);
   return { x: Math.cos(cy) * r, y: Math.sin(cy) * r };
+}
+
+/**
+ * Angular period of the hallucinated pattern at eccentricity r —
+ * the linear-in-eccentricity law, in eye-space units.
+ */
+export function formPeriod(r: number, k = FORM.k): number {
+  return (TAU / k) * (r + FOVEA.r0);
 }
 
 /**
@@ -412,10 +438,21 @@ export function breatheVec(x: number, y: number, t: number, amp = BREATH.amp): V
 
 export const DRIFT = { steps: 4, gain: 0.55, sharpness: 0.35 };
 
+// Conway, Kitaoka, Yazdanbakhsh, Pack & Livingstone (2005, J Neurosci
+// 25:5651) measured both the ordering and the luminances: perceived
+// direction runs black → dark grey → white → light grey → black, at
+// black <1, dark grey 30, white 70, light grey 40 cd/m² against a
+// 35 cd/m² background. Normalizing to white gives the stops below.
+// The mechanism is a latency asymmetry — V1/MT direction-selective
+// cells answer white and black bars 10–20 ms sooner than they answer
+// the greys, and 13 ms of offset between adjacent receptive-field
+// parts is enough to read as motion.
+export const DRIFT_STOPS = [0.0, 30 / 70, 1.0, 40 / 70] as const;
+
 /** luminance staircase at phase u ∈ [0,1) within one cycle */
 export function driftStaircase(u: number): number {
   const p = ((u % 1) + 1) % 1;
-  const stops = [0.0, 0.32, 1.0, 0.68];
+  const stops = DRIFT_STOPS;
   const idx = Math.floor(p * DRIFT.steps) % DRIFT.steps;
   const frac = p * DRIFT.steps - Math.floor(p * DRIFT.steps);
   const a = stops[idx];
@@ -428,6 +465,98 @@ export function driftStaircase(u: number): number {
 function smoothstepScalar(edge0: number, edge1: number, v: number): number {
   const t = clamp01((v - edge0) / (edge1 - edge0));
   return t * t * (3 - 2 * t);
+}
+
+// ─── Pinna–Brelstaff (illusory counter-rotation) ─────────────────
+//
+// Concentric rings of oriented micropatterns. Nothing rotates: the
+// rings only breathe in and out. But because each element's dominant
+// orientation sits at ±45° to the radius, and the motion system can
+// only recover the component of motion NORMAL to that orientation
+// (the aperture problem), the looming flow acquires a rotary
+// component with no attributable cause — so it is seen as rotation.
+// Neighbouring rings take opposite orientation signs, so they appear
+// to counter-rotate against each other.
+//
+// Pinna & Brelstaff 2000, Vision Research 40:2091. Gurnsey & Pagé
+// 2006 measured the tuning: peak at an inter-ring orientation
+// difference of ~70–95°, i.e. ±45° from radial — which is exactly
+// what the original bevelled square's diagonal gives for free. They
+// also found the illusion is AS STRONG OR STRONGER from on-screen
+// scaling than from the observer physically moving, because screen
+// motion is smoother. That is the permission slip for doing this in
+// a shader at all.
+//
+// Two things destroy it, both of which look harmless: half-wave
+// rectifying the element (clamping below-background luminance) and
+// replacing the Gaussian envelope with a hard circular aperture.
+// Both broaden the spatial-frequency bandwidth, and the aperture
+// problem is only unsolvable for NARROWBAND patterns. So: Gaussian
+// envelope, signed modulation about the background, never clamped.
+
+export const PINNA = {
+  rings: 3,
+  ringRatio: 1.36,
+  innerRadius: 0.28,
+  arcPitch: 0.15,
+  sigmaFrac: 0.24,
+  tilt: Math.PI / 4,
+  loomAmp: 0.1,
+  loomOmega: 1.5,
+  contrast: 0.95,
+};
+
+/** the breathing scale — Bach's ±10% at 1.5 rad/s (period 4.19 s) */
+export function pinnaLoom(t: number): number {
+  return 1 + PINNA.loomAmp * Math.cos(PINNA.loomOmega * t);
+}
+
+/** implicit orientation of ring k, ±45° from the radial direction */
+export function pinnaRingTilt(k: number): number {
+  return (k % 2 === 0 ? 1 : -1) * PINNA.tilt;
+}
+
+/**
+ * Signed luminance modulation at (x,y): a Gabor whose carrier runs
+ * along the element's implicit diagonal. Mean-zero, never clamped —
+ * clamping is one of the two documented ways to kill the illusion.
+ */
+export function pinnaField(x: number, y: number, t: number): number {
+  const s = pinnaLoom(t);
+  const r = Math.hypot(x, y) / s;
+  if (r < 1e-5) return 0;
+  const theta = Math.atan2(y, x);
+
+  // which ring, and its centre radius
+  const kf = Math.log(r / PINNA.innerRadius) / Math.log(PINNA.ringRatio);
+  const k = Math.round(kf);
+  if (k < 0 || k >= PINNA.rings) return 0;
+  const rk = PINNA.innerRadius * Math.pow(PINNA.ringRatio, k);
+
+  // which element around that ring
+  const n = Math.max(6, Math.round((TAU * rk) / PINNA.arcPitch));
+  const cell = TAU / n;
+  const j = Math.round(theta / cell);
+  const thj = j * cell;
+
+  // offset from the element centre, in the element's own (radial,
+  // tangential) frame — this is what makes the tilt relative to the
+  // radius rather than to the screen
+  const cx = Math.cos(thj) * rk;
+  const cy = Math.sin(thj) * rk;
+  const qx = (x / s) - cx;
+  const qy = (y / s) - cy;
+  const ct = Math.cos(thj);
+  const st = Math.sin(thj);
+  const ex = qx * ct + qy * st;
+  const ey = -qx * st + qy * ct;
+
+  const sigma = PINNA.sigmaFrac * PINNA.arcPitch * (rk / PINNA.innerRadius) ** 0.5;
+  const lambda = 2 * sigma;
+  const phi = pinnaRingTilt(k);
+  const proj = ex * Math.cos(phi) + ey * Math.sin(phi);
+  const envelope = Math.exp(-(ex * ex + ey * ey) / (2 * sigma * sigma));
+  return PINNA.contrast * envelope * Math.cos((TAU * proj) / lambda);
 }
 
 // ─── feedback remap (the MilkDrop/AVS loop) ──────────────────────
@@ -679,10 +808,20 @@ export const GLSL_CONSTS = {
   CORD_PERI_AMP: f(CORD.peristalsisAmp),
   FORM_K: f(FORM.k),
   FORM_OMEGA: f(FORM.omega),
+  FOVEA_R0: f(FOVEA.r0),
   BREATH_FREQ: f(BREATH.freq),
   BREATH_SPATIAL: f(BREATH.spatial),
   BREATH_AMP: f(BREATH.amp),
   BREATH_SWIRL: f(BREATH.swirl),
+  PINNA_RINGS: f(PINNA.rings),
+  PINNA_RATIO: f(PINNA.ringRatio),
+  PINNA_R0: f(PINNA.innerRadius),
+  PINNA_PITCH: f(PINNA.arcPitch),
+  PINNA_SIGMA: f(PINNA.sigmaFrac),
+  PINNA_TILT: f(PINNA.tilt),
+  PINNA_LOOM_AMP: f(PINNA.loomAmp),
+  PINNA_LOOM_W: f(PINNA.loomOmega),
+  PINNA_CONTRAST: f(PINNA.contrast),
   DRIFT_STEPS: f(DRIFT.steps),
   DRIFT_GAIN: f(DRIFT.gain),
   DRIFT_SHARP: f(DRIFT.sharpness),

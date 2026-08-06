@@ -42,6 +42,7 @@ attachment is behavioral AND visual:
 | `mandala` | 3 seeded rose curves `r = a·|cos kθ|`, neon line + glow skirt | rhodonea / spirograph / guilloché |
 | `trails` | milkdrop feedback loop sampled into the iris | geiss's resample-decay engine |
 | `vision` | cortical stripes seen back through the retino-cortical log map | ermentrout & cowan 1979 — see below |
+| `pinna` | rings of ±45° gabors that counter-rotate while only breathing | pinna & brelstaff 2000; gurnsey & pagé 2006 |
 
 crossfades between looks are morphs (`uLookMix` blends two full field
 evaluations), so a mood change is never a cut.
@@ -171,6 +172,49 @@ controls. `window.rig` is exposed there for poking.
 - inscryption: luma-gated posterize, eyes as the only light in the
   dark, the green possessed-eye layer.
 
+## SAFETY: do not add flicker to this (2026-08-06)
+
+the research turned up the frequencies at which flicker maximally
+induces geometric hallucinations: radial forms peak at **9.2 ± 2.7
+Hz**, spirals at **15.1 ± 2.0 Hz** (mauro, raffone & vanrullen 2015,
+J Neurosci 35:7921); 10 Hz flicker produces "elementary imagery"
+ratings statistically indistinguishable from **100 µg of LSD**
+(bartossek 2021).
+
+that is a tempting feature and it must not be built. **8–25 Hz
+full-field luminance flicker is the photosensitive-epilepsy
+provocation band**, worst around 15–20 Hz — exactly the range that
+works best. this installation is for a crowd, at night, on
+psychedelics, with no screening and no warning signage. the pattern
+motion here is deliberately kept slow (the drift illusion's own
+measured speed is **0.15–1 °/s**), and no look modulates whole-field
+luminance at rates above ~2 Hz.
+
+if anyone later wants the frequency-selectivity result in the piece,
+express it as *spatial* structure — which form constant is showing —
+never as temporal flicker.
+
+## the pinna look
+
+concentric rings of gabor elements tilted ±45° to the radius. nothing
+rotates: the rings only breathe ±10%. but the motion system can only
+recover the component of motion normal to each element's orientation
+(the aperture problem), so looming acquires a rotary component with no
+attributable cause — and neighbouring rings appear to counter-rotate
+against each other. pinna & brelstaff 2000; gurnsey & pagé 2006
+measured the tuning (peak at 70–95° inter-ring difference, so ±45° is
+right) and, crucially, found the illusion is **as strong or stronger
+from on-screen scaling than from the observer physically moving**,
+because screen motion is smoother. that is the permission slip for
+doing it in a shader.
+
+two things kill it, both of which look harmless: half-wave rectifying
+the element, and swapping the gaussian envelope for a hard circular
+aperture. both broaden the spatial-frequency bandwidth, and the
+aperture problem is only unsolvable for narrowband patterns. the
+field is therefore signed about mid-grey and never clamped — and
+there is a test that fails if anyone clamps it.
+
 ## unfinished research (2026-08-06)
 
 two deep-research passes were commissioned and did NOT complete — the
@@ -182,13 +226,17 @@ schwartz retino-cortical formula, kitaoka's drift staircase), but the
 following were NOT verified against sources this session and should
 be checked before anyone treats them as settled:
 
-- the exact luminance stops of the drift staircase (`DRIFT` stops are
-  `[0, 0.32, 1.0, 0.68]` — the asymmetry is the load-bearing part and
-  IS tested, but the specific values are reconstructed, not sourced)
+- ~~the drift staircase stops~~ RESOLVED: conway et al. 2005 measured
+  both ordering and luminances (black <1, dark grey 30, white 70,
+  light grey 40 cd/m² on a 35 cd/m² ground). `DRIFT_STOPS` now carries
+  the measured ratios.
 - documented breathing frequency / amplitude in real phenomenology —
   `BREATH.freq = 0.21 Hz` is chosen by eye, not measured
 - the bressloff-cowan-golubitsky (2001) extension: orientation
   preference, contoured planforms, cobwebs. not implemented at all.
+  (their retino-cortical map IS now used — the foveal-shoulder form
+  with w0/eps = 1.7 degrees — but the orientation-hypercolumn
+  machinery is not.)
 - whether any of these illusions are measurably *enhanced* under
   psychedelics, vs. assumed
 

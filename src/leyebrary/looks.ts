@@ -16,6 +16,7 @@ export const FIELD_MODES = {
   rose: 6,
   trails: 7,
   vision: 8,
+  pinna: 9,
 } as const;
 
 export type LookName =
@@ -27,7 +28,8 @@ export type LookName =
   | 'bloom'
   | 'mandala'
   | 'trails'
-  | 'vision';
+  | 'vision'
+  | 'pinna';
 
 export type Look = {
   mode: number;
@@ -111,6 +113,15 @@ export const LOOKS: Record<LookName, Look> = {
     speed: 1.0,
     energy: 1.2,
     pupil: 0.26,
+  },
+  // rings that appear to counter-rotate while only breathing —
+  // Pinna-Brelstaff, the aperture problem made visible
+  pinna: {
+    mode: FIELD_MODES.pinna,
+    palette: PALETTES.vesper,
+    speed: 1.0,
+    energy: 1.0,
+    pupil: 0.2,
   },
 };
 

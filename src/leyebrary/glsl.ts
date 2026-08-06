@@ -132,9 +132,48 @@ vec2 breatheVec(vec2 p, float t, float amp) {
   return p * (1.0 + amp * wave);
 }
 
+// Schwartz's map with its foveal shoulder, not the log(r) idealization
+// — this is what makes pattern period grow LINEARLY with eccentricity
+// (about 13-15% of it), matching migraine fortification spectra and
+// electrode phosphenes, and it has no singularity at the centre.
 vec2 retinoCortical(vec2 p) {
-  float r = max(1e-4, length(p));
-  return vec2(log(r), atan(p.y, p.x));
+  return vec2(log(1.0 + length(p) / ${C.FOVEA_R0}), atan(p.y, p.x));
+}
+
+// Pinna-Brelstaff: rings of Gabors tilted 45 degrees to the radius.
+// Nothing rotates — the rings only breathe — but the aperture problem
+// turns that looming into an unattributable rotary component, and
+// neighbouring rings counter-rotate. NEVER clamp this or swap the
+// gaussian for a hard aperture; either one broadens the bandwidth and
+// the aperture problem stops being unsolvable.
+float pinnaField(vec2 p, float t) {
+  float s = 1.0 + ${C.PINNA_LOOM_AMP} * cos(${C.PINNA_LOOM_W} * t);
+  vec2 q0 = p / s;
+  float r = length(q0);
+  if (r < 1e-5) return 0.0;
+  float theta = atan(q0.y, q0.x);
+
+  float kf = log(r / ${C.PINNA_R0}) / log(${C.PINNA_RATIO});
+  float k = floor(kf + 0.5);
+  if (k < 0.0 || k >= ${C.PINNA_RINGS}) return 0.0;
+  float rk = ${C.PINNA_R0} * pow(${C.PINNA_RATIO}, k);
+
+  float n = max(6.0, floor(TAU * rk / ${C.PINNA_PITCH} + 0.5));
+  float cell = TAU / n;
+  float thj = floor(theta / cell + 0.5) * cell;
+
+  vec2 c = rk * vec2(cos(thj), sin(thj));
+  vec2 q = q0 - c;
+  float ct = cos(thj);
+  float st = sin(thj);
+  vec2 e = vec2(q.x * ct + q.y * st, -q.x * st + q.y * ct);
+
+  float sigma = ${C.PINNA_SIGMA} * ${C.PINNA_PITCH} * sqrt(rk / ${C.PINNA_R0});
+  float lambda = 2.0 * sigma;
+  float phi = (mod(k, 2.0) < 0.5 ? 1.0 : -1.0) * ${C.PINNA_TILT};
+  float proj = e.x * cos(phi) + e.y * sin(phi);
+  float env = exp(-dot(e, e) / (2.0 * sigma * sigma));
+  return ${C.PINNA_CONTRAST} * env * cos(TAU * proj / lambda);
 }
 
 float corticalRollK(vec2 p, float alpha, float t, float k) {
@@ -295,6 +334,13 @@ vec3 lookColor(int idx, int mode, float speed, vec2 ip0) {
   float br = length(ip);
   float bth = atan(ip.y, ip.x);
   if (mode == 8) return visionColor(idx, ip, t);
+  if (mode == 9) {
+    // signed about a mid-grey ground: the modulation must swing both
+    // ways or the illusion dies
+    float g = pinnaField(ip, t);
+    vec3 tint = pal(idx, 0.5 + br * 0.3 + t * 0.02);
+    return mix(vec3(0.30, 0.26, 0.38), tint, 0.35) * (1.0 + g);
+  }
   if (mode == 6) return roseColor(idx, br, bth, t);
   if (mode == 7) {
     vec2 fuv = ip / (IRIS_R * 2.2) + 0.5;
