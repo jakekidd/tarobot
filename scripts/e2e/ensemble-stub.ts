@@ -22,6 +22,7 @@ export class EnsembleStubAdapter implements LLMAdapter {
       read: 'stub read — the newest material is the rant.',
       too_safe: 'that sounds really hard.',
       too_far: 'you will move to the coast by spring.',
+      too_flat: 'can you tell me more about that?',
       spoken: 'mm. say more about the heavy part.',
     },
   ];

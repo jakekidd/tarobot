@@ -13,6 +13,7 @@
 // in-flight results stale, and stale results are discarded, not spoken.
 
 import type { LLMAdapter } from '../llm/adapter';
+import { ALMANAC } from './almanac';
 import { ORACLE_DECK } from '../oracle/deck';
 import {
   callAttention,
@@ -723,6 +724,35 @@ export class EnsembleEngine {
       this.pendingGuess !== null && !this.guessPlayed && this.talksSinceProbe >= 2
         ? this.pendingGuess
         : null;
+    // her night (PULSE P2): existing graded state rendered as mood,
+    // computed fresh each turn, never persisted
+    let lastVisitorWords = 0;
+    for (let i = this.scroll.length - 1; i >= 0; i--) {
+      const e = this.scroll[i];
+      if (e.kind === 'beat' && e.speaker === 'visitor') {
+        lastVisitorWords = countWords(e.text);
+        break;
+      }
+    }
+    const mood =
+      this.lastGuessGrade === 'hot'
+        ? 'relish — the last guess landed clean'
+        : drought
+          ? 'working — she is carrying the room tonight'
+          : this.beatsRemaining() <= 6
+            ? 'closing — the night is running out, and it is her night too'
+            : this.focusRejections.length > 0
+              ? 'rueful — a door got closed earlier; it stays closed'
+              : 'settling — an ordinary night at the table';
+    const moodLine =
+      lastVisitorWords >= 25
+        ? `${mood} | not this turn — their material owns this one`
+        : mood;
+    const talks = this.scroll.filter(
+      (e) => e.kind === 'beat' && e.speaker === 'oracle' && e.beatType === 'talk',
+    );
+    const lastTwoQuestions =
+      talks.length >= 2 && talks.slice(-2).every((b) => b.kind === 'beat' && b.text.trim().endsWith('?'));
     this.busy = 'persona';
     this.emit();
     try {
@@ -739,6 +769,11 @@ export class EnsembleEngine {
         host: drought
           ? 'they are underfeeding — thin turns in a row. you drive now: name the quiet plainly if it helps, make the smallest concrete ask, or offer to let the cards start it. the show moves toward the table either way.'
           : undefined,
+        mood: moodLine,
+        rhythm: lastTwoQuestions
+          ? 'two question-ending turns in a row already — end this one without a question mark (an observe, a bet, a give)'
+          : undefined,
+        almanac: ALMANAC,
         event:
           event.type === 'silence' ? 'the visitor has let the silence run.' : 'the visitor just spoke.',
       });
@@ -1027,7 +1062,7 @@ export class EnsembleEngine {
         if (this.focusStage === 0 && this.focusPhrase) {
           const text = await this.promptedLine(
             'focus',
-            `ask them, plainly and in your own words, whether "${this.focusPhrase}" is the real thing to look at tonight. one sentence, her size: a genuine yes-or-no question they can refuse. no imagery, no "or is it..." fishing, no second question stacked on — the move is the asking, not the phrasing.`,
+            `they are owed the offer. using their own nouns for it — "${this.focusPhrase}" — ask whether that is the real thing to look at tonight. a short receipt clause first is fine, then ONE refusable yes-or-no ask, nothing appended after it. her voice, their words; no "or is it..." fishing, no second question. the move is the asking.`,
             (line) => this.focusLineValid(line, this.focusPhrase!),
             BEATS.focus.offer.replace('{PASSAGE:focus}', this.focusPhrase),
             myGen,
@@ -1191,7 +1226,8 @@ export class EnsembleEngine {
    *  REFUSABLE — could a stranger comfortably say no (function, not
    *  punctuation; judged fast-tier) */
   private async focusLineValid(line: string, focus: string): Promise<boolean> {
-    if (countWords(line) > 26) return false;
+    // 36 fits a receipt clause + the ask (PULSE P5); still a runaway guard
+    if (countWords(line) > 36) return false;
     const fw = focus.toLowerCase().split(/\s+/).filter((w) => w.length >= 4);
     if (fw.length > 0) {
       const hits = fw.filter((w) => line.toLowerCase().includes(w)).length;

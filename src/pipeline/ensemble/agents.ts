@@ -230,6 +230,12 @@ export function callInvestigator(
     clock: string;
     size: string;
     host?: string;
+    /** her night, as she is having it — state-as-voice (PULSE P2) */
+    mood: string;
+    /** rhythm nudge when questions stack */
+    rhythm?: string;
+    /** her shelf — authored presence material (PULSE P3) */
+    almanac?: string;
     event: string;
   },
 ): Promise<InvestigatorTurn> {
@@ -245,6 +251,9 @@ export function callInvestigator(
       : null,
     `[the clock] ${p.clock}`,
     `[size] ${p.size}`,
+    `[her night] ${p.mood}`,
+    p.rhythm ? `[rhythm] ${p.rhythm}` : null,
+    p.almanac ? `[her shelf — hers to spend, once or twice a night, never near a crack]\n${p.almanac}` : null,
     p.host ? `[HOST] ${p.host}` : null,
     `[this moment] ${p.event}`,
   ]

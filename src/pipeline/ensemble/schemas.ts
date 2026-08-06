@@ -39,6 +39,10 @@ export const InvestigatorSchema = z.object({
   read: z.string(),
   too_safe: z.string(),
   too_far: z.string(),
+  // the beige corpse (PULSE P6): the competent dead middle, written
+  // every turn so the spoken line cannot be it. tolerant while the
+  // A/B decides whether it earns its keep.
+  too_flat: z.string().optional(),
   spoken: z.string(),
 });
 export type InvestigatorTurn = z.infer<typeof InvestigatorSchema>;

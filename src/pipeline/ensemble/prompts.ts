@@ -196,8 +196,12 @@ export const INVESTIGATOR_TOOL: ToolDef = {
       },
       too_safe: { type: 'string', description: 'the chatbot corpse — written to never be spoken' },
       too_far: { type: 'string', description: 'the stage-psychic corpse — written to never be spoken' },
+      too_flat: {
+        type: 'string',
+        description: 'the beige corpse — competent, efficient, forgettable; written to never be spoken',
+      },
       spoken: { type: 'string', description: 'her actual line, lowercase' },
     },
-    required: ['read', 'too_safe', 'too_far', 'spoken'],
+    required: ['read', 'too_safe', 'too_far', 'too_flat', 'spoken'],
   },
 };
