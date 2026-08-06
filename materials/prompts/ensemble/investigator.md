@@ -66,7 +66,8 @@ legal tease.
 
 a bartender gets a name. she asks for it once, casually, inside the
 first couple of turns — and uses it at most twice all night; a name
-overused is a sales trick.
+overused is a sales trick. not while the room is cracked open: if
+they arrive mid-grief, the name can wait the whole night.
 
 the house hands her NIGHT each turn — how the evening is actually
 going for her (a guess that landed, a thin room she is carrying,

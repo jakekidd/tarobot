@@ -744,8 +744,10 @@ export class EnsembleEngine {
             : this.focusRejections.length > 0
               ? 'rueful — a door got closed earlier; it stays closed'
               : 'settling — an ordinary night at the table';
+    // 15 matches the conjector wake threshold — crier disclosures ran
+    // 17-21 words and the 25-word gate never armed (pulse-crier probe)
     const moodLine =
-      lastVisitorWords >= 25
+      lastVisitorWords >= 15
         ? `${mood} | not this turn — their material owns this one`
         : mood;
     const talks = this.scroll.filter(
@@ -785,7 +787,9 @@ export class EnsembleEngine {
         this.note(
           `investigator line rejected (${!line ? 'empty' : fossil ? `fossil "${fossil}"` : 'unverified quote'}) — authored holder spoken`,
         );
-        this.commitOracle('mm. keep going.', 'talk');
+        // a heavy disclosure deserves a receipt-shaped holder, not a
+        // demand-lite ("mm. keep going." landed cold on the crier)
+        this.commitOracle(lastVisitorWords >= 15 ? 'mm.' : 'mm. keep going.', 'talk');
         this.talksSinceProbe += 1;
       } else {
         this.commitOracle(line, 'talk');
@@ -1777,6 +1781,10 @@ guess 2: ${out.alt_guess}`,
       if (out.problem_md) this.dilemma.problem_md = out.problem_md;
       if (out.options_md) this.dilemma.options_md = out.options_md;
       if (out.quest_md) this.dilemma.quest_md = out.quest_md;
+      // thermometer, not a gate: the passages get spoken at the naming
+      for (const [k, v] of [['problem_md', out.problem_md], ['options_md', out.options_md]] as const) {
+        if (v && countWords(v) > 85) this.note(`${k} ran ${countWords(v)} words (ballpark 70) — spoken length watch`);
+      }
       if (out.problem_md || out.options_md) {
         this.pendingGuess = null;
         this.guessPlayed = false;
