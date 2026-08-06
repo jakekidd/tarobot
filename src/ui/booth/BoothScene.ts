@@ -190,6 +190,8 @@ export class BoothScene {
         view.eyes === 'thinking' ? 'vision' : view.eyes === 'speaking' ? 'ripple' : 'mandala',
         view.eyes === 'thinking' ? 0.8 : 1.6,
       );
+      // the eyes breathe deeper while the oracle is under
+      this.rig.setBreath(view.eyes === 'thinking' ? 2.2 : 1);
     }
 
     view.cards.forEach((card, i) => {

@@ -297,6 +297,11 @@ export class EyeRig {
     this.motionMode = mode;
   }
 
+  /** breath depth, 1 = the documented low-dose sigh; 0 stills it */
+  setBreath(v: number): void {
+    for (const eye of this.eyes) eye.mat.uniforms.uBreath.value = Math.max(0, v);
+  }
+
   get motion(): MotionMode {
     return this.motionMode;
   }
