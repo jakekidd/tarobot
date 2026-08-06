@@ -3,7 +3,9 @@
 
 import ALMANAC_RAW from '../../../materials/persona/almanac.md?raw';
 
-/** entries only — the authoring header stays out of her payload */
-export const ALMANAC: string = ALMANAC_RAW.split('\n')
-  .filter((l) => l.startsWith('- '))
+/** entries only, wrapped lines rejoined — the line filter amputated
+ *  7/12 entries mid-clause (jokey probe); the header stays out */
+export const ALMANAC: string = ALMANAC_RAW.split(/\n(?=- )/)
+  .filter((b) => b.trimStart().startsWith('- '))
+  .map((b) => b.replace(/\n\s+/g, ' ').trim())
   .join('\n');
