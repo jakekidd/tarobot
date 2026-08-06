@@ -220,7 +220,7 @@ describe('look registry', () => {
     for (const name of LOOK_NAMES) {
       const look = LOOKS[name];
       expect(look.mode).toBeGreaterThanOrEqual(0);
-      expect(look.mode).toBeLessThanOrEqual(7);
+      expect(look.mode).toBeLessThanOrEqual(8);
       expect(look.speed).toBeGreaterThan(0);
       expect(look.energy).toBeGreaterThan(0);
       expect(look.pupil).toBeGreaterThan(0.1);

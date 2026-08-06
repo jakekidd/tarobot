@@ -279,6 +279,130 @@ export function shiftPalette(p: Palette, shift: number): Palette {
   };
 }
 
+// ─── form constants (the hallucination engine) ───────────────────
+//
+// Klüver (1926) catalogued what people actually see on mescaline and
+// found four recurring geometries: lattices/honeycombs, cobwebs,
+// tunnels/funnels, and spirals. Ermentrout & Cowan (1979) explained
+// why, and the explanation is the reason this look exists.
+//
+// V1 sees the visual field through a complex logarithm — the
+// retino-cortical map. A point at radius r, angle θ in the eye lands
+// at (log r, θ) on the flat cortical sheet. When cortical excitation
+// destabilizes (which is what a 5-HT2A agonist does to the E/I
+// balance), it does what every reaction-diffusion system does: it
+// forms stripes. Plain, straight, boring cortical stripes.
+//
+// Those stripes, seen back through the inverse map, are the form
+// constants. A cortical stripe at angle α becomes:
+//
+//   α = 0        rings              → the TUNNEL
+//   α = π/2      radial spokes      → the FUNNEL
+//   0 < α < π/2  log spiral, pitch tan α → the SPIRAL
+//   three stripes at 120°           → the HONEYCOMB
+//
+// So one angle sweeps the entire taxonomy. That is the whole trick:
+// the eyes aren't showing psychedelic patterns, they are showing what
+// a destabilized visual cortex geometrically must produce.
+
+export const FORM = { k: 7.0, omega: 0.55, contrast: 1.0, minRadius: 1e-4 };
+
+/** the retino-cortical map: visual field (r,θ) → cortical (x,y) */
+export function retinoCortical(x: number, y: number): Vec2 {
+  const r = Math.max(FORM.minRadius, Math.hypot(x, y));
+  return { x: Math.log(r), y: Math.atan2(y, x) };
+}
+
+/** and back — cortical (x,y) → visual field */
+export function corticalRetino(cx: number, cy: number): Vec2 {
+  const r = Math.exp(cx);
+  return { x: Math.cos(cy) * r, y: Math.sin(cy) * r };
+}
+
+/**
+ * One cortical plane wave (a "roll" planform) at orientation alpha,
+ * read out in visual-field coordinates. alpha is the knob that sweeps
+ * tunnel → spiral → funnel.
+ */
+export function corticalRoll(
+  x: number,
+  y: number,
+  alpha: number,
+  t: number,
+  k = FORM.k,
+  omega = FORM.omega,
+): number {
+  const c = retinoCortical(x, y);
+  return Math.cos(k * (c.x * Math.cos(alpha) + c.y * Math.sin(alpha)) - omega * t);
+}
+
+/**
+ * The hexagonal planform — three rolls at 120°, which is what a
+ * pattern-forming cortex settles into when the quadratic term wins.
+ * Inverse-maps to the honeycomb/lattice class.
+ */
+export function corticalHex(
+  x: number,
+  y: number,
+  alpha: number,
+  t: number,
+  k = FORM.k,
+  omega = FORM.omega,
+): number {
+  let sum = 0;
+  for (let i = 0; i < 3; i++) {
+    sum += corticalRoll(x, y, alpha + (i * TAU) / 3, t, k, omega);
+  }
+  return sum / 3;
+}
+
+/**
+ * The pitch of the logarithmic spiral a cortical stripe of angle
+ * alpha produces. Constant phase means cosα·log r + sinα·θ = c, so
+ * r = A·exp(−tanα · θ) — a log spiral whose tightness IS tan α.
+ * alpha → 0 gives infinite pitch (rings); alpha → π/2 gives zero
+ * pitch (spokes).
+ */
+export function spiralPitch(alpha: number): number {
+  const c = Math.cos(alpha);
+  if (Math.abs(c) < 1e-12) return Infinity;
+  return Math.tan(alpha);
+}
+
+/** the four Klüver classes, as positions on the alpha sweep */
+export const FORM_CONSTANTS = {
+  tunnel: 0,
+  spiral: Math.PI / 4,
+  funnel: Math.PI / 2,
+} as const;
+
+// ─── peripheral drift (illusory motion) ──────────────────────────
+// Kitaoka's rotating-snakes staircase: a repeating asymmetric
+// luminance ramp (black → dark → white → light → black). The visual
+// system's differential latency across contrast makes a STATIC ramp
+// read as motion, in the direction of the asymmetry. Built here as a
+// luminance multiplier so it can ride on top of any field.
+
+export const DRIFT = { steps: 4, gain: 0.55, sharpness: 0.35 };
+
+/** luminance staircase at phase u ∈ [0,1) within one cycle */
+export function driftStaircase(u: number): number {
+  const p = ((u % 1) + 1) % 1;
+  const stops = [0.0, 0.32, 1.0, 0.68];
+  const idx = Math.floor(p * DRIFT.steps) % DRIFT.steps;
+  const frac = p * DRIFT.steps - Math.floor(p * DRIFT.steps);
+  const a = stops[idx];
+  const b = stops[(idx + 1) % DRIFT.steps];
+  // sharp-ish transitions: the illusion needs edges, not a sine
+  const e = smoothstepScalar(DRIFT.sharpness, 1 - DRIFT.sharpness, frac);
+  return a + (b - a) * e;
+}
+
+function smoothstepScalar(edge0: number, edge1: number, v: number): number {
+  const t = clamp01((v - edge0) / (edge1 - edge0));
+  return t * t * (3 - 2 * t);
+}
+
 // ─── feedback remap (the MilkDrop/AVS loop) ──────────────────────
 // The engine of every classic visualizer: each frame samples the
 // PREVIOUS frame through a polar remap, decayed, with new ink stamped
@@ -526,4 +650,9 @@ export const GLSL_CONSTS = {
   CORD_PERI_FREQ: f(CORD.peristalsisFreq),
   CORD_PERI_SPEED: f(CORD.peristalsisSpeed),
   CORD_PERI_AMP: f(CORD.peristalsisAmp),
+  FORM_K: f(FORM.k),
+  FORM_OMEGA: f(FORM.omega),
+  DRIFT_STEPS: f(DRIFT.steps),
+  DRIFT_GAIN: f(DRIFT.gain),
+  DRIFT_SHARP: f(DRIFT.sharpness),
 } as const;

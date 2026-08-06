@@ -114,6 +114,47 @@ float phylloField(vec2 p, float t) {
   return max(0.0, 1.0 - best / cell);
 }
 
+// ── the hallucination engine ──────────────────────────────────────
+// V1 sees the visual field through a complex log. Destabilize the
+// cortex and it forms plain stripes; seen back through the inverse
+// map those stripes ARE Klüver's form constants. alpha sweeps them:
+// 0 → tunnel (rings), pi/2 → funnel (spokes), between → log spiral
+// of pitch tan(alpha). uHex blends in the 3-roll hexagonal planform,
+// which is the honeycomb class.
+vec2 retinoCortical(vec2 p) {
+  float r = max(1e-4, length(p));
+  return vec2(log(r), atan(p.y, p.x));
+}
+
+float corticalRoll(vec2 p, float alpha, float t) {
+  vec2 c = retinoCortical(p);
+  return cos(${C.FORM_K} * (c.x * cos(alpha) + c.y * sin(alpha)) - ${C.FORM_OMEGA} * t);
+}
+
+float corticalHex(vec2 p, float alpha, float t) {
+  float s = 0.0;
+  for (int i = 0; i < 3; i++) {
+    s += corticalRoll(p, alpha + float(i) * TAU / 3.0, t);
+  }
+  return s / 3.0;
+}
+
+// Kitaoka's peripheral-drift staircase: an ASYMMETRIC luminance ramp
+// (black → dark → white → light) that the visual system's
+// contrast-dependent latency reads as motion even when nothing moves.
+float driftStaircase(float u) {
+  float p = fract(u);
+  float stops[4];
+  stops[0] = 0.0; stops[1] = 0.32; stops[2] = 1.0; stops[3] = 0.68;
+  float scaled = p * ${C.DRIFT_STEPS};
+  int idx = int(floor(scaled));
+  float frac = scaled - floor(scaled);
+  float a = stops[idx];
+  float b = stops[int(mod(float(idx) + 1.0, ${C.DRIFT_STEPS}))];
+  float e = smoothstep(${C.DRIFT_SHARP}, 1.0 - ${C.DRIFT_SHARP}, frac);
+  return mix(a, b, e);
+}
+
 float roseLayer(float r, float theta, float t, float k, float spin, float amp) {
   float breathing = amp * (1.0 + ${C.ROSE_BREATHE} * sin(t * ${C.ROSE_BREATHE_FREQ}));
   float target = breathing * abs(cos(k * (theta + spin * t)));
@@ -195,8 +236,33 @@ vec3 roseColor(int idx, float r, float theta, float t) {
   return col;
 }
 
+// the vision look: the alpha sweep IS the animation. It walks the
+// taxonomy — tunnel, tightening spiral, funnel — and folds the
+// honeycomb in and out on a slower cycle, so the iris never settles
+// into one hallucination.
+vec3 visionColor(int idx, vec2 p, float t) {
+  // the sweep: alpha walks 0 → pi/2 and back, so the iris travels the
+  // whole Klüver taxonomy on a slow loop instead of picking one
+  float alpha = (0.5 - 0.5 * cos(t * 0.085)) * 1.5707963;
+  float hexMix = 0.5 + 0.5 * sin(t * 0.11);
+  float planform = mix(corticalRoll(p, alpha, t), corticalHex(p, alpha, t), hexMix * 0.6);
+
+  // the drift staircase rides the planform's own phase, so the
+  // illusory motion runs along the form constant's contours
+  vec2 c = retinoCortical(p);
+  float phase = ${C.FORM_K} * (c.x * cos(alpha) + c.y * sin(alpha)) - ${C.FORM_OMEGA} * t;
+  float stair = driftStaircase(phase / TAU);
+
+  float band = planform * 0.5 + 0.5;
+  vec3 col = pal(idx, band * 0.5 + length(p) * 0.22 + t * 0.04);
+  // luminance staircase multiplies; the palette stays in charge of hue
+  col *= mix(1.0, 0.35 + 1.3 * stair, ${C.DRIFT_GAIN});
+  return col * (0.5 + 0.75 * band);
+}
+
 vec3 lookColor(int idx, int mode, float speed, vec2 ip, float r, float theta) {
   float t = uTime * speed + uPhase;
+  if (mode == 8) return visionColor(idx, ip, t);
   if (mode == 6) return roseColor(idx, r, theta, t);
   if (mode == 7) {
     vec2 fuv = ip / (IRIS_R * 2.2) + 0.5;

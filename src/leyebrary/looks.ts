@@ -15,6 +15,7 @@ export const FIELD_MODES = {
   phyllo: 5,
   rose: 6,
   trails: 7,
+  vision: 8,
 } as const;
 
 export type LookName =
@@ -25,7 +26,8 @@ export type LookName =
   | 'descent'
   | 'bloom'
   | 'mandala'
-  | 'trails';
+  | 'trails'
+  | 'vision';
 
 export type Look = {
   mode: number;
@@ -99,6 +101,16 @@ export const LOOKS: Record<LookName, Look> = {
     speed: 0.9,
     energy: 1.1,
     pupil: 0.3,
+  },
+  // the hallucination engine — Klüver's form constants derived, not
+  // imitated: cortical stripes seen back through the retino-cortical
+  // log map, sweeping tunnel → spiral → funnel → honeycomb
+  vision: {
+    mode: FIELD_MODES.vision,
+    palette: PALETTES.spectrum,
+    speed: 1.0,
+    energy: 1.2,
+    pupil: 0.26,
   },
 };
 

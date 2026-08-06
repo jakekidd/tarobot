@@ -183,9 +183,11 @@ export class BoothScene {
     if (view.eyes !== this.mood) {
       this.mood = view.eyes;
       // the mood → look map: rest is the session's mandala, speech is
-      // the ripple, thought is the OG hypno-spiral
+      // the ripple, and thought drops into the form constants — while
+      // the oracle is working, its eyes show what a destabilized
+      // visual cortex produces
       this.rig.setLook(
-        view.eyes === 'thinking' ? 'hypnosis' : view.eyes === 'speaking' ? 'ripple' : 'mandala',
+        view.eyes === 'thinking' ? 'vision' : view.eyes === 'speaking' ? 'ripple' : 'mandala',
         view.eyes === 'thinking' ? 0.8 : 1.6,
       );
     }
