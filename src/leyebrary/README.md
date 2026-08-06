@@ -171,6 +171,27 @@ controls. `window.rig` is exposed there for poking.
 - inscryption: luma-gated posterize, eyes as the only light in the
   dark, the green possessed-eye layer.
 
+## unfinished research (2026-08-06)
+
+two deep-research passes were commissioned and did NOT complete — the
+session's web-search budget ran out mid-flight and both agents were
+killed. everything in the vision look is from literature stated
+precisely enough to implement and test (klüver's four classes,
+ermentrout & cowan's log map and stripe→form-constant result, the
+schwartz retino-cortical formula, kitaoka's drift staircase), but the
+following were NOT verified against sources this session and should
+be checked before anyone treats them as settled:
+
+- the exact luminance stops of the drift staircase (`DRIFT` stops are
+  `[0, 0.32, 1.0, 0.68]` — the asymmetry is the load-bearing part and
+  IS tested, but the specific values are reconstructed, not sourced)
+- documented breathing frequency / amplitude in real phenomenology —
+  `BREATH.freq = 0.21 Hz` is chosen by eye, not measured
+- the bressloff-cowan-golubitsky (2001) extension: orientation
+  preference, contoured planforms, cobwebs. not implemented at all.
+- whether any of these illusions are measurably *enhanced* under
+  psychedelics, vs. assumed
+
 ## backlog
 
 - gray-scott reaction-diffusion iris (F=0.0545, k=0.062, seeded from
