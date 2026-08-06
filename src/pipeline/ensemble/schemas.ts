@@ -35,20 +35,30 @@ const FeelingSchema = z.object({
 
 export const ReadSchema = z.object({
   expressing: z.string(),
-  // small models occasionally emit the array as one string blob; a lone
-  // string degrades to a single thought instead of failing the read
+  // small models occasionally emit the array as one string blob — or as
+  // a one-element array whose element is the blob (seen live: quoted
+  // items joined by semicolons inside brackets). unbundle both shapes;
+  // a lone unparseable string degrades to a single thought.
   thoughts: z.preprocess(
     (v) => {
-      if (typeof v !== 'string') return v;
-      if (v.trim().startsWith('[')) {
+      const unbundle = (s: string): string[] | null => {
+        const t = s.trim();
+        if (!t.startsWith('[') || !t.endsWith(']')) return null;
         try {
-          const parsed = JSON.parse(v) as unknown;
-          if (Array.isArray(parsed)) return parsed.map(String).slice(0, 3);
+          const parsed = JSON.parse(t) as unknown;
+          if (Array.isArray(parsed)) return parsed.map(String);
         } catch {
-          /* fall through: treat as one thought */
+          /* not json — try the quoted-items shape */
         }
+        const items = [...t.matchAll(/"([^"]+)"/g)].map((m) => m[1]);
+        return items.length > 0 ? items : null;
+      };
+      if (typeof v === 'string') return (unbundle(v) ?? [v]).slice(0, 3);
+      if (Array.isArray(v) && v.length === 1 && typeof v[0] === 'string') {
+        const split = unbundle(v[0]);
+        if (split) return split.slice(0, 3);
       }
-      return [v];
+      return v;
     },
     z.array(z.string()).max(3),
   ),

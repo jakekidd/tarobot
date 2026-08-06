@@ -183,7 +183,7 @@ export type EnsembleEvent =
 // ---------------------------------------------------------------- engine
 
 export type EnsemblePhase = 'idle' | 'live' | 'closed';
-export type BusyLayer = 'driver' | 'persona' | null;
+export type BusyLayer = 'driver' | 'persona' | 'judge' | null;
 
 export type DrawnCard = { slot: number; card: OracleDeckCard; position: string };
 

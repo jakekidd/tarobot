@@ -554,11 +554,20 @@ export class EnsembleEngine {
     ) {
       const reply = this.lastVisitorText();
       const offerAtCall = this.pendingOffer;
+      // the judgment occupies the hot path: settle()/the input gate must
+      // wait it out. without this, rapid follow-up lines void every
+      // in-flight verdict and the gate starves — two probe runs ended
+      // stage:intro with 5/5 consent calls discarded exactly this way.
+      this.busy = 'judge';
+      this.emit();
       let verdict: 'yes' | 'no' | 'ambivalent';
       try {
         verdict = await callConsent(this.env, this.pendingOffer, reply);
       } catch {
         verdict = 'ambivalent';
+      } finally {
+        // entries are gated on busy, so nothing else owns it during judge
+        this.busy = null;
       }
       // staleness: a newer event or a changed offer voids this verdict
       if (myGen !== this.gen || this.pendingOffer !== offerAtCall) return;
