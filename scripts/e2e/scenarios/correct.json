@@ -1,0 +1,16 @@
+[
+  { "line": "my brother wants me to co-sign a loan for his business. everyone in the family is acting like it's already decided." },
+  { "line": "we're close. i mean, we were. it's been weird since he asked. money makes everything weird." },
+  { "line": "i keep drafting the text to him and deleting it." },
+  { "when": "guess", "line": "no. that's not it at all. i'm not scared of losing him. i already know i'm saying no. i just want to say it without being the villain." },
+  { "line": "right. the decision is made. it's the delivery i can't figure out." },
+  { "when": "focus", "line": "sure. that's it. go." },
+  { "flip": 1 },
+  { "line": "okay." },
+  { "flip": 2 },
+  { "line": "hm. say more." },
+  { "flip": 3 },
+  { "line": "that's closer." },
+  { "flip": 4 },
+  { "line": "yeah. okay. that helps." }
+]

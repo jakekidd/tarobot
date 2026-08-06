@@ -1,0 +1,16 @@
+[
+  { "line": "i don't know. nothing really." },
+  { "line": "work's fine. everything's fine." },
+  { "silence": true },
+  { "line": "not really. i'm just here." },
+  { "when": "guess", "line": "no. not really my thing." },
+  { "line": "can we just do the cards? i don't want to dig into anything." },
+  { "flip": 1 },
+  { "line": "ok." },
+  { "flip": 2 },
+  { "silence": true },
+  { "flip": 3 },
+  { "line": "hm. ok. thanks." },
+  { "flip": 4 },
+  { "silence": true }
+]

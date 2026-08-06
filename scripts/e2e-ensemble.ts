@@ -36,6 +36,10 @@ type Args = {
   turns: number;
   auto: boolean;
   stub: boolean;
+  /** path to a scenario json: ScriptStep[] — replaces the built-in maya */
+  script?: string;
+  /** run-dir slug so scenario runs don't all collide on the mode name */
+  name?: string;
 };
 
 function parseArgs(argv: string[]): Args {
@@ -46,6 +50,8 @@ function parseArgs(argv: string[]): Args {
     else if (a === '--apiKey') out.apiKey = argv[++i];
     else if (a.startsWith('--mode=')) out.mode = a.slice('--mode='.length) as Args['mode'];
     else if (a.startsWith('--turns=')) out.turns = Number(a.slice('--turns='.length));
+    else if (a.startsWith('--script=')) out.script = a.slice('--script='.length);
+    else if (a.startsWith('--name=')) out.name = a.slice('--name='.length);
     else if (a === '--auto') out.auto = true;
     else if (a === '--stub') out.stub = true;
   }
@@ -66,9 +72,15 @@ function resolveKey(cli?: string): string | undefined {
 
 // ─── the visitor ────────────────────────────────────────────────
 
+// a scenario step. `when` names an oracle beat type ('guess', 'focus',
+// 'naming', …): the runner waits for it before playing the step —
+// up to 3 silence ticks, then proceeds anyway (logged) so a scenario
+// can react to the machine's move without ever hanging on it.
+type ScriptStep = { line?: string; flip?: number; silence?: boolean; when?: string };
+
 // scripted maya — enough charge to exercise press/stall/honor, with one
 // deflection so cassandra has something predictable to predict.
-const SCRIPT: { line?: string; flip?: number; silence?: boolean }[] = [
+const SCRIPT: ScriptStep[] = [
   { line: 'hi. okay. i was not going to do this but my friend made me, so.' },
   {
     line:
@@ -173,19 +185,44 @@ async function main() {
 
   // scripted mode always plays the WHOLE track (the close needs flip 4);
   // --turns sizes the model-driven visitor only
+  const track: ScriptStep[] = args.script
+    ? (JSON.parse(readFileSync(args.script, 'utf8')) as ScriptStep[])
+    : SCRIPT;
   const steps = args.auto
     ? Array.from({ length: args.turns }, () => ({ auto: true as const }))
-    : SCRIPT.filter((s) => input.mode === 'session' || s.flip === undefined);
+    : track.filter((s) => input.mode === 'session' || s.flip === undefined);
+
+  const hasOracleBeat = (type: string): boolean =>
+    engine
+      .snapshot()
+      .scroll.some((e) => e.kind === 'beat' && e.speaker === 'oracle' && e.beatType === type);
 
   for (const step of steps) {
     const snap = engine.snapshot();
     if (snap.phase !== 'live') break;
+
+    if (!('auto' in step) && step.when) {
+      for (let waited = 0; waited < 3 && !hasOracleBeat(step.when); waited++) {
+        say(`⟨waiting for ${step.when}⟩`, `silence tick ${waited + 1}`);
+        engine.silenceTick();
+        await settle(engine, 120_000);
+        logOracle(engine, say);
+        if (engine.snapshot().phase !== 'live') break;
+      }
+      if (!hasOracleBeat(step.when)) say('⟨note⟩', `${step.when} never arrived — proceeding`);
+      if (engine.snapshot().phase !== 'live') break;
+    }
 
     if ('auto' in step) {
       const line = await visitorModel(adapter, engine);
       say('visitor', line);
       engine.visitorLine(line);
     } else if (step.flip !== undefined) {
+      const s2 = engine.snapshot();
+      if (!s2.drawn.some((d) => d.slot === step.flip) || s2.flipped.includes(step.flip)) {
+        say('⟨skip⟩', `flip ${step.flip} — not on the table`);
+        continue;
+      }
       say('⟨flip⟩', String(step.flip));
       engine.flip(step.flip);
     } else if (step.silence) {
@@ -202,7 +239,7 @@ async function main() {
   // serialize — the SAME SessionRecord the lab's export button writes
   const record = serializeSession(input, engine.snapshot(), [...calls.values()]);
   const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
-  const dir = `runs/ensemble-${stamp}-${input.mode}${args.stub ? '-stub' : ''}`;
+  const dir = `runs/ensemble-${stamp}-${args.name ?? input.mode}${args.stub ? '-stub' : ''}`;
   mkdirSync(dir, { recursive: true });
   writeFileSync(`${dir}/session.json`, JSON.stringify(record, null, 2));
   writeFileSync(`${dir}/transcript.md`, buildSessionLog(record));
