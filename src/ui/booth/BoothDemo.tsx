@@ -82,6 +82,7 @@ export function BoothDemo({ apiKey, onExit }: Props) {
     stageRef.current = stage;
 
     const scene = new BoothScene(canvasRef.current!, (what) => {
+      scene.arouse(); // a tap on the table is a small visitor action
       if (what === 'deck') stage.clickDeck();
       else stage.clickCard(what);
       const v = stage.view();
@@ -139,6 +140,7 @@ export function BoothDemo({ apiKey, onExit }: Props) {
   function send() {
     const text = draft.trim();
     if (!text || !engineRef.current) return;
+    sceneRef.current?.arouse();
     engineRef.current.visitorLine(text);
     setDraft('');
   }

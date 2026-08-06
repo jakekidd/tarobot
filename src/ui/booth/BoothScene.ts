@@ -181,17 +181,13 @@ export class BoothScene {
 
   update(view: BoothView): void {
     // the eyes are told what she is DOING, not which shader to run —
-    // the leyebrary's mood layer owns that mapping
+    // the leyebrary's mood layer owns that mapping. speaking is a
+    // WINDOW, not a state: the stage reports 'speaking' forever after
+    // the first line, so the scene times the landing itself (roughly
+    // reading speed) and settles back to listening.
     this.mood = view.eyes;
-    const mood: EyeMood =
-      view.phase === 'closed'
-        ? { kind: 'closed' }
-        : view.eyes === 'thinking'
-          ? { kind: 'thinking' }
-          : view.eyes === 'speaking'
-            ? { kind: 'speaking', intent: intentOfBeat(view.beat) }
-            : { kind: 'listening' };
-    this.rig.setMood(mood);
+    this.closed = view.phase === 'closed';
+    this.beat = view.beat;
 
     view.cards.forEach((card, i) => {
       if (!card.dealt) return;
@@ -238,9 +234,14 @@ export class BoothScene {
     if (view.subtitleSeq !== this.lastSeq) {
       this.lastSeq = view.subtitleSeq;
       this.rig.pulse();
+      const words = view.subtitle ? view.subtitle.split(/\s+/).length : 0;
+      this.speakUntil = performance.now() + Math.min(8000, Math.max(2500, (words / 3) * 1000));
     }
   }
   private lastSeq = 0;
+  private closed = false;
+  private beat: string | null = null;
+  private speakUntil = 0;
 
   /** the visitor typed — the pupils open a little and relax slowly */
   arouse(amount = 1): void {
@@ -308,6 +309,14 @@ export class BoothScene {
     // thinking holds perfectly still — the stillness IS the pierce
     this.rig.group.position.y = thinking ? EYE_Y : EYE_Y + Math.sin(time * 0.9) * 0.02;
     this.rig.setGazeTarget(this.gaze);
+    const mood: EyeMood = this.closed
+      ? { kind: 'closed' }
+      : thinking
+        ? { kind: 'thinking' }
+        : performance.now() < this.speakUntil
+          ? { kind: 'speaking', intent: intentOfBeat(this.beat) }
+          : { kind: 'listening' };
+    this.rig.setMood(mood);
     this.rig.update(time, dt, this.renderer, this.camera);
 
     // cards: slide from deck to slot, then flip in place
