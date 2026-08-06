@@ -41,9 +41,74 @@ attachment is behavioral AND visual:
 | `bloom` | vogel phyllotaxis `θ=n·137.508°, r=c√n`, nearest-seed glow | biological order; magnificus green |
 | `mandala` | 3 seeded rose curves `r = a·|cos kθ|`, neon line + glow skirt | rhodonea / spirograph / guilloché |
 | `trails` | milkdrop feedback loop sampled into the iris | geiss's resample-decay engine |
+| `vision` | cortical stripes seen back through the retino-cortical log map | ermentrout & cowan 1979 — see below |
 
 crossfades between looks are morphs (`uLookMix` blends two full field
 evaluations), so a mood change is never a cut.
+
+## the vision look — the hallucination engine
+
+the capstone, and the only look here that is *derived* rather than
+designed. in 1926 klüver catalogued what people actually see on
+mescaline and found four recurring geometries: lattices/honeycombs,
+cobwebs, tunnels/funnels, spirals. he called them form constants and
+could not explain them. ermentrout & cowan did, in 1979.
+
+V1 sees the visual field through a complex logarithm. a point at
+radius r, angle θ in the eye lands at (log r, θ) on the flat cortical
+sheet. when cortical excitation destabilizes — which is what a 5-HT2A
+agonist does to the excitation/inhibition balance — the sheet does
+what every reaction-diffusion system does: it forms stripes. plain,
+straight, boring cortical stripes.
+
+seen back through the inverse map, those stripes are the form
+constants. one angle α sweeps the entire taxonomy:
+
+| cortical stripe | visual field | klüver class |
+|---|---|---|
+| α = 0 (varies with log r) | concentric rings | the tunnel |
+| α = π/2 (varies with θ) | radial spokes | the funnel |
+| 0 < α < π/2 | log spiral, pitch **exactly tan α** | the spiral |
+| three stripes at 120° | honeycomb | the lattice |
+
+the spiral pitch falls straight out of the algebra: constant phase
+means cos α·log r + sin α·θ = c, so r = A·e^(−tan α·θ).
+
+the look walks α on a slow cosine so the iris travels the taxonomy
+rather than picking one hallucination, and folds the hexagonal
+planform in and out on a slower cycle. riding on top is kitaoka's
+peripheral-drift staircase — the asymmetric black→dark→white→light
+luminance ramp whose contrast-dependent latency the visual system
+reads as motion in a static image — phase-locked to the planform, so
+the illusory drift runs *along* the form constant's contours.
+
+the tests don't check that it looks trippy; they check the
+derivation. α=0 is constant on every circle. α=π/2 is constant along
+every ray and has exactly k spokes (counted by zero crossings).
+intermediate α holds phase along r = A·e^(−tan α·θ). the map turns
+scaling into translation, and time translation equals radial scaling
+— which is *why* the tunnel never arrives.
+
+## the cords (`cord.ts`)
+
+the eyes are not floating; they are fed. a tapered tube per eye
+curves out of the socket and down into the dark, carrying a
+peristaltic bulge travelling toward the eye and a sway gripped at the
+socket (grip = u², so the far end drifts while the attachment never
+tears loose). flesh shader: lengthwise veins wandering under fbm
+mottling, a key light so the tube has a lit and a dark side, wet
+specular, rim, and a fade that swallows the far end rather than
+cutting it off. geometry is built once; both motions run in the
+vertex shader, with CPU twins in `math.ts` so the motion is testable.
+
+## motion modes
+
+gaze is a budget, split between turning the eye **body** and sliding
+the **pupil** (`splitGaze`). `pupil` spends it all on the pupil — the
+decal look. `eye` spends it all on the body — doll eyes. `both`
+(default, 0.55 body share) splits it, and the body lerps slower than
+the pupil, so the pupil arrives first and the body follows. that lag
+is most of what reads as alive.
 
 ## the feedback loop (`feedback.ts`)
 
@@ -76,8 +141,10 @@ the rig never blinks on its own (`blink removed` was deliberate);
 
 ## testing
 
-`tests/leyebrary-math.test.ts` + `tests/leyebrary-trip.test.ts` — 51
-assertions over the pure TS mirrors in `math.ts`: palette gamut and
+four suites over the pure TS mirrors in `math.ts` — `leyebrary-math`
+(fields), `leyebrary-trip` (mandala/feedback/grade), `leyebrary-
+anatomy` (gaze split + cords), `leyebrary-vision` (the form-constant
+derivation) — 79 assertions total. the earlier suites cover: palette gamut and
 periodicity, noise continuity and fbm bounds, spiral scale-invariance
 (scaling radius = rotating arms), kaleido dihedral symmetry, tunnel
 zoom-period exactness, phyllotaxis seed placement, rose petal
