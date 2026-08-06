@@ -220,21 +220,49 @@ Two routes were on the table: patch the five stores in place (C1-C4)
 or remove the stores from intake entirely. The evidence + jake's
 simplified-interview instinct (2026-08-06) point to the second:
 
-**The investigator shape (proposed, pending jake's ratification):**
-during intake, ONE agent — the investigator — replaces
-driver+interpreter+profiler+attention. It re-reads the RAW transcript
-every turn (no accumulated stores: the transcript is the profile),
-reasons freely (visible in the xray, discarded next turn — verbalize
-freely, persist nothing), and speaks via the inline goldilocks
-contract (three takes in one structured call; validators + fossil law
-still bind the spoken line). The CONJECTOR stays exactly as the
-guesser/classifier — the graded channel is the healthy one — but its
-grading moves to a room-reaction judge (C2; both probes caught
-self-grade inflation). The house rails (clock, menus, consent
-detector, deal, spread) stay untouched. Post-deal, the reading keeps
-the doc + augur machinery; whether the full ensemble or a slimmed one
-runs the card phase is decided after intake proves out. Build as a
-parallel mode next to the current engine for lab A/B, not a bulldoze.
+**THE OFFER LOOP — jake's reframe (2026-08-06), the intake spec:**
+
+1. *The interview's product is the transcript.* The investigator (one
+   agent replacing driver+interpreter+profiler+attention at intake)
+   conducts a conversation whose RECORD, read back later, yields the
+   insight — elicitation, not comprehension. It re-reads the raw
+   transcript every turn; its reasoning is visible in the xray and
+   discarded next turn. Nothing accumulates because a good transcript
+   makes derived state redundant.
+2. *One bet matters — the dilemma — and the visitor grades it.* The
+   guesser (the conjector, kept) watches the transcript and holds one
+   running candidate for what tonight is about. Questions and small
+   in-voice guesses are partial bets that sharpen it.
+3. *The shortcut: when the candidate is strong, ask.* "is THIS the
+   thing we're pulling cards about?" — in voice, plainly, as early as
+   the signal justifies. No mandatory question count, no
+   classify-then-gate ceremony.
+4. *Yes ends intake; no is a grade.* Yes = the commit event: ONE
+   reflection pass over the whole transcript with the confirmed
+   dilemma as lens → dilemma document → deal. No = the strongest
+   cold; the territory is banked as refused and the next candidate
+   must diverge. Two refusals → exploration. The clock still lands
+   everything.
+
+Properties: anti-Barnum becomes structural at the premise (no dilemma
+commits unratified — the misdirect failure class is impossible by
+construction); compounding dies by deletion (only transcript +
+graded bets persist); co-authorship at the top (the visitor speaks
+the session's subject into being); the race is won by default
+(intake is exactly as long as the signal is weak). Machinery mostly
+exists: consent detector → the offer's yes/no judge; refusability
+validator → the offer's postcondition; no-as-cold = task #9
+generalized into the main loop; exploration + clock unchanged;
+speech via inline goldilocks with validators + fossil law binding.
+
+Guardrails for doing it right: wrong offers cost trust — the offer
+threshold wants at least one warm partial guess behind it, and offers
+stay comfortably refusable; a limp yes ("sure, whatever") is
+ambivalent, never assent — the detector stays strict. Post-deal, the
+reading keeps the doc + augur machinery; whether the card phase keeps
+the full ensemble is decided after intake proves out. Build as a
+parallel intake mode beside the current engine for lab A/B — not a
+bulldoze. Status: spec ratified in shape by jake; build pending go.
 
 Landed immediately regardless of route: the consent busy fix, the
 thoughts unbundle, driver.md honors "just deal" surrender.
