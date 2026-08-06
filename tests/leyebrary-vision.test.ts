@@ -6,9 +6,12 @@
 
 import { describe, expect, it } from 'vitest';
 import {
+  BREATH,
   FORM,
   FORM_CONSTANTS,
   TAU,
+  breathe,
+  breatheVec,
   corticalHex,
   corticalRetino,
   corticalRoll,
@@ -153,6 +156,56 @@ describe('the hexagonal planform (the honeycomb class)', () => {
   it('is not the same field as a single roll', () => {
     const p = polar(0.45, 0.6);
     expect(corticalHex(...p, 0.2, 0)).not.toBeCloseTo(corticalRoll(...p, 0.2, 0), 2);
+  });
+});
+
+describe('breathing', () => {
+  it('amp 0 is the identity — breathing is opt-in', () => {
+    for (const [x, y] of [polar(0.3, 1.1), polar(0.8, -2.0)]) {
+      const v = breatheVec(x, y, 3.3, 0);
+      expect(v.x).toBeCloseTo(x, 12);
+      expect(v.y).toBeCloseTo(y, 12);
+    }
+  });
+
+  it('displaces by at most the amplitude — a sigh, not a slosh', () => {
+    for (let r = 0.05; r < 1.2; r += 0.05) {
+      for (let th = 0; th < TAU; th += 0.4) {
+        for (let t = 0; t < 12; t += 0.7) {
+          const [x, y] = polar(r, th);
+          const rw = breathe(x, y, t);
+          expect(Math.abs(rw - r)).toBeLessThanOrEqual(r * BREATH.amp + 1e-12);
+        }
+      }
+    }
+  });
+
+  it('is purely radial — the angle never changes, so nothing shears', () => {
+    for (let th = -3; th < 3; th += 0.37) {
+      const [x, y] = polar(0.55, th);
+      const v = breatheVec(x, y, 4.1);
+      expect(Math.atan2(v.y, v.x)).toBeCloseTo(th, 8);
+    }
+  });
+
+  it('is periodic in time at the breath frequency', () => {
+    const [x, y] = polar(0.4, 0.8);
+    const period = 1 / BREATH.freq;
+    expect(breathe(x, y, 1.5)).toBeCloseTo(breathe(x, y, 1.5 + period), 8);
+  });
+
+  it('leaves the exact center alone (no singularity at r=0)', () => {
+    const v = breatheVec(0, 0, 2.2);
+    expect(v.x).toBe(0);
+    expect(v.y).toBe(0);
+    expect(Number.isFinite(breathe(0, 0, 2.2))).toBe(true);
+  });
+
+  it('actually moves — a still "breath" is a bug, not a feature', () => {
+    const [x, y] = polar(0.6, 0.3);
+    const a = breathe(x, y, 0);
+    const b = breathe(x, y, 1 / BREATH.freq / 2);
+    expect(Math.abs(a - b)).toBeGreaterThan(1e-3);
   });
 });
 

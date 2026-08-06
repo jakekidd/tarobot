@@ -120,6 +120,12 @@ slider('dolly', 0.35, (v) => {
   camZ = 1.6 + v * 5.5;
   camera.position.z = camZ;
 });
+slider('breath', 1, (v) => {
+  rig.group.traverse((o) => {
+    const mat = (o as THREE.Mesh).material as THREE.ShaderMaterial | undefined;
+    if (mat?.uniforms?.uBreath) mat.uniforms.uBreath.value = v * 3;
+  });
+});
 
 function resize(): void {
   renderer.setSize(window.innerWidth, window.innerHeight, false);

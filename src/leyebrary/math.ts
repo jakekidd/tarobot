@@ -376,6 +376,33 @@ export const FORM_CONSTANTS = {
   funnel: Math.PI / 2,
 } as const;
 
+// ─── breathing ───────────────────────────────────────────────────
+// The most commonly reported low-dose visual: surfaces undulate,
+// swell, and pull without changing what they are. Modelled as a slow
+// radial displacement — the field is sampled through a warped radius
+// rather than redrawn — so the pattern keeps its identity while its
+// geometry sighs. Amplitude is deliberately small; breathing that
+// reads as sloshing is a different (worse) effect.
+
+export const BREATH = { freq: 0.21, spatial: 2.3, amp: 0.055, swirl: 0.35 };
+
+/** warped radius at (x,y) — feed the field this instead of length(p) */
+export function breathe(x: number, y: number, t: number, amp = BREATH.amp): number {
+  const r = Math.hypot(x, y);
+  const th = Math.atan2(y, x);
+  const wave = Math.sin(r * BREATH.spatial * TAU - t * BREATH.freq * TAU + th * BREATH.swirl);
+  return r * (1 + amp * wave);
+}
+
+/** the same warp as a 2D displacement, for fields that need x,y */
+export function breatheVec(x: number, y: number, t: number, amp = BREATH.amp): Vec2 {
+  const r = Math.hypot(x, y);
+  if (r < 1e-6) return { x, y };
+  const rw = breathe(x, y, t, amp);
+  const s = rw / r;
+  return { x: x * s, y: y * s };
+}
+
 // ─── peripheral drift (illusory motion) ──────────────────────────
 // Kitaoka's rotating-snakes staircase: a repeating asymmetric
 // luminance ramp (black → dark → white → light → black). The visual
@@ -652,6 +679,10 @@ export const GLSL_CONSTS = {
   CORD_PERI_AMP: f(CORD.peristalsisAmp),
   FORM_K: f(FORM.k),
   FORM_OMEGA: f(FORM.omega),
+  BREATH_FREQ: f(BREATH.freq),
+  BREATH_SPATIAL: f(BREATH.spatial),
+  BREATH_AMP: f(BREATH.amp),
+  BREATH_SWIRL: f(BREATH.swirl),
   DRIFT_STEPS: f(DRIFT.steps),
   DRIFT_GAIN: f(DRIFT.gain),
   DRIFT_SHARP: f(DRIFT.sharpness),

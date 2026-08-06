@@ -57,6 +57,7 @@ export function createEyeMaterial(
       uModeTo: { value: 1 },
       uLookMix: { value: 1 },
       uGrade: { value: 0.75 },
+      uBreath: { value: 1 },
       uGaze: { value: new THREE.Vector2(0, 0) },
       uRoseK: { value: new THREE.Vector3(...rose.k) },
       uRoseSpin: { value: new THREE.Vector3(...rose.spin) },

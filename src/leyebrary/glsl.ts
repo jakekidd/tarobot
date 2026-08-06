@@ -121,6 +121,17 @@ float phylloField(vec2 p, float t) {
 // 0 → tunnel (rings), pi/2 → funnel (spokes), between → log spiral
 // of pitch tan(alpha). uHex blends in the 3-roll hexagonal planform,
 // which is the honeycomb class.
+// Breathing — the surface sighs without becoming something else.
+// The field is sampled through a warped radius, so the pattern keeps
+// its identity while its geometry swells and pulls.
+vec2 breatheVec(vec2 p, float t, float amp) {
+  float r = length(p);
+  if (r < 1e-6) return p;
+  float th = atan(p.y, p.x);
+  float wave = sin(r * ${C.BREATH_SPATIAL} * TAU - t * ${C.BREATH_FREQ} * TAU + th * ${C.BREATH_SWIRL});
+  return p * (1.0 + amp * wave);
+}
+
 vec2 retinoCortical(vec2 p) {
   float r = max(1e-4, length(p));
   return vec2(log(r), atan(p.y, p.x));
@@ -200,6 +211,7 @@ uniform int uModeFrom;
 uniform int uModeTo;
 uniform float uLookMix;
 uniform float uGrade;
+uniform float uBreath;
 uniform vec2 uGaze;
 uniform vec3 uPalA[2];
 uniform vec3 uPalB[2];
@@ -274,23 +286,29 @@ vec3 visionColor(int idx, vec2 p, float t) {
   return col * (0.5 + 0.75 * band);
 }
 
-vec3 lookColor(int idx, int mode, float speed, vec2 ip, float r, float theta) {
+vec3 lookColor(int idx, int mode, float speed, vec2 ip0) {
   float t = uTime * speed + uPhase;
+  // every look breathes; the field is sampled through a warped
+  // radius so the pattern keeps its identity while the surface sighs
+  vec2 ip = breatheVec(ip0, t, ${C.BREATH_AMP} * uBreath);
+  // the breathed polar pair, so radial looks sigh along with the rest
+  float br = length(ip);
+  float bth = atan(ip.y, ip.x);
   if (mode == 8) return visionColor(idx, ip, t);
-  if (mode == 6) return roseColor(idx, r, theta, t);
+  if (mode == 6) return roseColor(idx, br, bth, t);
   if (mode == 7) {
     vec2 fuv = ip / (IRIS_R * 2.2) + 0.5;
     vec3 fb = texture2D(uFeedback, fuv).rgb;
-    return fb * (0.7 + 0.6 * pal(idx, r * 0.4 + t * 0.05));
+    return fb * (0.7 + 0.6 * pal(idx, br * 0.4 + t * 0.05));
   }
   float v = field(mode, ip, t);
   float band = v * 0.5 + 0.5;
   // palette driven by field value + a slow radial sweep, so color
   // travels through the iris instead of sitting in rings
-  float pt = band * 0.55 + r * 0.35 + t * 0.05;
+  float pt = band * 0.55 + br * 0.35 + t * 0.05;
   vec3 col = pal(idx, pt);
   // iris fibers — fine radial striations modulated by the field
-  float fibers = 0.82 + 0.18 * sin(theta * 34.0 + v * 3.0 + t * 0.4);
+  float fibers = 0.82 + 0.18 * sin(bth * 34.0 + v * 3.0 + t * 0.4);
   return col * fibers * (0.55 + 0.45 * band);
 }
 
@@ -332,8 +350,8 @@ void main() {
     vec3(0.30, 0.16, 0.55) * breathe;
 
   // iris — two looks crossfaded
-  vec3 irisA = lookColor(0, uModeFrom, uSpeedFrom, ic, r, theta);
-  vec3 irisB = lookColor(1, uModeTo, uSpeedTo, ic, r, theta);
+  vec3 irisA = lookColor(0, uModeFrom, uSpeedFrom, ic);
+  vec3 irisB = lookColor(1, uModeTo, uSpeedTo, ic);
   vec3 iris = mix(irisA, irisB, uLookMix) * uEnergy;
 
   // limbal ring — the dark rim that makes it an eye and not a disc
