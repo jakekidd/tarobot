@@ -222,6 +222,41 @@ lab); the adapter itself retries malformed tool JSON once
 generation bumps: a newer event makes in-flight results stale, and
 stale results are discarded, not spoken.
 
+## 5b. the offer loop — investigator intake (2026-08-06)
+
+`input.intake: 'investigator'` (the BOOTH default; the lab and the
+harness default `'ensemble'`, `--intake=` on `pnpm e2e:ensemble`)
+swaps the PRE-DEAL machine for the offer loop
+(`docs/experiments/COMPOUNDING.md` §5 — born from the
+error-compounding audit: ungraded stores laundered wrong
+understanding into committed fact; the graded guess channel was the
+only healthy one):
+
+- ONE **investigator** call per turn (`investigator.md` — vesper,
+  goldilocks corpses inline, `talk` beats) replaces driver +
+  interpreter + profiler + attention. It re-reads the raw transcript
+  cold every turn; its private `read` is logged for the xray and
+  discarded. The transcript is the profile — no fan, no frame, no
+  facets during intake.
+- the **conjector** hunts beside it unchanged; its pending guess is
+  handed in as a PROBE on a house cadence.
+- the house owns offer timing: candidate (focus) + a warm guess
+  behind it (or the closing clock) → the **offer** ("is this the
+  thing?"), rendered through the existing focus machinery + consent
+  detector. YES is the commit event: one **reflection pass** rewrites
+  the dilemma document from the whole record, then the deal. NO burns
+  the candidate (cold grade, back to the conversation); two nos owe
+  EXPLORATION.
+- the **drought funnel**: `carry()` (thin visitor turns in a row)
+  hands the investigator a HOST directive; two hosted turns still dry
+  → the house deals UNKNOWN itself — cards first, the flips do the
+  eliciting. A visitor who volunteers nothing still gets a reading.
+
+Post-deal both intakes converge on the ensemble card phase (fan
+resumes; its first delta catches up the whole record).
+`pnpm smoke:investigator` covers the arc. Whether the card phase
+keeps the full ensemble is decided after intake proves out.
+
 ## 6. operating it
 
 **Web:** key entry → the three-door menu: demo (the booth), xray lab,
