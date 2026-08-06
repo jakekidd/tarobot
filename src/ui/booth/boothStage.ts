@@ -27,6 +27,8 @@ export type BoothView = {
   cardsRemaining: number;
   cards: BoothCard[];
   eyes: EyesMood;
+  /** grammar beat behind the current line — the eyes' intent cue */
+  beat: string | null;
   awaiting: 'visitor' | 'deal' | 'oracle' | 'done';
 };
 
@@ -35,6 +37,7 @@ export class BoothStage {
   private lastOracleBeats = 0;
   private seq = 0;
   private subtitleText: string | null = null;
+  private beatType: string | null = null;
   private readonly engine: EnsembleEngine;
 
   constructor(engine: EnsembleEngine) {
@@ -63,6 +66,8 @@ export class BoothStage {
       (e) => e.kind === 'beat' && e.speaker === 'oracle',
     );
     if (oracleBeats.length > this.lastOracleBeats) {
+      const newest = oracleBeats[oracleBeats.length - 1];
+      this.beatType = newest.kind === 'beat' ? (newest.beatType ?? null) : null;
       // beats that land together (the boot pair, quest+close) show together
       const fresh = oracleBeats.slice(this.lastOracleBeats);
       this.subtitleText = fresh
@@ -96,6 +101,7 @@ export class BoothStage {
       cardsRemaining: Math.max(0, s.drawn.length - this.dealtCount),
       cards,
       eyes,
+      beat: this.beatType,
       awaiting,
     };
   }
