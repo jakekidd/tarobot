@@ -276,6 +276,7 @@ export function callPauseAdditions(
     `- second: the pause has grown long — she re-angles: a different door into the same room, or an easier one. still unbothered.`,
     `- third: the silence has fully arrived — she names it plainly and moves the show: the smallest possible ask, or she offers to bring the cards out. dry, never needy.`,
     `each one stands alone (by the time it is spoken, the earlier additions were spoken too). lowercase. one or two sentences each.`,
+    `never invent biography: no new names, days, places, or facts they did not give — additions host the room, they never guess. and vary the third's move: the cards are one door, not the only one.`,
   ].join('\n\n');
   return structured(env, 'investigator', SYSTEMS.investigator, user, PAUSE_TOOL, PauseAdditionsSchema, 400);
 }

@@ -98,6 +98,13 @@ export class EnsembleEngine {
   private guessPlayed = false;
   /** offer-loop intake: a warm/hot grade arms the shortcut */
   private warmGuessSeen = false;
+  /** a HOT grade without a classify arms this: the next conjector
+   *  cycle is mandated to commit (more hunting after hot is time
+   *  stolen from the cards — quiet probe, 2026-08-06) */
+  private classifyMandate = false;
+  /** the guess text actually spoken last — grades must attribute to
+   *  the PLAYED words, not whatever is pending now (talker probe) */
+  private lastPlayedGuess: string | null = null;
   /** offer-loop intake: talk turns since a probe was handed over */
   private talksSinceProbe = 99;
   /** offer-loop intake: consecutive hosted turns spent in a visitor
@@ -1020,7 +1027,7 @@ export class EnsembleEngine {
         if (this.focusStage === 0 && this.focusPhrase) {
           const text = await this.promptedLine(
             'focus',
-            `ask them, plainly and in your own words, whether "${this.focusPhrase}" is the real thing to look at tonight. it must be a genuine yes-or-no question they can refuse. one sentence.`,
+            `ask them, plainly and in your own words, whether "${this.focusPhrase}" is the real thing to look at tonight. one sentence, her size: a genuine yes-or-no question they can refuse. no imagery, no "or is it..." fishing, no second question stacked on — the move is the asking, not the phrasing.`,
             (line) => this.focusLineValid(line, this.focusPhrase!),
             BEATS.focus.offer.replace('{PASSAGE:focus}', this.focusPhrase),
             myGen,
@@ -1035,7 +1042,7 @@ export class EnsembleEngine {
         } else if (this.focusStage === 1 && this.altFocus) {
           const text = await this.promptedLine(
             'focus',
-            `they said no. offer the other thing you saw — "${this.altFocus}" — as a yes-or-no question, taking the miss in stride. one short sentence.`,
+            `they said no. offer the other thing you saw — "${this.altFocus}" — as a yes-or-no question, taking the miss in stride. one short sentence, plain: no imagery, no second question stacked on.`,
             (line) => this.focusLineValid(line, this.altFocus!),
             BEATS.focus.alt.replace('{PASSAGE:focus}', this.altFocus),
             myGen,
@@ -1232,6 +1239,19 @@ export class EnsembleEngine {
           materials,
         });
         const failures = validateFills(slots, got, visitorText);
+        // a fill that parrots the skeleton's own words produces a spoken
+        // stutter ("the thing you already decided... the thing you
+        // already decided") — reject the echo (skeptic probe)
+        if (failures.length === 0) {
+          const skelNorm = skeleton.toLowerCase();
+          for (const s of fillable) {
+            const t = (got[s.key] ?? '').trim().toLowerCase();
+            if (t.length > 8 && skelNorm.includes(t)) {
+              failures.push(`${s.key} echoes the skeleton text`);
+              break;
+            }
+          }
+        }
         if (failures.length === 0) fills = got;
       } catch {
         /* refill or fall through */
@@ -1313,7 +1333,10 @@ export class EnsembleEngine {
     // the DIVINER's cheat: the conjector may have named a plant
     if (this.plantId) {
       const wanted = this.plantId.toLowerCase().trim().replace(/[\s_]+/g, '-').replace(/[^a-z-]/g, '');
-      const plant = ORACLE_DECK.find((c) => c.id === wanted);
+      // models drop the "of": five-cups → five-of-cups
+      const plant =
+        ORACLE_DECK.find((c) => c.id === wanted) ??
+        ORACLE_DECK.find((c) => c.id === wanted.replace(/^([a-z]+)-(?!of-)/, '$1-of-'));
       if (plant && !cards.some((c) => c.id === plant.id)) {
         cards[Math.min(1, cards.length - 1)] = plant;
         this.note(`plant DELIVERED: ${plant.id}`);
@@ -1607,9 +1630,10 @@ export class EnsembleEngine {
     this.emit();
     const committed = dilemmaCommitted(this.dilemma);
     const questWanted = committed && (this.namingDelivered || this.flipped.length >= Math.max(2, this.drawn.length - 1));
+    const askMandated = this.classifyMandate && !committed;
     const ask = committed
       ? `document mode. re-read the passages against the newest material and rewrite the ONE that most needs it${questWanted ? ' — the quest passage is unlocked; draft or sharpen it (2 sentences maximum, a small observable experiment)' : ''}. include ONLY what you rewrite; re-emitting an unchanged passage is a wasted cycle.`
-      : `hunting mode (${this.guessCount} guesses so far; at 5, stop hunting — commit your best read or leave it unnamed). grade your previous guess off the reaction; two warms in one territory = commit. then file the next guess — or CLASSIFY: emit class (FORK|THRESHOLD|LOOP|WEIGHT) + problem_md + options_md + focus (the dilemma in ≤8 plain words, for her consent question) + optionally alt_focus (a second territory) and plant (one deck card id).`;
+      : `${askMandated ? 'MANDATE: your last guess ran HOT — the territory is confirmed. stop hunting. CLASSIFY this cycle. ' : ''}hunting mode (${this.guessCount} guesses so far; at 5, stop hunting — commit your best read or leave it unnamed). grade your previous guess off the reaction; two warms in one territory = commit; a HOT means classify NOW — more hunting after a hot is time stolen from the cards. then file the next guess — or CLASSIFY: emit class (FORK|THRESHOLD|LOOP|WEIGHT) + problem_md + options_md + focus (the dilemma in ≤8 plain words, for her consent question) + optionally alt_focus (a second territory) and plant (one deck card id, hyphenated like five-of-cups or the-tower).`;
     this.conjectorSeenBeats = this.scroll.filter((e) => e.kind === 'beat').length;
     try {
       const out = await callConjector(this.env, {
@@ -1628,6 +1652,9 @@ export class EnsembleEngine {
           (this.pendingGuess
             ? `"${this.pendingGuess}" ${this.guessPlayed ? '(played to the visitor)' : '(NOT yet played — grade unplayed unless the room answered it anyway)'}`
             : '(none yet)') +
+          (this.lastPlayedGuess && this.lastPlayedGuess !== this.pendingGuess
+            ? ` | the guess actually PLAYED last: "${this.lastPlayedGuess}" — grade THAT one off the reaction`
+            : '') +
           (this.focusRejections.length > 0
             ? ` | DECLINED FOCUSES (grade these territories cold): ${this.focusRejections.map((f) => `"${f}"`).join('; ')}`
             : ''),
@@ -1637,8 +1664,14 @@ export class EnsembleEngine {
       if (out.prev) {
         this.note(`conjector graded previous guess: ${out.prev}`);
         this.lastGuessGrade = out.prev;
+        this.lastPlayedGuess = null; // attributed; one cycle of use
         if (out.prev === 'warm' || out.prev === 'hot') this.warmGuessSeen = true;
+        if (out.prev === 'hot' && !out.class && !dilemmaCommitted(this.dilemma)) {
+          this.classifyMandate = true;
+          this.note('HOT without classify — commit mandate armed');
+        }
       }
+      if (out.class) this.classifyMandate = false;
       // length is a ballpark, never enforced (jake, 2026-08-05): the old
       // refile loop burned two calls, returned the same words, and could
       // drop a live guess entirely. log the overrun; play it anyway.
