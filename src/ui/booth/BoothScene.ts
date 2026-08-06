@@ -1,13 +1,13 @@
 // The booth's three.js scene — the oracle's attached eye rig in a
 // starry void, a red-cloth table, the deck, the dealt cards.
 // Imperative class owned by BoothDemo; consumes BoothView, emits
-// table clicks. The eyes are leyebrary shader quads: a seeded rose
-// mandala at rest, interference ripples while speaking, the log-
-// spiral hypnosis field while thinking — one rig, one gaze, vergence
-// on the viewer.
+// table clicks. The eyes are a leyebrary rig, driven by MOOD rather
+// than by look name: this file says what she is doing (listening /
+// thinking / speaking-with-an-intent / closed) and the library owns
+// which field that renders as. Typing arouses the pupils.
 
 import * as THREE from 'three';
-import { EyeRig } from '../../leyebrary';
+import { EyeRig, intentOfBeat, type EyeMood } from '../../leyebrary';
 import type { BoothView } from './boothStage';
 import { createStarField, type StarField } from './starfield';
 
@@ -152,7 +152,7 @@ export class BoothScene {
       eyeWidth: 0.64,
     });
     this.rig.group.position.set(0, EYE_Y, -0.2);
-    this.rig.setLook('mandala', 0);
+    this.rig.setMood({ kind: 'listening' });
     this.scene.add(this.rig.group);
 
     // the deck — on the table from the very start (inert until the deal)
@@ -180,19 +180,18 @@ export class BoothScene {
   }
 
   update(view: BoothView): void {
-    if (view.eyes !== this.mood) {
-      this.mood = view.eyes;
-      // the mood → look map: rest is the session's mandala, speech is
-      // the ripple, and thought drops into the form constants — while
-      // the oracle is working, its eyes show what a destabilized
-      // visual cortex produces
-      this.rig.setLook(
-        view.eyes === 'thinking' ? 'vision' : view.eyes === 'speaking' ? 'ripple' : 'mandala',
-        view.eyes === 'thinking' ? 0.8 : 1.6,
-      );
-      // the eyes breathe deeper while the oracle is under
-      this.rig.setBreath(view.eyes === 'thinking' ? 2.2 : 1);
-    }
+    // the eyes are told what she is DOING, not which shader to run —
+    // the leyebrary's mood layer owns that mapping
+    this.mood = view.eyes;
+    const mood: EyeMood =
+      view.phase === 'closed'
+        ? { kind: 'closed' }
+        : view.eyes === 'thinking'
+          ? { kind: 'thinking' }
+          : view.eyes === 'speaking'
+            ? { kind: 'speaking', intent: intentOfBeat(view.beat) }
+            : { kind: 'listening' };
+    this.rig.setMood(mood);
 
     view.cards.forEach((card, i) => {
       if (!card.dealt) return;
@@ -242,6 +241,11 @@ export class BoothScene {
     }
   }
   private lastSeq = 0;
+
+  /** the visitor typed — the pupils open a little and relax slowly */
+  arouse(amount = 1): void {
+    this.rig.arouse(amount);
+  }
 
   private onPointer = (ev: PointerEvent): void => {
     const rect = this.canvas.getBoundingClientRect();

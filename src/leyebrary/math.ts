@@ -665,6 +665,35 @@ export function pupilOffset(dx: number, dy: number, dz: number, max = 0.35): Vec
   return { x: (ox / m) * max, y: (oy / m) * max };
 }
 
+// ─── arousal (the reaction to being addressed) ───────────────────
+// Every keystroke nudges the pupil open a little. Three properties
+// the naive version gets wrong: it must DIMINISH (the tenth keystroke
+// cannot move it as much as the first), it must be BOUNDED (no amount
+// of typing turns the eye into a saucer), and it must decay SLOWLY
+// (a twitchy pupil reads as a glitch, not as attention).
+//
+// One law delivers all three: each nudge closes a fixed fraction of
+// the remaining distance to 1. That is diminishing by construction
+// and can never reach the boundary, let alone pass it.
+
+export const AROUSAL = { gain: 0.16, halfLife: 1.9, dilate: 0.075 };
+
+/** one nudge — closes `gain` of the gap to full, so it self-limits */
+export function arousalStep(current: number, amount = 1): number {
+  const a = clamp01(current);
+  return a + AROUSAL.gain * clamp01(amount) * (1 - a);
+}
+
+/** exponential relaxation back to rest */
+export function arousalDecay(current: number, dt: number): number {
+  return clamp01(current) * Math.pow(0.5, dt / AROUSAL.halfLife);
+}
+
+/** how much the pupil opens at a given arousal */
+export function arousalDilation(current: number): number {
+  return AROUSAL.dilate * clamp01(current);
+}
+
 // ─── gaze split (body vs pupil) ──────────────────────────────────
 // Real eyes aim by rotating the ball; a pupil that slides across a
 // stationary sclera reads as a painted-on decal. So gaze is SPLIT: a

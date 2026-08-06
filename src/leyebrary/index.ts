@@ -2,6 +2,18 @@ export { EyeRig, type EyeRigOptions, type MotionMode } from './EyeRig';
 export { Cord, type CordOptions } from './cord';
 export { FeedbackLoop } from './feedback';
 export {
+  BEAT_INTENT,
+  THINKING_CYCLE,
+  intentOfBeat,
+  moodBreath,
+  moodFade,
+  moodLook,
+  sameMood,
+  thinkingLook,
+  type EyeMood,
+  type SpeechIntent,
+} from './mood';
+export {
   FIELD_MODES,
   LOOKS,
   LOOK_NAMES,

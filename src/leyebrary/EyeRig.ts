@@ -9,7 +9,17 @@ import { Cord } from './cord';
 import { createEyeMaterial, createMembraneMaterial, writePalette } from './eyeMaterial';
 import { FeedbackLoop } from './feedback';
 import { FIELD_MODES, LOOKS, sessionGenome, type EyePairing, type LookName, type SessionGenome } from './looks';
-import { EYE_ASPECT, MOTION, blinkEnvelope, saccade, splitGaze } from './math';
+import {
+  EYE_ASPECT,
+  MOTION,
+  arousalDecay,
+  arousalDilation,
+  arousalStep,
+  blinkEnvelope,
+  saccade,
+  splitGaze,
+} from './math';
+import { moodBreath, moodFade, moodLook, sameMood, type EyeMood } from './mood';
 
 // How gaze is spent. 'pupil' slides the pupil across a stationary eye
 // (the decal look); 'eye' turns the whole body and pins the pupil
@@ -33,6 +43,8 @@ type EyeSlot = {
   mesh: THREE.Mesh;
   mat: THREE.ShaderMaterial;
   socket: THREE.Group;
+  /** the ball. rotates as the body; the quad and the cord ride it */
+  globe: THREE.Group;
   cord: Cord | null;
   home: THREE.Vector3;
   gazeSmooth: THREE.Vector2;
@@ -56,6 +68,9 @@ export class EyeRig {
 
   private gazeTarget = new THREE.Vector3(0, 0, 3);
   private pulseLevel = 0;
+  private arousal = 0;
+  private mood: EyeMood = { kind: 'listening' };
+  private moodElapsed = 0;
   private baseLid = 0;
   private blinkAt = -1;
 
@@ -100,7 +115,13 @@ export class EyeRig {
       const socket = new THREE.Group();
       const side = eyeIndex === 0 ? -1 : 1;
       socket.position.set(side * (this.separation / 2), 0, 0);
-      socket.add(mesh);
+      // the globe is the ball itself: it turns inside the socket, and
+      // the cord hangs off its CENTRE, so the stalk stays plugged into
+      // the eye through any rotation — and travels with it if the eye
+      // is ever thrown, dropped, or lands on the table
+      const globe = new THREE.Group();
+      globe.add(mesh);
+      socket.add(globe);
       this.group.add(socket);
 
       let cord: Cord | null = null;
@@ -110,15 +131,20 @@ export class EyeRig {
           length: this.eyeWidth * 4.2,
           radius: this.eyeWidth * 0.26,
           splay: side * 0.6,
+          // starts behind the ball's front face, so the mouth stays
+          // hidden inside the silhouette through the full body swing
+          startZ: -this.eyeWidth * 0.4,
         });
-        cord.mesh.position.z = -this.eyeWidth * 0.3;
-        socket.add(cord.mesh);
+        // anchored at the ball's centre, not behind its silhouette
+        cord.mesh.position.set(0, 0, 0);
+        globe.add(cord.mesh);
       }
 
       return {
         mesh,
         mat,
         socket,
+        globe,
         cord,
         home: socket.position.clone(),
         gazeSmooth: new THREE.Vector2(),
@@ -209,6 +235,13 @@ export class EyeRig {
   update(time: number, dt: number, renderer: THREE.WebGLRenderer, camera: THREE.Camera): void {
     if (this.lookMix < 1) this.lookMix = Math.min(1, this.lookMix + dt * this.fadeRate);
     if (this.pulseLevel > 0) this.pulseLevel = Math.max(0, this.pulseLevel - dt * 1.4);
+    this.arousal = arousalDecay(this.arousal, dt);
+
+    // the thinking cycle drifts on its own — a face frozen through a
+    // long model call reads as a hang, not as concentration
+    this.moodElapsed += dt;
+    const wanted = moodLook(this.mood, this.moodElapsed);
+    if (wanted !== this.lookTo) this.setLook(wanted, moodFade(this.mood));
 
     let blinkLid = 0;
     if (this.blinkAt >= 0) {
@@ -247,7 +280,8 @@ export class EyeRig {
       if (this.usesTrails()) u.uFeedback.value = this.feedback.texture;
 
       const ps = u.uPupil.value as number;
-      u.uPupil.value = ps + (pupilTarget - ps) * Math.min(1, dt * 4);
+      const want = pupilTarget + arousalDilation(this.arousal);
+      u.uPupil.value = ps + (want - ps) * Math.min(1, dt * 4);
 
       // vergence: each eye aims from its OWN position — near targets
       // cross the eyes, which is what "looking at you" is made of
@@ -266,8 +300,8 @@ export class EyeRig {
         new THREE.Vector2(split.bodyYaw, split.bodyPitch),
         Math.min(1, dt * 3.2),
       );
-      eye.mesh.rotation.y = eye.bodySmooth.x;
-      eye.mesh.rotation.x = -eye.bodySmooth.y;
+      eye.globe.rotation.y = eye.bodySmooth.x;
+      eye.globe.rotation.x = -eye.bodySmooth.y;
       eye.socket.position.set(
         eye.home.x + eye.bodySmooth.x * MOTION.bodyShift,
         eye.home.y + eye.bodySmooth.y * MOTION.bodyShift,
@@ -291,6 +325,35 @@ export class EyeRig {
       this.membraneMat.uniforms.uLookMix.value = this.lookMix;
       this.membraneMat.uniforms.uEnergy.value = 0.4 + 0.25 * energy + this.pulseLevel * 0.3;
     }
+  }
+
+  /**
+   * What the eyes are doing, in the session's own words. This is the
+   * seam the show should drive — it never has to name a look.
+   */
+  setMood(mood: EyeMood): void {
+    if (sameMood(mood, this.mood)) return;
+    this.mood = mood;
+    this.moodElapsed = 0;
+    this.setBreath(moodBreath(mood));
+    this.setLook(moodLook(mood, 0), moodFade(mood));
+  }
+
+  get currentMood(): EyeMood {
+    return this.mood;
+  }
+
+  /**
+   * The visitor did something small — a keystroke, later a syllable.
+   * The pupil opens a little, with diminishing returns and a hard
+   * ceiling, then relaxes slowly.
+   */
+  arouse(amount = 1): void {
+    this.arousal = arousalStep(this.arousal, amount);
+  }
+
+  get arousalLevel(): number {
+    return this.arousal;
   }
 
   setMotion(mode: MotionMode): void {

@@ -577,8 +577,10 @@ void main() {
   float rim = pow(1.0 - abs(dot(n, v)), 2.2);
   col += uVein * rim * 0.5;
 
-  // swallow the far end in the dark
+  // swallow the far end in the dark, and dissolve the near mouth so
+  // the open tube never reads as a cut-off pipe when the eye turns
   float depth = 1.0 - smoothstep(uFade * 0.45, uFade, u);
+  depth *= smoothstep(0.0, 0.06, u);
   gl_FragColor = vec4(col * depth, depth);
 }
 `;

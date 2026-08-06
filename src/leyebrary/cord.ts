@@ -18,6 +18,9 @@ export type CordOptions = {
   radius?: number;
   /** lateral bend of the far end, in units of length (+ = outward) */
   splay?: number;
+  /** how far behind the anchor the visible tube starts — keeps the
+   *  open mouth inside the eyeball's silhouette at any rotation */
+  startZ?: number;
   flesh?: THREE.Color;
   vein?: THREE.Color;
 };
@@ -35,6 +38,7 @@ export class Cord {
     // behind a billboarded eye; one that only goes sideways reads as
     // a horn. The bend is what makes it read as coming from behind.
     const splay = opts.splay ?? 0;
+    const startZ = opts.startZ ?? 0;
     const curve = new THREE.CatmullRomCurve3(
       Array.from({ length: SEGMENTS }, (_, i) => {
         const u = i / (SEGMENTS - 1);
@@ -44,7 +48,7 @@ export class Cord {
         return new THREE.Vector3(
           splay * bend * length * 0.95,
           -bend * length * 0.42,
-          -u * length,
+          startZ - u * length,
         );
       }),
     );
