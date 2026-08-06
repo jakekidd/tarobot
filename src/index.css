@@ -35,8 +35,10 @@
   --violet-line-strong: rgba(124, 58, 237, 0.62);
   --white-soft:         rgba(244, 236, 255, 0.55);
 
-  /* ─── Display fonts (see @font-face above) ─────────── */
-  --font-speech: 'VT323', monospace;
+  /* ─── Display fonts (see @font-face above) ───────────
+     NOTE: --font-speech is taken by the legacy seer serif below —
+     the booth's CRT voice gets its own name. */
+  --font-crt: 'VT323', monospace;
   --font-ui: 'Departure Mono', monospace;
 
   /* ─── Semantic aliases (use these in component CSS) ── */

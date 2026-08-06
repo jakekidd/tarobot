@@ -308,38 +308,38 @@ export class BoothScene {
 
     this.stars.update(time);
 
-    // gaze: meet the viewer's eyes; thinking drifts up and away
+    // gaze: idle wanders gently around the viewer; thinking LOCKS on
+    // them — dead still, pupils tight, the pierce
     const desired = thinking
-      ? new THREE.Vector3(
-          Math.sin(time * 0.9) * 1.6,
-          2.0 + Math.sin(time * 1.31) * 0.5,
-          1.4,
-        )
+      ? this.camera.position
       : new THREE.Vector3(
           this.camera.position.x + Math.sin(time * 0.5) * 0.14,
           this.camera.position.y - 0.08 + Math.sin(time * 0.83) * 0.05,
           this.camera.position.z,
         );
-    this.gaze.lerp(desired, Math.min(1, dt * (thinking ? 1.7 : 2.6)));
+    this.gaze.lerp(desired, Math.min(1, dt * (thinking ? 5 : 2.6)));
 
     if (this.pulse > 0) this.pulse -= dt * 1.4;
     const shimmer = 1 + Math.max(0, this.pulse) * 0.1 * Math.sin(time * 22);
 
     for (const eye of this.eyes) {
-      eye.group.position.y = EYE_Y + Math.sin(time * 0.9 + eye.phase) * 0.02;
+      // thinking holds perfectly still — the stillness IS the pierce
+      eye.group.position.y = thinking
+        ? EYE_Y
+        : EYE_Y + Math.sin(time * 0.9 + eye.phase) * 0.02;
       eye.group.lookAt(this.gaze);
       eye.group.scale.setScalar(shimmer);
       // the breathing iris — hue drifts around violet, the halo waves;
-      // thinking runs hotter and faster, pupils dilate
+      // thinking burns brighter and tighter
       const h = (0.72 + Math.sin(time * 0.23 + eye.phase) * 0.06 + 1) % 1;
       const l =
-        0.42 + (thinking ? 0.16 : 0.08) * Math.sin(time * (thinking ? 3.4 : 0.8) + eye.phase);
-      eye.irisMat.color.setHSL(h, 0.75, Math.max(0.3, l));
+        0.42 + (thinking ? 0.18 : 0.08) * Math.sin(time * (thinking ? 2.6 : 0.8) + eye.phase);
+      eye.irisMat.color.setHSL(h, thinking ? 0.9 : 0.75, Math.max(0.3, l));
       eye.ringMat.color.setHSL((h + 0.07) % 1, 0.85, 0.62);
       eye.ringMat.opacity = thinking
-        ? 0.42 + 0.3 * Math.sin(time * 4.2 + eye.phase)
+        ? 0.5 + 0.28 * Math.sin(time * 3.6 + eye.phase)
         : 0.2 + 0.15 * Math.sin(time * 1.3 + eye.phase);
-      const dilate = thinking ? 1.3 : 1;
+      const dilate = thinking ? 0.82 : 1;
       const ps = eye.pupil.scale.x + (dilate - eye.pupil.scale.x) * Math.min(1, dt * 4);
       eye.pupil.scale.set(ps, ps, 1);
     }

@@ -23,6 +23,16 @@ import { BoothScene } from './BoothScene';
 
 type Props = { apiKey: string; onExit: () => void };
 
+// what the room hears while the oracle is offstage — lowercase, dry
+const STALLS = [
+  'hmm...',
+  'let me think...',
+  'mm. hold on.',
+  'give me a second with that.',
+  'sitting with that a moment...',
+  'quiet a second...',
+];
+
 export function BoothDemo({ apiKey, onExit }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -31,7 +41,8 @@ export function BoothDemo({ apiKey, onExit }: Props) {
   const sceneRef = useRef<BoothScene | null>(null);
   const [view, setView] = useState<BoothView | null>(null);
   const [draft, setDraft] = useState('');
-  const [echo, setEcho] = useState<string | null>(null);
+  const [stall, setStall] = useState(STALLS[0]);
+  const wasThinking = useRef(false);
   const callsRef = useRef(new Map<string, CallRecord>());
 
   useEffect(() => {
@@ -81,12 +92,12 @@ export function BoothDemo({ apiKey, onExit }: Props) {
       const v = stage.view(snap);
       setView(v);
       scene.update(v);
-      // the oracle finished thinking: release the held visitor echo and
-      // hand the keyboard back
-      if (v.awaiting !== 'oracle') {
-        setEcho(null);
-        inputRef.current?.focus();
+      const nowThinking = v.awaiting === 'oracle';
+      if (nowThinking && !wasThinking.current) {
+        setStall(STALLS[Math.floor(Math.random() * STALLS.length)]);
       }
+      if (!nowThinking) inputRef.current?.focus();
+      wasThinking.current = nowThinking;
     });
     engine.start();
 
@@ -111,7 +122,6 @@ export function BoothDemo({ apiKey, onExit }: Props) {
   function send() {
     const text = draft.trim();
     if (!text || !engineRef.current) return;
-    setEcho(text);
     engineRef.current.visitorLine(text);
     setDraft('');
   }
@@ -138,34 +148,27 @@ export function BoothDemo({ apiKey, onExit }: Props) {
       </button>
       <div className="booth__splitline" aria-hidden />
       {(thinking || view?.subtitle) && (
-        <div className="booth__console">
-          <div className="booth__speech" key={thinking ? -1 : view?.subtitleSeq}>
-            {thinking ? (
-              <>
-                {echo && <p className="booth__speech-echo">{echo}</p>}
-                <div className="booth__dots">
-                  <span />
-                  <span />
-                  <span />
-                </div>
-              </>
-            ) : (
-              view?.subtitle?.split('\n\n').map((p, i) => <p key={i}>{p}</p>)
-            )}
-          </div>
-          {view?.phase !== 'closed' && (
-            <input
-              ref={inputRef}
-              className="booth__input"
-              placeholder={placeholder}
-              value={draft}
-              onChange={(e) => setDraft(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') send();
-              }}
-              disabled={thinking}
-            />
+        <div className="booth__speech" key={thinking ? -1 : view?.subtitleSeq}>
+          {thinking ? (
+            <p className="booth__stall">{stall}</p>
+          ) : (
+            view?.subtitle?.split('\n\n').map((p, i) => <p key={i}>{p}</p>)
           )}
+        </div>
+      )}
+      {view?.phase !== 'closed' && (
+        <div className="booth__composer">
+          <input
+            ref={inputRef}
+            className="booth__input"
+            placeholder={placeholder}
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') send();
+            }}
+            disabled={thinking}
+          />
         </div>
       )}
       {tableHint && <div className="booth__tablehint">{tableHint}</div>}
