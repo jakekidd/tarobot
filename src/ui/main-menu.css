@@ -46,8 +46,10 @@
 }
 .mainmenu__btn:hover { border-color: #6543c7; color: #efe9ff; }
 
-.mainmenu__btn--primary {
-  border-color: #6543c7;
-  color: #efe9ff;
-  background: rgba(101, 67, 199, 0.18);
+.mainmenu__btn--begin {
+  background: #efe9ff;
+  border-color: #efe9ff;
+  color: #0a0714;
+  font-weight: 700;
 }
+.mainmenu__btn--begin:hover { background: #ffffff; color: #0a0714; }

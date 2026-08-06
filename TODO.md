@@ -29,6 +29,16 @@ delete from here.
 
 ## just-deferred (most recent first)
 
+### TRANSCRIPTS door (menu) — download past session logs
+A 4th menu button (or settings tab) that lists sessions saved to
+localStorage and downloads their full xray transcripts (maximally
+debug-transparent). Blocked on: sessions aren't persisted today
+(in-memory only), and full SessionRecords run 1-3MB against the ~5MB
+localStorage quota — store beats+oplog only (drop raw call payloads),
+or IndexedDB. The booth/lab already share serializeSession +
+buildXrayTranscript, so the download itself is trivial once storage
+exists.
+
 ### speculative naming pre-voice (review finding 9)
 The naming beat is now up to 4 sequential cognition calls (2 re-voice
 promptedLines, worst-case retries) at the exact moment the visitor is

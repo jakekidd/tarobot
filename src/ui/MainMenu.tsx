@@ -16,15 +16,18 @@ export function MainMenu({ onDemo, onXray, onSettings }: Props) {
       <div className="mainmenu__title">tarobot</div>
       <div className="mainmenu__sub">the oracle is in</div>
       <div className="mainmenu__buttons">
-        <button type="button" className="mainmenu__btn mainmenu__btn--primary" onClick={onDemo}>
-          demo
+        <button type="button" className="mainmenu__btn mainmenu__btn--begin" onClick={onDemo}>
+          begin
         </button>
         <button type="button" className="mainmenu__btn" onClick={onXray}>
-          xray lab
+          xray bench
         </button>
         <button type="button" className="mainmenu__btn" onClick={onSettings}>
           settings
         </button>
+        {/* TRANSCRIPTS (4th door, deferred): download full session logs
+            from localStorage — needs session persistence first (records
+            run 1-3MB each vs the 5MB quota). TODO.md has the entry. */}
       </div>
     </div>
   );
