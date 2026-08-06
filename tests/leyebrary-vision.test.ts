@@ -232,6 +232,18 @@ describe('breathing', () => {
   });
 });
 
+describe('the epilepsy pattern cap', () => {
+  it('the form-constant stripe count stays inside the oscillating-pattern limit', () => {
+    // Epilepsy Foundation consensus (Harding et al. 2005): a pattern
+    // that oscillates or reverses may show no more than FIVE
+    // light-dark pairs; eight if it only drifts smoothly one way. The
+    // alpha sweep changes the pattern's character, so five it is.
+    expect(FORM.k).toBeLessThanOrEqual(5);
+    // and the honeycomb phase must stay under the smooth-drift cap
+    expect(FORM.k * 1.4).toBeLessThanOrEqual(8);
+  });
+});
+
 describe('Pinna–Brelstaff counter-rotation', () => {
   it('the loom only breathes — it never rotates anything', () => {
     for (let t = 0; t < 20; t += 0.13) {

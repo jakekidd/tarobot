@@ -202,6 +202,37 @@ if anyone later wants the frequency-selectivity result in the piece,
 express it as *spatial* structure — which form constant is showing —
 never as temporal flicker.
 
+### the pattern rule (this one bites the geometry, not just flicker)
+
+the same Epilepsy Foundation consensus (harding, wilkins, erba,
+barkley & fisher 2005, Epilepsia 46:1423) caps **stripe counts**, and
+it applies to a still pattern:
+
+> the pattern should display **no more than five light-dark pairs of
+> stripes**, if the stripes change direction, oscillate, flash, or
+> reverse in contrast; if the pattern is unchanging or smoothly
+> drifting in one direction, **no more than eight stripes**.
+
+this collides directly with phenomenological accuracy: real reported
+form constants carry **30–40 repetitions** around the visual field.
+we take the safety number. `FORM.k = 5` (the alpha sweep changes the
+pattern's character, so it counts as the oscillating case) and the
+honeycomb phase runs at k·1.4 = 7, inside the smooth-drift cap. there
+is a test that fails if anyone raises them.
+
+the thresholds are conditional on solid angle (>0.006 sr), luminance
+(lightest stripe >50 cd/m²) and duration (≥0.5 s) — a small iris on a
+distant screen may sit under them. **do not rely on that.** the rule
+says *minimum expected viewing distance*, which at a festival is
+someone's face against the panel. and the risk multipliers are
+exactly our audience: sleep deprivation OR 5.97, age 21–30 OR 5.03
+(nadarajah 2025, n=3,475).
+
+other looks are NOT audited against this. `mandala` draws up to 12
+rose petals, `bloom` is a dense phyllotaxis lattice, `descent` has 8
+spokes. before this runs on a large bright panel, someone should
+count stripes per look at the real viewing geometry.
+
 ## the pinna look
 
 concentric rings of gabor elements tilted ±45° to the radius. nothing
@@ -245,6 +276,11 @@ be checked before anyone treats them as settled:
   (their retino-cortical map IS now used — the foveal-shoulder form
   with w0/eps = 1.7 degrees — but the orientation-hypercolumn
   machinery is not.)
+- **the pinna look may WEAKEN under psychedelics.** its global
+  counter-rotation percept is assembled in MSTd from local MT
+  motion, and global-motion coherence is measurably impaired under
+  psilocybin (carter 2004) while local contrast sensitivity is
+  untouched. untested for this illusion specifically.
 - whether any of these illusions are measurably *enhanced* under
   psychedelics, vs. assumed. related: the "psychedelics increase
   visual gain" premise is largely INVERTED in the measurements —

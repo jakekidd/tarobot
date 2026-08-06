@@ -314,7 +314,12 @@ export function shiftPalette(p: Palette, shift: number): Palette {
 // the eyes aren't showing psychedelic patterns, they are showing what
 // a destabilized visual cortex geometrically must produce.
 
-export const FORM = { k: 7.0, omega: 0.55, contrast: 1.0 };
+// k is capped by the Epilepsy Foundation pattern rule, NOT by taste:
+// a pattern that oscillates or reverses may show no more than FIVE
+// light-dark stripe pairs (eight if it only drifts smoothly one way).
+// The alpha sweep changes the pattern's character, so this counts as
+// the oscillating case. See the safety section in README.md.
+export const FORM = { k: 5.0, omega: 0.55, contrast: 1.0 };
 
 // The foveal plateau. The true map is Schwartz's x = (a/ε)·ln(1 + ε·r/w₀)
 // with Drasdo-derived w₀ = 0.087, ε = 0.051 (Bressloff, Cowan,
@@ -831,6 +836,10 @@ export const GLSL_CONSTS = {
   PINNA_LOOM_AMP: f(PINNA.loomAmp),
   PINNA_LOOM_W: f(PINNA.loomOmega),
   PINNA_CONTRAST: f(PINNA.contrast),
+  DRIFT_S0: f(DRIFT_STOPS[0]),
+  DRIFT_S1: f(DRIFT_STOPS[1]),
+  DRIFT_S2: f(DRIFT_STOPS[2]),
+  DRIFT_S3: f(DRIFT_STOPS[3]),
   DRIFT_STEPS: f(DRIFT.steps),
   DRIFT_GAIN: f(DRIFT.gain),
   DRIFT_SHARP: f(DRIFT.sharpness),

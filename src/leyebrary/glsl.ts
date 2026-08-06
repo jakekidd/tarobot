@@ -200,7 +200,8 @@ float corticalHexK(vec2 p, float alpha, float t, float k) {
 float driftStaircase(float u) {
   float p = fract(u);
   float stops[4];
-  stops[0] = 0.0; stops[1] = 0.32; stops[2] = 1.0; stops[3] = 0.68;
+  stops[0] = ${C.DRIFT_S0}; stops[1] = ${C.DRIFT_S1};
+  stops[2] = ${C.DRIFT_S2}; stops[3] = ${C.DRIFT_S3};
   float scaled = p * ${C.DRIFT_STEPS};
   int idx = int(floor(scaled));
   float frac = scaled - floor(scaled);
@@ -309,7 +310,7 @@ vec3 visionColor(int idx, vec2 p, float t) {
   // three cosines at 120 degrees vanish along a hexagonal network,
   // and the log map makes those cells swell with eccentricity.
   float hexHold = smoothstep(0.55, 0.95, sin(t * 0.062));
-  float hex = corticalHexK(p, alpha, t, ${C.FORM_K} * 1.7);
+  float hex = corticalHexK(p, alpha, t, ${C.FORM_K} * 1.4);
   float walls = 1.0 - smoothstep(0.0, 0.22, abs(hex));
   float planform = mix(roll, walls * 2.0 - 1.0, hexHold);
 
