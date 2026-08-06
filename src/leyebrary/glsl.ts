@@ -126,15 +126,19 @@ vec2 retinoCortical(vec2 p) {
   return vec2(log(r), atan(p.y, p.x));
 }
 
-float corticalRoll(vec2 p, float alpha, float t) {
+float corticalRollK(vec2 p, float alpha, float t, float k) {
   vec2 c = retinoCortical(p);
-  return cos(${C.FORM_K} * (c.x * cos(alpha) + c.y * sin(alpha)) - ${C.FORM_OMEGA} * t);
+  return cos(k * (c.x * cos(alpha) + c.y * sin(alpha)) - ${C.FORM_OMEGA} * t);
 }
 
-float corticalHex(vec2 p, float alpha, float t) {
+float corticalRoll(vec2 p, float alpha, float t) {
+  return corticalRollK(p, alpha, t, ${C.FORM_K});
+}
+
+float corticalHexK(vec2 p, float alpha, float t, float k) {
   float s = 0.0;
   for (int i = 0; i < 3; i++) {
-    s += corticalRoll(p, alpha + float(i) * TAU / 3.0, t);
+    s += corticalRollK(p, alpha + float(i) * TAU / 3.0, t, k);
   }
   return s / 3.0;
 }
@@ -244,8 +248,18 @@ vec3 visionColor(int idx, vec2 p, float t) {
   // the sweep: alpha walks 0 → pi/2 and back, so the iris travels the
   // whole Klüver taxonomy on a slow loop instead of picking one
   float alpha = (0.5 - 0.5 * cos(t * 0.085)) * 1.5707963;
-  float hexMix = 0.5 + 0.5 * sin(t * 0.11);
-  float planform = mix(corticalRoll(p, alpha, t), corticalHex(p, alpha, t), hexMix * 0.6);
+
+  float roll = corticalRoll(p, alpha, t);
+
+  // The honeycomb gets its own phase rather than being blended into
+  // the roll — averaged together the two planforms cancel into mush.
+  // Its cell walls are the ZERO LEVEL SET of the hexagonal planform:
+  // three cosines at 120 degrees vanish along a hexagonal network,
+  // and the log map makes those cells swell with eccentricity.
+  float hexHold = smoothstep(0.55, 0.95, sin(t * 0.062));
+  float hex = corticalHexK(p, alpha, t, ${C.FORM_K} * 1.7);
+  float walls = 1.0 - smoothstep(0.0, 0.22, abs(hex));
+  float planform = mix(roll, walls * 2.0 - 1.0, hexHold);
 
   // the drift staircase rides the planform's own phase, so the
   // illusory motion runs along the form constant's contours
@@ -256,7 +270,7 @@ vec3 visionColor(int idx, vec2 p, float t) {
   float band = planform * 0.5 + 0.5;
   vec3 col = pal(idx, band * 0.5 + length(p) * 0.22 + t * 0.04);
   // luminance staircase multiplies; the palette stays in charge of hue
-  col *= mix(1.0, 0.35 + 1.3 * stair, ${C.DRIFT_GAIN});
+  col *= mix(1.0, 0.35 + 1.3 * stair, ${C.DRIFT_GAIN} * (1.0 - hexHold * 0.6));
   return col * (0.5 + 0.75 * band);
 }
 
