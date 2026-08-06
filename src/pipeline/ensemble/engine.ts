@@ -561,6 +561,15 @@ export class EnsembleEngine {
     );
   }
 
+  private offerReady(): boolean {
+    return (
+      this.focusPhrase !== null &&
+      this.focusStage === 0 &&
+      this.consentNonYes < 2 &&
+      (this.warmGuessSeen || this.beatsRemaining() <= 6)
+    );
+  }
+
   /** bank three pause additions for the just-committed beat. fired
    *  after every intake commit; speculative and off the hot path. */
   private maybePauseAdditions(): void {
@@ -596,6 +605,13 @@ export class EnsembleEngine {
    *  outranks this (entries are gated on busy; a stale bank no-ops). */
   speakPauseAddition(): void {
     if (this.phase !== 'live' || this.busy !== null || !this.investigatorIntake()) return;
+    // a landed candidate outranks small talk: the pause becomes the
+    // offer (routed through a silence dispatch so the gate machinery
+    // and the busy state run normally)
+    if (this.offerReady()) {
+      this.silenceTick();
+      return;
+    }
     const p = this.pauseAdds;
     if (!p || p.atBeatCount !== this.oracleBeatCount() || p.next >= p.lines.length) {
       this.maybePauseAdditions();
@@ -643,13 +659,11 @@ export class EnsembleEngine {
       return;
     }
     // the shortcut: a candidate landed with a warm guess behind it (or
-    // the clock is closing) → make the offer instead of another turn
-    if (
-      this.focusPhrase !== null &&
-      this.focusStage === 0 &&
-      (this.warmGuessSeen || this.beatsRemaining() <= 6) &&
-      event.type === 'visitor_line'
-    ) {
+    // the clock is closing) → make the offer instead of another turn.
+    // silence qualifies too — a candidate that lands after the room
+    // went quiet still gets offered ("you went quiet. i think it's
+    // this"), otherwise a quiet visitor never hears the one bet.
+    if (this.offerReady()) {
       this.busy = 'persona';
       this.emit();
       try {

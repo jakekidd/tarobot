@@ -1,0 +1,10 @@
+[
+  { "line": "my brother's wedding is next month." },
+  { "pause": true },
+  { "line": "i'm the best man. supposedly." },
+  { "line": "we don't talk much anymore. since the business thing." },
+  { "pause": true },
+  { "line": "he took a loan from my dad. i said it was a bad idea. it was." },
+  { "line": "nobody's said sorry. we just... schedule things." },
+  { "when": "focus", "line": "yeah. that's it." }
+]
