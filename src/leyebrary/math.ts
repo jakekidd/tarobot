@@ -288,10 +288,19 @@ export function shiftPalette(p: Palette, shift: number): Palette {
 //
 // V1 sees the visual field through a complex logarithm — the
 // retino-cortical map. A point at radius r, angle θ in the eye lands
-// at (log r, θ) on the flat cortical sheet. When cortical excitation
-// destabilizes (which is what a 5-HT2A agonist does to the E/I
-// balance), it does what every reaction-diffusion system does: it
+// near (log r, θ) on the flat cortical sheet. When the cortical sheet
+// destabilizes, it does what every reaction-diffusion system does: it
 // forms stripes. Plain, straight, boring cortical stripes.
+//
+// NOT claimed here: that a 5-HT2A agonist is what tips it. That link
+// is assumed, not demonstrated — Ermentrout & Cowan hedged it in the
+// next line of their own paper ("we shall assume their existence"),
+// and their proposed mechanism was raphe disinhibition, the opposite
+// polarity to the modern direct-agonism story. In vivo the net shift
+// is not even toward excitation: 5-HT2A agonists inhibit the majority
+// of units, and evoked V1 responses go DOWN while resting activity
+// goes up. The geometry below is solid; the pharmacology is not, so
+// don't let a comment here become someone's citation.
 //
 // Those stripes, seen back through the inverse map, are the form
 // constants. A cortical stripe at angle α becomes:

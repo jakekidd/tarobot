@@ -57,10 +57,18 @@ could not explain them. ermentrout & cowan did, in 1979.
 
 V1 sees the visual field through a complex logarithm (with a foveal
 shoulder — see below). a point at radius r, angle θ in the eye lands
-near (log r, θ) on the flat cortical sheet. when excitation destabilizes — which is what a 5-HT2A
-agonist does to the excitation/inhibition balance — the sheet does
-what every reaction-diffusion system does: it forms stripes. plain,
-straight, boring cortical stripes.
+near (log r, θ) on the flat cortical sheet. when the sheet
+destabilizes it does what every reaction-diffusion system does: it
+forms stripes. plain, straight, boring cortical stripes.
+
+**what is NOT claimed:** that a 5-HT2A agonist is what tips it. that
+link is assumed rather than demonstrated — ermentrout & cowan hedged
+it in the next line of their own paper, and their mechanism (raphe
+disinhibition) was the opposite polarity to the modern direct-agonism
+story. in vivo the net shift isn't even toward excitation: 5-HT2A
+agonists inhibit the majority of recorded units, and stimulus-evoked
+V1 responses go *down* while resting activity goes up. the geometry
+is solid; the pharmacology is a live question.
 
 seen back through the inverse map, those stripes are the form
 constants. one angle α sweeps the entire taxonomy:
@@ -238,7 +246,11 @@ be checked before anyone treats them as settled:
   with w0/eps = 1.7 degrees — but the orientation-hypercolumn
   machinery is not.)
 - whether any of these illusions are measurably *enhanced* under
-  psychedelics, vs. assumed
+  psychedelics, vs. assumed. related: the "psychedelics increase
+  visual gain" premise is largely INVERTED in the measurements —
+  evoked responses drop, spontaneous activity rises. simulate
+  contextual distortion (surround suppression strengthens ~7% under
+  psilocybin; ebbinghaus +38-59%), not a contrast multiplier.
 
 ## backlog
 

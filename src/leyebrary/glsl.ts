@@ -116,8 +116,9 @@ float phylloField(vec2 p, float t) {
 
 // ── the hallucination engine ──────────────────────────────────────
 // V1 sees the visual field through a complex log. Destabilize the
-// cortex and it forms plain stripes; seen back through the inverse
-// map those stripes ARE Klüver's form constants. alpha sweeps them:
+// cortical sheet and it forms plain stripes; seen back through the
+// inverse map those stripes ARE Klüver's form constants. (What tips
+// it is NOT established — see the note in math.ts.) alpha sweeps:
 // 0 → tunnel (rings), pi/2 → funnel (spokes), between → log spiral
 // of pitch tan(alpha). uHex blends in the 3-roll hexagonal planform,
 // which is the honeycomb class.
