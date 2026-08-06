@@ -339,6 +339,104 @@ void main() {
 }
 `;
 
+// The cord — the optic stalk feeding each eye. A tube whose vertices
+// swell with a peristaltic wave travelling toward the socket, and
+// whose surface is wet meat: fbm mottling, veins running lengthwise,
+// a rim-lit sheen. Fades into the dark at the far end so it reads as
+// disappearing into something rather than being cut off.
+export const CORD_VERT = /* glsl */ `
+varying vec2 vUv;
+varying vec3 vNormal;
+varying vec3 vViewDir;
+
+uniform float uTime;
+uniform float uPhase;
+uniform float uSwell;
+uniform float uSwayFreq;
+uniform float uSwayAmp;
+
+const float TAU_V = 6.283185307179586;
+
+void main() {
+  vUv = uv;
+  // TubeGeometry puts the ALONG-tube coordinate in uv.x and the
+  // around-the-tube one in uv.y — not the other way round
+  float u = uv.x;
+  float wave = sin((u * ${C.CORD_PERI_FREQ} + uTime * ${C.CORD_PERI_SPEED} + uPhase) * TAU_V);
+  // displace along the surface normal — the tube fattens and thins
+  float swell = 1.0 + ${C.CORD_PERI_AMP} * wave * uSwell;
+  vec3 p = position + normal * (swell - 1.0) * 0.055;
+
+  // sway — grip² keeps the socket end welded to the eye while the far
+  // end drifts, so the cord never tears loose from what it feeds
+  float grip = u * u;
+  p.x += sin(uTime * uSwayFreq + uPhase) * uSwayAmp * grip;
+  p.y += cos(uTime * uSwayFreq * 0.73 + uPhase * 1.7) * uSwayAmp * 0.6 * grip;
+
+  vec4 mv = modelViewMatrix * vec4(p, 1.0);
+  vNormal = normalize(normalMatrix * normal);
+  vViewDir = normalize(-mv.xyz);
+  gl_Position = projectionMatrix * mv;
+}
+`;
+
+export const CORD_FRAG = /* glsl */ `
+precision highp float;
+varying vec2 vUv;
+varying vec3 vNormal;
+varying vec3 vViewDir;
+
+uniform float uTime;
+uniform float uPhase;
+uniform vec3 uFlesh;
+uniform vec3 uVein;
+uniform float uFade;
+
+${COMMON}
+
+void main() {
+  float u = vUv.x;        // along the cord, 0 at the socket
+  float around = vUv.y;   // around its circumference
+
+  // veins — lengthwise cords under the skin, wandering as they run
+  float wobble = fbm(vec2(around * 3.0, u * 2.0 - uTime * 0.05)) * 0.35;
+  float vein = abs(sin((around + wobble) * TAU * 5.0 + u * 3.0));
+  vein = smoothstep(0.55, 0.02, vein);
+
+  // wet mottling
+  float mottle = fbm(vec2(around * 6.0, u * 9.0 + uTime * 0.04));
+
+  // the travelling bulge brightens as it passes — blood moving
+  float wave = sin((u * ${C.CORD_PERI_FREQ} + uTime * ${C.CORD_PERI_SPEED} + uPhase) * TAU);
+  float pump = 0.5 + 0.5 * wave;
+
+  vec3 col = mix(uFlesh, uVein, vein * 0.75);
+  col *= 0.62 + 0.5 * mottle;
+  col *= 0.82 + 0.35 * pump;
+
+  vec3 n = normalize(vNormal);
+  vec3 v = normalize(vViewDir);
+
+  // a key light up and to the left, so the tube has a lit side and a
+  // dark side — without it the cylinder reads as a flat ribbon
+  vec3 key = normalize(vec3(-0.55, 0.7, 0.45));
+  float lambert = 0.35 + 0.65 * max(0.0, dot(n, key));
+  col *= lambert;
+
+  // wet specular: tight highlight along the lit flank
+  float spec = pow(max(0.0, dot(reflect(-key, n), v)), 22.0);
+  col += vec3(1.0, 0.86, 0.86) * spec * 0.5;
+
+  // rim light — the wet edge that makes it read as a tube, not a strip
+  float rim = pow(1.0 - abs(dot(n, v)), 2.2);
+  col += uVein * rim * 0.5;
+
+  // swallow the far end in the dark
+  float depth = 1.0 - smoothstep(uFade * 0.45, uFade, u);
+  gl_FragColor = vec4(col * depth, depth);
+}
+`;
+
 // The membrane — the tissue that attaches the two eyes. A wide quad
 // behind the pair: a soft glow lobe per eye, a vesica bridge where
 // the lobes overlap, fbm mist drifting through. Additive, faint.

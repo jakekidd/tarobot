@@ -4,7 +4,7 @@
 // the pointer, reseed to grow a new flower.
 
 import * as THREE from 'three';
-import { EyeRig } from '../EyeRig';
+import { EyeRig, type MotionMode } from '../EyeRig';
 import { LOOK_NAMES, type EyePairing, type LookName } from '../looks';
 
 const canvas = document.getElementById('stage') as HTMLCanvasElement;
@@ -16,13 +16,16 @@ renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 const scene = new THREE.Scene();
 scene.background = new THREE.Color('#05030c');
 const camera = new THREE.PerspectiveCamera(42, 1, 0.1, 20);
-camera.position.set(0, 0, 2.1);
+let camZ = 3.0;
+camera.position.set(0, 0, camZ);
 
 let seed = Math.floor(Math.random() * 0x7fffffff);
 let pairing: EyePairing = 'match';
 let look: LookName = 'mandala';
 let grade = 0.75;
 let lid = 0;
+let motion: MotionMode = 'both';
+let cords = true;
 let rig: EyeRig;
 
 function buildRig(): void {
@@ -30,7 +33,7 @@ function buildRig(): void {
     scene.remove(rig.group);
     rig.dispose();
   }
-  rig = new EyeRig({ seed, pairing, eyeWidth: 0.62, separation: 0.78, grade });
+  rig = new EyeRig({ seed, pairing, eyeWidth: 0.62, separation: 0.78, grade, motion, cords });
   rig.setLook(look, 0);
   rig.setLid(lid);
   scene.add(rig.group);
@@ -74,6 +77,17 @@ button('pairing: match', (el) => {
   el.textContent = `pairing: ${pairing}`;
   buildRig();
 });
+const MOTIONS: MotionMode[] = ['both', 'pupil', 'eye'];
+button('motion: both', (el) => {
+  motion = MOTIONS[(MOTIONS.indexOf(motion) + 1) % MOTIONS.length];
+  el.textContent = `motion: ${motion}`;
+  rig.setMotion(motion);
+});
+button('cords: on', (el) => {
+  cords = !cords;
+  el.textContent = `cords: ${cords ? 'on' : 'off'}`;
+  buildRig();
+});
 button('blink', () => rig.blink());
 button('pulse', () => rig.pulse());
 
@@ -102,6 +116,10 @@ slider('lid', lid, (v) => {
   lid = v;
   rig.setLid(v);
 });
+slider('dolly', 0.35, (v) => {
+  camZ = 1.6 + v * 5.5;
+  camera.position.z = camZ;
+});
 
 function resize(): void {
   renderer.setSize(window.innerWidth, window.innerHeight, false);
@@ -113,11 +131,32 @@ window.addEventListener('resize', resize);
 buildRig();
 resize();
 
+let clock = 0;
+function frame(dt: number): void {
+  clock += dt;
+  rig.setGazeTarget(gazeTarget);
+  rig.update(clock, dt, renderer, camera);
+  renderer.render(scene, camera);
+}
+
 let last = performance.now();
 renderer.setAnimationLoop((t) => {
   const dt = Math.min(0.05, (t - last) / 1000);
   last = t;
-  rig.setGazeTarget(gazeTarget);
-  rig.update(t / 1000, dt, renderer, camera);
-  renderer.render(scene, camera);
+  frame(dt);
 });
+
+// Background tabs get their rAF throttled to a standstill, which makes
+// any automated probe read frozen state. This drives the same frame
+// path by hand so a driver can advance time deterministically.
+(window as unknown as { leyeStep: (frames: number, dt: number) => void }).leyeStep = (
+  frames,
+  dt = 1 / 60,
+) => {
+  for (let i = 0; i < frames; i++) frame(dt);
+};
+(window as unknown as { leyeGaze: (x: number, y: number, z: number) => void }).leyeGaze = (
+  x,
+  y,
+  z,
+) => gazeTarget.set(x, y, z);

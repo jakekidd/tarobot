@@ -371,6 +371,79 @@ export function pupilOffset(dx: number, dy: number, dz: number, max = 0.35): Vec
   return { x: (ox / m) * max, y: (oy / m) * max };
 }
 
+// ─── gaze split (body vs pupil) ──────────────────────────────────
+// Real eyes aim by rotating the ball; a pupil that slides across a
+// stationary sclera reads as a painted-on decal. So gaze is SPLIT: a
+// fraction turns the whole eye body, the remainder slides the pupil.
+// bodyShare 0 = pupils only (the decal look, kept as a mode), 1 =
+// body only (doll eyes), ~0.55 = the living compromise.
+
+export const MOTION = { bodyShare: 0.55, bodySwing: 0.5, bodyShift: 0.06 };
+
+export type GazeSplit = { bodyYaw: number; bodyPitch: number; pupil: Vec2 };
+
+// gx/gy are the gaze direction's components in the eye's own plane,
+// gz its component along the eye's forward axis.
+export function splitGaze(
+  gx: number,
+  gy: number,
+  gz: number,
+  bodyShare = MOTION.bodyShare,
+  pupilMax = 0.3,
+): GazeSplit {
+  const share = clamp01(bodyShare);
+  const z = Math.max(1e-4, Math.abs(gz));
+  // the angles a real ball would rotate through to point at the target
+  const yaw = Math.atan2(gx, z);
+  const pitch = Math.atan2(gy, z);
+  const off = pupilOffset(gx, gy, gz, pupilMax);
+  return {
+    bodyYaw: yaw * share * MOTION.bodySwing,
+    bodyPitch: pitch * share * MOTION.bodySwing,
+    pupil: { x: off.x * (1 - share), y: off.y * (1 - share) },
+  };
+}
+
+// ─── the cords (optic stalks) ────────────────────────────────────
+// Each eye trails a fleshy cord back into the dark. Two motions ride
+// it: a peristaltic bulge travelling AWAY from the eye (something is
+// being pumped up the stalk toward it), and a slow lateral sway that
+// grows with distance from the socket so the far end drifts while the
+// attachment stays put.
+
+export const CORD = {
+  length: 2.6,
+  radius: 0.055,
+  taper: 0.55,
+  peristalsisFreq: 3.2,
+  peristalsisSpeed: 0.55,
+  peristalsisAmp: 0.32,
+  swayFreq: 0.37,
+  swayAmp: 0.22,
+};
+
+// Radial swell at normalized distance u ∈ [0,1] along the cord.
+// Travels toward the eye (u decreasing) as time advances.
+export function peristalsis(u: number, t: number, phase = 0): number {
+  return Math.sin((u * CORD.peristalsisFreq + t * CORD.peristalsisSpeed + phase) * TAU);
+}
+
+// Cord radius at u: tapers away from the socket, then swells.
+export function cordRadius(u: number, t: number, phase = 0): number {
+  const taper = 1 - CORD.taper * u;
+  return CORD.radius * taper * (1 + CORD.peristalsisAmp * peristalsis(u, t, phase));
+}
+
+// Lateral offset of the cord's centerline at u — zero at the socket
+// (u=0) so the cord never detaches from the eye it feeds.
+export function cordSway(u: number, t: number, phase = 0): Vec2 {
+  const grip = u * u;
+  return {
+    x: Math.sin(t * CORD.swayFreq + phase) * CORD.swayAmp * grip,
+    y: Math.cos(t * CORD.swayFreq * 0.73 + phase * 1.7) * CORD.swayAmp * 0.6 * grip,
+  };
+}
+
 // Micro-saccade: both eyes share one low-frequency noise walk with a
 // per-eye phase nudge — coupled wander, never independent drift.
 export const SACCADE = { freq: 0.31, amp: 0.045, couple: 0.92 };
@@ -450,4 +523,7 @@ export const GLSL_CONSTS = {
   GRADE_LEVELS: f(GRADE.levels),
   GRADE_CUTOFF: f(GRADE.lumaCutoff),
   GRADE_SOFT: f(GRADE.lumaSoft),
+  CORD_PERI_FREQ: f(CORD.peristalsisFreq),
+  CORD_PERI_SPEED: f(CORD.peristalsisSpeed),
+  CORD_PERI_AMP: f(CORD.peristalsisAmp),
 } as const;

@@ -1,4 +1,5 @@
-export { EyeRig, type EyeRigOptions } from './EyeRig';
+export { EyeRig, type EyeRigOptions, type MotionMode } from './EyeRig';
+export { Cord, type CordOptions } from './cord';
 export { FeedbackLoop } from './feedback';
 export {
   FIELD_MODES,

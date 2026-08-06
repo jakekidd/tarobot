@@ -5,10 +5,18 @@
 // floats independently — that was the ping-pong-ball era.
 
 import * as THREE from 'three';
+import { Cord } from './cord';
 import { createEyeMaterial, createMembraneMaterial, writePalette } from './eyeMaterial';
 import { FeedbackLoop } from './feedback';
 import { FIELD_MODES, LOOKS, sessionGenome, type EyePairing, type LookName, type SessionGenome } from './looks';
-import { EYE_ASPECT, blinkEnvelope, pupilOffset, saccade } from './math';
+import { EYE_ASPECT, MOTION, blinkEnvelope, saccade, splitGaze } from './math';
+
+// How gaze is spent. 'pupil' slides the pupil across a stationary eye
+// (the decal look); 'eye' turns the whole body and pins the pupil
+// centered (doll eyes); 'both' splits it, which is what living eyes do.
+export type MotionMode = 'pupil' | 'eye' | 'both';
+
+const BODY_SHARE: Record<MotionMode, number> = { pupil: 0, eye: 1, both: MOTION.bodyShare };
 
 export type EyeRigOptions = {
   seed?: number;
@@ -17,12 +25,18 @@ export type EyeRigOptions = {
   separation?: number;
   grade?: number;
   membrane?: boolean;
+  motion?: MotionMode;
+  cords?: boolean;
 };
 
 type EyeSlot = {
   mesh: THREE.Mesh;
   mat: THREE.ShaderMaterial;
+  socket: THREE.Group;
+  cord: Cord | null;
+  home: THREE.Vector3;
   gazeSmooth: THREE.Vector2;
+  bodySmooth: THREE.Vector2;
 };
 
 const BLINK_SECONDS = 0.26;
@@ -47,6 +61,7 @@ export class EyeRig {
 
   private separation: number;
   private eyeWidth: number;
+  private motionMode: MotionMode;
 
   private worldPos = new THREE.Vector3();
   private toTarget = new THREE.Vector3();
@@ -59,6 +74,7 @@ export class EyeRig {
     this.genome = sessionGenome(seed, opts.pairing ?? 'match');
     this.eyeWidth = opts.eyeWidth ?? 0.46;
     this.separation = opts.separation ?? 0.62;
+    this.motionMode = opts.motion ?? 'both';
     this.lookFrom = 'nebula';
     this.lookTo = 'nebula';
 
@@ -77,9 +93,37 @@ export class EyeRig {
       );
       mat.uniforms.uGrade.value = opts.grade ?? 0.75;
       const mesh = new THREE.Mesh(geom, mat);
-      mesh.position.set((eyeIndex === 0 ? -1 : 1) * (this.separation / 2), 0, 0);
-      this.group.add(mesh);
-      return { mesh, mat, gazeSmooth: new THREE.Vector2() };
+
+      // socket: the pivot the eye body turns inside. The eye rotates
+      // about it, the cord hangs off it, so the stalk follows the eye
+      // wherever it looks instead of sliding off the back.
+      const socket = new THREE.Group();
+      const side = eyeIndex === 0 ? -1 : 1;
+      socket.position.set(side * (this.separation / 2), 0, 0);
+      socket.add(mesh);
+      this.group.add(socket);
+
+      let cord: Cord | null = null;
+      if (opts.cords !== false) {
+        cord = new Cord({
+          phase: eyeIndex * 0.5,
+          length: this.eyeWidth * 4.2,
+          radius: this.eyeWidth * 0.26,
+          splay: side * 0.6,
+        });
+        cord.mesh.position.z = -this.eyeWidth * 0.3;
+        socket.add(cord.mesh);
+      }
+
+      return {
+        mesh,
+        mat,
+        socket,
+        cord,
+        home: socket.position.clone(),
+        gazeSmooth: new THREE.Vector2(),
+        bodySmooth: new THREE.Vector2(),
+      };
     };
     this.eyes = [mk(0), mk(1)];
 
@@ -207,19 +251,39 @@ export class EyeRig {
 
       // vergence: each eye aims from its OWN position — near targets
       // cross the eyes, which is what "looking at you" is made of
-      eye.mesh.getWorldPosition(this.worldPos);
+      eye.socket.getWorldPosition(this.worldPos);
       this.toTarget.copy(this.gazeTarget).sub(this.worldPos).normalize();
       const gx = this.toTarget.dot(this.right);
       const gy = this.toTarget.dot(this.up);
       const gz = Math.abs(this.toTarget.dot(this.fwd));
-      const off = pupilOffset(gx, gy, gz, 0.3);
+
+      const split = splitGaze(gx, gy, gz, BODY_SHARE[this.motionMode], 0.3);
       const sac = saccade(time, i);
+
+      // the body turns slowly (mass), the pupil catches up fast —
+      // that lag is most of what makes the pair read as alive
+      eye.bodySmooth.lerp(
+        new THREE.Vector2(split.bodyYaw, split.bodyPitch),
+        Math.min(1, dt * 3.2),
+      );
+      eye.mesh.rotation.y = eye.bodySmooth.x;
+      eye.mesh.rotation.x = -eye.bodySmooth.y;
+      eye.socket.position.set(
+        eye.home.x + eye.bodySmooth.x * MOTION.bodyShift,
+        eye.home.y + eye.bodySmooth.y * MOTION.bodyShift,
+        eye.home.z,
+      );
+
       const targetGaze = new THREE.Vector2(
-        off.x + wander.x * 0.4 + sac.x,
-        off.y + wander.y * 0.4 + sac.y,
+        split.pupil.x + wander.x * 0.4 + sac.x,
+        split.pupil.y + wander.y * 0.4 + sac.y,
       );
       eye.gazeSmooth.lerp(targetGaze, Math.min(1, dt * 6));
       (u.uGaze.value as THREE.Vector2).copy(eye.gazeSmooth);
+
+      // the cord pumps harder when the mind is working
+      eye.cord?.update(time);
+      eye.cord?.setSwell(0.75 + energy * 0.5 + this.pulseLevel * 0.6);
     });
 
     if (this.membraneMat) {
@@ -229,9 +293,20 @@ export class EyeRig {
     }
   }
 
+  setMotion(mode: MotionMode): void {
+    this.motionMode = mode;
+  }
+
+  get motion(): MotionMode {
+    return this.motionMode;
+  }
+
   dispose(): void {
     this.feedback.dispose();
-    for (const eye of this.eyes) eye.mat.dispose();
+    for (const eye of this.eyes) {
+      eye.mat.dispose();
+      eye.cord?.dispose();
+    }
     this.membraneMat?.dispose();
   }
 }
