@@ -94,6 +94,12 @@
     "alt": "no? then maybe {PASSAGE:focus}. closer?",
     "_note": "the consent gate; PASSAGE:focus is the conjector's short focus phrase"
   },
+  "host": [
+    "slow night. that's allowed.",
+    "quiet's fine. the cards don't mind waiting.",
+    "we can sit here a minute. cheaper than talking.",
+    "tough table. i've worked tougher."
+  ],
   "handles": [
     "that land?",
     "am i close?",
@@ -107,7 +113,6 @@
   "_never_say": [
     "don't organize it",
     "i'm actually curious",
-    "slow night. that's allowed",
     "tell me if that's not it",
     "tell me if that is not it",
     "here's where i keep landing",

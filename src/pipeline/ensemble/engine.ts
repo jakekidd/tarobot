@@ -14,6 +14,7 @@
 
 import type { LLMAdapter } from '../llm/adapter';
 import { ALMANAC } from './almanac';
+import { pickPreshow } from './preshow';
 import { ORACLE_DECK } from '../oracle/deck';
 import {
   callAttention,
@@ -113,6 +114,9 @@ export class EnsembleEngine {
    *  take the lead themselves */
   private droughtTalks = 0;
   private holderFlip = false;
+  /** the scene she was in before the visitor sat down — one rotation
+   *  per session, hers alone (prepended to her context, never spoken) */
+  private preshow = pickPreshow();
   /** the pregnant-pause bank: speculative additions written the moment
    *  her line lands, spoken at zero latency if the visitor stays quiet */
   private pauseAdds: { lines: string[]; next: number; atBeatCount: number } | null = null;
@@ -591,7 +595,10 @@ export class EnsembleEngine {
     const myGen = this.gen;
     void (async () => {
       try {
-        const out = await callPauseAdditions(this.env, { transcript: this.renderBeats(Infinity) });
+        const out = await callPauseAdditions(this.env, {
+          transcript: this.renderBeats(Infinity),
+          preshow: this.preshow ?? undefined,
+        });
         if (myGen !== this.gen || this.oracleBeatCount() !== at || !this.investigatorIntake()) return;
         const lines = [out.first, out.second, out.third]
           .map((l) => sanitizeLine(l))
@@ -770,13 +777,14 @@ export class EnsembleEngine {
           ? `they are thin — the room is yours to host: up to roughly ${Math.ceil(cap(this.budget, this.carry(), this.c) / 5) * 5 + 10} words if the move needs them. spend them drawing THEM out, never filling the air.`
           : `roughly ${Math.ceil(cap(this.budget, this.carry(), this.c) / 5) * 5} words, give or take a breath — a ballpark, not a count. the interview stays visitor-led: they should out-talk you.`,
         host: drought
-          ? 'they are underfeeding — thin turns in a row. you drive now: name the quiet plainly if it helps, make the smallest concrete ask, or offer to let the cards start it. the show moves toward the table either way.'
+          ? `they are underfeeding — thin turns in a row. you drive now: name the quiet plainly if it helps, make the smallest concrete ask, or offer to let the cards start it. from her own book, if one fits tonight (use it, reshape it, or ignore them): ${[...BEATS.host].sort(() => Math.random() - 0.5).slice(0, 2).map((h) => `"${h}"`).join(' / ')}. the show moves toward the table either way.`
           : undefined,
         mood: moodLine,
         rhythm: lastTwoQuestions
           ? 'two question-ending turns in a row already — end this one without a question mark (an observe, a bet, a give)'
           : undefined,
         almanac: ALMANAC,
+        preshow: this.preshow ?? undefined,
         event:
           event.type === 'silence' ? 'the visitor has let the silence run.' : 'the visitor just spoke.',
       });

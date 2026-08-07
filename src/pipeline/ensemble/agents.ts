@@ -236,10 +236,15 @@ export function callInvestigator(
     rhythm?: string;
     /** her shelf — authored presence material (PULSE P3) */
     almanac?: string;
+    /** the scene before the visitor arrived — hers alone */
+    preshow?: string;
     event: string;
   },
 ): Promise<InvestigatorTurn> {
   const user = [
+    p.preshow
+      ? `[before they arrived — hers alone; never recounted, never referenced; it only colors how she talks tonight]\n${p.preshow}`
+      : null,
     `[the conversation — the whole record, read cold]\n${p.transcript}`,
     `[docs]\n${p.docs}`,
     `[taboos] ${p.taboos}`,
@@ -275,18 +280,23 @@ export function callInvestigator(
  *  no seconds in the prompt — pauses are named, not counted. */
 export function callPauseAdditions(
   env: AgentEnv,
-  p: { transcript: string },
+  p: { transcript: string; preshow?: string },
 ): Promise<PauseAdditions> {
   const user = [
+    p.preshow
+      ? `[before they arrived — hers alone; never recounted; it only colors]\n${p.preshow}`
+      : null,
     `[the conversation — the whole record]\n${p.transcript}`,
     `[the moment] she just spoke her last line above, and the visitor has not answered.`,
     `[the ask] write the three things she would ADD, in order, if the visitor stayed quiet:`,
     `- first: after a pregnant pause — a small breath more. she finishes her own thought, or makes the ask smaller. never a repeat of what she just said.`,
     `- second: the pause has grown long — she re-angles: a different door into the same room, or an easier one. still unbothered.`,
-    `- third: the silence has fully arrived — she names it plainly and moves the show: the smallest possible ask, or she offers to bring the cards out. dry, never needy.`,
+    `- third: the silence has fully arrived — she names it plainly and moves the show: the smallest possible ask, or she offers to bring the cards out. dry, never needy. a dry beat is legal here — sometimes the silence itself is the joke.`,
     `each one stands alone (by the time it is spoken, the earlier additions were spoken too). lowercase. one or two sentences each.`,
     `never invent biography: no new names, days, places, or facts they did not give — additions host the room, they never guess. and vary the third's move: the cards are one door, not the only one.`,
-  ].join('\n\n');
+  ]
+    .filter(Boolean)
+    .join('\n\n');
   return structured(env, 'investigator', SYSTEMS.investigator, user, PAUSE_TOOL, PauseAdditionsSchema, 400);
 }
 

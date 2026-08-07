@@ -68,6 +68,11 @@ type BeatsFile = {
   guess: { text: string };
   focus: { offer: string; alt: string };
   handles: string[];
+  /** the promotion exit of the fossil law: lines good enough to keep
+   *  graduate INTO authored banks (echoing is legal there — it's the
+   *  act), instead of dying on the never-say list. host lines are
+   *  handed to the investigator during a drought as her own book. */
+  host: string[];
   _never_say: string[];
   naming: { incantations: Record<DilemmaClass, string>; release: string };
   quest: { lead: string; text: string };

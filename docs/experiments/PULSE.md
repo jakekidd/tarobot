@@ -105,6 +105,34 @@
    silence), praise landed teases. flatness outranks a landed tease.
 5. thermometers, not gates: report move mix, plays returned/offered,
    em-dash density as observations.
+6. an in-register WHIFF — a joke that lands flat and gets a dry
+   two-word acknowledgment — is NOT a defect. zero comedic attempts
+   across a playful session IS. without this rule the optimizer
+   deletes humor the way it tried to eat the sass.
+
+## amendments (2026-08-06, post-comedy arbitration)
+
+- comedy = stance, not supply. no joker agent (v1's died "bits
+  banked, never played"; the pulse round reproduced the pathology).
+  shipped: comic moves as shapes (deadpan understatement, the
+  too-literal read, the callback), opinions-are-bits, the pause
+  bank's third slot may be a dry beat, whiff recovery shape. AWAITING
+  JAKE'S RULING: the robot card (does vesper know what she is —
+  persona-level fork, must be decided, not drifted into).
+- the fossil law gains its PROMOTION EXIT: a quotable line born in a
+  prompt either dies on the never-say list or GRADUATES into an
+  authored bank where echoing is legal (performance material was
+  always exempt — the library and the preshow are supposed to
+  repeat; the law targets instruction examples only). first
+  graduate: "slow night. that's allowed." → the host bank
+  (beats.json), handed into drought directives as her own book.
+- the PRESHOW shipped (materials/persona/preshow.md, v0 scaffolds —
+  jake rewrites): one rotation per session prepended to her context
+  as the scene she was already in. hers alone; never recounted; it
+  only colors. one rotation is deliberately wry — the comic primer.
+- up for debate, not shipped: the card-phase collapse
+  (investigator-with-cards + conjector + judges, behind the battery
+  A/B), the disclosure-volume familiarity drip, the tournament.
 
 ## protocol
 
